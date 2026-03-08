@@ -1,26 +1,40 @@
+/* app/globals.css — Tailwind v4 */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --font-serif: Georgia, Cambria, "Times New Roman", serif;
+
+  --color-navy-900: #0d1b2a;
+  --color-navy-800: #122336;
+  --color-navy-700: #163052;
+  --color-navy-600: #1e3a5f;
+  --color-navy-500: #2a5080;
+
+  --color-gold-300: #f0d88a;
+  --color-gold-400: #e8d08a;
+  --color-gold-500: #c9a84c;
+  --color-gold-600: #b8962a;
+
+  --color-slate-50:  #f7f9fc;
+  --color-slate-100: #f0f4f8;
+  --color-slate-200: #e8edf2;
+  --color-slate-300: #d0dae4;
+  --color-slate-400: #aab8c6;
+  --color-slate-500: #8a9bb0;
+  --color-slate-600: #5a7290;
+  --color-slate-700: #3a5270;
+  --color-slate-800: #2d3f52;
+  --color-slate-900: #1a2c3e;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base styles */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f0f4f8;
+  color: #2d3f52;
+  -webkit-font-smoothing: antialiased;
 }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a4a6a; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
