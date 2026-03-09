@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trinova ERP Frontend
 
-## Getting Started
+Frontend project for **Trinova ERP** built using **Next.js**.
 
-First, run the development server:
+---
+
+# 🚀 Getting Started
+
+Follow these steps after cloning the repository.
+
+## 1. Clone Repository
+
+```bash
+git clone <repository-url>
+cd trinova-erp-frontend
+```
+
+---
+
+## 2. Install Dependencies
+
+Install all required packages:
+
+```bash
+npm install
+```
+
+---
+
+## 3. Switch to Development Branch
+
+Before starting development, switch to the **development branch**:
+
+```bash
+git checkout development
+```
+
+If the branch does not appear, run:
+
+```bash
+git fetch origin
+git checkout development
+```
+
+---
+
+## 4. Create a Feature Branch
+
+Each feature must be developed in its **own branch**.
+
+Branch naming example:
+
+```
+feature/nama-fitur
+```
+
+Example:
+
+```bash
+git checkout -b feature/customer-page
+```
+
+---
+
+## 5. Run Development Server
+
+Start the Next.js development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open in browser:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+# 📂 Development Workflow
 
-To learn more about Next.js, take a look at the following resources:
+1. Clone repository
+2. Install dependencies
+3. Switch to **development branch**
+4. Create **feature branch**
+5. Develop your feature
+6. Push your branch to remote
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Example:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+git add .
+git commit -m "feat: add customer page"
+git push origin feature/customer-page
+```
 
-## Deploy on Vercel
+⚠️ **Do NOT merge directly to `development`.**
+Merge will be done later after review.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# 🛠 Tech Stack
+
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+
+---
+
+# 📖 Resources
+
+* https://nextjs.org/docs
+* https://nextjs.org/learn
