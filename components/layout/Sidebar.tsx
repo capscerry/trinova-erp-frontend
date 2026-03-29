@@ -27,7 +27,7 @@ export function Sidebar() {
     setOpenModule((prev) => (prev === id ? null : id));
 
   return (
-    <aside className="w-[248px] min-h-screen bg-navy-900 fixed left-0 top-0 flex flex-col z-50 font-serif">
+    <aside className="w-[248px] h-screen bg-navy-900 fixed left-0 top-0 flex flex-col z-50 font-serif">
       {/* ── Logo ─────────────────────────────────────────── */}
       <div className="px-5 py-6 border-b border-navy-700">
         <div className="flex items-center gap-3">

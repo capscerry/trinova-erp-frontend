@@ -11,15 +11,17 @@ type POStatus =
   | "Partially processed"
   | "Cancelled";
 
-interface PurchaseOrder {
+interface StokTransfer {
   id: string;
   nomor: string;
   tanggal: string;
-  supplier: string;
-  informasi: string;
+  tipe_transfer: string;
+  gudang_tujuan: string;
+  gudang_asal: string;
+  keterangan: string;
   status: POStatus;
-  total: number;
 }
+
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const formatRupiah = (n: number) =>
@@ -54,7 +56,7 @@ function POStatusBadge({ status }: { status: POStatus }) {
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
-const COLUMNS: Column<PurchaseOrder>[] = [
+const COLUMNS: Column<StokTransfer>[] = [
   {
     key: "nomor",
     label: "Number #",
@@ -76,16 +78,32 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     ),
   },
   {
-    key: "supplier",
-    label: "Supplier",
+    key: "tipe_transfer",
+    label: "Transfer Type",
     width: "200px",
     render: (val) => (
       <span className="font-medium text-slate-700">{String(val)}</span>
     ),
   },
   {
-    key: "informasi",
-    label: "Information",
+    key: "gudang_tujuan",
+    label: "Destination Warehouse",
+    width: "200px",
+    render: (val) => (
+        <span className="font-medium text-slate-700">{String(val)}</span>
+    ),
+  },
+  {
+    key: "gudang_asal",
+    label: "Source Warehouse",
+    width: "200px",
+    render: (val) => (
+      <span className="font-medium text-slate-700">{String(val)}</span>
+    ),
+  },
+  {
+    key: "keterangan",
+    label: "Keterangan",
     render: (val) => (
       <span className="text-slate-500 text-xs">{String(val) || "—"}</span>
     ),
@@ -96,27 +114,18 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     width: "180px",
     render: (val) => <POStatusBadge status={val as POStatus} />,
   },
-  {
-    key: "total",
-    label: "Total",
-    width: "150px",
-    render: (val) => (
-      <span className="font-semibold text-slate-700 tabular-nums">
-        {formatRupiah(Number(val))}
-      </span>
-    ),
-  },
+
 ];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
-export default function PurchaseOrderPage() {
+export default function StokTransferPage() {
   return (
-    <AppShell title="Purchase Order" subtitle="Kelola pesanan pembelian">
-      <DataTable<PurchaseOrder>
-        title="Daftar Purchase Order"
+    <AppShell title="Stock Transfer" subtitle="Kelola pesanan transfer stok">
+      <DataTable<StokTransfer>
+        title="Daftar Stock Transfer"
         columns={COLUMNS}
         data={[]}
-        addLabel="Tambah PO"
+        addLabel="Tambah Stock Transfer"
         onAdd={() => {
           // TODO: buka modal tambah purchase order
         }}

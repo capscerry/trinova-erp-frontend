@@ -4,22 +4,18 @@ import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 
 // ─── Type ──────────────────────────────────────────────────────────────────────
-interface Supplier {
+interface CategorySupplier {
   id: string;
-  kode: string;
-  nama: string;
-  telepon: string;
-  email: string;
-  alamat: string;
+  name : string;
+  status : string;
+  
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
-const COLUMNS: Column<Supplier>[] = [
+const COLUMNS: Column<CategorySupplier>[] = [
   { key: "kode",     label: "Kode Supplier", width: "140px" },
   { key: "nama",     label: "Nama Supplier" },
-  { key: "telepon",  label: "Telepon",       width: "140px" },
-  { key: "email",    label: "Email",         width: "200px" },
-  { key: "alamat",   label: "Alamat" },
+  { key: "status",  label: "Status",       width: "140px" },
 ];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────

@@ -11,14 +11,15 @@ type POStatus =
   | "Partially processed"
   | "Cancelled";
 
-interface PurchaseOrder {
+interface OrderFulfillment {
   id: string;
   nomor: string;
   tanggal: string;
-  supplier: string;
-  informasi: string;
-  status: POStatus;
-  total: number;
+
+pekerjaan: string;
+tipe_penyelesaian: string;
+  keterangan: string;
+
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ function POStatusBadge({ status }: { status: POStatus }) {
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
-const COLUMNS: Column<PurchaseOrder>[] = [
+const COLUMNS: Column<OrderFulfillment>[] = [
   {
     key: "nomor",
     label: "Number #",
@@ -76,43 +77,35 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     ),
   },
   {
-    key: "supplier",
-    label: "Supplier",
+    key: "pekerjaan",
+    label: "Pekerjaan",
     width: "200px",
     render: (val) => (
       <span className="font-medium text-slate-700">{String(val)}</span>
     ),
   },
   {
-    key: "informasi",
-    label: "Information",
+    key: "tipe_penyelesaian",
+    label: "Tipe Penyelesaian",
+    width: "180px", 
+    render: (val) => (
+      <span className="font-medium text-slate-700">{String(val)}</span>
+    ),  
+  },
+  {
+    key: "keterangan",
+    label: "Keterangan",
     render: (val) => (
       <span className="text-slate-500 text-xs">{String(val) || "—"}</span>
     ),
-  },
-  {
-    key: "status",
-    label: "Status",
-    width: "180px",
-    render: (val) => <POStatusBadge status={val as POStatus} />,
-  },
-  {
-    key: "total",
-    label: "Total",
-    width: "150px",
-    render: (val) => (
-      <span className="font-semibold text-slate-700 tabular-nums">
-        {formatRupiah(Number(val))}
-      </span>
-    ),
-  },
+  }
 ];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
-export default function PurchaseOrderPage() {
+export default function OrderFulfillmentPage() {
   return (
     <AppShell title="Purchase Order" subtitle="Kelola pesanan pembelian">
-      <DataTable<PurchaseOrder>
+      <DataTable<OrderFulfillment>
         title="Daftar Purchase Order"
         columns={COLUMNS}
         data={[]}

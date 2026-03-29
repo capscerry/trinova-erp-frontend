@@ -4,12 +4,21 @@ import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 
 // ─── Type ─────────────────────────────────────────────────────────────────────
-interface PurchaseReturn {
+type InvoiceStatus =
+  | "Not yet paid off"
+  | "Paid off"
+  | "Partially paid"
+  | "Cancelled";
+
+interface PurchaseInvoice {
   id: string;
   nomor: string;
+  invoiceNo: string;
   tanggal: string;
   supplier: string;
   informasi: string;
+  status: InvoiceStatus;
+  age: number;
   total: number;
 }
 
@@ -26,8 +35,30 @@ const formatNumber = (n: number) =>
     minimumFractionDigits: 0,
   }).format(n);
 
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+const STATUS_STYLE: Record<InvoiceStatus, string> = {
+  "Not yet paid off":
+    "bg-amber-50 text-amber-700 border border-amber-200",
+  "Paid off":
+    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  "Partially paid":
+    "bg-blue-50 text-blue-700 border border-blue-200",
+  "Cancelled":
+    "bg-rose-50 text-rose-600 border border-rose-200",
+};
+
+function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
+  return (
+    <span
+      className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLE[status]}`}
+    >
+      {status}
+    </span>
+  );
+}
+
 // ─── Columns (Sesuai Gambar) ──────────────────────────────────────────────────
-const COLUMNS: Column<PurchaseReturn>[] = [
+const COLUMNS: Column<PurchaseInvoice>[] = [
   {
     key: "nomor",
     label: "Number #",
@@ -37,6 +68,11 @@ const COLUMNS: Column<PurchaseReturn>[] = [
         {String(val)}
       </span>
     ),
+  },
+  {
+    key: "invoiceNo",
+    label: "Invoice No #",
+    width: "180px",
   },
   {
     key: "tanggal",
@@ -59,10 +95,23 @@ const COLUMNS: Column<PurchaseReturn>[] = [
   {
     key: "informasi",
     label: "Information",
+    width: "200px",
     render: (val) => (
-      <span className="text-slate-500 text-xs">
-        {String(val) || "—"}
-      </span>
+      <span className="text-slate-500 text-xs">{String(val) || "—"}</span>
+    ),
+  },
+  {
+    key: "status",
+    label: "Status",
+    width: "160px",
+    render: (val) => <InvoiceStatusBadge status={val as InvoiceStatus} />,
+  },
+  {
+    key: "age",
+    label: "Age (day)",
+    width: "120px",
+    render: (val) => (
+      <span className="text-slate-600">{formatNumber(Number(val))}</span>
     ),
   },
   {
@@ -78,19 +127,19 @@ const COLUMNS: Column<PurchaseReturn>[] = [
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function PurchaseReturnsPage() {
+export default function PurchaseInvoicePage() {
   return (
     <AppShell
-      title="Purchase Returns"
-      subtitle="Kelola pengembalian pembelian"
+      title="Purchase Invoice"
+      subtitle="Kelola invoice pembelian"
     >
-      <DataTable<PurchaseReturn>
-        title="Daftar Purchase Returns"
+      <DataTable<PurchaseInvoice>
+        title="Daftar Purchase Invoice"
         columns={COLUMNS}
-        data={[]} 
-        addLabel="Tambah Purchase Return"
+        data={[]}   // data tetap kosong
+        addLabel="Tambah Purchase Invoice"
         onAdd={() => {
-          // TODO: buka modal tambah purchase return
+          // TODO: buka modal tambah purchase invoice
         }}
         keyField="id"
       />
