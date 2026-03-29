@@ -10,11 +10,15 @@ import axios from "axios";
 // ─── Type ─────────────────────────────────────────────────────────────────────
 interface KategoriCustomer {
   no : string;
-  nama: string;
+  id : number;
+  nama: string; 
 }
+
 type CategoryResponse = {
+  id:number;
   namaKategori: string;
 };
+
 const COLUMNS: Column<KategoriCustomer>[] = [
   {
     key: "no",
@@ -42,6 +46,7 @@ export default function KategoriCustomerPage() {
 
       const mapped = result.map((item: CategoryResponse, index: number) => ({
         no: (index + 1).toString(),
+        id: item.id,
         nama: item.namaKategori
       }));
 
@@ -52,6 +57,7 @@ export default function KategoriCustomerPage() {
   };
 
   useEffect(()=>{
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCategoryCustomer();
   },[])
         
@@ -62,29 +68,41 @@ export default function KategoriCustomerPage() {
     setModalOpen(true);
   };
 
-  const handleSubmit =  async (formData: KategoriFormData) => {
+  const handleSubmit = async (formData : KategoriFormData) => {
     try{
-      const response = await axios.post("https://localhost:7283/api/category-customer",{
-        NamaKategori : formData.nama,
-      });
-      
-      if(response != null){
-        setMessage(response.data);
-      }
+       if(formData.id){
+          const response = await axios.put(`https://localhost:7283/api/category-customer/${formData.id}`,{
+            NamaKategori : formData.nama,
+          });
+          if(response != null){
+            setMessage(response.data.message);
+          }
+       }else{
+          const response = await axios.post("https://localhost:7283/api/category-customer",{
+            NamaKategori : formData.nama,
+          });
 
-      await fetchCategoryCustomer();
-
+          if(response != null){
+            setMessage(response.data);
+          }
+       }
+        await fetchCategoryCustomer();
     }catch(error){
       console.error("Gagal menambahkan kategori:", error);
     }
+  }
+
+  
+
+
+
+  const handleEdit = (row: KategoriCustomer) => {
+    setEditData({
+      id:row.id,
+      nama : row.nama,
+    });
+    setModalOpen(true);
   };
-
-
-
-  // const handleEdit = (row: KategoriCustomer) => {
-  //   setEditData(row as KategoriFormData);
-  //   setModalOpen(true);
-  // };
 
   // const handleHapus = (row: KategoriCustomer) => {
   //   // TODO: ganti dengan konfirmasi dialog
@@ -125,7 +143,7 @@ export default function KategoriCustomerPage() {
           <div className="flex items-center gap-1.5 justify-center">
             
               <button
-                // onClick={() => handleEdit(row)}
+                onClick={() => handleEdit(row)}
                 className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
                           bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
               >

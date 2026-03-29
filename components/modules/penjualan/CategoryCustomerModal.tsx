@@ -5,6 +5,7 @@ import { X, Hash, Tag, FileText, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface KategoriFormData {
+  id : number;
   nama: string;
 }
 
@@ -18,16 +19,22 @@ interface KategoriModalProps {
 
 
 const EMPTY_FORM: KategoriFormData = {
+  id: 0,
   nama: "",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function KategoriCustomerModal({ open, onClose, onSubmit, initialData }: KategoriModalProps) {
   const isEdit = !!initialData;
-  const [form, setForm] = useState<KategoriFormData>(()=>
-    initialData ?? { ...EMPTY_FORM }
-  );
+  const [form, setForm] = useState<KategoriFormData>(EMPTY_FORM);
 
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
+    } else {
+      setForm(EMPTY_FORM);
+    }
+  }, [initialData]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
