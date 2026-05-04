@@ -14,11 +14,11 @@ type POStatus =
 interface PurchaseOrder {
   id: string;
   nomor: string;
+  receive_no: string;
   tanggal: string;
   supplier: string;
-  informasi: string;
+  infomation: string;
   status: POStatus;
-  total: number;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -64,7 +64,17 @@ const COLUMNS: Column<PurchaseOrder>[] = [
         {String(val)}
       </span>
     ),
+  },{
+    key: "receive_no",
+    label: "Receive No",
+    width: "160px",
+    render: (val) => (
+      <span className="text-slate-600 whitespace-nowrap">
+        {formatDate(String(val))}
+      </span>
+    ),
   },
+
   {
     key: "tanggal",
     label: "Date",
@@ -95,30 +105,20 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     label: "Status",
     width: "180px",
     render: (val) => <POStatusBadge status={val as POStatus} />,
-  },
-  {
-    key: "total",
-    label: "Total",
-    width: "150px",
-    render: (val) => (
-      <span className="font-semibold text-slate-700 tabular-nums">
-        {formatRupiah(Number(val))}
-      </span>
-    ),
-  },
+  }
 ];
-
+    
 // ─── Page ──────────────────────────────────────────────────────────────────────
-export default function PurchaseOrderPage() {
+export default function GoodReceivePage() {
   return (
-    <AppShell title="Purchase Order" subtitle="Kelola pesanan pembelian">
+    <AppShell title="Good Receive" subtitle="Kelola pesanan pembelian">
       <DataTable<PurchaseOrder>
-        title="Daftar Purchase Order"
+        title="Daftar Good Receive"
         columns={COLUMNS}
         data={[]}
-        addLabel="Tambah PO"
+        addLabel="Tambah Good Receive"
         onAdd={() => {
-          // TODO: buka modal tambah purchase order
+          // TODO: buka modal tambah good receive
         }}
         keyField="id"
       />

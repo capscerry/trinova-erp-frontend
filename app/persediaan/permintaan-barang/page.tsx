@@ -11,12 +11,12 @@ type POStatus =
   | "Partially processed"
   | "Cancelled";
 
-interface PurchaseOrder {
+interface GoodRequest {
   id: string;
   nomor: string;
   tanggal: string;
-  supplier: string;
-  informasi: string;
+  tipe_permintaan: string;
+  keterangan: string;
   status: POStatus;
   total: number;
 }
@@ -54,7 +54,7 @@ function POStatusBadge({ status }: { status: POStatus }) {
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
-const COLUMNS: Column<PurchaseOrder>[] = [
+const COLUMNS: Column<GoodRequest>[] = [
   {
     key: "nomor",
     label: "Number #",
@@ -76,16 +76,16 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     ),
   },
   {
-    key: "supplier",
-    label: "Supplier",
+    key: "tipe_permintaan",
+    label: "Request Type",
     width: "200px",
     render: (val) => (
       <span className="font-medium text-slate-700">{String(val)}</span>
     ),
   },
   {
-    key: "informasi",
-    label: "Information",
+    key: "keterangan",
+    label: "Description",
     render: (val) => (
       <span className="text-slate-500 text-xs">{String(val) || "—"}</span>
     ),
@@ -109,16 +109,16 @@ const COLUMNS: Column<PurchaseOrder>[] = [
 ];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
-export default function PurchaseOrderPage() {
+export default function GoodRequestPage() {
   return (
-    <AppShell title="Purchase Order" subtitle="Kelola pesanan pembelian">
-      <DataTable<PurchaseOrder>
-        title="Daftar Purchase Order"
+    <AppShell title="Good Request" subtitle="Kelola pesanan pembelian">
+      <DataTable<GoodRequest>
+        title="Daftar Good Request"
         columns={COLUMNS}
         data={[]}
-        addLabel="Tambah PO"
+        addLabel="Tambah Good Request"
         onAdd={() => {
-          // TODO: buka modal tambah purchase order
+          // TODO: buka modal tambah good request
         }}
         keyField="id"
       />
