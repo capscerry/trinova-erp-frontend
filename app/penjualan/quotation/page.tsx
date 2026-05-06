@@ -24,16 +24,6 @@ interface SalesQuotation {
   total: number;
 }
 
-// ─── Dummy Data ───────────────────────────────────────────────────────────────
-const INITIAL_DATA: SalesQuotation[] = [
-  { id: "1", nomor: "SQ-2026-001", tanggal: "2026-03-01", pelanggan: "PT Maju Bersama",  dipesanOleh: "Ahmad Rizky",  keterangan: "Penawaran produk elektronik Q1", status: "Disetujui",  sudahDicetak: true,  total: 15000000 },
-  { id: "2", nomor: "SQ-2026-002", tanggal: "2026-03-05", pelanggan: "CV Sinar Terang",  dipesanOleh: "Budi Santoso", keterangan: "Penawaran ATK bulanan",           status: "Dikirim",    sudahDicetak: true,  total: 3200000  },
-  { id: "3", nomor: "SQ-2026-003", tanggal: "2026-03-08", pelanggan: "Toko Berkah Jaya", dipesanOleh: "Ahmad Rizky",  keterangan: "",                                status: "Draft",      sudahDicetak: false, total: 7500000  },
-  { id: "4", nomor: "SQ-2026-004", tanggal: "2026-03-10", pelanggan: "PT Karya Mandiri", dipesanOleh: "Citra Dewi",   keterangan: "Penawaran laptop dan aksesoris",   status: "Ditolak",    sudahDicetak: false, total: 42000000 },
-  { id: "5", nomor: "SQ-2026-005", tanggal: "2026-03-12", pelanggan: "UD Sejahtera",     dipesanOleh: "Budi Santoso", keterangan: "Penawaran printer dan tinta",      status: "Disetujui",  sudahDicetak: true,  total: 8900000  },
-  { id: "6", nomor: "SQ-2026-006", tanggal: "2026-03-15", pelanggan: "CV Mitra Usaha",   dipesanOleh: "Citra Dewi",   keterangan: "",                                status: "Draft",      sudahDicetak: false, total: 5100000  },
-  { id: "7", nomor: "SQ-2026-007", tanggal: "2026-02-20", pelanggan: "PT Global Niaga",  dipesanOleh: "Ahmad Rizky",  keterangan: "Penawaran server dan jaringan",    status: "Kadaluarsa", sudahDicetak: true,  total: 98000000 },
-];
 
 const STATUS_OPTIONS = ["Semua", "Draft", "Dikirim", "Disetujui", "Ditolak", "Kadaluarsa"];
 const DIPESAN_OPTIONS = ["Semua", "Ahmad Rizky", "Budi Santoso", "Citra Dewi"];
@@ -99,7 +89,7 @@ function FilterDropdown({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SalesQuotationPage() {
-  const [data] = useState<SalesQuotation[]>(INITIAL_DATA);
+  const [data] = useState<SalesQuotation[]>([]);
   const [search, setSearch]           = useState("");
   const [page, setPage]               = useState(1);
   const [filterStatus, setFilterStatus]     = useState("Semua");

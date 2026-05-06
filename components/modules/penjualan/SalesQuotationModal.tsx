@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
-  X, Hash, Calendar, User, Users, FileText,
-  ToggleLeft, Plus, Trash2, Package, ChevronDown,
+  X, Hash, Calendar, Users, FileText,
+   Plus, Trash2, Package, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +23,8 @@ export interface QuotationItem {
 export interface SalesQuotationFormData {
   nomor: string;
   tanggal: string;
-  pelanggan: string;
   dipesanOleh: string;
   keterangan: string;
-  status: "Draft" | "Dikirim" | "Disetujui" | "Ditolak" | "Kadaluarsa";
   items: QuotationItem[];
 }
 
@@ -37,16 +36,6 @@ interface SalesQuotationModalProps {
 }
 
 // ─── Dummy Options ────────────────────────────────────────────────────────────
-const PELANGGAN_OPTIONS = [
-  "PT Maju Bersama",
-  "CV Sinar Terang",
-  "Toko Berkah Jaya",
-  "PT Karya Mandiri",
-  "UD Sejahtera",
-  "CV Mitra Usaha",
-  "PT Global Niaga",
-];
-
 const PRODUK_OPTIONS = [
   { nama: "Laptop Asus X415",         satuan: "Unit",  harga: 6500000 },
   { nama: "Printer Canon G2020",      satuan: "Unit",  harga: 1200000 },
@@ -56,16 +45,6 @@ const PRODUK_OPTIONS = [
   { nama: "Keyboard Mechanical",      satuan: "Unit",  harga: 750000  },
   { nama: "Monitor LG 24\"",          satuan: "Unit",  harga: 2800000 },
 ];
-
-const DIPESAN_OPTIONS = ["Ahmad Rizky", "Budi Santoso", "Citra Dewi"];
-const STATUS_OPTIONS  = ["Draft", "Dikirim", "Disetujui", "Ditolak", "Kadaluarsa"] as const;
-const STATUS_COLORS: Record<string, string> = {
-  Draft:      "bg-slate-100 text-slate-600 border-slate-300",
-  Dikirim:    "bg-blue-50 text-blue-700 border-blue-300",
-  Disetujui:  "bg-green-50 text-green-700 border-green-300",
-  Ditolak:    "bg-red-50 text-red-700 border-red-300",
-  Kadaluarsa: "bg-orange-50 text-orange-700 border-orange-300",
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function generateNomor(): string {
@@ -93,9 +72,10 @@ function newItem(): QuotationItem {
 }
 
 const EMPTY_FORM: SalesQuotationFormData = {
-  nomor: "", tanggal: todayStr(),
-  pelanggan: "", dipesanOleh: "",
-  keterangan: "", status: "Draft",
+  nomor: "",
+  tanggal: todayStr(),
+  dipesanOleh: "",
+  keterangan: "",
   items: [newItem()],
 };
 
@@ -104,15 +84,26 @@ export function SalesQuotationModal({
   open, onClose, onSubmit, initialData,
 }: SalesQuotationModalProps) {
   const isEdit = !!initialData;
-  const [form, setForm] = useState<SalesQuotationFormData>(()=>
-initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), items: [newItem()] }
-);
+  const [form, setForm] = useState<SalesQuotationFormData>(() =>
+    initialData ?? { ...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), items: [newItem()] }
+  );
 
-//   useEffect(() => {
-//     if (open) {
-//       setForm(initialData ?? { });
-//     }
-//   }, [open, initialData]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      try {
+        const res = await fetch("https://localhost:7283/api/customer");
+        const json = await res.json();
+        setCustomerOptions(
+          json.data.map((c: any) => c.customerName)
+        );
+      } catch (err) {
+        console.log(err);
+      }
+    };
+    fetchCustomerData();
+  }, []);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -163,7 +154,7 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
       {/* Backdrop */}
       <div onClick={onClose} className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40" />
 
-      {/* Modal — wider to fit line items */}
+      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh]
                         flex flex-col border border-slate-200 overflow-hidden">
@@ -195,7 +186,7 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
             <Section title="Informasi Dasar">
 
               {/* Row 1: Nomor + Tanggal */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <FormField label="Nomor Quotation" icon={<Hash size={13} />} hint="Auto-generate">
                   <input
                     readOnly value={form.nomor}
@@ -211,47 +202,19 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
                 </FormField>
               </div>
 
-              {/* Row 2: Pelanggan + Dipesan Oleh */}
+              {/* Row 2: Dipesan Oleh */}
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Pelanggan" icon={<User size={13} />} required>
-                  <SelectField
-                    value={form.pelanggan}
-                    placeholder="Pilih pelanggan..."
-                    options={PELANGGAN_OPTIONS}
-                    onChange={(v) => setField("pelanggan", v)}
-                  />
-                </FormField>
                 <FormField label="Dipesan Oleh" icon={<Users size={13} />} required>
                   <SelectField
                     value={form.dipesanOleh}
                     placeholder="Pilih sales..."
-                    options={DIPESAN_OPTIONS}
+                    options={customerOptions}
                     onChange={(v) => setField("dipesanOleh", v)}
                   />
                 </FormField>
               </div>
 
-              {/* Row 3: Status */}
-              <FormField label="Status" icon={<ToggleLeft size={13} />}>
-                <div className="flex gap-2 flex-wrap">
-                  {STATUS_OPTIONS.map((s) => (
-                    <button
-                      key={s} type="button"
-                      onClick={() => setField("status", s)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                        form.status === s
-                          ? STATUS_COLORS[s]
-                          : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"
-                      )}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </FormField>
-
-              {/* Row 4: Keterangan */}
+              {/* Row 3: Keterangan */}
               <FormField label="Keterangan" icon={<FileText size={13} />}>
                 <textarea
                   value={form.keterangan}
@@ -278,19 +241,22 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
               }
             >
               {/* Item table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full border-collapse text-xs">
+              <div className="border border-slate-200 rounded-xl overflow-visible">
+                <table className="w-full border-collapse text-xs table-fixed min-w-[640px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      {["Produk", "Deskripsi", "Qty", "Satuan", "Harga", "Diskon %", "Subtotal", ""].map((h) => (
-                        <th key={h} className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                          {h}
-                        </th>
-                      ))}
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[22%]">Produk</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Deskripsi</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Qty</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Satuan</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Harga</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Diskon %</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
+                      <th className="px-3 py-2.5 w-[5%]"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {form.items.map((item, idx) => (
+                    {form.items.map((item) => (
                       <tr key={item.id} className="group hover:bg-slate-50/50">
 
                         {/* Produk */}
@@ -311,17 +277,17 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
                             value={item.deskripsi}
                             onChange={(e) => updateItem(item.id, { deskripsi: e.target.value })}
                             placeholder="Opsional..."
-                            className={cn(inputCompact, "w-28")}
+                            className={cn(inputCompact, "w-full")}
                           />
                         </td>
 
                         {/* Qty */}
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 ">
                           <input
                             type="number" min={1}
                             value={item.qty}
                             onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-14 text-center")}
+                            className={cn(inputCompact, "w-full text-center")}
                           />
                         </td>
 
@@ -331,7 +297,7 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
                             type="text"
                             value={item.satuan}
                             onChange={(e) => updateItem(item.id, { satuan: e.target.value })}
-                            className={cn(inputCompact, "w-16")}
+                            className={cn(inputCompact, "w-full")}
                           />
                         </td>
 
@@ -341,7 +307,7 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
                             type="number" min={0}
                             value={item.harga}
                             onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-28")}
+                            className={cn(inputCompact, "w-full")}
                           />
                         </td>
 
@@ -351,17 +317,17 @@ initialData ?? {...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), item
                             type="number" min={0} max={100}
                             value={item.diskon}
                             onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-14 text-center")}
+                            className={cn(inputCompact, "w-full text-center")}
                           />
                         </td>
 
                         {/* Subtotal */}
-                        <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap">
+                        <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap text-right">
                           {formatRupiah(item.subtotal)}
                         </td>
 
                         {/* Hapus baris */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <button
                             onClick={() => removeItem(item.id)}
                             disabled={form.items.length === 1}
@@ -466,12 +432,29 @@ function SelectField({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+    setOpen((p) => !p);
+  };
 
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((p) => !p)}
+        onClick={handleOpen}
         className={cn(
           "w-full flex items-center justify-between gap-2 border border-slate-200 bg-white",
           "text-left transition-all focus:outline-none",
@@ -486,11 +469,17 @@ function SelectField({
         <ChevronDown size={12} className={cn("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 z-20 bg-white border border-slate-200
-                          rounded-xl shadow-lg py-1 min-w-full max-h-48 overflow-y-auto">
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 9998 }}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            style={dropdownStyle}
+            className="bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto"
+          >
             {options.map((opt) => (
               <button
                 key={opt} type="button"
@@ -506,7 +495,8 @@ function SelectField({
               </button>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
