@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   X, Hash, Calendar, Users, FileText,
-   Plus, Trash2, Package, ChevronDown,
+  Plus, Trash2, ChevronDown, Search, MapPin, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,19 +23,25 @@ export interface QuotationItem {
 export interface SalesQuotationFormData {
   nomor: string;
   tanggal: string;
-  dipesanOleh: string;
+  customerId: number | null;       // ID dari API, untuk dikirim ke backend
+  dipesanOleh: string;             // nama customer (untuk display)
+  address: string;
   keterangan: string;
+  kenaPajak: boolean;
+  totalTermasukPajak: boolean;
   items: QuotationItem[];
 }
 
 interface SalesQuotationModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: SalesQuotationFormData) => void;
+  onSubmit: (data: SalesQuotationFormData) => void | Promise<void>;
   initialData?: SalesQuotationFormData;
+  submitting?: boolean;
 }
 
 // ─── Dummy Options ────────────────────────────────────────────────────────────
+// NOTE: Nanti data ini akan di-fetch dari API
 const PRODUK_OPTIONS = [
   { nama: "Laptop Asus X415",         satuan: "Unit",  harga: 6500000 },
   { nama: "Printer Canon G2020",      satuan: "Unit",  harga: 1200000 },
@@ -44,6 +50,11 @@ const PRODUK_OPTIONS = [
   { nama: "Tinta Printer Hitam",      satuan: "Botol", harga: 85000   },
   { nama: "Keyboard Mechanical",      satuan: "Unit",  harga: 750000  },
   { nama: "Monitor LG 24\"",          satuan: "Unit",  harga: 2800000 },
+];
+
+// NOTE: Nanti data satuan ini juga akan di-fetch dari API
+const SATUAN_OPTIONS = [
+  "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,29 +85,43 @@ function newItem(): QuotationItem {
 const EMPTY_FORM: SalesQuotationFormData = {
   nomor: "",
   tanggal: todayStr(),
+  customerId: null,
   dipesanOleh: "",
+  address: "",
   keterangan: "",
+  kenaPajak: false,
+  totalTermasukPajak: false,
   items: [newItem()],
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function SalesQuotationModal({
-  open, onClose, onSubmit, initialData,
+  open, onClose, onSubmit, initialData, submitting = false,
 }: SalesQuotationModalProps) {
   const isEdit = !!initialData;
   const [form, setForm] = useState<SalesQuotationFormData>(() =>
     initialData ?? { ...EMPTY_FORM, nomor: generateNomor(), tanggal: todayStr(), items: [newItem()] }
   );
 
-  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+  // ── Customer options dari API ────────────────────────
+  // Disimpan sebagai { id, name } supaya saat user pilih nama,
+  // kita juga punya id untuk dikirim ke backend (CustomerId).
+  const [customerOptions, setCustomerOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
       try {
         const res = await fetch("https://localhost:7283/api/customer");
         const json = await res.json();
+        // Sesuaikan field id-nya kalau response API beda — saat ini coba
+        // beberapa kemungkinan: customerId / id / Id
         setCustomerOptions(
-          json.data.map((c: any) => c.customerName)
+          (json.data ?? []).map((c: any) => ({
+            id: c.customerId ?? c.id ?? c.Id,
+            name: c.customerName,
+          }))
         );
       } catch (err) {
         console.log(err);
@@ -104,6 +129,16 @@ export function SalesQuotationModal({
     };
     fetchCustomerData();
   }, []);
+
+  // Saat user pilih customer dari dropdown, simpan name + id
+  const selectCustomer = (name: string) => {
+    const found = customerOptions.find((c) => c.name === name);
+    setForm((p) => ({
+      ...p,
+      dipesanOleh: name,
+      customerId: found?.id ?? null,
+    }));
+  };
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -145,7 +180,7 @@ export function SalesQuotationModal({
   // ── Totals ───────────────────────────────────────────
   const grandTotal = form.items.reduce((sum, i) => sum + i.subtotal, 0);
 
-  const handleSubmit = () => { onSubmit(form); onClose(); };
+  const handleSubmit = () => { onSubmit(form); };
 
   if (!open) return null;
 
@@ -156,7 +191,7 @@ export function SalesQuotationModal({
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh]
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh]
                         flex flex-col border border-slate-200 overflow-hidden">
 
           {/* ── Modal Header ──────────────────────────── */}
@@ -202,14 +237,23 @@ export function SalesQuotationModal({
                 </FormField>
               </div>
 
-              {/* Row 2: Dipesan Oleh */}
+              {/* Row 2: Dipesan Oleh + Address */}
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Dipesan Oleh" icon={<Users size={13} />} required>
-                  <SelectField
+                  <SearchField
                     value={form.dipesanOleh}
-                    placeholder="Pilih sales..."
-                    options={customerOptions}
-                    onChange={(v) => setField("dipesanOleh", v)}
+                    placeholder="Cari sales..."
+                    options={customerOptions.map((c) => c.name)}
+                    onChange={selectCustomer}
+                  />
+                </FormField>
+                <FormField label="Address" icon={<MapPin size={13} />}>
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={(e) => setField("address", e.target.value)}
+                    placeholder="Alamat customer..."
+                    className={inputBase}
                   />
                 </FormField>
               </div>
@@ -224,6 +268,20 @@ export function SalesQuotationModal({
                   className={cn(inputBase, "resize-none")}
                 />
               </FormField>
+
+              {/* Row 4: Checkbox Pajak */}
+              <div className="flex items-center gap-6 pt-1">
+                <Checkbox
+                  label="Kena Pajak"
+                  checked={form.kenaPajak}
+                  onChange={(v) => setField("kenaPajak", v)}
+                />
+                <Checkbox
+                  label="Total termasuk Pajak"
+                  checked={form.totalTermasukPajak}
+                  onChange={(v) => setField("totalTermasukPajak", v)}
+                />
+              </div>
             </Section>
 
             {/* Section: Detail Produk */}
@@ -242,16 +300,16 @@ export function SalesQuotationModal({
             >
               {/* Item table */}
               <div className="border border-slate-200 rounded-xl overflow-visible">
-                <table className="w-full border-collapse text-xs table-fixed min-w-[640px]">
+                <table className="w-full border-collapse text-xs table-fixed min-w-[860px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[22%]">Produk</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[20%]">Produk</th>
                       <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Deskripsi</th>
                       <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Qty</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Satuan</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Harga</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[11%]">Satuan</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Harga</th>
                       <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Diskon %</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
+                      <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
                       <th className="px-3 py-2.5 w-[5%]"></th>
                     </tr>
                   </thead>
@@ -259,14 +317,13 @@ export function SalesQuotationModal({
                     {form.items.map((item) => (
                       <tr key={item.id} className="group hover:bg-slate-50/50">
 
-                        {/* Produk */}
+                        {/* Produk - Search Field */}
                         <td className="px-3 py-2">
-                          <SelectField
+                          <ProductSearchField
                             value={item.produk}
-                            placeholder="Pilih produk..."
-                            options={PRODUK_OPTIONS.map((p) => p.nama)}
+                            placeholder="Cari produk..."
+                            options={PRODUK_OPTIONS}
                             onChange={(v) => selectProduk(item.id, v)}
-                            compact
                           />
                         </td>
 
@@ -281,8 +338,8 @@ export function SalesQuotationModal({
                           />
                         </td>
 
-                        {/* Qty */}
-                        <td className="px-3 py-2 ">
+                        {/* Qty - lebar diperbaiki */}
+                        <td className="px-3 py-2">
                           <input
                             type="number" min={1}
                             value={item.qty}
@@ -291,13 +348,14 @@ export function SalesQuotationModal({
                           />
                         </td>
 
-                        {/* Satuan */}
+                        {/* Satuan - sekarang dropdown */}
                         <td className="px-3 py-2">
-                          <input
-                            type="text"
+                          <SelectField
                             value={item.satuan}
-                            onChange={(e) => updateItem(item.id, { satuan: e.target.value })}
-                            className={cn(inputCompact, "w-full")}
+                            placeholder="Pilih..."
+                            options={SATUAN_OPTIONS}
+                            onChange={(v) => updateItem(item.id, { satuan: v })}
+                            compact
                           />
                         </td>
 
@@ -366,18 +424,29 @@ export function SalesQuotationModal({
                           border-t border-slate-100 bg-slate-50/60 shrink-0">
             <button
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2 text-sm font-semibold text-slate-600
                          bg-white border border-slate-200 rounded-lg
-                         hover:bg-slate-100 transition-colors"
+                         hover:bg-slate-100 transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Batal
             </button>
             <button
               onClick={handleSubmit}
+              disabled={submitting}
               className="px-5 py-2 text-sm font-semibold text-gold-400
-                         bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm"
+                         bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm
+                         disabled:opacity-70 disabled:cursor-not-allowed
+                         inline-flex items-center gap-2"
             >
-              {isEdit ? "Simpan Perubahan" : "Buat Quotation"}
+              {submitting && (
+                <span className="w-3.5 h-3.5 border-2 border-gold-400/30 border-t-gold-400
+                                 rounded-full animate-spin" />
+              )}
+              {submitting
+                ? "Menyimpan..."
+                : (isEdit ? "Simpan Perubahan" : "Buat Quotation")}
             </button>
           </div>
 
@@ -420,6 +489,293 @@ function FormField({
       </label>
       {children}
     </div>
+  );
+}
+
+// ─── ProductSearchField ──────────────────────────────────────────────────────
+// Field khusus produk: user bisa mengetik untuk mencari produk,
+// hasil pencarian muncul sebagai dropdown yang bisa dipilih.
+function ProductSearchField({
+  value, placeholder, options, onChange,
+}: {
+  value: string;
+  placeholder: string;
+  options: { nama: string; satuan: string; harga: number }[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Sinkronkan query saat value berubah dari luar
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  // Filter berdasarkan input user
+  const filtered = options.filter((opt) =>
+    opt.nama.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const updateDropdownPosition = () => {
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 240), // minimal lebar agar info produk terbaca
+        zIndex: 9999,
+      });
+    }
+  };
+
+  const handleFocus = () => {
+    updateDropdownPosition();
+    setOpen(true);
+  };
+
+  const handleSelect = (nama: string) => {
+    onChange(nama);
+    setQuery(nama);
+    setOpen(false);
+  };
+
+  const handleChange = (v: string) => {
+    setQuery(v);
+    if (!open) {
+      updateDropdownPosition();
+      setOpen(true);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <Search
+          size={12}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+        />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          onFocus={handleFocus}
+          onChange={(e) => handleChange(e.target.value)}
+          className={cn(
+            "w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white",
+            "text-slate-700 placeholder-slate-400",
+            "focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500",
+            "transition-all"
+          )}
+        />
+      </div>
+
+      {open && createPortal(
+        <>
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 9998 }}
+            onClick={() => {
+              setOpen(false);
+              // Jika user batal pilih, kembalikan ke value yg tersimpan
+              setQuery(value);
+            }}
+          />
+          <div
+            style={dropdownStyle}
+            className="bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto"
+          >
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-center text-xs text-slate-400">
+                Produk tidak ditemukan
+              </div>
+            ) : (
+              filtered.map((opt) => (
+                <button
+                  key={opt.nama}
+                  type="button"
+                  onClick={() => handleSelect(opt.nama)}
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-xs transition-colors",
+                    "flex items-center justify-between gap-3",
+                    opt.nama === value
+                      ? "bg-navy-900 text-gold-400 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  <span className="truncate">{opt.nama}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] shrink-0 font-mono",
+                      opt.nama === value ? "text-gold-400/80" : "text-slate-400"
+                    )}
+                  >
+                    {formatRupiah(opt.harga)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ─── SearchField (generic text search) ───────────────────────────────────────
+// Field pencarian teks biasa: user mengetik untuk filter list, hasilnya muncul
+// sebagai dropdown. Dipakai untuk field seperti "Dipesan Oleh" yang datanya
+// hanya string list (tanpa info tambahan seperti harga).
+function SearchField({
+  value, placeholder, options, onChange,
+}: {
+  value: string;
+  placeholder: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  const filtered = options.filter((opt) =>
+    opt.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const updateDropdownPosition = () => {
+    if (wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+  };
+
+  const handleFocus = () => {
+    updateDropdownPosition();
+    setOpen(true);
+  };
+
+  const handleSelect = (opt: string) => {
+    onChange(opt);
+    setQuery(opt);
+    setOpen(false);
+  };
+
+  const handleChange = (v: string) => {
+    setQuery(v);
+    if (!open) {
+      updateDropdownPosition();
+      setOpen(true);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <Search
+          size={13}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+        />
+        <input
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          onFocus={handleFocus}
+          onChange={(e) => handleChange(e.target.value)}
+          className={cn(
+            "w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white",
+            "text-slate-700 placeholder-slate-400",
+            "focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500",
+            "transition-all"
+          )}
+        />
+      </div>
+
+      {open && createPortal(
+        <>
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 9998 }}
+            onClick={() => {
+              setOpen(false);
+              setQuery(value);
+            }}
+          />
+          <div
+            style={dropdownStyle}
+            className="bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto"
+          >
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-center text-xs text-slate-400">
+                Tidak ditemukan
+              </div>
+            ) : (
+              filtered.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className={cn(
+                    "w-full text-left px-4 py-2 text-sm transition-colors",
+                    opt === value
+                      ? "bg-navy-900 text-gold-400 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  {opt}
+                </button>
+              ))
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+function Checkbox({
+  label, checked, onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="inline-flex items-center gap-2 group focus:outline-none"
+    >
+      <span
+        className={cn(
+          "w-4 h-4 rounded border flex items-center justify-center transition-all",
+          "group-focus-visible:ring-2 group-focus-visible:ring-navy-600/20",
+          checked
+            ? "bg-navy-900 border-navy-900"
+            : "bg-white border-slate-300 group-hover:border-navy-500"
+        )}
+      >
+        {checked && <Check size={11} className="text-gold-400" strokeWidth={3} />}
+      </span>
+      <span className="text-sm text-slate-700 select-none">{label}</span>
+    </button>
   );
 }
 

@@ -9,7 +9,10 @@ import {
   ChevronDown, SlidersHorizontal, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
+import {
+  SalesQuotationModal,
+  type SalesQuotationFormData,
+} from "@/components/modules/penjualan/SalesQuotationModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface SalesQuotation {
@@ -24,6 +27,33 @@ interface SalesQuotation {
   total: number;
 }
 
+// ─── API Config ──────────────────────────────────────────────────────────────
+// NOTE: Ganti URL di bawah saat backend sudah live
+const API_BASE = "https://localhost:7283/api";
+const API_QUOTATION = `${API_BASE}/SalesQuotation`;
+
+// ─── Dummy ID Mapping ────────────────────────────────────────────────────────
+// Backend butuh integer ID (ProductId, UomId) sementara form item menyimpan
+// nama string. Mapping dummy ini nanti diganti dengan data dari API (saat
+// fetch list product/uom, simpan id-nya juga seperti yang sudah dilakukan
+// untuk customer di modal).
+//
+// Catatan: CustomerId tidak perlu mapping karena modal sudah fetch customer
+// dari API dan menyimpan id-nya langsung di form.customerId.
+const PRODUCT_ID_MAP: Record<string, number> = {
+  "Laptop Asus X415": 1,
+  "Printer Canon G2020": 2,
+  "Mouse Wireless Logitech": 3,
+  "Kertas HVS A4 80gr": 4,
+  "Tinta Printer Hitam": 5,
+  "Keyboard Mechanical": 6,
+  'Monitor LG 24"': 7,
+};
+
+const UOM_ID_MAP: Record<string, number> = {
+  "Unit": 1, "Pcs": 2, "Box": 3, "Rim": 4, "Botol": 5,
+  "Pack": 6, "Lusin": 7, "Kg": 8, "Liter": 9, "Meter": 10,
+};
 
 const STATUS_OPTIONS = ["Semua", "Draft", "Dikirim", "Disetujui", "Ditolak", "Kadaluarsa"];
 const DIPESAN_OPTIONS = ["Semua", "Ahmad Rizky", "Budi Santoso", "Citra Dewi"];
@@ -37,6 +67,84 @@ function formatRupiah(n: number) {
 
 function formatDate(d: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(d));
+}
+
+// ─── API: Submit Sales Quotation ──────────────────────────────────────────────
+// Backend C# (SalesQuotationController.InsertQuotation):
+//   POST /api/SalesQuotation
+//   body: SalesQuotation (header + Details[]) — 1 endpoint, transactional
+//
+// Untuk sekarang hanya console.log payload yang akan dikirim.
+// TODO: Aktifkan fetch saat backend sudah siap.
+async function submitSalesQuotation(data: SalesQuotationFormData) {
+  // ── 1) Hitung totals ───────────────────────────────
+  // Subtotal      = total harga sebelum diskon
+  // DiscountTotal = total potongan dari semua item
+  const subtotal = data.items.reduce(
+    (sum, i) => sum + i.harga * i.qty, 0
+  );
+  const discountTotal = data.items.reduce(
+    (sum, i) => sum + i.harga * i.qty * (i.diskon / 100), 0
+  );
+
+  // ── 2) Build payload sesuai field yang dipakai backend ──
+  // Catatan: hanya field yang dibaca usecase backend yang dikirim.
+  // QuotationId di detail di-skip (di-set backend setelah insert header).
+  const payload = {
+    // Header
+    CustomerId: data.customerId ?? 0,
+    QuotationNumber: data.nomor,
+    QuotationDate: data.tanggal,           // format "YYYY-MM-DD" — C# bisa parse
+    Address: data.address || null,
+    Notes: data.keterangan || null,
+    IsTaxable: data.kenaPajak,
+    IsTaxIncluded: data.totalTermasukPajak,
+    Subtotal: subtotal,
+    DiscountTotal: discountTotal,
+
+    // Detail
+    Details: data.items.map((item) => {
+      const lineGross = item.harga * item.qty;
+      const discountAmount = lineGross * (item.diskon / 100);
+      return {
+        ProductId: PRODUCT_ID_MAP[item.produk] ?? 0,
+        Quantity: item.qty,
+        UomId: UOM_ID_MAP[item.satuan] ?? 0,
+        Price: item.harga,
+        DiscountPercent: item.diskon,
+        DiscountAmount: discountAmount,
+      };
+    }),
+  };
+
+  // ── 3) Log payload ke console (preview) ────────────
+  console.group("📤 Submit Sales Quotation");
+  console.log("Endpoint :", API_QUOTATION);
+  console.log("Method   : POST");
+  console.log("Payload  :", payload);
+  console.groupEnd();
+
+  // Simulasi delay (biar loading state kelihatan)
+  await new Promise((r) => setTimeout(r, 600));
+
+  // ── 4) Bagian fetch dinonaktifkan dulu ─────────────
+  const res = await fetch(API_QUOTATION, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  
+  const json = await res.json().catch(() => ({}));
+  
+  if (!res.ok || json.success === false) {
+    throw new Error(
+      json.message ?? `Gagal menyimpan quotation (${res.status})`
+    );
+  }
+  
+  return json; // { success: true, message: "Insert Sales Quotation Success" }
+
+  return { success: true, message: "Insert Sales Quotation Success (dummy)", payload };
 }
 
 // ─── FilterDropdown ───────────────────────────────────────────────────────────
@@ -97,6 +205,7 @@ export default function SalesQuotationPage() {
   const [filterCetak, setFilterCetak]       = useState("Semua");
   const [filterTanggal, setFilterTanggal]   = useState("Semua");
   const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // ── Filtering ───────────────────────────────────────
   const filtered = useMemo(() => {
@@ -130,6 +239,24 @@ export default function SalesQuotationPage() {
     if (page <= 3) return [1, 2, 3, 4, 5];
     if (page >= totalPages - 2) return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     return [page - 2, page - 1, page, page + 1, page + 2];
+  };
+
+  // ── Submit handler (Modal -> API) ──────────────────────
+  const handleSubmitQuotation = async (formData: SalesQuotationFormData) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await submitSalesQuotation(formData);
+      console.log("✅ Quotation berhasil disimpan:", result);
+      // TODO: tampilkan toast success, refresh list, dll.
+      setModalOpen(false);
+    } catch (err) {
+      console.error("❌ Gagal menyimpan quotation:", err);
+      // TODO: tampilkan toast error
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -376,17 +503,16 @@ export default function SalesQuotationPage() {
             </button>
           </div>
         </div>
+
         <SalesQuotationModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={(data) => {
-            // tambah ke list / call API
-            console.log(data);
-        }}
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSubmit={handleSubmitQuotation}
+          submitting={submitting}
         />
 
       </div>
-      
+
     </AppShell>
   );
-}
+} 
