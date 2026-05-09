@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface KategoriPenjualanFormData {
-  keterangan: string;
+  id: number;
   nama: string;
+  keterangan: string;
 }
 
 interface KategoriPenjualanModalProps {
@@ -18,8 +19,9 @@ interface KategoriPenjualanModalProps {
 }
 
 const EMPTY_FORM: KategoriPenjualanFormData = {
-  keterangan: "",
+  id: 0,
   nama: "",
+  keterangan: "",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -30,9 +32,15 @@ export function KategoriPenjualanModal({
   initialData,
 }: KategoriPenjualanModalProps) {
   const isEdit = !!initialData;
-  const [form, setForm] = useState<KategoriPenjualanFormData>(()=>
-    initialData ?? EMPTY_FORM
-);
+  const [form, setForm] = useState<KategoriPenjualanFormData>(EMPTY_FORM);
+
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
+    } else {
+      setForm(EMPTY_FORM);
+    }
+  }, [initialData]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -49,8 +57,10 @@ export function KategoriPenjualanModal({
 
   return (
     <>
+      {/* Backdrop */}
       <div onClick={onClose} className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40" />
 
+      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
 
@@ -61,7 +71,7 @@ export function KategoriPenjualanModal({
                 {isEdit ? "Edit Kategori Penjualan" : "Tambah Kategori Penjualan"}
               </h2>
               <p className="text-slate-400 text-xs mt-0.5">
-                {isEdit ? "Perbarui data kategori" : "Isi data kategori di bawah ini"}
+                {isEdit ? "Perbarui data kategori penjualan" : "Isi data kategori di bawah ini"}
               </p>
             </div>
             <button
@@ -128,10 +138,11 @@ export function KategoriPenjualanModal({
 
 // ─── FormField ────────────────────────────────────────────────────────────────
 function FormField({
-  label, icon, required, children,
+  label, icon, hint, required, children,
 }: {
   label: string;
   icon?: React.ReactNode;
+  hint?: string;
   required?: boolean;
   children: React.ReactNode;
 }) {
@@ -141,6 +152,11 @@ function FormField({
         {icon && <span className="text-slate-400">{icon}</span>}
         {label}
         {required && <span className="text-red-400 font-bold">*</span>}
+        {hint && (
+          <span className="ml-auto text-[10px] font-normal text-slate-400 normal-case tracking-normal">
+            {hint}
+          </span>
+        )}
       </label>
       {children}
     </div>
