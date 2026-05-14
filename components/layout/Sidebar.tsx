@@ -2,27 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
-import { NAV_CONFIG } from "@/lib/nav";
+import { useState } from "react";
+import { ChevronRight, LogOut } from "lucide-react";
+import { getNavForRole } from "@/lib/nav";
+import { useAuth } from "@/lib/AuthContext";
 import { cn } from "@/lib/utils";
 import type { NavModule } from "@/types";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
-  // Determine which module is active from the pathname
-  const activeModule = NAV_CONFIG.find(
+  const navConfig = user ? getNavForRole(user.role) : [];
+
+  const activeModule = navConfig.find(
     (n) => n.id !== "dashboard" && pathname.startsWith("/" + n.id)
   )?.id ?? null;
 
   const [openModule, setOpenModule] = useState<string | null>(activeModule);
-
-  // Auto-open the module when navigating directly via URL
-  // useEffect(() => {
-  //   if (activeModule) setOpenModule(activeModule);
-  // }, [activeModule]);
-
   const toggleModule = (id: string) =>
     setOpenModule((prev) => (prev === id ? null : id));
 
@@ -47,7 +44,7 @@ export function Sidebar() {
 
       {/* ── Nav ──────────────────────────────────────────── */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {NAV_CONFIG.map((module: NavModule) => {
+        {navConfig.map((module: NavModule) => {
           const isDashboard = module.id === "dashboard";
           const isActive    = isDashboard
             ? pathname === "/dashboard"
@@ -74,7 +71,6 @@ export function Sidebar() {
 
           return (
             <div key={module.id}>
-              {/* Module toggle button */}
               <button
                 onClick={() => toggleModule(module.id)}
                 className={cn(
@@ -90,14 +86,10 @@ export function Sidebar() {
                 </span>
                 <ChevronRight
                   size={13}
-                  className={cn(
-                    "opacity-50 transition-transform duration-200",
-                    isOpen && "rotate-90"
-                  )}
+                  className={cn("opacity-50 transition-transform duration-200", isOpen && "rotate-90")}
                 />
               </button>
 
-              {/* Sub-menu */}
               {isOpen && (
                 <div className="bg-navy-800/60 pb-1">
                   {module.children?.map((group) => (
@@ -133,14 +125,23 @@ export function Sidebar() {
 
       {/* ── User ─────────────────────────────────────────── */}
       <div className="px-5 py-4 border-t border-navy-700">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-navy-600 flex items-center justify-center text-gold-500 text-xs font-bold select-none">
-            AR
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-navy-600 flex items-center justify-center text-gold-500 text-xs font-bold select-none">
+              {user?.initials ?? "??"}
+            </div>
+            <div>
+              <p className="text-slate-300 text-[13px]">{user?.name}</p>
+              <p className="text-slate-600 text-[11px] capitalize">{user?.role}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-slate-300 text-[13px]">Ahmad Rizky</p>
-            <p className="text-slate-600 text-[11px]">Administrator</p>
-          </div>
+          <button
+            onClick={logout}
+            className="text-slate-600 hover:text-red-400 transition-colors p-1"
+            title="Keluar"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>
