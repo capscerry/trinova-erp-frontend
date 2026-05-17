@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui";
-// import { ActionBtn } from "@/components/ui/DataTable";
 import { SalesOrderModal, type SalesOrderFormData } from "@/components/modules/penjualan/SalesOrderModal";
 import {
   Search, Plus, RefreshCw, Download,
@@ -28,15 +27,8 @@ interface SalesOrder {
   items: SalesOrderFormData["items"];
 }
 
-// ─── Dummy Data ───────────────────────────────────────────────────────────────
-const INITIAL_DATA: SalesOrder[] = [
-  { id: "1", nomor: "SO-2026-001", tanggal: "2026-03-01", tanggalKirim: "2026-03-07", pelanggan: "PT Maju Bersama",  dipesanOleh: "Ahmad Rizky",  salesQuotation: "SQ-2026-001", alamatPengiriman: "Jl. Sudirman No. 12, Jakarta",    keterangan: "",                          status: "Selesai",      total: 15000000, items: [] },
-  { id: "2", nomor: "SO-2026-002", tanggal: "2026-03-05", tanggalKirim: "2026-03-10", pelanggan: "CV Sinar Terang",  dipesanOleh: "Budi Santoso", salesQuotation: "SQ-2026-002", alamatPengiriman: "Jl. Pemuda No. 45, Surabaya",     keterangan: "Kirim pagi",              status: "Dikirim",      total: 3200000,  items: [] },
-  { id: "3", nomor: "SO-2026-003", tanggal: "2026-03-08", tanggalKirim: "2026-03-15", pelanggan: "Toko Berkah Jaya", dipesanOleh: "Ahmad Rizky",  salesQuotation: "",            alamatPengiriman: "Jl. Pandanaran No. 8, Semarang",  keterangan: "",                          status: "Diproses",     total: 7500000,  items: [] },
-  { id: "4", nomor: "SO-2026-004", tanggal: "2026-03-10", tanggalKirim: "2026-03-20", pelanggan: "PT Karya Mandiri", dipesanOleh: "Citra Dewi",   salesQuotation: "SQ-2026-004", alamatPengiriman: "Jl. Asia Afrika No. 77, Bandung",  keterangan: "Handle with care",        status: "Dikonfirmasi", total: 42000000, items: [] },
-  { id: "5", nomor: "SO-2026-005", tanggal: "2026-03-12", tanggalKirim: "2026-03-18", pelanggan: "UD Sejahtera",     dipesanOleh: "Budi Santoso", salesQuotation: "SQ-2026-005", alamatPengiriman: "Jl. Malioboro No. 3, Yogyakarta", keterangan: "",                          status: "Draft",        total: 8900000,  items: [] },
-  { id: "6", nomor: "SO-2026-006", tanggal: "2026-03-14", tanggalKirim: "2026-03-21", pelanggan: "CV Mitra Usaha",   dipesanOleh: "Citra Dewi",   salesQuotation: "",            alamatPengiriman: "Jl. Sunset Road No. 21, Bali",    keterangan: "",                          status: "Dibatalkan",   total: 5100000,  items: [] },
-];
+// ─── Konstanta ────────────────────────────────────────────────────────────────
+const INITIAL_DATA: SalesOrder[] = []; // ← kosong, isi dari API
 
 const PAGE_SIZE = 10;
 
@@ -97,8 +89,9 @@ export default function SalesOrderPage() {
   const [fPelanggan, setFPelanggan] = useState("Semua");
   const [fDipesan,   setFDipesan]   = useState("Semua");
 
-  const pelangganOpts = ["Semua", ...Array.from(new Set(INITIAL_DATA.map((d) => d.pelanggan)))];
-  const dipesanOpts   = ["Semua", ...Array.from(new Set(INITIAL_DATA.map((d) => d.dipesanOleh)))];
+  // ← Opsi filter dinamis dari data (bukan hardcode dummy)
+  const pelangganOpts = ["Semua", ...Array.from(new Set(data.map((d) => d.pelanggan)))];
+  const dipesanOpts   = ["Semua", ...Array.from(new Set(data.map((d) => d.dipesanOleh)))];
   const statusOpts    = ["Semua", "Draft", "Dikonfirmasi", "Diproses", "Dikirim", "Selesai", "Dibatalkan"];
 
   const filtered = useMemo(() => data.filter((row) => {
@@ -133,13 +126,7 @@ export default function SalesOrderPage() {
   const handleHapus  = (row: SalesOrder) => setData((p) => p.filter((d) => d.id !== row.id));
   const handleSubmit = (formData: SalesOrderFormData) => {
     const total = formData.items.reduce((s, i) => s + i.subtotal, 0);
-    // if (editTarget) {
-    //   setData((p) => p.map((d) => d.id === editTarget.id ? { ...d, ...formData, total } : d));
-    // } else {
-    //   const newId = String(Math.max(0, ...data.map((d) => Number(d.id))) + 1);
-    //   setData((p) => [...p, { id: newId, ...formData, total }]);
-    // }
-    // TODO: ganti dengan call API ke backend
+    // TODO: call API di sini
   };
 
   return (
@@ -235,31 +222,15 @@ export default function SalesOrderPage() {
                   <td className="px-5 py-3 text-[13px] font-semibold text-slate-700 whitespace-nowrap">{formatRupiah(row.total)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1">
-                       <button
-                            // onClick={() => handleDetail(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-slate-100 text-navy-700 hover:bg-slate-200 transition-colors"
-                        >
-                            Detail
-                        </button>
-
-                            {/* Edit */}
-                        <button
-                            // onClick={() => handleEdit(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                        >
-                            Edit
-                        </button>
-
-                        {/* Hapus */}
-                        <button
-                            // onClick={() => handleHapus(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                        >
-                            Hapus
-                        </button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-slate-100 text-navy-700 hover:bg-slate-200 transition-colors">
+                        Detail
+                      </button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
+                        Edit
+                      </button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-red-50 text-red-700 hover:bg-red-100 transition-colors">
+                        Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -293,12 +264,10 @@ export default function SalesOrderPage() {
         </div>
       </div>
 
-      {/* Modal */}
       <SalesOrderModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
-        // initialData={editTarget ?? undefined}
       />
     </AppShell>
   );

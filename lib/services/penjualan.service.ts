@@ -44,13 +44,28 @@ export interface SalesOrder {
 }
 
 export interface SalesOrderPayload {
-  orderDate: string;
-  deliveryDate: string;
-  customerId: string;
-  quotationId?: string;
-  deliveryAddress: string;
-  notes: string;
-  items: { productId: string; quantity: number; unitPrice: number }[];
+  header: {
+    id: number;
+    soNumber: string;
+    tanggalKirim: string | null;
+    soDate: string;
+    customerId: number;
+    isTaxAble: boolean;
+    isTaxIncluded: boolean;
+    address: string;
+    notes: string;
+  };
+  detail: {
+    orderId: number;
+    productId: number;
+    productCode: string;
+    productName: string;
+    productQty: number;
+    productPrice: number;
+    discountAmount: number;
+    totalPrice: number;
+    wareHouseId: number | null;
+  }[];
 }
 
 // ─── Mapper ───────────────────────────────────────────────────────────────────
