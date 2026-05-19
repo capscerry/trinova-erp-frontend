@@ -108,6 +108,16 @@ export default function SalesOrderPage() {
   const to         = Math.min(page * PAGE_SIZE, filtered.length);
   const hasFilter  = [fTanggal, fStatus, fPelanggan, fDipesan].some((f) => f !== "Semua") || search !== "";
 
+
+  // const [workFlowDraft,setWorkFlowDraft] = useState({
+  //   salesOrder : null as SalesOrderFormData | null,
+  //   uangMuka : null as UangMukaFormData | null,
+  //   pengiriman : null as PengirimanFormData | null,
+  // });
+
+
+  
+
   const resetFilters = () => {
     setFTanggal("Semua"); setFStatus("Semua");
     setFPelanggan("Semua"); setFDipesan("Semua");
