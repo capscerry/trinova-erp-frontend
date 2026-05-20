@@ -10,18 +10,7 @@ import {
   newItem,
   inputCompact,
 } from "./SalesOrderType";
-
-// ─── Options ──────────────────────────────────────────────────────────────────
-// NOTE: Nanti fetch dari API
-const PRODUK_OPTIONS = [
-  { nama: "Laptop Asus X415",        satuan: "Unit",  harga: 6500000 },
-  { nama: "Printer Canon G2020",     satuan: "Unit",  harga: 1200000 },
-  { nama: "Mouse Wireless Logitech", satuan: "Unit",  harga: 285000  },
-  { nama: "Kertas HVS A4 80gr",      satuan: "Rim",   harga: 45000   },
-  { nama: "Tinta Printer Hitam",     satuan: "Botol", harga: 85000   },
-  { nama: "Keyboard Mechanical",     satuan: "Unit",  harga: 750000  },
-  { nama: "Monitor LG 24\"",         satuan: "Unit",  harga: 2800000 },
-];
+import { productDropdownService, type Product} from "@/lib/services/penjualan.service";
 
 const SATUAN_OPTIONS = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
@@ -35,6 +24,23 @@ interface SalesOrderDetailFormProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormProps) {
+  const [produkOptions, setProdukOptions] = useState<Product[]>([]);
+  const [loadingProduk, setLoadingProduk] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoadingProduk(true);
+        const data = await productDropdownService.getAll();
+        setProdukOptions(data);
+      } catch (err) {
+        console.error("Gagal memuat data produk:", err);
+      } finally {
+        setLoadingProduk(false);
+      }
+    };
+    load();
+  }, []);
 
   const updateItem = (id: string, patch: Partial<SalesOrderItem>) => {
     onChange(items.map((item) => {
@@ -45,9 +51,11 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
   };
 
   const selectProduk = (id: string, produkNama: string) => {
-    const found = PRODUK_OPTIONS.find((p) => p.nama === produkNama);
+    const found = produkOptions.find((p) => p.nama === produkNama);
     if (found) {
-      updateItem(id, { produk: found.nama, satuan: found.satuan, harga: found.harga });
+      // harga TIDAK di-set otomatis — user isi manual
+      // satuan tetap auto-fill dari data produk
+      updateItem(id, { produk: found.nama, satuan: found.satuan });
     } else {
       updateItem(id, { produk: produkNama });
     }
@@ -91,12 +99,13 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
               {items.map((item) => (
                 <tr key={item.id} className="group hover:bg-slate-50/50">
 
-                  {/* Produk - Search Field */}
+                  {/* Produk */}
                   <td className="px-3 py-2">
                     <ProductSearchField
                       value={item.produk}
-                      placeholder="Cari produk..."
-                      options={PRODUK_OPTIONS}
+                      placeholder={loadingProduk ? "Memuat..." : "Cari produk..."}
+                      options={produkOptions}
+                      disabled={loadingProduk}
                       onChange={(v) => selectProduk(item.id, v)}
                     />
                   </td>
@@ -116,8 +125,7 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                       className={cn(inputCompact, "w-full text-center")} />
                   </td>
 
-
-                  {/* Satuan - dropdown */}
+                  {/* Satuan */}
                   <td className="px-3 py-2">
                     <SelectField
                       value={item.satuan}
@@ -128,11 +136,16 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                     />
                   </td>
 
-                  {/* Harga */}
+                  {/* Harga — input manual */}
                   <td className="px-3 py-2">
-                    <input type="number" min={0} value={item.harga}
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.harga || ""}
+                      placeholder="0"
                       onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })}
-                      className={cn(inputCompact, "w-full")} />
+                      className={cn(inputCompact, "w-full")}
+                    />
                   </td>
 
                   {/* Diskon */}
@@ -142,17 +155,15 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                       className={cn(inputCompact, "w-full text-center")} />
                   </td>
 
+                  {/* Taxable */}
                   <td className="px-3 py-2 text-center">
                     <input
                       type="checkbox"
                       checked={item.taxable}
-                      onChange={(e) =>
-                        updateItem(item.id, { taxable: e.target.checked })
-                      }
+                      onChange={(e) => updateItem(item.id, { taxable: e.target.checked })}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                   </td>
-                  
 
                   {/* Subtotal */}
                   <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap text-right">
@@ -190,12 +201,13 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
 
 // ─── ProductSearchField ───────────────────────────────────────────────────────
 function ProductSearchField({
-  value, placeholder, options, onChange,
+  value, placeholder, options, onChange, disabled = false,
 }: {
   value: string;
   placeholder: string;
-  options: { nama: string; satuan: string; harga: number }[];
+  options: Product[];
   onChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
@@ -205,7 +217,8 @@ function ProductSearchField({
   useEffect(() => { setQuery(value); }, [value]);
 
   const filtered = options.filter((opt) =>
-    opt.nama.toLowerCase().includes(query.toLowerCase())
+    opt.nama.toLowerCase().includes(query.toLowerCase()) ||
+    opt.kode.toLowerCase().includes(query.toLowerCase())
   );
 
   const updateDropdownPosition = () => {
@@ -215,20 +228,14 @@ function ProductSearchField({
         position: "fixed",
         top: rect.bottom + 4,
         left: rect.left,
-        width: Math.max(rect.width, 240),
+        width: Math.max(rect.width, 260),
         zIndex: 9999,
       });
     }
   };
 
-  const handleFocus = () => { updateDropdownPosition(); setOpen(true); };
-
-  const handleSelect = (nama: string) => {
-    onChange(nama);
-    setQuery(nama);
-    setOpen(false);
-  };
-
+  const handleFocus = () => { if (!disabled) { updateDropdownPosition(); setOpen(true); } };
+  const handleSelect = (nama: string) => { onChange(nama); setQuery(nama); setOpen(false); };
   const handleChange = (v: string) => {
     setQuery(v);
     if (!open) { updateDropdownPosition(); setOpen(true); }
@@ -239,18 +246,22 @@ function ProductSearchField({
       <div className="relative">
         <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
-          type="text" value={query} placeholder={placeholder}
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
           onFocus={handleFocus}
           onChange={(e) => handleChange(e.target.value)}
           className={cn(
             "w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white",
             "text-slate-700 placeholder-slate-400",
-            "focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500 transition-all"
+            "focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500 transition-all",
+            disabled && "opacity-50 cursor-not-allowed bg-slate-50"
           )}
         />
       </div>
 
-      {open && createPortal(
+      {open && !disabled && createPortal(
         <>
           <div className="fixed inset-0" style={{ zIndex: 9998 }}
             onClick={() => { setOpen(false); setQuery(value); }} />
@@ -259,15 +270,26 @@ function ProductSearchField({
             {filtered.length === 0 ? (
               <div className="px-3 py-3 text-center text-xs text-slate-400">Produk tidak ditemukan</div>
             ) : filtered.map((opt) => (
-              <button key={opt.nama} type="button" onClick={() => handleSelect(opt.nama)}
+              <button key={opt.id} type="button" onClick={() => handleSelect(opt.nama)}
                 className={cn(
-                  "w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between gap-3",
+                  "w-full text-left px-3 py-2 text-xs transition-colors",
                   opt.nama === value ? "bg-navy-900 text-gold-400 font-semibold" : "text-slate-600 hover:bg-slate-50"
                 )}>
-                <span className="truncate">{opt.nama}</span>
-                <span className={cn("text-[10px] shrink-0 font-mono", opt.nama === value ? "text-gold-400/80" : "text-slate-400")}>
-                  {formatRupiah(opt.harga)}
-                </span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate font-medium">{opt.nama}</span>
+                  <span className={cn(
+                    "text-[10px] shrink-0 font-mono",
+                    opt.nama === value ? "text-gold-400/80" : "text-slate-400"
+                  )}>
+                    {opt.kode}
+                  </span>
+                </div>
+                <div className={cn(
+                  "text-[10px] mt-0.5",
+                  opt.nama === value ? "text-gold-400/70" : "text-slate-400"
+                )}>
+                  {opt.satuan} · {opt.kategori}
+                </div>
               </button>
             ))}
           </div>

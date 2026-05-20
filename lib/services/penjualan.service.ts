@@ -13,6 +13,27 @@ export interface SalesOrderItem {
   subtotal: number;
 }
 
+
+export interface ProductDropdown{
+  productId : number,
+  productCode : string,
+  productName : string,
+  productType: string,
+  categoryId : number,
+  categoryName :string ,
+  uom : string
+}
+
+export interface Product {
+  id: number;
+  kode: string;
+  nama: string;
+  satuan: string;
+  tipe: string;
+  kategori: string;
+}
+
+
 export interface SalesOrderApi {
   id: string;
   orderNumber: string;
@@ -68,6 +89,8 @@ export interface SalesOrderPayload {
   }[];
 }
 
+
+
 // ─── Mapper ───────────────────────────────────────────────────────────────────
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
@@ -84,6 +107,17 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
     status: item.status,
     total: item.totalAmount,
     items: item.items,
+  };
+}
+
+export function mapProductData(item: ProductDropdown): Product {
+  return {
+    id: item.productId,
+    kode: item.productCode,
+    nama: item.productName,
+    satuan: item.uom,
+    tipe: item.productType,
+    kategori: item.categoryName,
   };
 }
 
@@ -182,3 +216,10 @@ export const salesQuotationService = {
     await api.delete(`/sales-quotation/${id}`);
   },
 };
+
+export const productDropdownService = {
+  async getAll(): Promise<Product[]>{
+    const res = await api.get<ApiResponse<ProductDropdown[]>>("/product-data");
+    return (res.data.data ?? []).map(mapProductData);
+  }
+}

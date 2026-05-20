@@ -132,7 +132,7 @@ export function SalesOrderHeaderForm({
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Dipesan Oleh" icon={<Users size={13} />} required>
           <DropdownField
-            value={form.dipesanOleh}
+            value={form.pelanggan}
             placeholder="Pilih sales / staff..."
             options={customerOptions.map((s) => s.name)}
             onChange={(v) => {

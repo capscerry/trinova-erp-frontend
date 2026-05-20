@@ -266,11 +266,15 @@ export function UangMukaModal({
                   >
                     <div className="relative">
                       <input
-                        type="number"
-                        value={form.uangMuka}
-                        onChange={(e) =>
-                          set("uangMuka", Number(e.target.value))
-                        }
+                        type="text"
+                        inputMode="numeric"
+                        value={form.uangMuka ? form.uangMuka.toLocaleString("id-ID") : ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                  
+                          const raw = e.target.value.replace(/\D/g, "");
+                          set("uangMuka", raw ? Number(raw) : 0);
+                        }}
                         className={inputClass + " pr-10"}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">

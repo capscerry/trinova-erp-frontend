@@ -29,6 +29,8 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
           { id: "penjualan.order_list", label: "Sales Order",     href: "/penjualan/order" },
           { id: "penjualan.invoice",    label: "Invoice",         href: "/penjualan/invoice" },
           { id: "penjualan.retur",      label: "Sales Returns",   href: "/penjualan/retur" },
+          { id: "penjualn.uang_muka", label  : "Uang Muka" , href : "/penjualan/uang-muka"},
+          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Penjualan", href : "/penjualan/pengiriman-penjualan"}
         ],
       },
     ],
