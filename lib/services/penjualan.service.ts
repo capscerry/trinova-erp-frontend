@@ -33,7 +33,6 @@ export interface Product {
   kategori: string;
 }
 
-
 export interface SalesOrderApi {
   id: string;
   orderNumber: string;
@@ -64,20 +63,17 @@ export interface SalesOrder {
   items: SalesOrderItem[];
 }
 
+// ─── Payload SO → API ─────────────────────────────────────────────────────────
 export interface SalesOrderPayload {
   header: {
-    id: number;
     soNumber: string;
     tanggalKirim: string | null;
     soDate: string;
     customerId: number;
-    isTaxAble: boolean;
-    isTaxIncluded: boolean;
     address: string;
     notes: string;
   };
   detail: {
-    orderId: number;
     productId: number;
     productCode: string;
     productName: string;
@@ -85,13 +81,22 @@ export interface SalesOrderPayload {
     productPrice: number;
     discountAmount: number;
     totalPrice: number;
-    wareHouseId: number | null;
   }[];
 }
 
+// ─── Payload UM → API ─────────────────────────────────────────────────────────
+export interface UangMukaPayload {
+  noFaktur: string;
+  tanggal: string;          // ISO string: "2026-05-21T..."
+  customerId: number;
+  noPO: string;
+  nominalUangMuka: number;
+  totalAmount: number;
+  syaratPembayaran: string;
+  alamat: string;
+}
 
-
-// ─── Mapper ───────────────────────────────────────────────────────────────────
+// ─── Mappers ──────────────────────────────────────────────────────────────────
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
   return {
@@ -121,7 +126,7 @@ export function mapProductData(item: ProductDropdown): Product {
   };
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ─── Services ─────────────────────────────────────────────────────────────────
 
 export const salesOrderService = {
   async getAll(): Promise<SalesOrder[]> {
@@ -148,6 +153,19 @@ export const salesOrderService = {
 
   async confirm(id: string): Promise<void> {
     await api.patch(`/sales-order/${id}/confirm`);
+  },
+};
+
+export const uangMukaService = {
+  async create(payload: UangMukaPayload): Promise<void> {
+    await api.post("/uang-muka", payload);   // ← sesuaikan endpoint
+  },
+};
+
+export const productDropdownService = {
+  async getAll(): Promise<Product[]> {
+    const res = await api.get<ApiResponse<ProductDropdown[]>>("/product/dropdown");
+    return (res.data.data ?? []).map(mapProductData);
   },
 };
 
@@ -216,10 +234,3 @@ export const salesQuotationService = {
     await api.delete(`/sales-quotation/${id}`);
   },
 };
-
-export const productDropdownService = {
-  async getAll(): Promise<Product[]>{
-    const res = await api.get<ApiResponse<ProductDropdown[]>>("/product-data");
-    return (res.data.data ?? []).map(mapProductData);
-  }
-}
