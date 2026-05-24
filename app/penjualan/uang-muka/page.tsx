@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
-import { UangMukaModal, type UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
+import {
+  UangMukaModal,
+  type UangMukaFormData,
+} from "@/components/modules/penjualan/uang_muka/UangMukaModal";
 import type { Column } from "@/components/ui";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export interface UangMuka {
   no: number;
   id: number;
@@ -22,21 +24,40 @@ export interface UangMuka {
   alamat: string;
   keterangan: string;
   fakturType: string;
+  noPesanan: string;
+  totalHargaPesanan: number;
   isActive: boolean;
 }
 
-// ─── Columns ──────────────────────────────────────────────────────────────────
+const today = new Date().toLocaleDateString("id-ID", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
 const COLUMNS: Column<UangMuka>[] = [
-  { key: "no",         label: "No",          width: "60px"  },
-  { key: "noFaktur",   label: "No Faktur",   width: "140px" },
-  { key: "tanggal",    label: "Tanggal",     width: "120px" },
-  { key: "pelanggan",  label: "Pelanggan",   width: "180px" },
+  { key: "no", label: "No", width: "60px" },
+  { key: "noFaktur", label: "No Faktur", width: "140px" },
+  { key: "tanggal", label: "Tanggal", width: "120px" },
+  { key: "pelanggan", label: "Pelanggan", width: "180px" },
+  { key: "noPesanan", label: "No SO", width: "140px" },
+  {
+    key: "totalHargaPesanan",
+    label: "Total SO",
+    width: "160px",
+    render: (value: unknown) =>
+      Number(value || 0).toLocaleString("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      }),
+  },
   {
     key: "uangMuka",
     label: "Uang Muka",
     width: "160px",
     render: (value: unknown) =>
-      Number(value).toLocaleString("id-ID", {
+      Number(value || 0).toLocaleString("id-ID", {
         style: "currency",
         currency: "IDR",
         maximumFractionDigits: 0,
@@ -60,27 +81,24 @@ const COLUMNS: Column<UangMuka>[] = [
   },
 ];
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function UangMukaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [data, setData]           = useState<UangMuka[]>([]);
+  const [data, setData] = useState<UangMuka[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editData, setEditData]   = useState<UangMukaFormData | undefined>();
-  const [savedId, setSavedId]     = useState<number | null>(null);
-  const [message, setMessage]     = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [editData, setEditData] = useState<UangMukaFormData | undefined>();
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">(
+    "success"
+  );
   const [isLoading, setIsLoading] = useState(false);
 
-  // ── Fetch ────────────────────────────────────────────
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      // TODO: ganti dengan service call sesungguhnya
-      // const result = await uangMukaService.getAll();
-      // setData(result);
 
-      // dummy data untuk demo
       setData([
         {
           no: 1,
@@ -96,23 +114,9 @@ export default function UangMukaPage() {
           alamat: "Jl. Sudirman No. 1, Jakarta",
           keterangan: "",
           fakturType: "Faktur Penjualan",
+          noPesanan: "SO-2026-001",
+          totalHargaPesanan: 15000000,
           isActive: true,
-        },
-        {
-          no: 2,
-          id: 2,
-          noFaktur: "UM-2026-002",
-          tanggal: "18/05/2026",
-          pelanggan: "CV Sentosa Abadi",
-          uangMuka: 2500000,
-          kenaPajak: false,
-          totalTermasukPajak: false,
-          noPO: "",
-          syaratPembayaran: "",
-          alamat: "",
-          keterangan: "Uang muka project A",
-          fakturType: "Faktur Penjualan",
-          isActive: false,
         },
       ]);
     } catch {
@@ -122,21 +126,60 @@ export default function UangMukaPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  // ── Toast ────────────────────────────────────────────
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
+  useEffect(() => {
+    const fromSalesOrder = searchParams.get("fromSalesOrder");
+
+    if (!fromSalesOrder) return;
+
+    const pelanggan = searchParams.get("pelanggan") ?? "";
+    const noPesanan = searchParams.get("noPesanan") ?? "";
+    const totalHargaPesanan = Number(
+      searchParams.get("totalHargaPesanan") ?? 0
+    );
+    const alamat = searchParams.get("alamat") ?? "";
+    const keterangan = searchParams.get("keterangan") ?? "";
+
+    setEditData({
+      id: 0,
+      pelanggan,
+      noFaktur: "",
+      noFakturMode: "auto",
+      tanggal: today,
+      uangMuka: 0,
+      noPO: "",
+      kenaPajak: false,
+      totalTermasukPajak: true,
+      syaratPembayaran: "",
+      alamat,
+      keterangan,
+      fakturType: "Faktur Penjualan",
+      noPesanan,
+      totalHargaPesanan,
+    });
+
+    setSavedId(null);
+    setModalOpen(true);
+  }, [searchParams]);
+
+  const showMessage = (
+    msg: string,
+    type: "success" | "error" = "success"
+  ) => {
     setMessage(msg);
     setMessageType(type);
   };
 
   useEffect(() => {
     if (!message) return;
+
     const t = setTimeout(() => setMessage(""), 3000);
     return () => clearTimeout(t);
   }, [message]);
 
-  // ── Handlers ─────────────────────────────────────────
   const handleTambah = () => {
     setEditData(undefined);
     setSavedId(null);
@@ -145,19 +188,23 @@ export default function UangMukaPage() {
 
   const handleEdit = (row: UangMuka) => {
     setEditData({
-      id: row.id,
-      pelanggan: row.pelanggan,
-      noFaktur: row.noFaktur,
-      tanggal: row.tanggal,
-      uangMuka: row.uangMuka,
-      noPO: row.noPO,
-      kenaPajak: row.kenaPajak,
-      totalTermasukPajak: row.totalTermasukPajak,
-      syaratPembayaran: row.syaratPembayaran,
-      alamat: row.alamat,
-      keterangan: row.keterangan,
-      fakturType: row.fakturType,
+      id: row.id ?? 0,
+      pelanggan: row.pelanggan ?? "",
+      noFaktur: row.noFaktur ?? "",
+      noFakturMode: "manual",
+      tanggal: row.tanggal ?? today,
+      uangMuka: row.uangMuka ?? 0,
+      noPO: row.noPO ?? "",
+      kenaPajak: row.kenaPajak ?? false,
+      totalTermasukPajak: row.totalTermasukPajak ?? true,
+      syaratPembayaran: row.syaratPembayaran ?? "",
+      alamat: row.alamat ?? "",
+      keterangan: row.keterangan ?? "",
+      fakturType: row.fakturType ?? "Faktur Penjualan",
+      noPesanan: row.noPesanan ?? "",
+      totalHargaPesanan: row.totalHargaPesanan ?? 0,
     });
+
     setSavedId(row.id);
     setModalOpen(true);
   };
@@ -165,17 +212,52 @@ export default function UangMukaPage() {
   const handleSubmit = async (formData: UangMukaFormData) => {
     try {
       setIsLoading(true);
-      // TODO: ganti dengan service call
-      // const msg = formData.id
-      //   ? await uangMukaService.update(formData.id, formData)
-      //   : await uangMukaService.create(formData);
 
       showMessage(
-        formData.id ? "Uang muka berhasil diperbarui" : "Uang muka berhasil ditambahkan",
+        formData.id
+          ? "Uang muka berhasil diperbarui"
+          : "Uang muka berhasil ditambahkan",
         "success"
       );
-      setSavedId(formData.id || Date.now()); // simpan id supaya Proses aktif
-      await fetchData();
+
+      const newId = formData.id || Date.now();
+      setSavedId(newId);
+
+      setData((prev) => {
+        if (formData.id) {
+          return prev.map((item) =>
+            item.id === formData.id
+              ? {
+                  ...item,
+                  ...formData,
+                  isActive: item.isActive,
+                }
+              : item
+          );
+        }
+
+        return [
+          ...prev,
+          {
+            no: prev.length + 1,
+            id: newId,
+            noFaktur: formData.noFaktur ?? "",
+            tanggal: formData.tanggal ?? today,
+            pelanggan: formData.pelanggan ?? "",
+            uangMuka: formData.uangMuka ?? 0,
+            kenaPajak: formData.kenaPajak ?? false,
+            totalTermasukPajak: formData.totalTermasukPajak ?? true,
+            noPO: formData.noPO ?? "",
+            syaratPembayaran: formData.syaratPembayaran ?? "",
+            alamat: formData.alamat ?? "",
+            keterangan: formData.keterangan ?? "",
+            fakturType: formData.fakturType ?? "Faktur Penjualan",
+            noPesanan: formData.noPesanan ?? "",
+            totalHargaPesanan: formData.totalHargaPesanan ?? 0,
+            isActive: true,
+          },
+        ];
+      });
     } catch {
       showMessage("Gagal menyimpan uang muka", "error");
     } finally {
@@ -183,21 +265,29 @@ export default function UangMukaPage() {
     }
   };
 
-  /** Navigasi ke halaman Penerimaan Penjualan dengan data uang muka */
   const handleProses = (formData: UangMukaFormData) => {
     setModalOpen(false);
-    // Kirim state via query param atau router state
+
     router.push(
-      `/penjualan/penerimaan-penjualan/baru?fromUangMuka=${formData.id}&pelanggan=${encodeURIComponent(formData.pelanggan)}&nominal=${formData.uangMuka}`
+      `/penjualan/penerimaan-penjualan/baru?fromUangMuka=${formData.id}` +
+        `&pelanggan=${encodeURIComponent(formData.pelanggan ?? "")}` +
+        `&nominal=${formData.uangMuka ?? 0}` +
+        `&noPesanan=${encodeURIComponent(formData.noPesanan ?? "")}` +
+        `&totalHargaPesanan=${formData.totalHargaPesanan ?? 0}`
     );
   };
 
   const handleToggleStatus = async (row: UangMuka) => {
     try {
       setIsLoading(true);
-      // TODO: await uangMukaService.toggleStatus(row.id, { isActive: !row.isActive });
+
+      setData((prev) =>
+        prev.map((item) =>
+          item.id === row.id ? { ...item, isActive: !item.isActive } : item
+        )
+      );
+
       showMessage("Status berhasil diperbarui", "success");
-      await fetchData();
     } catch {
       showMessage("Gagal mengubah status", "error");
     } finally {
@@ -205,7 +295,6 @@ export default function UangMukaPage() {
     }
   };
 
-  // ── Render ───────────────────────────────────────────
   return (
     <AppShell title="Uang Muka" subtitle="Manajemen uang muka penjualan">
       {message && (
@@ -239,21 +328,25 @@ export default function UangMukaPage() {
             >
               Edit
             </button>
+
             <button
               onClick={() =>
                 handleProses({
-                  id: row.id,
-                  pelanggan: row.pelanggan,
-                  noFaktur: row.noFaktur,
-                  tanggal: row.tanggal,
-                  uangMuka: row.uangMuka,
-                  noPO: row.noPO,
-                  kenaPajak: row.kenaPajak,
-                  totalTermasukPajak: row.totalTermasukPajak,
-                  syaratPembayaran: row.syaratPembayaran,
-                  alamat: row.alamat,
-                  keterangan: row.keterangan,
-                  fakturType: row.fakturType,
+                  id: row.id ?? 0,
+                  pelanggan: row.pelanggan ?? "",
+                  noFaktur: row.noFaktur ?? "",
+                  noFakturMode: "manual",
+                  tanggal: row.tanggal ?? today,
+                  uangMuka: row.uangMuka ?? 0,
+                  noPO: row.noPO ?? "",
+                  kenaPajak: row.kenaPajak ?? false,
+                  totalTermasukPajak: row.totalTermasukPajak ?? true,
+                  syaratPembayaran: row.syaratPembayaran ?? "",
+                  alamat: row.alamat ?? "",
+                  keterangan: row.keterangan ?? "",
+                  fakturType: row.fakturType ?? "Faktur Penjualan",
+                  noPesanan: row.noPesanan ?? "",
+                  totalHargaPesanan: row.totalHargaPesanan ?? 0,
                 })
               }
               disabled={isLoading}
@@ -263,14 +356,16 @@ export default function UangMukaPage() {
             >
               Proses
             </button>
+
             <button
               onClick={() => handleToggleStatus(row)}
               disabled={isLoading}
               className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed
-                         ${row.isActive
-                           ? "bg-green-50 text-green-700 hover:bg-green-100"
-                           : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                         ${
+                           row.isActive
+                             ? "bg-green-50 text-green-700 hover:bg-green-100"
+                             : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                          }`}
             >
               {row.isActive ? "Aktif" : "Nonaktif"}

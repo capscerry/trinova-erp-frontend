@@ -3,56 +3,29 @@
 import { SalesOrderModal } from "@/components/modules/penjualan/SalesOrderModal";
 import { UangMukaModal } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
 import { PengirimanModal } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
-import {
-  useWorkflowDraft,
-  type DraftKey,
-} from "@/lib/WorkflowDraftContext";
+import { useWorkflowDraft, type DraftKey } from "@/lib/WorkflowDraftContext";
 import type { SalesOrderFormData } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
 import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
 
-/**
- * TransactionOrchestrator — render semua modal workflow di satu tempat dan
- * wire ke draft store.
- *
- * Aturan:
- *  - `onSubmit` modal       ⇒ simpan ke draft + close modal (TIDAK ada API call)
- *  - `onNavigate`/`onProses` ⇒ simpan ke draft + buka modal berikutnya
- *  - `initialData` modal    ⇒ baca dari draft (modal jadi controlled by draft)
- *  - `isSaved`/`savedId`    ⇒ tombol "Proses ke X" aktif kalau bagian draft sudah ada
- */
 export function TransactionOrchestrator() {
-  const {
-    draft,
-    setDraftPart,
-    activeModal,
-    openModal,
-    closeModal,
-    hasDraftPart,
-  } = useWorkflowDraft();
+  const { draft, setDraftPart, activeModal, openModal, closeModal, hasDraftPart } =
+    useWorkflowDraft();
 
-  // Helper: sebuah "bagian" dianggap saved kalau sudah ada di draft (in-memory)
   const isSaved = (key: DraftKey) => hasDraftPart(key);
 
-  // ── Sales Order ─────────────────────────────────────────────────────────
-  const handleSOSubmit = (data: SalesOrderFormData) => {
-    setDraftPart("salesOrder", data);
-    closeModal();
-  };
-
+  // ── Sales Order ────────────────────────────────────────────────────────────
   const handleSONavigate = (
     target: "uang-muka" | "pengiriman" | "faktur",
-    data: SalesOrderFormData
+    data: SalesOrderFormData & { [key: string]: any }
   ) => {
-    // simpan dulu SO ke draft
     setDraftPart("salesOrder", data);
-    // baru loncat ke modal berikutnya
-    if (target === "uang-muka") openModal("uangMuka");
-    else if (target === "pengiriman") openModal("pengiriman");
-    else if (target === "faktur") openModal("faktur");
+    if (target === "uang-muka")  openModal("uangMuka");
+    if (target === "pengiriman") openModal("pengiriman");
+    if (target === "faktur")     openModal("faktur");
   };
 
-  // ── Uang Muka ───────────────────────────────────────────────────────────
+  // ── Uang Muka ─────────────────────────────────────────────────────────────
   const handleUMSubmit = (data: UangMukaFormData) => {
     setDraftPart("uangMuka", data);
     closeModal();
@@ -63,7 +36,7 @@ export function TransactionOrchestrator() {
     openModal("pengiriman");
   };
 
-  // ── Pengiriman ──────────────────────────────────────────────────────────
+  // ── Pengiriman ────────────────────────────────────────────────────────────
   const handlePengirimanSubmit = (data: PengirimanFormData) => {
     setDraftPart("pengiriman", data);
     closeModal();
@@ -71,36 +44,70 @@ export function TransactionOrchestrator() {
 
   const handlePengirimanProses = (data: PengirimanFormData) => {
     setDraftPart("pengiriman", data);
-    // Default: lanjut ke faktur (jika sudah ada modalnya)
     openModal("faktur");
   };
 
-  const uangMukaInitialData = draft.uangMuka ?? (
-    draft.salesOrder ? {
-      id : 0,
-      pelanggan: draft.salesOrder.pelanggan,
-      noFaktur: "",
-      tanggal: new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
-      uangMuka: 0,
-      noPO: "",
-      kenaPajak: draft.salesOrder.kenaPajak ?? false,
-      totalTermasukPajak: draft.salesOrder.totalTermasukPajak ?? true,
-      syaratPembayaran: "",
-      alamat: draft.salesOrder.alamatPengiriman,
-      keterangan: "",
-      fakturType: "Faktur Penjualan",
-    } : undefined
-  );
+  // ── initialData Uang Muka (pre-fill dari SO) ───────────────────────────────
+  const so = draft.salesOrder;
+  const uangMukaInitialData: Partial<UangMukaFormData> | undefined =
+    draft.uangMuka ??
+    (so
+      ? {
+          id: 0,
+          pelanggan:          so.pelanggan ?? "",
+          noFaktur:           "",
+          noFakturMode:       "auto" as const,
+          tanggal:            new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          uangMuka:           0,
+          noPO:               so.noPesanan ?? "",
+          kenaPajak:          so.kenaPajak ?? false,
+          totalTermasukPajak: true,
+          syaratPembayaran:   "",
+          alamat:             so.alamatPengiriman ?? "",
+          keterangan:         "",
+          fakturType:         "Faktur Penjualan",
+          noPesanan:          so.noPesanan ?? so.nomor ?? "",
+          totalHargaPesanan:  Number(so.totalHargaPesanan ?? 0),
+        }
+      : undefined);
+
+  // ── initialData Pengiriman (pre-fill dari SO) ──────────────────────────────
+  const pengirimanInitialData: Partial<PengirimanFormData> | undefined =
+    draft.pengiriman ??
+    (so
+      ? {
+          id:               0,
+          pelanggan:        so.pelanggan ?? "",
+          noSuratJalan:     "",
+          tanggal:          new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          noSO:             so.noPesanan ?? so.nomor ?? "",
+          noPO:             "",
+          ekspedisi:        "",
+          noResi:           "",
+          alamatPengiriman: so.alamatPengiriman ?? "",
+          kotaTujuan:       "",
+          keterangan:       so.keterangan ?? "",
+          fakturType:       "Faktur Penjualan",
+          items: (so.items ?? []).map((item: any, idx: number) => ({
+            id:         idx + 1,
+            kodeBarang: item.kode ?? item.kodeBarang ?? "",
+            namaBarang: item.nama ?? item.namaBarang ?? "",
+            satuan:     item.satuan ?? "PCS",
+            qtyDipesan: item.qty ?? item.quantity ?? 0,
+            qtyDikirim: 0,
+            keterangan: "",
+          })),
+        }
+      : undefined);
 
   return (
     <>
       <SalesOrderModal
         open={activeModal === "salesOrder"}
         onClose={closeModal}
-        onSubmit={handleSOSubmit}
+        onSubmit={() => {}} // SO save ke API sendiri di dalam modal
         onNavigate={handleSONavigate}
         initialData={draft.salesOrder}
-        savedId="draft"
       />
 
       <UangMukaModal
@@ -117,11 +124,9 @@ export function TransactionOrchestrator() {
         onClose={closeModal}
         onSubmit={handlePengirimanSubmit}
         onProses={handlePengirimanProses}
-        initialData={draft.pengiriman}
+        initialData={pengirimanInitialData}
         isSaved={isSaved("pengiriman")}
       />
-
-      {/* Tambah FakturModal dst di sini saat sudah siap */}
     </>
   );
 }

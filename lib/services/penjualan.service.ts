@@ -5,23 +5,23 @@ import { api, type ApiResponse } from "@/lib/api";
 export type SalesOrderStatus =
   | "Draft" | "Dikonfirmasi" | "Diproses" | "Dikirim" | "Selesai" | "Dibatalkan";
 
-export interface SalesOrderItem {
+export interface SalesOrderItemApi {
   productId: string;
+  productCode: string;
   productName: string;
   quantity: number;
   unitPrice: number;
   subtotal: number;
 }
 
-
-export interface ProductDropdown{
-  productId : number,
-  productCode : string,
-  productName : string,
-  productType: string,
-  categoryId : number,
-  categoryName :string ,
-  uom : string
+export interface ProductDropdown {
+  productId: number;
+  productCode: string;
+  productName: string;
+  productType: string;
+  categoryId: number;
+  categoryName: string;
+  uom: string;
 }
 
 export interface Product {
@@ -34,18 +34,14 @@ export interface Product {
 }
 
 export interface SalesOrderApi {
-  id: string;
-  orderNumber: string;
-  orderDate: string;
-  deliveryDate: string;
+  orderId: number;
+  soNumber: string;
+  soDate: string;
+  tanggalKirim: string;
   customerName: string;
-  quotationNumber?: string;
-  orderedBy: string;
-  deliveryAddress: string;
   notes: string;
+  subTotal: number;
   status: SalesOrderStatus;
-  totalAmount: number;
-  items: SalesOrderItem[];
 }
 
 export interface SalesOrder {
@@ -60,7 +56,7 @@ export interface SalesOrder {
   keterangan: string;
   status: SalesOrderStatus;
   total: number;
-  items: SalesOrderItem[];
+  items: SalesOrderItemApi[];
 }
 
 // ─── Payload SO → API ─────────────────────────────────────────────────────────
@@ -70,8 +66,11 @@ export interface SalesOrderPayload {
     tanggalKirim: string | null;
     soDate: string;
     customerId: number;
+    isTaxAble: boolean;     // ← tambah
+    isTaxIncluded: boolean; // ← tambah
     address: string;
     notes: string;
+    subTotal: number;      // ← tambah
   };
   detail: {
     productId: number;
@@ -87,7 +86,7 @@ export interface SalesOrderPayload {
 // ─── Payload UM → API ─────────────────────────────────────────────────────────
 export interface UangMukaPayload {
   noFaktur: string;
-  tanggal: string;          // ISO string: "2026-05-21T..."
+  tanggal: string;
   customerId: number;
   noPO: string;
   nominalUangMuka: number;
@@ -100,18 +99,18 @@ export interface UangMukaPayload {
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
   return {
-    id: item.id,
-    nomor: item.orderNumber,
-    tanggal: item.orderDate,
-    tanggalKirim: item.deliveryDate,
+    id: String(item.orderId), // FIX
+    nomor: item.soNumber,
+    tanggal: item.soDate,
+    tanggalKirim: item.tanggalKirim,
     pelanggan: item.customerName,
-    salesQuotation: item.quotationNumber ?? "",
-    dipesanOleh: item.orderedBy,
-    alamatPengiriman: item.deliveryAddress,
+    salesQuotation: "",
+    dipesanOleh: "",
+    alamatPengiriman: "",
     keterangan: item.notes,
     status: item.status,
-    total: item.totalAmount,
-    items: item.items,
+    total: item.subTotal,
+    items: [],
   };
 }
 
@@ -139,8 +138,9 @@ export const salesOrderService = {
     return mapSalesOrder(res.data.data);
   },
 
-  async create(payload: SalesOrderPayload): Promise<void> {
-    await api.post("/sales-order", payload);
+  async create(payload: SalesOrderPayload): Promise<any> {
+    const response =  await api.post("/sales-order", payload);
+    return  response.data.data;
   },
 
   async update(id: string, payload: SalesOrderPayload): Promise<void> {
@@ -158,13 +158,13 @@ export const salesOrderService = {
 
 export const uangMukaService = {
   async create(payload: UangMukaPayload): Promise<void> {
-    await api.post("/uang-muka", payload);   // ← sesuaikan endpoint
+    await api.post("/uang-muka", payload);
   },
 };
 
 export const productDropdownService = {
   async getAll(): Promise<Product[]> {
-    const res = await api.get<ApiResponse<ProductDropdown[]>>("/product/dropdown");
+    const res = await api.get<ApiResponse<ProductDropdown[]>>("/product-data");
     return (res.data.data ?? []).map(mapProductData);
   },
 };
@@ -182,7 +182,7 @@ export interface SalesQuotationApi {
   notes: string;
   status: QuotationStatus;
   totalAmount: number;
-  items: SalesOrderItem[];
+  items: SalesOrderItemApi[]; // ← fix dari SalesOrderItem
 }
 
 export interface SalesQuotation {
@@ -194,7 +194,7 @@ export interface SalesQuotation {
   keterangan: string;
   status: QuotationStatus;
   total: number;
-  items: SalesOrderItem[];
+  items: SalesOrderItemApi[]; // ← fix dari SalesOrderItem
 }
 
 export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
