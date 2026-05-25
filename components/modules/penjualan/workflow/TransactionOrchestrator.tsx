@@ -20,9 +20,9 @@ export function TransactionOrchestrator() {
     data: SalesOrderFormData & { [key: string]: any }
   ) => {
     setDraftPart("salesOrder", data);
-    if (target === "uang-muka")  openModal("uangMuka");
+    if (target === "uang-muka") openModal("uangMuka");
     if (target === "pengiriman") openModal("pengiriman");
-    if (target === "faktur")     openModal("faktur");
+    if (target === "faktur") openModal("faktur");
   };
 
   // ── Uang Muka ─────────────────────────────────────────────────────────────
@@ -54,20 +54,23 @@ export function TransactionOrchestrator() {
     (so
       ? {
           id: 0,
-          pelanggan:          so.pelanggan ?? "",
-          noFaktur:           "",
-          noFakturMode:       "auto" as const,
-          tanggal:            new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
-          uangMuka:           0,
-          noPO:               so.noPesanan ?? "",
-          kenaPajak:          so.kenaPajak ?? false,
+          // ✓ CRITICAL: Map customerId dari Sales Order
+          customerId: Number(so.customerId) || 0,
+          pelanggan: so.pelanggan ?? "",
+          noFaktur: "",
+          noFakturMode: "auto" as const,
+          tanggal: new Date().toISOString().split("T")[0],
+          uangMuka: 0,
+          noPO: so.noPesanan ?? "",
+          noSo: so.nomor ?? "",
+          kenaPajak: so.kenaPajak ?? false,
           totalTermasukPajak: true,
-          syaratPembayaran:   "",
-          alamat:             so.alamatPengiriman ?? "",
-          keterangan:         "",
-          fakturType:         "Faktur Penjualan",
-          noPesanan:          so.noPesanan ?? so.nomor ?? "",
-          totalHargaPesanan:  Number(so.totalHargaPesanan ?? 0),
+          syaratPembayaran: "",
+          alamat: so.alamatPengiriman ?? "",
+          keterangan: "",
+          fakturType: "Faktur Penjualan",
+          noPesanan: so.noPesanan ?? so.nomor ?? "",
+          totalHargaPesanan: Number(so.totalHargaPesanan ?? 0),
         }
       : undefined);
 
@@ -76,23 +79,23 @@ export function TransactionOrchestrator() {
     draft.pengiriman ??
     (so
       ? {
-          id:               0,
-          pelanggan:        so.pelanggan ?? "",
-          noSuratJalan:     "",
-          tanggal:          new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }),
-          noSO:             so.noPesanan ?? so.nomor ?? "",
-          noPO:             "",
-          ekspedisi:        "",
-          noResi:           "",
+          id: 0,
+          pelanggan: so.pelanggan ?? "",
+          noSuratJalan: "",
+          tanggal: new Date().toISOString().split("T")[0],
+          noSO: so.noPesanan ?? so.nomor ?? "",
+          noPO: "",
+          ekspedisi: "",
+          noResi: "",
           alamatPengiriman: so.alamatPengiriman ?? "",
-          kotaTujuan:       "",
-          keterangan:       so.keterangan ?? "",
-          fakturType:       "Faktur Penjualan",
+          kotaTujuan: "",
+          keterangan: so.keterangan ?? "",
+          fakturType: "Faktur Penjualan",
           items: (so.items ?? []).map((item: any, idx: number) => ({
-            id:         idx + 1,
+            id: idx + 1,
             kodeBarang: item.kode ?? item.kodeBarang ?? "",
             namaBarang: item.nama ?? item.namaBarang ?? "",
-            satuan:     item.satuan ?? "PCS",
+            satuan: item.satuan ?? "PCS",
             qtyDipesan: item.qty ?? item.quantity ?? 0,
             qtyDikirim: 0,
             keterangan: "",

@@ -11,29 +11,13 @@ import {
   Calendar,
 } from "lucide-react";
 
-import {uangMukaService} from "@/lib/services/penjualan.service";
+import { uangMukaService } from "@/lib/services/penjualan.service";
+import { customerService } from "@/lib/services/customer.service";
 import {
   type UangMukaFormData,
   EMPTY_FORM,
   mapFormToApiPayload,
 } from "@/components/modules/penjualan/uang_muka/UangMukaType";
-export interface UangMukaFormData {
-  id: number;
-  pelanggan: string;
-  noFaktur: string;
-  noFakturMode: "auto" | "manual";
-  tanggal: string;
-  uangMuka: number;
-  noPO: string;
-  kenaPajak: boolean;
-  totalTermasukPajak: boolean;
-  syaratPembayaran: string;
-  alamat: string;
-  keterangan: string;
-  fakturType: string;
-  noPesanan: string;
-  totalHargaPesanan: number;
-}
 
 interface UangMukaModalProps {
   open: boolean;
@@ -44,11 +28,7 @@ interface UangMukaModalProps {
   isSaved?: boolean;
 }
 
-const today = new Date().toLocaleDateString("id-ID", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
+const today = new Date().toISOString().split("T")[0];
 
 const generateAutoFaktur = () => {
   const now = new Date();
@@ -57,7 +37,6 @@ const generateAutoFaktur = () => {
   const seq = String(Math.floor(Math.random() * 900) + 100);
   return `UM/${yy}${mm}/${seq}`;
 };
-
 
 type Tab = "uang-muka" | "info-lainnya";
 
@@ -74,8 +53,62 @@ export function UangMukaModal({
   const [form, setForm] = useState<UangMukaFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<Tab>("uang-muka");
   const [saved, setSaved] = useState(isSaved);
-  const [isSubmmiting,setIsSubmitting]  = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Customer dropdown state
+  const [customerOptions, setCustomerOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [filterCustomer, setFilterCustomer] = useState("");
+
+  // Fetch customer data
+  const fetchCustomerData = async () => {
+    try {
+      setLoadingCustomers(true);
+      const data = await customerService.getAll();
+      console.log("✓ Fetched customers for Uang Muka:", data);
+
+      setCustomerOptions(
+        data.map((c) => ({
+          id: Number(c.id),
+          name: c.nama,
+        }))
+      );
+    } catch (error) {
+      console.error("✗ Error fetching customers:", error);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      fetchCustomerData();
+    }
+  }, [open]);
+
+  // Filter customers based on input
+  const filteredCustomers = customerOptions.filter((c) =>
+    c.name.toLowerCase().includes(filterCustomer.toLowerCase())
+  );
+
+  // Handle customer selection
+  const handleSelectCustomer = (customer: {
+    id: number;
+    name: string;
+  }) => {
+    setForm((prev) => ({
+      ...prev,
+      pelanggan: customer.name,
+      customerId: customer.id,
+    }));
+    setShowCustomerDropdown(false);
+    setFilterCustomer("");
+  };
+
+  // Initialize form with initial data
   useEffect(() => {
     if (!open) return;
 
@@ -83,35 +116,24 @@ export function UangMukaModal({
 
     setForm({
       id: Number(data.id ?? data.orderId ?? 0),
-
+      customerId: Number(data.customerId ?? data.customer_id ?? 0) || undefined,
       pelanggan: data.pelanggan ?? data.customerName ?? "",
-
       noFaktur:
         data.noFaktur ??
         (data.noFakturMode === "manual" ? "" : generateAutoFaktur()),
-
       noFakturMode: data.noFakturMode ?? "auto",
-
       tanggal: data.tanggal ?? today,
-
       uangMuka: Number(data.uangMuka ?? 0),
-
       noPO: data.noPO ?? data.poNumber ?? "",
-
+      noSo: data.noSo ?? "",
       kenaPajak: Boolean(data.kenaPajak ?? data.isTaxable ?? false),
-
       totalTermasukPajak: Boolean(
         data.totalTermasukPajak ?? data.isTaxIncluded ?? true
       ),
-
       syaratPembayaran: data.syaratPembayaran ?? "",
-
       alamat: data.alamat ?? data.alamatPengiriman ?? data.address ?? "",
-
       keterangan: data.keterangan ?? data.notes ?? "",
-
       fakturType: data.fakturType ?? "Faktur Penjualan",
-
       noPesanan:
         data.noPesanan ??
         data.nomor ??
@@ -120,7 +142,6 @@ export function UangMukaModal({
         data.savedSo?.soNumber ??
         data.savedSo?.orderNumber ??
         "",
-
       totalHargaPesanan: Number(
         data.totalHargaPesanan ??
           data.subTotal ??
@@ -137,9 +158,13 @@ export function UangMukaModal({
     setActiveTab("uang-muka");
   }, [initialData, isSaved, open]);
 
+  // Handle ESC key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        setShowCustomerDropdown(false);
+      }
     };
 
     window.addEventListener("keydown", handler);
@@ -166,25 +191,39 @@ export function UangMukaModal({
     }
   };
 
-const handleSubmit = async () => {
-  setIsSubmitting(true);
+  const handleSubmit = async () => {
+    try {
+      setIsSubmitting(true);
 
-  try {
-    // const payload = mapToUangMukaFormData(form);
-    const payload = mapFormToApiPayload(form);
+      // Validation
+      if (!form.customerId) {
+        alert("⚠️ Pelanggan wajib dipilih");
+        return;
+      }
 
-    console.log("Submitting Uang Muka with payload:", payload);
+      if (!form.noFaktur.trim()) {
+        alert("⚠️ No Faktur wajib diisi");
+        return;
+      }
 
-    // await uangMukaService.create(payload);
+      const payload = mapFormToApiPayload(form);
 
-    onSubmit(form);
-    setSaved(true);
-  } catch (error) {
-    console.error(error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+      console.log("📤 FINAL PAYLOAD:", payload);
+
+      // Call API
+      const response = await uangMukaService.create(payload);
+
+      console.log("✅ SUCCESS:", response);
+
+      onSubmit(form);
+      setSaved(true);
+    } catch (error: any) {
+      console.error("❌ BACKEND ERROR:", error?.response?.data || error);
+      alert("Gagal menyimpan data: " + (error?.response?.data?.message || error?.message));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleProses = () => {
     if (!saved) return;
@@ -206,6 +245,7 @@ const handleSubmit = async () => {
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]">
+          {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
@@ -226,23 +266,82 @@ const handleSubmit = async () => {
             </button>
           </div>
 
+          {/* Body */}
           <div className="flex-1 overflow-y-auto">
+            {/* Top Section */}
             <div className="px-6 pt-5 pb-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Customer Dropdown */}
               <FormField label="Pelanggan" icon={<User size={14} />} required>
                 <div className="relative">
                   <input
                     type="text"
-                    value={form.pelanggan ?? ""}
-                    onChange={(e) => set("pelanggan", e.target.value)}
-                    placeholder="Cari/Pilih Pelanggan..."
+                    value={
+                      showCustomerDropdown ? filterCustomer : form.pelanggan ?? ""
+                    }
+                    onChange={(e) => {
+                      if (showCustomerDropdown) {
+                        setFilterCustomer(e.target.value);
+                      }
+                    }}
+                    onFocus={() => {
+                      setShowCustomerDropdown(true);
+                      setFilterCustomer("");
+                    }}
+                    placeholder={
+                      loadingCustomers
+                        ? "Memuat customer..."
+                        : "Cari/Pilih Pelanggan..."
+                    }
+                    disabled={loadingCustomers}
                     className={inputClass}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                    🔍
+                    {loadingCustomers ? "⏳" : "🔍"}
                   </span>
+
+                  {/* Dropdown Menu */}
+                  {showCustomerDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                      {filteredCustomers.length > 0 ? (
+                        filteredCustomers.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => handleSelectCustomer(customer)}
+                            className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
+                          >
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-xs text-slate-500">
+                              ID: {customer.id}
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                          {customerOptions.length === 0
+                            ? "Tidak ada customer"
+                            : "Tidak ada hasil"}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* Selected Customer Info */}
+                {form.customerId && (
+                  <div className="mt-2 px-3 py-2 bg-navy-50 border border-navy-200 rounded-lg">
+                    <p className="text-xs text-slate-600">
+                      <span className="font-semibold">Customer:</span>{" "}
+                      {form.pelanggan}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      <span className="font-semibold">ID:</span> {form.customerId}
+                    </p>
+                  </div>
+                )}
               </FormField>
 
+              {/* No Faktur */}
               <FormField label="No Faktur #" icon={<Hash size={14} />} required>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
@@ -309,16 +408,18 @@ const handleSubmit = async () => {
                 </div>
               </FormField>
 
+              {/* Tanggal */}
               <FormField label="Tanggal" icon={<Calendar size={14} />} required>
                 <input
                   type="text"
                   value={form.tanggal ?? ""}
                   onChange={(e) => set("tanggal", e.target.value)}
                   className={inputClass}
-                  placeholder="DD/MM/YYYY"
+                  placeholder="YYYY-MM-DD"
                 />
               </FormField>
 
+              {/* Proses Button */}
               <div className="flex items-end justify-end">
                 <button
                   disabled={!saved}
@@ -334,6 +435,7 @@ const handleSubmit = async () => {
               </div>
             </div>
 
+            {/* Tabs */}
             <div className="flex border-b border-slate-200 px-6 bg-slate-50">
               {[
                 { id: "uang-muka", label: "💳 Uang Muka" },
@@ -353,9 +455,11 @@ const handleSubmit = async () => {
               ))}
             </div>
 
+            {/* Tab Content */}
             <div className="px-6 py-5">
               {activeTab === "uang-muka" && (
                 <div className="space-y-4">
+                  {/* No Pesanan */}
                   <div
                     className={`transition-all duration-300 overflow-hidden ${
                       hasPelanggan ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
@@ -372,6 +476,7 @@ const handleSubmit = async () => {
                     </FormField>
                   </div>
 
+                  {/* Total Harga Pesanan */}
                   <div
                     className={`transition-all duration-300 overflow-hidden ${
                       hasPelanggan ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
@@ -404,6 +509,7 @@ const handleSubmit = async () => {
                     </FormField>
                   </div>
 
+                  {/* Uang Muka */}
                   <FormField
                     label="Uang Muka"
                     icon={<CreditCard size={14} />}
@@ -431,6 +537,7 @@ const handleSubmit = async () => {
                     </div>
                   </FormField>
 
+                  {/* No. PO */}
                   <FormField label="No. PO" icon={<Hash size={14} />}>
                     <input
                       type="text"
@@ -441,6 +548,7 @@ const handleSubmit = async () => {
                     />
                   </FormField>
 
+                  {/* Pajak */}
                   <FormField label="Pajak" icon={<Info size={14} />}>
                     <div className="flex flex-wrap gap-6 items-center pt-1">
                       <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
@@ -467,6 +575,7 @@ const handleSubmit = async () => {
                     </div>
                   </FormField>
 
+                  {/* Summary */}
                   <div className="border-t border-slate-100 pt-4 flex justify-end gap-8 text-sm">
                     <div className="text-right">
                       <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">
@@ -499,6 +608,7 @@ const handleSubmit = async () => {
 
               {activeTab === "info-lainnya" && (
                 <div className="space-y-4">
+                  {/* Syarat Pembayaran */}
                   <FormField
                     label="Syarat Pembayaran"
                     icon={<FileText size={14} />}
@@ -506,14 +616,13 @@ const handleSubmit = async () => {
                     <input
                       type="text"
                       value={form.syaratPembayaran ?? ""}
-                      onChange={(e) =>
-                        set("syaratPembayaran", e.target.value)
-                      }
+                      onChange={(e) => set("syaratPembayaran", e.target.value)}
                       placeholder="Cari/Pilih..."
                       className={inputClass}
                     />
                   </FormField>
 
+                  {/* Alamat */}
                   <FormField label="Alamat" icon={<Info size={14} />}>
                     <textarea
                       value={form.alamat ?? ""}
@@ -524,6 +633,7 @@ const handleSubmit = async () => {
                     />
                   </FormField>
 
+                  {/* Keterangan */}
                   <FormField label="Keterangan" icon={<FileText size={14} />}>
                     <textarea
                       value={form.keterangan ?? ""}
@@ -538,6 +648,7 @@ const handleSubmit = async () => {
             </div>
           </div>
 
+          {/* Footer */}
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0 bg-white">
             <button
               onClick={onClose}
@@ -548,9 +659,10 @@ const handleSubmit = async () => {
 
             <button
               onClick={handleSubmit}
-              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isEdit ? "Simpan Perubahan" : "Simpan Uang Muka"}
+              {isSubmitting ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Uang Muka"}
             </button>
           </div>
         </div>
@@ -586,5 +698,5 @@ const inputClass = `
   w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white
   text-slate-700 placeholder-slate-400
   focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500
-  transition-all
+  transition-all disabled:bg-slate-50 disabled:cursor-not-allowed
 `;
