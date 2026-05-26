@@ -61,7 +61,7 @@ export function TransactionOrchestrator() {
           noFakturMode: "auto" as const,
           tanggal: new Date().toISOString().split("T")[0],
           uangMuka: 0,
-          noPO: so.noPesanan ?? "",
+          noPO: so.noPO?? "",
           noSo: so.nomor ?? "",
           kenaPajak: so.kenaPajak ?? false,
           totalTermasukPajak: true,

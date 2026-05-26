@@ -23,7 +23,6 @@ interface UangMukaModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: UangMukaFormData) => void;
-  onProses?: (data: UangMukaFormData) => void;
   initialData?: Partial<UangMukaFormData> | any;
   isSaved?: boolean;
 }
@@ -44,7 +43,6 @@ export function UangMukaModal({
   open,
   onClose,
   onSubmit,
-  onProses,
   initialData,
   isSaved = false,
 }: UangMukaModalProps) {
@@ -225,11 +223,6 @@ export function UangMukaModal({
     }
   };
 
-  const handleProses = () => {
-    if (!saved) return;
-    onProses?.(form);
-  };
-
   if (!open) return null;
 
   const hasPelanggan = form.pelanggan.trim().length > 0;
@@ -269,7 +262,7 @@ export function UangMukaModal({
           {/* Body */}
           <div className="flex-1 overflow-y-auto">
             {/* Top Section */}
-            <div className="px-6 pt-5 pb-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="px-6 pt-5 pb-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Customer Dropdown */}
               <FormField label="Pelanggan" icon={<User size={14} />} required>
                 <div className="relative">
@@ -326,25 +319,12 @@ export function UangMukaModal({
                     </div>
                   )}
                 </div>
-
-                {/* Selected Customer Info */}
-                {form.customerId && (
-                  <div className="mt-2 px-3 py-2 bg-navy-50 border border-navy-200 rounded-lg">
-                    <p className="text-xs text-slate-600">
-                      <span className="font-semibold">Customer:</span>{" "}
-                      {form.pelanggan}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      <span className="font-semibold">ID:</span> {form.customerId}
-                    </p>
-                  </div>
-                )}
               </FormField>
 
               {/* No Faktur */}
               <FormField label="No Faktur #" icon={<Hash size={14} />} required>
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={toggleFakturMode}
@@ -372,20 +352,11 @@ export function UangMukaModal({
                     >
                       {form.noFakturMode === "auto" ? "Auto" : "Manual"}
                     </span>
-
-                    <select
-                      value={form.fakturType ?? "Faktur Penjualan"}
-                      onChange={(e) => set("fakturType", e.target.value)}
-                      className={inputClass + " flex-1"}
-                    >
-                      <option>Faktur Penjualan</option>
-                      <option>Faktur Proforma</option>
-                    </select>
                   </div>
 
                   {form.noFakturMode === "auto" ? (
                     <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-slate-300 bg-slate-50">
-                      <span className="text-sm text-slate-500 font-mono flex-1">
+                      <span className="text-sm text-slate-700 font-mono flex-1 font-semibold">
                         {form.noFaktur ?? ""}
                       </span>
                       <button
@@ -411,28 +382,12 @@ export function UangMukaModal({
               {/* Tanggal */}
               <FormField label="Tanggal" icon={<Calendar size={14} />} required>
                 <input
-                  type="text"
+                  type="date"
                   value={form.tanggal ?? ""}
                   onChange={(e) => set("tanggal", e.target.value)}
                   className={inputClass}
-                  placeholder="YYYY-MM-DD"
                 />
               </FormField>
-
-              {/* Proses Button */}
-              <div className="flex items-end justify-end">
-                <button
-                  disabled={!saved}
-                  onClick={handleProses}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                    saved
-                      ? "bg-navy-900 text-gold-400 hover:bg-navy-700 shadow-sm"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
-                >
-                  Proses ▾
-                </button>
-              </div>
             </div>
 
             {/* Tabs */}

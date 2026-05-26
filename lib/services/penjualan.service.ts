@@ -4,7 +4,7 @@ import { api, type ApiResponse } from "@/lib/api";
 
 export type SalesOrderStatus =
   | "Draft"
-  | "Dikonfirmasi"
+  | "Dikonfirmasi"  
   | "Diproses"
   | "Dikirim"
   | "Selesai"
@@ -43,6 +43,7 @@ export interface SalesOrderApi {
   soNumber: string;
   soDate: string;
   tanggalKirim: string;
+  poNumber: string;
   customerName: string;
   notes: string;
   subTotal: number;
@@ -56,6 +57,7 @@ export interface SalesOrder {
   tanggalKirim: string;
   pelanggan: string;
   salesQuotation: string;
+  poNumber : string;
   dipesanOleh: string;
   alamatPengiriman: string;
   keterangan: string;
@@ -64,12 +66,15 @@ export interface SalesOrder {
   items: SalesOrderItemApi[];
 }
 
+
+
 // ─── Payload SO → API ─────────────────────────────────────────────────────────
 
 export interface SalesOrderPayload {
   header: {
     soNumber: string;
     tanggalKirim: string | null;
+    poNumber : string;
     soDate: string;
     customerId: number;
     isTaxAble: boolean;
@@ -78,6 +83,7 @@ export interface SalesOrderPayload {
     notes: string;
     subTotal: number;
   };
+
   detail: {
     productId: number;
     productCode: string;
@@ -100,6 +106,7 @@ export interface UangMukaPayload {
   customerId: number;
 
   noPO: string;
+  noSo: string;
 
   nominalUangMuka: number;
 
@@ -119,19 +126,26 @@ export interface UangMukaPayload {
 
 export interface UangMuka {
   noFaktur: string;
+
   tanggal: string;
+
   customerId: number;
+
   noPO: string;
 
-  nominalUangMuka: number;
   nomorSo: string;
+
+  nominalUangMuka: number;
+
   totalAmount: number;
 
   syaratPembayaran: string;
 
   alamat: string;
+
   keterangan: string;
 }
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
@@ -140,6 +154,7 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
     nomor: item.soNumber,
     tanggal: item.soDate,
     tanggalKirim: item.tanggalKirim,
+    poNumber : item.poNumber,
     pelanggan: item.customerName,
     salesQuotation: "",
     dipesanOleh: "",
@@ -161,45 +176,27 @@ export function mapProductData(item: ProductDropdown): Product {
     kategori: item.categoryName,
   };
 }
-
-export function mapFormToApiPayload(
-  form: UangMukaFormData
-): UangMukaPayload {
-
-  const taxAmount = form.kenaPajak
-    ? form.uangMuka * 0.11
-    : 0;
-
-  const totalAmount = form.totalTermasukPajak
-    ? form.uangMuka + taxAmount
-    : form.uangMuka;
-
+export function mapUangMuka(item: UangMukaPayload): UangMuka {
   return {
-    id: form.id ?? 0,
+    noFaktur: item.noFaktur,
 
-    noFaktur: form.noFaktur,
+    tanggal: item.tanggal,
 
-    tanggal: new Date(form.tanggal).toISOString(),
+    customerId: item.customerId,
 
-    customerId: Number(form.customerId ?? 0),
+    noPO: item.noPO,
 
-    noPO: form.noPO,
+    nomorSo: item.noSo,
 
-    nominalUangMuka: Number(form.uangMuka),
+    nominalUangMuka: item.nominalUangMuka,
 
-    isTaxable: form.kenaPajak,
+    totalAmount: item.totalAmount,
 
-    isTaxIncluded: form.totalTermasukPajak,
+    syaratPembayaran: item.syaratPembayaran,
 
-    taxAmount,
+    alamat: item.alamat,
 
-    totalAmount,
-
-    syaratPembayaran: form.syaratPembayaran,
-
-    alamat: form.alamat,
-
-    keterangan: form.keterangan,
+    keterangan: item.keterangan,
   };
 }
 
@@ -208,6 +205,7 @@ export function mapFormToApiPayload(
 export const salesOrderService = {
   async getAll(): Promise<SalesOrder[]> {
     const res = await api.get<ApiResponse<SalesOrderApi[]>>("/sales-order");
+
     return (res.data.data ?? []).map(mapSalesOrder);
   },
 
@@ -221,6 +219,7 @@ export const salesOrderService = {
 
   async create(payload: SalesOrderPayload): Promise<any> {
     const response = await api.post("/sales-order", payload);
+
     return response.data.data;
   },
 
@@ -241,21 +240,24 @@ export const salesOrderService = {
 
 export const uangMukaService = {
   async getAll(): Promise<UangMuka[]> {
-    const response = await api.get<ApiResponse<UangMuka[]>>("/uang-muka");
+    const response = await api.get<ApiResponse<UangMukaPayload[]>>(
+      "/uang-muka"
+    );
 
-    return response.data.data ?? [];
+    return (response.data.data ?? []).map(mapUangMuka);
   },
 
   async getById(id: string): Promise<UangMuka> {
-    const response = await api.get<ApiResponse<UangMuka>>(
+    const response = await api.get<ApiResponse<UangMukaPayload>>(
       `/uang-muka/${id}`
     );
 
-    return response.data.data;
+    return mapUangMuka(response.data.data);
   },
 
   async create(payload: UangMukaPayload): Promise<any> {
     const response = await api.post("/uang-muka", payload);
+
     return response.data.data;
   },
 

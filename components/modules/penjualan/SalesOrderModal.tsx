@@ -148,33 +148,45 @@ export function SalesOrderModal({
   console.log("header:", header);
 
     onNavigate?.(target, {
-      ...form,
+  ...form,
 
-      orderId: header?.orderId ?? savedSo?.orderId ?? 0,
+  orderId:
+    header?.orderId ??
+    savedSo?.orderId ??
+    0,
 
-      nomor: header?.soNumber ?? header?.orderNumber ?? form.nomor,
-      pelanggan: form.pelanggan ?? "",
+  nomor:
+    header?.soNumber ??
+    header?.orderNumber ??
+    form.nomor,
 
-      customerId: header?.customerId ?? form.customerId,
+  noPO: form.noPO ?? "",
 
-      alamatPengiriman:
-        header?.address ?? form.alamatPengiriman ?? "",
+  pelanggan: form.pelanggan ?? "",
 
-      keterangan:
-        header?.notes ?? form.keterangan ?? "",
+  customerId:
+    header?.customerId ??
+    form.customerId,
 
-      noPesanan:
-        header?.soNumber ?? header?.orderNumber ?? form.nomor ?? "",
+  alamatPengiriman:
+    header?.address ??
+    form.alamatPengiriman ??
+    "",
 
-      totalHargaPesanan:
-        header?.subTotal ??
-        header?.subtotal ??
-        savedSo?.subTotal ??
-        savedSo?.subtotal ??
-        0,
+  keterangan:
+    header?.notes ??
+    form.keterangan ??
+    "",
 
-      savedSo,
-    } as any);
+  totalHargaPesanan:
+    header?.subTotal ??
+    header?.subtotal ??
+    savedSo?.subTotal ??
+    savedSo?.subtotal ??
+    0,
+
+  savedSo,
+});
   };
 
   if (!open) return null;

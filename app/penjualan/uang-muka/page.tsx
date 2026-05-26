@@ -9,6 +9,7 @@ import {
 } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
 import type { Column } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
+import { uangMukaService } from "@/lib/services/penjualan.service";
 
 export interface UangMuka {
   no: number;
@@ -95,36 +96,55 @@ export default function UangMukaPage() {
   );
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setIsLoading(true);
+ const fetchData = async () => {
+  try {
+    setIsLoading(true);
 
-      setData([
-        {
-          no: 1,
-          id: 1,
-          noFaktur: "UM-2026-001",
-          tanggal: "19/05/2026",
-          pelanggan: "PT Maju Bersama",
-          uangMuka: 5000000,
-          kenaPajak: true,
-          totalTermasukPajak: true,
-          noPO: "PO-001",
-          syaratPembayaran: "Net 30",
-          alamat: "Jl. Sudirman No. 1, Jakarta",
-          keterangan: "",
-          fakturType: "Faktur Penjualan",
-          noPesanan: "SO-2026-001",
-          totalHargaPesanan: 15000000,
-          isActive: true,
-        },
-      ]);
-    } catch {
-      showMessage("Gagal memuat data uang muka", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const result = await uangMukaService.getAll();
+
+    setData(
+      result.map((item, index) => ({
+        no: index + 1,
+
+        id: index + 1,
+
+        noFaktur: item.noFaktur,
+
+        tanggal: new Date(item.tanggal).toLocaleDateString("id-ID"),
+
+        pelanggan: `Customer ID ${item.customerId}`,
+
+        uangMuka: item.nominalUangMuka,
+
+        kenaPajak: false,
+
+        totalTermasukPajak: false,
+
+        noPO: item.noPO ?? "",
+
+        syaratPembayaran: item.syaratPembayaran ?? "",
+
+        alamat: item.alamat ?? "",
+
+        keterangan: item.keterangan ?? "",
+
+        fakturType: "Faktur Penjualan",
+
+        noPesanan: item.nomorSo ?? "",
+
+        totalHargaPesanan: item.totalAmount ?? 0,
+
+        isActive: true,
+      }))
+    );
+  } catch (error) {
+    console.error(error);
+
+    showMessage("Gagal memuat data uang muka", "error");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchData();
