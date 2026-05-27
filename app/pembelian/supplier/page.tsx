@@ -3,7 +3,13 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+
+import {
+  getSuppliers,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier,
+} from "@/lib/services";
 
 // ─── Type ──────────────────────────────────────────────────────────────────────
 interface Supplier {
@@ -48,9 +54,15 @@ export default function SupplierPage() {
   const fetchSuppliers = async () => {
     try {
 
-      const res = await api.get("/Supplier");
+      const res = await getSuppliers();
 
-      const mappedData = res.data.map((item: any) => ({
+      console.log("SUPPLIER RESPONSE:", res);
+
+      const supplierList = Array.isArray(res)
+        ? res
+        : res.data;
+
+      const mappedData = supplierList.map((item: any) => ({
         id: item.supplier_id.toString(),
         kode: item.supplier_code,
         nama: item.supplier_name,
@@ -72,38 +84,11 @@ export default function SupplierPage() {
 
   // ─── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-
-    // ─── Validation ─────────────────────────────────────────────
-    if (
-      !formData.supplier_code ||
-      !formData.supplier_name ||
-      !formData.no_telp_bisnis ||
-      !formData.email ||
-      !formData.alamat
-    ) {
-      alert("Semua field wajib diisi");
-      return;
-    }
-
-    // email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(formData.email)) {
-      alert("Format email tidak valid");
-      return;
-    }
-
-    // phone validation
-    if (formData.no_telp_bisnis.length < 10) {
-      alert("Nomor telepon minimal 10 digit");
-      return;
-    }
-
     try {
 
       if (isEdit) {
 
-        await api.put(`/Supplier/${selectedId}`, {
+        await updateSupplier(selectedId, {
           supplier_code: formData.supplier_code,
           supplier_name: formData.supplier_name,
           no_telp_bisnis: formData.no_telp_bisnis,
@@ -117,7 +102,7 @@ export default function SupplierPage() {
 
       } else {
 
-        await api.post("/Supplier", {
+        await createSupplier({
           supplier_code: formData.supplier_code,
           supplier_name: formData.supplier_name,
           no_telp_bisnis: formData.no_telp_bisnis,
@@ -163,7 +148,7 @@ export default function SupplierPage() {
 
     try {
 
-      await api.delete(`/Supplier/${id}`);
+      await deleteSupplier(id);
 
       alert("Supplier berhasil dihapus");
 
