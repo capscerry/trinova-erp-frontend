@@ -1,55 +1,356 @@
+"use client";
+
 import { AppShell } from "@/components/layout";
-import { StatCard, Card, StatusBadge } from "@/components/ui";
 
-const STATS = [
-  { label: "Total Penjualan", value: "Rp 4,82Jt",  change: "+12.4%", trend: "up"   as const, sub: "Bulan ini" },
-  { label: "Total Pembelian", value: "Rp 2,17Jt",  change: "+3.1%",  trend: "up"   as const, sub: "Bulan ini" },
-  { label: "Stok Tersedia",   value: "1.284",       change: "-2.3%",  trend: "down" as const, sub: "Unit aktif" },
-  { label: "Order Pending",   value: "38",          change: "+5",     trend: "down" as const, sub: "Menunggu proses" },
-];
+import { ModuleOverview } from "@/components/modules/ModuleOverview";
 
-const RECENT = [
-  { ref: "INV-2024-001", keterangan: "Penjualan ke PT Maju Bersama",      tanggal: "08 Mar 2026", nilai: "Rp 1.200.000", status: "Lunas" },
-  { ref: "PO-2024-015",  keterangan: "Pembelian dari CV Elektronik Prima", tanggal: "07 Mar 2026", nilai: "Rp 5.400.000", status: "Diterima" },
-  { ref: "INV-2024-002", keterangan: "Penjualan ke CV Sinar Terang",       tanggal: "07 Mar 2026", nilai: "Rp 850.000",   status: "Pending" },
-  { ref: "MUT-2024-008", keterangan: "Mutasi Stok Gudang Utama",           tanggal: "06 Mar 2026", nilai: "42 Unit",      status: "Selesai" },
-];
+import { NAV_CONFIG } from "@/lib/nav";
 
-export default function DashboardPage() {
+import {
+  getPurchaseOrders,
+  getGoodsReceipts,
+  getSuppliers,
+} from "@/lib/services";
+
+import {
+  ShoppingCart,
+  Truck,
+  Clock3,
+  Building2,
+} from "lucide-react";
+
+import { useEffect, useState } from "react";
+
+// ─────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────
+
+interface DashboardStat {
+  label: string;
+  value: string;
+  change: string;
+  trend: "up" | "down";
+  sub: string;
+  icon: any;
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
+
+const formatRupiah = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    notation: "compact",
+    compactDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(n);
+
+// ─────────────────────────────────────────────────────────────
+// PAGE
+// ─────────────────────────────────────────────────────────────
+
+export default function PembelianPage() {
+
+  const module =
+    NAV_CONFIG.find(
+      (n) => n.id === "pembelian"
+    )!;
+
+  const [stats, setStats] =
+    useState<DashboardStat[]>([]);
+
+  // ─────────────────────────────────────────────────────────
+  // FETCH DASHBOARD
+  // ─────────────────────────────────────────────────────────
+
+  const fetchDashboard =
+    async () => {
+
+      try {
+
+        const [
+          poRes,
+          grRes,
+          supplierRes,
+        ] = await Promise.all([
+          getPurchaseOrders(),
+          getGoodsReceipts(),
+          getSuppliers(),
+        ]);
+
+        const poList =
+          Array.isArray(poRes)
+            ? poRes
+            : poRes.data;
+
+        const grList =
+          Array.isArray(grRes)
+            ? grRes
+            : grRes.data;
+
+        const supplierList =
+          Array.isArray(supplierRes)
+            ? supplierRes
+            : supplierRes.data;
+
+        // TOTAL PEMBELIAN
+
+        const totalPurchase =
+          poList.reduce(
+            (
+              acc: number,
+              item: any
+            ) =>
+              acc +
+              Number(
+                item.total_amount || 0
+              ),
+            0
+          );
+
+        // PO PENDING
+
+        const pendingPO =
+          poList.filter(
+            (item: any) =>
+              item.status === "Draft" ||
+              item.status ===
+                "Waiting to be processed"
+          ).length;
+
+        // GOODS RECEIPT
+
+        const totalGR =
+          grList.length;
+
+        // SUPPLIER
+
+        const totalSupplier =
+          supplierList.length;
+
+        setStats([
+          {
+            label:
+              "Total Pembelian",
+
+            value:
+              `Rp ${formatRupiah(
+                totalPurchase
+              )}`,
+
+            change: "+12%",
+
+            trend: "up",
+
+            sub: "Total transaksi",
+
+            icon: ShoppingCart,
+          },
+
+          {
+            label:
+              "Goods Receipt",
+
+            value:
+              String(totalGR),
+
+            change: "+4",
+
+            trend: "up",
+
+            sub: "Barang diterima",
+
+            icon: Truck,
+          },
+
+          {
+            label:
+              "PO Pending",
+
+            value:
+              String(pendingPO),
+
+            change: "-2",
+
+            trend: "down",
+
+            sub: "Menunggu proses",
+
+            icon: Clock3,
+          },
+
+          {
+            label:
+              "Supplier Aktif",
+
+            value:
+              String(totalSupplier),
+
+            change: "+1",
+
+            trend: "up",
+
+            sub: "Supplier terdaftar",
+
+            icon: Building2,
+          },
+        ]);
+
+      } catch (error) {
+
+        console.error(error);
+      }
+    };
+
+  // ─────────────────────────────────────────────────────────
+  // USE EFFECT
+  // ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+
+    fetchDashboard();
+
+  }, []);
+
+  // ─────────────────────────────────────────────────────────
+  // RETURN
+  // ─────────────────────────────────────────────────────────
+
   return (
-    <AppShell title="Dashboard" subtitle="Ringkasan operasional bisnis hari ini">
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        {STATS.map((s) => (
-          <StatCard key={s.label} {...s} />
-        ))}
+
+    <AppShell
+      title="Purchasing Dashboard"
+      subtitle="Overview aktivitas pembelian dan supplier"
+    >
+
+      <ModuleOverview
+        module={module}
+        stats={stats}
+      />
+
+      {/* AI INSIGHT */}
+
+      <div
+        className="
+          mt-6
+          rounded-2xl
+          border
+          border-navy-800
+          bg-gradient-to-r
+          from-navy-900
+          to-navy-700
+          p-6
+          shadow-lg
+        "
+      >
+
+        <div className="flex items-start justify-between gap-6">
+
+          <div>
+
+            <div
+              className="
+                inline-flex
+                items-center
+                gap-2
+                px-3
+                py-1
+                rounded-full
+                bg-gold-400/10
+                text-gold-400
+                text-xs
+                font-semibold
+                uppercase
+                tracking-widest
+              "
+            >
+              AI Purchasing Insight
+            </div>
+
+            <h2
+              className="
+                mt-4
+                text-2xl
+                font-bold
+                text-white
+                tracking-tight
+              "
+            >
+              Purchasing performance terpantau stabil
+            </h2>
+
+            <p
+              className="
+                mt-2
+                text-slate-300
+                text-sm
+                max-w-2xl
+                leading-relaxed
+              "
+            >
+              Dashboard purchasing menampilkan
+              total transaksi pembelian,
+              monitoring goods receipt,
+              status purchase order,
+              dan supplier aktif
+              berdasarkan data real-time
+              dari sistem ERP.
+            </p>
+
+          </div>
+
+          <div
+            className="
+              hidden
+              lg:flex
+              flex-col
+              gap-3
+              min-w-[220px]
+            "
+          >
+
+            <div
+              className="
+                rounded-xl
+                bg-white/5
+                border
+                border-white/10
+                p-4
+              "
+            >
+              <div className="text-slate-400 text-xs uppercase tracking-widest">
+                Total Goods Receipt
+              </div>
+
+              <div className="mt-2 text-white font-semibold">
+                {stats[1]?.value || 0}
+              </div>
+            </div>
+
+            <div
+              className="
+                rounded-xl
+                bg-white/5
+                border
+                border-white/10
+                p-4
+              "
+            >
+              <div className="text-slate-400 text-xs uppercase tracking-widest">
+                Pending Purchase Order
+              </div>
+
+              <div className="mt-2 text-gold-400 font-bold text-xl">
+                {stats[2]?.value || 0}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
 
-      {/* Recent activity */}
-      <Card title="Aktivitas Terbaru" noPadding>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-slate-50">
-              {["Referensi", "Keterangan", "Tanggal", "Nilai", "Status"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-serif">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {RECENT.map((row) => (
-              <tr key={row.ref} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                <td className="px-4 py-3 font-mono font-bold text-navy-700 text-[13px]">{row.ref}</td>
-                <td className="px-4 py-3 text-sm text-slate-700 font-serif">{row.keterangan}</td>
-                <td className="px-4 py-3 text-sm text-slate-500 font-serif">{row.tanggal}</td>
-                <td className="px-4 py-3 text-sm font-bold text-slate-700 font-serif">{row.nilai}</td>
-                <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
     </AppShell>
   );
 }
