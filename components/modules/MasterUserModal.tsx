@@ -5,12 +5,10 @@ import { X, User, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MasterRole } from "@/lib/services/user.service";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface UserFormData {
   username: string;
   email: string;
-  role: string;
+  roleId: number;
   password: string;
   confirmPassword: string;
   status: "Active" | "Inactive";
@@ -28,17 +26,11 @@ interface UserFormModalProps {
 const EMPTY_FORM: UserFormData = {
   username: "",
   email: "",
-  role: "",
+  roleId: 0,
   password: "",
   confirmPassword: "",
   status: "Active",
 };
-
-// ─── Field wrapper — didefinisikan DI LUAR komponen utama ─────────────────────
-// Root cause bug: jika Field didefinisikan di dalam fungsi komponen utama,
-// React membuat instance komponen BARU setiap render → input unmount/remount
-// → fokus hilang setelah setiap keystroke.
-// Solusi: pindahkan Field ke luar scope UserFormModal.
 
 interface FieldProps {
   label: string;
@@ -55,14 +47,10 @@ function Field({ label, required, error, children }: FieldProps) {
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
       {children}
-      {error && (
-        <p className="text-xs text-red-500 mt-1 font-serif">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-500 mt-1 font-serif">{error}</p>}
     </div>
   );
 }
-
-// ─── Input class helper — juga di luar ───────────────────────────────────────
 
 function inputCls(err?: string) {
   return cn(
@@ -74,7 +62,9 @@ function inputCls(err?: string) {
   );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function disabledCls(isDisabled: boolean) {
+  return isDisabled && "bg-slate-100 text-slate-400 cursor-not-allowed";
+}
 
 export function UserFormModal({
   open,
@@ -84,13 +74,14 @@ export function UserFormModal({
   onClose,
   onSubmit,
 }: UserFormModalProps) {
-  const [form, setForm]               = useState<UserFormData>(EMPTY_FORM);
-  const [errors, setErrors]           = useState<Partial<Record<keyof UserFormData, string>>>({});
-  const [showPass, setShowPass]       = useState(false);
+  const [form, setForm] = useState<UserFormData>(EMPTY_FORM);
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof UserFormData, string>>
+  >({});
+  const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading]         = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Sync form saat modal dibuka
   useEffect(() => {
     if (open) {
       setForm({ ...EMPTY_FORM, ...initialData });
@@ -100,8 +91,12 @@ export function UserFormModal({
     }
   }, [open, initialData]);
 
-  const handleChange = (field: keyof UserFormData, value: string) => {
+  const handleChange = (
+    field: keyof UserFormData,
+    value: string | number
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -110,25 +105,32 @@ export function UserFormModal({
   const validate = (): boolean => {
     const errs: Partial<Record<keyof UserFormData, string>> = {};
 
-
-    if (!form.username.trim())
+    if (!form.username.trim()) {
       errs.username = "Username wajib diisi";
+    }
 
-    if (!form.email.trim())
+    if (!form.email.trim()) {
       errs.email = "Email wajib diisi";
-    else if (!/\S+@\S+\.\S+/.test(form.email))
+    } else if (!/\S+@\S+\.\S+/.test(form.email)) {
       errs.email = "Format email tidak valid";
+    }
 
-    if (!form.role)
-      errs.role = "Role wajib dipilih";
+    if (!form.roleId || Number(form.roleId) === 0) {
+      errs.roleId = "Role wajib dipilih";
+    }
 
-    if (!isEdit || form.password) {
-      if (!isEdit && !form.password)
+    if (!isEdit) {
+      if (!form.password) {
         errs.password = "Password wajib diisi";
-      if (form.password && form.password.length < 6)
+      }
+
+      if (form.password && form.password.length < 6) {
         errs.password = "Password minimal 6 karakter";
-      if (form.password && form.password !== form.confirmPassword)
+      }
+
+      if (form.password !== form.confirmPassword) {
         errs.confirmPassword = "Konfirmasi password tidak cocok";
+      }
     }
 
     setErrors(errs);
@@ -137,9 +139,14 @@ export function UserFormModal({
 
   const handleSubmit = async () => {
     if (!validate()) return;
+
     setLoading(true);
+
     try {
-      await onSubmit(form);
+      await onSubmit({
+        ...form,
+        roleId: Number(form.roleId),
+      });
     } finally {
       setLoading(false);
     }
@@ -150,22 +157,24 @@ export function UserFormModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-[560px] shadow-2xl overflow-hidden">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-navy-900">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gold-500/20 flex items-center justify-center">
               <User size={16} className="text-gold-400" />
             </div>
+
             <div>
               <h2 className="font-bold text-white text-[15px] font-serif">
                 {isEdit ? "Edit Pengguna" : "Tambah Pengguna"}
               </h2>
               <p className="text-slate-400 text-[11px] mt-0.5 font-serif">
-                {isEdit ? "Perbarui data pengguna" : "Buat akun pengguna baru"}
+                {isEdit
+                  ? "Hanya email dan role yang dapat diubah"
+                  : "Buat akun pengguna baru"}
               </p>
             </div>
           </div>
+
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
@@ -174,22 +183,21 @@ export function UserFormModal({
           </button>
         </div>
 
-        {/* ── Body ────────────────────────────────────────────────────────── */}
         <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
-
-         
-
-          {/* Username & Email */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Username" required error={errors.username}>
               <input
                 type="text"
                 value={form.username}
+                disabled={isEdit}
                 onChange={(e) =>
-                  handleChange("username", e.target.value.toLowerCase().replace(/\s/g, ""))
+                  handleChange(
+                    "username",
+                    e.target.value.toLowerCase().replace(/\s/g, "")
+                  )
                 }
                 placeholder="username"
-                className={inputCls(errors.username)}
+                className={cn(inputCls(errors.username), disabledCls(isEdit))}
               />
             </Field>
 
@@ -204,17 +212,16 @@ export function UserFormModal({
             </Field>
           </div>
 
-          {/* Role */}
-          <Field label="Role" required error={errors.role}>
+          <Field label="Role" required error={errors.roleId}>
             <div className="grid grid-cols-2 gap-2">
               {roles.map((r) => (
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => handleChange("role", r.roleName)}
+                  onClick={() => handleChange("roleId", r.id)}
                   className={cn(
                     "p-3 rounded-xl border text-left transition-all",
-                    form.role === r.roleName
+                    Number(form.roleId) === r.id
                       ? "border-navy-600 bg-navy-900 text-white"
                       : "border-slate-200 hover:bg-slate-50 text-slate-700"
                   )}
@@ -222,7 +229,11 @@ export function UserFormModal({
                   <div className="flex items-center gap-2">
                     <Shield
                       size={14}
-                      className={form.role === r.roleName ? "text-gold-400" : "text-slate-400"}
+                      className={
+                        Number(form.roleId) === r.id
+                          ? "text-gold-400"
+                          : "text-slate-400"
+                      }
                     />
                     <span className="text-sm font-semibold font-serif">
                       {r.roleName}
@@ -233,10 +244,9 @@ export function UserFormModal({
             </div>
           </Field>
 
-          {/* Password */}
           <div className="grid grid-cols-2 gap-4">
             <Field
-              label={isEdit ? "Password Baru (opsional)" : "Password"}
+              label={isEdit ? "Password" : "Password"}
               required={!isEdit}
               error={errors.password}
             >
@@ -244,49 +254,71 @@ export function UserFormModal({
                 <input
                   type={showPass ? "text" : "password"}
                   value={form.password}
+                  disabled={isEdit}
                   onChange={(e) => handleChange("password", e.target.value)}
-                  placeholder={isEdit ? "Kosongkan jika tidak diubah" : "Min. 6 karakter"}
-                  className={cn(inputCls(errors.password), "pr-16")}
+                  placeholder={isEdit ? "Tidak bisa diubah" : "Min. 6 karakter"}
+                  className={cn(
+                    inputCls(errors.password),
+                    "pr-16",
+                    disabledCls(isEdit)
+                  )}
                 />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPass((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
-                >
-                  {showPass ? "hide" : "show"}
-                </button>
+
+                {!isEdit && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPass((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
+                  >
+                    {showPass ? "hide" : "show"}
+                  </button>
+                )}
               </div>
             </Field>
 
-            <Field label="Konfirmasi Password" required={!isEdit} error={errors.confirmPassword}>
+            <Field
+              label="Konfirmasi Password"
+              required={!isEdit}
+              error={errors.confirmPassword}
+            >
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
                   value={form.confirmPassword}
-                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
-                  placeholder="Ulangi password"
-                  className={cn(inputCls(errors.confirmPassword), "pr-16")}
+                  disabled={isEdit}
+                  onChange={(e) =>
+                    handleChange("confirmPassword", e.target.value)
+                  }
+                  placeholder={isEdit ? "Tidak bisa diubah" : "Ulangi password"}
+                  className={cn(
+                    inputCls(errors.confirmPassword),
+                    "pr-16",
+                    disabledCls(isEdit)
+                  )}
                 />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
-                >
-                  {showConfirm ? "hide" : "show"}
-                </button>
+
+                {!isEdit && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
+                  >
+                    {showConfirm ? "hide" : "show"}
+                  </button>
+                )}
               </div>
             </Field>
           </div>
 
-          {/* Status */}
           <Field label="Status Akun">
             <div className="flex gap-3">
               {(["Active", "Inactive"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
+                  disabled={isEdit}
                   onClick={() => handleChange("status", s)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-serif transition-all",
@@ -294,22 +326,23 @@ export function UserFormModal({
                       ? s === "Active"
                         ? "bg-emerald-50 border-emerald-400 text-emerald-700"
                         : "bg-slate-100 border-slate-400 text-slate-600"
-                      : "border-slate-200 text-slate-400 hover:border-slate-300"
+                      : "border-slate-200 text-slate-400 hover:border-slate-300",
+                    isEdit && "opacity-60 cursor-not-allowed"
                   )}
                 >
-                  <span className={cn(
-                    "w-1.5 h-1.5 rounded-full",
-                    s === "Active" ? "bg-emerald-500" : "bg-slate-400"
-                  )} />
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      s === "Active" ? "bg-emerald-500" : "bg-slate-400"
+                    )}
+                  />
                   {s === "Active" ? "Aktif" : "Nonaktif"}
                 </button>
               ))}
             </div>
           </Field>
-
         </div>
 
-        {/* ── Footer ──────────────────────────────────────────────────────── */}
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2.5">
           <button
             onClick={onClose}
@@ -317,6 +350,7 @@ export function UserFormModal({
           >
             Batal
           </button>
+
           <button
             onClick={handleSubmit}
             disabled={loading}
@@ -327,10 +361,13 @@ export function UserFormModal({
               loading && "opacity-60 cursor-not-allowed"
             )}
           >
-            {loading ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Tambah"}
+            {loading
+              ? "Menyimpan..."
+              : isEdit
+              ? "Simpan Perubahan"
+              : "Tambah"}
           </button>
         </div>
-
       </div>
     </div>
   );

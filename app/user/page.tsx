@@ -4,12 +4,7 @@ import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useEffect, useState } from "react";
 
-import {
-  MasterUser,
-  MasterRole,
-  masterUserService,
-  roleService
-} from "@/lib/services/user.service";
+import {MasterUser,MasterRole,masterUserService,roleService} from "@/lib/services/user.service";
 
 import { UserFormData, UserFormModal } from "@/components/modules/MasterUserModal";
 import { cn } from "@/lib/utils";
@@ -49,34 +44,53 @@ const COLUMNS: Column<MasterUser>[] = [
 ];
 
 export default function MasterUserPage() {
-  const [users, setUsers] = useState<MasterUser[]>([]);
-  const [roles, setRoles] = useState<MasterRole[]>([]);
+  const [users, setUsers]     = useState<MasterUser[]>([]);
+  const [roles, setRoles]     = useState<MasterRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [openForm, setOpenForm] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
+  const [openForm, setOpenForm]   = useState(false);
+  const [isEdit, setIsEdit]       = useState(false);
   const [selectedId, setSelectedId] = useState(0);
-  const [formInit, setFormInit] = useState<Partial<UserFormData>>({});
+  const [formInit, setFormInit]   = useState<Partial<UserFormData>>({});
 
-  const [toast, setToast]           = useState<{ msg: string; type: "success" | "error" } | null>(null);
- 
+  const [confirmStatus, setConfirmStatus] = useState<{
+    open: boolean;
+    id: number;
+    username: string;
+    currentStatus: boolean;
+  } | null>(null);
+  
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // FETCH API GET ALL USER
+  
+
+  // ─── Fetch ────────────────────────────────────────────────────────────────
+
   const fetchUser = async () => {
     setLoading(true);
-
     try {
       const result = await masterUserService.getAll();
-
       setUsers(result);
     } catch (err) {
       console.error("Gagal mengambil data user", err);
+      showToast("Gagal mengambil data user", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRoleForModal = async () => {
+    try {
+      const result = await roleService.getAll();
+      setRoles(result);
+    } catch (err) {
+      console.error("Gagal mengambil data role", err);
+      showToast("Gagal mengambil data role", "error");
     }
   };
 
@@ -85,53 +99,115 @@ export default function MasterUserPage() {
     fetchRoleForModal();
   }, []);
 
-  const fetchRoleForModal = async ()=>{
-    try{
-        const result = await roleService.getAll();
-        console.log(result);
-        setRoles(result)
-    }catch(err){
-        console.error("Gagal mengambil data role", err);
-        showToast("Gagal mengambil data role", "error");
-    }
-  }
+  // ─── Handlers ─────────────────────────────────────────────────────────────
 
-  // SUBMIT
+  // CREATE
   const handleSubmit = async (data: UserFormData) => {
-    console.log("SUBMIT USER:", data);
+    try {
+      if (isEdit) {
+        const success = await masterUserService.update({
+          id: selectedId,
+          email: data.email,
+          roleId: Number(data.roleId),
+        });
+
+        if (success) {
+          showToast("User berhasil diperbarui", "success");
+        } else {
+          showToast("User gagal diperbarui", "error");
+        }
+      } else {
+        const success = await masterUserService.create({
+          username: data.username,
+          email: data.email,
+          roleId: Number(data.roleId),
+          password: data.password,
+          status: data.status === "Active",
+        });
+
+        if (success) {
+          showToast("User berhasil ditambahkan", "success");
+        } else {
+          showToast("User gagal ditambahkan", "error");
+        }
+      }
+
+      setOpenForm(false);
+      await fetchUser();
+    } catch (err) {
+      console.error("Gagal menyimpan data user", err);
+      showToast("Gagal menyimpan data user", "error");
+    }
   };
 
   // EDIT
-  const handleEdit = async (row: MasterUser) => {
-    console.log("EDIT USER:", row);
+  const handleEdit = (row: MasterUser) => {
+    const selectedRole = roles.find((r) => r.roleName === row.role);
 
     setIsEdit(true);
     setSelectedId(row.id);
-
     setFormInit({
       username: row.username,
       email: row.email,
-      role: row.role,
-      status: row.status ? "Active" : "Inactive"
+      roleId: selectedRole?.id ?? 0,
+      status: row.status ? "Active" : "Inactive",
     });
-
     setOpenForm(true);
   };
 
   // DETAIL
-  const handleDetail = async (row: MasterUser) => {
+  const handleDetail = (row: MasterUser) => {
     console.log("DETAIL USER:", row);
   };
 
-  // DELETE
-  const handleDelete = async (
+  // ACTIVATE/DEACTIVATE
+  const handleToggleStatus = async (
     id: number,
-    username: string
+    username: string, 
+    currentStatus: boolean
   ) => {
-    console.log("DELETE USER:", {
-      id,
-      username,
-    });
+    const action = currentStatus ? "Nonaktifkan" : "Aktifkan";
+
+    if (!confirm(`${action} account "${username}"?`)) return;
+
+    try {
+      const success = await masterUserService.toggleStatus(id);
+
+      if (success) {
+        showToast(`Account "${username}" berhasil diupdate`, "success");
+        await fetchUser();
+      } else {
+        showToast(`Gagal update account "${username}"`, "error");
+      }
+    } catch (err) {
+      console.error("Gagal update status user", err);
+      showToast("Gagal update status user", "error");
+    }
+  };
+
+  const confirmToggleStatus = async () => {
+    if (!confirmStatus) return;
+
+    try {
+      const success = await masterUserService.toggleStatus(confirmStatus.id);
+
+      if (success) {
+        showToast(
+          `Account "${confirmStatus.username}" berhasil ${
+            confirmStatus.currentStatus ? "dinonaktifkan" : "diaktifkan"
+          }`,
+          "success"
+        );
+
+        setConfirmStatus(null);
+        await fetchUser();
+      } else {
+        showToast("Gagal mengubah status account", "error");
+      }
+    } catch (err) {
+      console.error("Gagal update status user", err);
+      showToast("Gagal mengubah status account", "error");
+    }
   };
 
   return (
@@ -149,8 +225,6 @@ export default function MasterUserPage() {
           setSelectedId(0);
           setFormInit({});
           setOpenForm(true);
-
-          console.log("OPEN ADD USER FORM");
         }}
         keyField="id"
         renderActions={(row) => (
@@ -169,29 +243,101 @@ export default function MasterUserPage() {
               Edit
             </button>
 
-            <button
-              onClick={() =>
-                handleDelete(row.id, row.username)
-              }
-              className="px-2.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-md text-xs font-semibold transition-colors"
-            >
-              Hapus
-            </button>
+           <button
+            onClick={() =>
+              setConfirmStatus({
+                open: true,
+                id: row.id,
+                username: row.username,
+                currentStatus: row.status,
+              })
+            }
+            className={cn(
+              "px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors text-white",
+              row.status
+                ? "bg-red-500 hover:bg-red-600"
+                : "bg-emerald-500 hover:bg-emerald-600"
+            )}
+          >
+            {row.status ? "Deactivate" : "Activate"}
+          </button>
           </div>
         )}
       />
 
-
       <UserFormModal
-        open = {openForm}
-        isEdit = {isEdit}
+        open={openForm}
+        isEdit={isEdit}
         roles={roles}
         initialData={formInit}
-        onClose={()=>setOpenForm(false)}
+        onClose={() => setOpenForm(false)}
         onSubmit={handleSubmit}
       />
 
-       {toast && (
+      {confirmStatus?.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div
+              className={cn(
+                "px-6 py-5 text-white",
+                confirmStatus.currentStatus
+                  ? "bg-red-600"
+                  : "bg-emerald-600"
+              )}
+            >
+              <h3 className="text-lg font-bold font-serif">
+                {confirmStatus.currentStatus
+                  ? "Deactivate Account?"
+                  : "Activate Account?"}
+              </h3>
+              <p className="mt-1 text-sm opacity-90 font-serif">
+                {confirmStatus.currentStatus
+                  ? "User tidak akan bisa menggunakan account ini setelah dinonaktifkan."
+                  : "User akan kembali bisa menggunakan account ini setelah diaktifkan."}
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm text-slate-600 font-serif">
+                Apakah kamu yakin ingin{" "}
+                <span className="font-bold text-slate-900">
+                  {confirmStatus.currentStatus ? "menonaktifkan" : "mengaktifkan"}
+                </span>{" "}
+                account{" "}
+                <span className="font-bold text-slate-900">
+                  {confirmStatus.username}
+                </span>
+                ?
+              </p>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                onClick={() => setConfirmStatus(null)}
+                className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 font-serif"
+              >
+                Batal
+              </button>
+
+              <button
+                onClick={confirmToggleStatus}
+                className={cn(
+                  "px-4 py-2.5 rounded-lg text-sm font-semibold text-white font-serif",
+                  confirmStatus.currentStatus
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                )}
+              >
+                {confirmStatus.currentStatus
+                  ? "Ya, Deactivate"
+                  : "Ya, Activate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
         <div className={cn(
           "fixed bottom-6 right-6 z-[100] px-5 py-3.5 rounded-xl shadow-lg font-serif text-sm font-semibold",
           "flex items-center gap-2.5 transition-all duration-300",
@@ -207,6 +353,5 @@ export default function MasterUserPage() {
         </div>
       )}
     </AppShell>
-    
   );
 }

@@ -112,7 +112,7 @@ export default function UangMukaPage() {
 
         tanggal: new Date(item.tanggal).toLocaleDateString("id-ID"),
 
-        pelanggan: `Customer ID ${item.customerId}`,
+        pelanggan: item.customerName,
 
         uangMuka: item.nominalUangMuka,
 

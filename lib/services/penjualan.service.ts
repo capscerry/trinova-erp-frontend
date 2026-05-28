@@ -4,7 +4,7 @@ import { api, type ApiResponse } from "@/lib/api";
 
 export type SalesOrderStatus =
   | "Draft"
-  | "Dikonfirmasi"  
+  | "Dikonfirmasi"
   | "Diproses"
   | "Dikirim"
   | "Selesai"
@@ -16,6 +16,7 @@ export interface SalesOrderItemApi {
   productName: string;
   quantity: number;
   unitPrice: number;
+  discountAmount?: number;
   subtotal: number;
 }
 
@@ -51,22 +52,17 @@ export interface SalesOrderApi {
 }
 
 export interface SalesOrder {
-  id: string;
+  id: number;
   nomor: string;
   tanggal: string;
   tanggalKirim: string;
   pelanggan: string;
-  salesQuotation: string;
-  poNumber : string;
-  dipesanOleh: string;
-  alamatPengiriman: string;
+  poNumber: string;
   keterangan: string;
   status: SalesOrderStatus;
   total: number;
   items: SalesOrderItemApi[];
 }
-
-
 
 // ─── Payload SO → API ─────────────────────────────────────────────────────────
 
@@ -74,7 +70,7 @@ export interface SalesOrderPayload {
   header: {
     soNumber: string;
     tanggalKirim: string | null;
-    poNumber : string;
+    poNumber: string;
     soDate: string;
     customerId: number;
     isTaxAble: boolean;
@@ -98,51 +94,41 @@ export interface SalesOrderPayload {
 // ─── Payload UM → API ─────────────────────────────────────────────────────────
 
 export interface UangMukaPayload {
-  id: number;
-
+  id?: number;
   noFaktur: string;
   tanggal: string;
-
   customerId: number;
-
   noPO: string;
   noSo: string;
-
   nominalUangMuka: number;
-
   isTaxable: boolean;
   isTaxIncluded: boolean;
-
   taxAmount: number;
-
   totalAmount: number;
-
   syaratPembayaran: string;
-
   alamat: string;
-
   keterangan: string;
 }
 
+export interface UangMukaApi extends UangMukaPayload {
+  customerName?: string;
+}
+
 export interface UangMuka {
+  id?: number;
   noFaktur: string;
-
   tanggal: string;
-
   customerId: number;
-
+  customerName?: string;
   noPO: string;
-
   nomorSo: string;
-
   nominalUangMuka: number;
-
+  isTaxable: boolean;
+  isTaxIncluded: boolean;
+  taxAmount: number;
   totalAmount: number;
-
   syaratPembayaran: string;
-
   alamat: string;
-
   keterangan: string;
 }
 
@@ -150,15 +136,12 @@ export interface UangMuka {
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
   return {
-    id: String(item.orderId),
+    id: item.orderId,
     nomor: item.soNumber,
     tanggal: item.soDate,
     tanggalKirim: item.tanggalKirim,
-    poNumber : item.poNumber,
+    poNumber: item.poNumber,
     pelanggan: item.customerName,
-    salesQuotation: "",
-    dipesanOleh: "",
-    alamatPengiriman: "",
     keterangan: item.notes,
     status: item.status,
     total: item.subTotal,
@@ -176,26 +159,23 @@ export function mapProductData(item: ProductDropdown): Product {
     kategori: item.categoryName,
   };
 }
-export function mapUangMuka(item: UangMukaPayload): UangMuka {
+
+export function mapUangMuka(item: UangMukaApi): UangMuka {
   return {
+    id: item.id,
     noFaktur: item.noFaktur,
-
     tanggal: item.tanggal,
-
     customerId: item.customerId,
-
+    customerName: item.customerName,
     noPO: item.noPO,
-
     nomorSo: item.noSo,
-
     nominalUangMuka: item.nominalUangMuka,
-
+    isTaxable: item.isTaxable,
+    isTaxIncluded: item.isTaxIncluded,
+    taxAmount: item.taxAmount,
     totalAmount: item.totalAmount,
-
     syaratPembayaran: item.syaratPembayaran,
-
     alamat: item.alamat,
-
     keterangan: item.keterangan,
   };
 }
@@ -204,34 +184,39 @@ export function mapUangMuka(item: UangMukaPayload): UangMuka {
 
 export const salesOrderService = {
   async getAll(): Promise<SalesOrder[]> {
-    const res = await api.get<ApiResponse<SalesOrderApi[]>>("/sales-order");
+    const response = await api.get<ApiResponse<SalesOrderApi[]>>(
+      "/sales-order"
+    );
 
-    return (res.data.data ?? []).map(mapSalesOrder);
+    return (response.data.data ?? []).map(mapSalesOrder);
   },
 
-  async getById(id: string): Promise<SalesOrder> {
-    const res = await api.get<ApiResponse<SalesOrderApi>>(
+  async getById(id: number | string): Promise<SalesOrder> {
+    const response = await api.get<ApiResponse<SalesOrderApi>>(
       `/sales-order/${id}`
     );
 
-    return mapSalesOrder(res.data.data);
+    return mapSalesOrder(response.data.data);
   },
 
-  async create(payload: SalesOrderPayload): Promise<any> {
-    const response = await api.post("/sales-order", payload);
+  async create(payload: SalesOrderPayload): Promise<SalesOrder> {
+    const response = await api.post<ApiResponse<SalesOrderApi>>(
+      "/sales-order",
+      payload
+    );
 
-    return response.data.data;
+    return mapSalesOrder(response.data.data);
   },
 
-  async update(id: string, payload: SalesOrderPayload): Promise<void> {
+  async update(id: number | string, payload: SalesOrderPayload): Promise<void> {
     await api.put(`/sales-order/${id}`, payload);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number | string): Promise<void> {
     await api.delete(`/sales-order/${id}`);
   },
 
-  async confirm(id: string): Promise<void> {
+  async confirm(id: number | string): Promise<void> {
     await api.patch(`/sales-order/${id}/confirm`);
   },
 };
@@ -240,32 +225,33 @@ export const salesOrderService = {
 
 export const uangMukaService = {
   async getAll(): Promise<UangMuka[]> {
-    const response = await api.get<ApiResponse<UangMukaPayload[]>>(
-      "/uang-muka"
-    );
+    const response = await api.get<ApiResponse<UangMukaApi[]>>("/uang-muka");
 
     return (response.data.data ?? []).map(mapUangMuka);
   },
 
-  async getById(id: string): Promise<UangMuka> {
-    const response = await api.get<ApiResponse<UangMukaPayload>>(
+  async getById(id: number | string): Promise<UangMuka> {
+    const response = await api.get<ApiResponse<UangMukaApi>>(
       `/uang-muka/${id}`
     );
 
     return mapUangMuka(response.data.data);
   },
 
-  async create(payload: UangMukaPayload): Promise<any> {
-    const response = await api.post("/uang-muka", payload);
+  async create(payload: UangMukaPayload): Promise<UangMuka> {
+    const response = await api.post<ApiResponse<UangMukaApi>>(
+      "/uang-muka",
+      payload
+    );
 
-    return response.data.data;
+    return mapUangMuka(response.data.data);
   },
 
-  async update(id: string, payload: UangMukaPayload): Promise<void> {
+  async update(id: number | string, payload: UangMukaPayload): Promise<void> {
     await api.put(`/uang-muka/${id}`, payload);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number | string): Promise<void> {
     await api.delete(`/uang-muka/${id}`);
   },
 };
@@ -274,11 +260,11 @@ export const uangMukaService = {
 
 export const productDropdownService = {
   async getAll(): Promise<Product[]> {
-    const res = await api.get<ApiResponse<ProductDropdown[]>>(
+    const response = await api.get<ApiResponse<ProductDropdown[]>>(
       "/product-data"
     );
 
-    return (res.data.data ?? []).map(mapProductData);
+    return (response.data.data ?? []).map(mapProductData);
   },
 };
 
@@ -315,9 +301,7 @@ export interface SalesQuotation {
   items: SalesOrderItemApi[];
 }
 
-export function mapSalesQuotation(
-  item: SalesQuotationApi
-): SalesQuotation {
+export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
   return {
     id: item.id,
     nomor: item.quotationNumber,
@@ -327,39 +311,44 @@ export function mapSalesQuotation(
     keterangan: item.notes,
     status: item.status,
     total: item.totalAmount,
-    items: item.items,
+    items: item.items ?? [],
   };
 }
 
 export const salesQuotationService = {
   async getAll(): Promise<SalesQuotation[]> {
-    const res = await api.get<ApiResponse<SalesQuotationApi[]>>(
+    const response = await api.get<ApiResponse<SalesQuotationApi[]>>(
       "/sales-quotation"
     );
 
-    return (res.data.data ?? []).map(mapSalesQuotation);
+    return (response.data.data ?? []).map(mapSalesQuotation);
   },
 
-  async getById(id: string): Promise<SalesQuotation> {
-    const res = await api.get<ApiResponse<SalesQuotationApi>>(
+  async getById(id: number | string): Promise<SalesQuotation> {
+    const response = await api.get<ApiResponse<SalesQuotationApi>>(
       `/sales-quotation/${id}`
     );
 
-    return mapSalesQuotation(res.data.data);
+    return mapSalesQuotation(response.data.data);
   },
 
-  async create(payload: Partial<SalesQuotationApi>): Promise<void> {
-    await api.post("/sales-quotation", payload);
+  async create(payload: Partial<SalesQuotationApi>): Promise<SalesQuotation> {
+    const response = await api.post<ApiResponse<SalesQuotationApi>>(
+      "/sales-quotation",
+      payload
+    );
+
+    return mapSalesQuotation(response.data.data);
   },
 
   async update(
-    id: string,
+    id: number | string,
     payload: Partial<SalesQuotationApi>
   ): Promise<void> {
     await api.put(`/sales-quotation/${id}`, payload);
   },
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number | string): Promise<void> {
     await api.delete(`/sales-quotation/${id}`);
   },
 };
