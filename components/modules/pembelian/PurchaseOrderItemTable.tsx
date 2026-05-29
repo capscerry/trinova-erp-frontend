@@ -13,6 +13,8 @@ export interface PurchaseOrderItem {
   product_id: string;
   product_name: string;
 
+  isExisting?: boolean;
+
   quantity: number;
 
   uom_id: string;
@@ -26,6 +28,14 @@ export interface PurchaseOrderItem {
 interface Product {
   id: string;
   nama: string;
+
+  supplier_price?: number;
+
+  available_stock?: number;
+
+  lead_time_days?: number;
+
+  uom_id?: number;
 }
 
 interface Uom {
@@ -92,6 +102,8 @@ export default function PurchaseOrderItemTable({
 
               {[
                 "Product",
+                "Stock",
+                "Lead Time",
                 "Qty",
                 "UOM",
                 "Price",
@@ -133,51 +145,114 @@ export default function PurchaseOrderItemTable({
 
                 <td className="px-3 py-2">
 
-                  <select
-                    value={item.product_id}
-                    onChange={(e) => {
+                  {item.isExisting ? (
 
-                      const selected =
-                        products.find(
-                          (product) =>
-                            product.id ===
-                            e.target.value
+                    <input
+                      value={item.product_name}
+                      disabled
+                      className={cn(
+                        inputCompact,
+                        `
+                          min-w-[220px]
+                          bg-slate-50
+                          text-slate-500
+                          cursor-not-allowed
+                        `
+                      )}
+                    />
+
+                  ) : (
+
+                    <select
+                      value={item.product_id}
+                      onChange={(e) => {
+
+                        const selected =
+                          products.find(
+                            (product) =>
+                              product.id ===
+                              e.target.value
+                          );
+
+                        onUpdateItem(
+                          item.id,
+                          {
+                            product_id:
+                              e.target.value,
+
+                            product_name:
+                              selected?.nama || "",
+
+                            price:
+                              selected?.supplier_price || 0,
+
+                            uom_id:
+                              selected?.uom_id?.toString() || "",
+
+                            uom_name:
+                              uoms.find(
+                                (u) =>
+                                  u.id ===
+                                  selected?.uom_id?.toString()
+                              )?.nama || "",
+                          }
                         );
+                      }}
+                      className={cn(
+                        inputCompact,
+                        "min-w-[220px]"
+                      )}
+                    >
 
-                      onUpdateItem(
-                        item.id,
-                        {
-                          product_id:
-                            e.target.value,
-
-                          product_name:
-                            selected?.nama ||
-                            "",
-                        }
-                      );
-                    }}
-                    className={cn(
-                      inputCompact,
-                      "min-w-[220px]"
-                    )}
-                  >
-
-                    <option value="">
-                      Pilih Product
-                    </option>
-
-                    {products.map((product) => (
-
-                      <option
-                        key={product.id}
-                        value={product.id}
-                      >
-                        {product.nama}
+                      <option value="">
+                        Pilih Product
                       </option>
 
-                    ))}
+                      {products.map((product) => (
 
-                  </select>
+                        <option
+                          key={product.id}
+                          value={product.id}
+                        >
+                          {product.nama}
+                        </option>
+
+                      ))}
+
+                    </select>
+
+                  )}
+
+                </td>
+
+                {/* STOCK */}
+
+                <td className="px-3 py-2 text-slate-600">
+
+                  {
+                    products.find(
+                      (p) =>
+                        p.id === item.product_id
+                    )?.available_stock ?? "-"
+                  }
+
+                </td>
+
+                {/* LEAD TIME */}
+
+                <td className="px-3 py-2 text-slate-600">
+
+                  {
+                    products.find(
+                      (p) =>
+                        p.id === item.product_id
+                    )?.lead_time_days
+                      ? `${products.find(
+                          (p) =>
+                            p.id === item.product_id
+                        )?.lead_time_days} Hari`
+                      : "-"
+                  }
 
                 </td>
 
@@ -189,17 +264,38 @@ export default function PurchaseOrderItemTable({
                     type="number"
                     min={1}
                     value={item.quantity}
-                    onChange={(e) =>
+                    onChange={(e) => {
+
+                      const qty =
+                        Number(
+                          e.target.value
+                        );
+
+                      const stock =
+                        products.find(
+                          (p) =>
+                            p.id === item.product_id
+                        )?.available_stock || 0;
+
+                      if (
+                        item.product_id &&
+                        qty > stock
+                      ) {
+
+                        alert(
+                          `Qty melebihi stock supplier (${stock})`
+                        );
+
+                        return;
+                      }
+
                       onUpdateItem(
                         item.id,
                         {
-                          quantity:
-                            Number(
-                              e.target.value
-                            ),
+                          quantity: qty,
                         }
-                      )
-                    }
+                      );
+                    }}
                     className={cn(
                       inputCompact,
                       "w-20"
@@ -210,80 +306,17 @@ export default function PurchaseOrderItemTable({
 
                 {/* UOM */}
 
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 font-medium text-slate-700">
 
-                  <select
-                    value={item.uom_id}
-                    onChange={(e) => {
-
-                      const selected =
-                        uoms.find(
-                          (uom) =>
-                            uom.id ===
-                            e.target.value
-                        );
-
-                      onUpdateItem(
-                        item.id,
-                        {
-                          uom_id:
-                            e.target.value,
-
-                          uom_name:
-                            selected?.nama ||
-                            "",
-                        }
-                      );
-                    }}
-                    className={cn(
-                      inputCompact,
-                      "min-w-[140px]"
-                    )}
-                  >
-
-                    <option value="">
-                      Pilih UOM
-                    </option>
-
-                    {uoms.map((uom) => (
-
-                      <option
-                        key={uom.id}
-                        value={uom.id}
-                      >
-                        {uom.nama}
-                      </option>
-
-                    ))}
-
-                  </select>
+                  {item.uom_name || "-"}
 
                 </td>
 
                 {/* PRICE */}
 
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 font-medium whitespace-nowrap">
 
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.price}
-                    onChange={(e) =>
-                      onUpdateItem(
-                        item.id,
-                        {
-                          price:
-                            Number(
-                              e.target.value
-                            ),
-                        }
-                      )
-                    }
-                    className={cn(
-                      inputCompact,
-                      "w-32"
-                    )}
-                  />
+                  {formatRupiah(item.price)}
 
                 </td>
 

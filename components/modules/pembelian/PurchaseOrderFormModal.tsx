@@ -24,7 +24,18 @@ interface Supplier {
 
 interface Product {
   id: string;
+
   nama: string;
+
+  supplier_id?: number;
+
+  supplier_price?: number;
+
+  available_stock?: number;
+
+  lead_time_days?: number;
+
+  uom_id?: number;
 }
 
 interface Uom {
@@ -37,6 +48,9 @@ export interface PurchaseOrderFormData {
   supplier_id: string;
   order_date: string;
   status: string;
+
+  total_amount: number;
+
   items: PurchaseOrderItem[];
 }
 
@@ -115,33 +129,46 @@ export default function PurchaseOrderFormModal({
 
       status: "Draft",
 
+      total_amount: 0,
+
       items: [newItem()],
     });
 
-  useEffect(() => {
+    useEffect(() => {
 
-    if (!open) return;
+      if (!open) return;
 
-    if (initialData) {
+      if (initialData) {
 
-      setForm(initialData);
+        console.log("INITIAL DATA");
+        console.log(initialData);
 
-    } else {
+        setForm(initialData);
 
-      setForm({
-        po_number: generatePONumber(),
+        const filtered =
+          products.filter(
+            (product) =>
+              product.supplier_id?.toString() ===
+              initialData.supplier_id
+          );
 
-        supplier_id: "",
+        setFilteredProducts(filtered);
 
-        order_date: todayStr(),
+      } else {
 
-        status: "Draft",
+        setForm({
+          po_number: generatePONumber(),
+          supplier_id: "",
+          order_date: todayStr(),
+          status: "Draft",
+          total_amount: 0,
+          items: [newItem()],
+        });
 
-        items: [newItem()],
-      });
-    }
+        setFilteredProducts([]);
+      }
 
-  }, [open, initialData]);
+    }, [open, initialData, products]);
 
   const setField = <
     K extends keyof PurchaseOrderFormData
@@ -154,6 +181,30 @@ export default function PurchaseOrderFormModal({
       ...prev,
       [key]: value,
     }));
+  };
+
+  const [
+    filteredProducts,
+    setFilteredProducts
+  ] = useState<Product[]>([]);
+
+  const handleSupplierChange = (
+    supplierId: string
+  ) => {
+
+    const filtered =
+      products.filter(
+        (item: any) =>
+          item.supplier_id?.toString()
+          === supplierId
+      );
+
+    setFilteredProducts(filtered);
+
+    setField(
+      "supplier_id",
+      supplierId
+    );
   };
 
   const updateItem = (
@@ -342,42 +393,69 @@ export default function PurchaseOrderFormModal({
 
               </div>
 
-                <FormField
+              <FormField
                 label="Supplier"
                 icon={<Building2 size={13} />}
-                >
+              >
+                {isEdit ? (
 
-                <SelectField
+                  <input
                     value={
-                    suppliers.find(
-                        (s) =>
-                        s.id === form.supplier_id
-                    )?.nama || ""
+                      suppliers.find(
+                        (s) => s.id === form.supplier_id
+                      )?.nama || ""
                     }
-
-                    placeholder="Pilih supplier..."
-
-                    options={suppliers.map(
-                    (supplier) =>
-                        supplier.nama
+                    disabled
+                    className={cn(
+                      inputBase,
+                      `
+                        bg-slate-50
+                        text-slate-500
+                        cursor-not-allowed
+                      `
                     )}
+                  />
 
+                ) : (
+
+                  <SelectField
+                    value={
+                      suppliers.find(
+                        (s) => s.id === form.supplier_id
+                      )?.nama || ""
+                    }
+                    placeholder="Pilih supplier..."
+                    options={suppliers.map(
+                      (supplier) => supplier.nama
+                    )}
                     onChange={(value) => {
-
-                    const selected =
+                      const selected =
                         suppliers.find(
-                        (supplier) =>
+                          (supplier) =>
                             supplier.nama === value
                         );
 
-                    setField(
-                        "supplier_id",
-                        selected?.id || ""
-                    );
-                    }}
-                />
+                      const supplierId =
+                        selected?.id || "";
 
-                </FormField>
+                      setField(
+                        "supplier_id",
+                        supplierId
+                      );
+
+                      const filtered =
+                        products.filter(
+                          (item: any) =>
+                            item.supplier_id?.toString() ===
+                            supplierId
+                        );
+
+                      setFilteredProducts(filtered);
+                    }}
+                  />
+
+                )}
+              </FormField>
 
               <FormField
                 label="Status"
@@ -463,7 +541,7 @@ export default function PurchaseOrderFormModal({
 
               <PurchaseOrderItemTable
                 items={form.items}
-                products={products}
+                products={filteredProducts}
                 uoms={uoms}
                 onUpdateItem={updateItem}
                 onRemoveItem={removeItem}
@@ -530,7 +608,10 @@ export default function PurchaseOrderFormModal({
             <button
               onClick={() => {
 
-                onSubmit(form);
+                onSubmit({
+                  ...form,
+                  total_amount: grandTotal,
+                });
 
                 onClose();
               }}
