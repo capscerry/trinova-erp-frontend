@@ -460,6 +460,11 @@ export default function PurchaseOrderPage() {
           headerPayload
         );
 
+        console.log(
+          "DELETED ITEMS",
+          payload.deletedItems
+        );
+
         let purchaseOrderId = 0;
 
         if (editingPO?.purchase_order_id) {
@@ -481,6 +486,23 @@ export default function PurchaseOrderPage() {
 
           purchaseOrderId =
             headerResponse.purchase_order_id;
+        }
+
+        console.log(
+          "DELETED ITEMS",
+          payload.deletedItems
+        );
+        
+        if (
+          payload.deletedItems?.length
+        ) {
+
+          for (const detailId of payload.deletedItems) {
+
+            await deletePurchaseOrderDetail(
+              Number(detailId)
+            );
+          }
         }
 
         for (const item of payload.items) {
@@ -666,12 +688,17 @@ export default function PurchaseOrderPage() {
               size="sm"
               onClick={() => {
 
-                const detailItems =
-                  purchaseOrderDetails.filter(
-                    (item: any) =>
-                      Number(item.purchase_order_id) ===
-                      Number(row.id)
-                  );
+              const detailItems =
+                purchaseOrderDetails.filter(
+                  (item: any) =>
+                    Number(item.purchase_order_id) ===
+                    Number(row.id)
+                );
+
+              console.log(
+                "DETAIL ITEMS",
+                detailItems
+              );
 
                 setEditingPO({
 
@@ -695,10 +722,11 @@ export default function PurchaseOrderPage() {
                   items:
                     detailItems.map(
                       (item: any) => ({
+                        
                         id: crypto.randomUUID(),
 
-                        purchase_order_detail_id:
-                          item.purchase_order_detail_id,
+                          purchase_order_detail_id:
+                            item.purchase_order_detail_id,
 
                         product_id:
                           item.product_id?.toString(),

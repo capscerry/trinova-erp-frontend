@@ -23,6 +23,8 @@ export interface PurchaseOrderItem {
   price: number;
 
   subtotal: number;
+
+  purchase_order_detail_id?: number;
 }
 
 interface Product {

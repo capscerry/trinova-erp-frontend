@@ -52,6 +52,8 @@ export interface PurchaseOrderFormData {
   total_amount: number;
 
   items: PurchaseOrderItem[];
+
+  deletedItems?: number[];
 }
 
 interface PurchaseOrderFormModalProps {
@@ -188,6 +190,11 @@ export default function PurchaseOrderFormModal({
     setFilteredProducts
   ] = useState<Product[]>([]);
 
+  const [
+    deletedItems,
+    setDeletedItems
+  ] = useState<number[]>([]);
+
   const handleSupplierChange = (
     supplierId: string
   ) => {
@@ -238,20 +245,44 @@ export default function PurchaseOrderFormModal({
     }));
   };
 
-  const removeItem = (
-    id: string
-  ) => {
+const removeItem = (
+  id: string
+) => {
 
-    setForm((prev) => ({
+  const item =
+    form.items.find(
+      (x) => x.id === id
+    );
 
-      ...prev,
+  if (
+    item?.purchase_order_detail_id
+  ) {
 
-      items: prev.items.filter(
-        (item) =>
-          item.id !== id
-      ),
-    }));
-  };
+
+    console.log(
+      "DELETE DETAIL ID",
+      item.purchase_order_detail_id
+    );
+        setDeletedItems(
+          (prev) => [
+            ...prev,
+            Number(
+              item.purchase_order_detail_id
+            )
+          ]
+        );
+      }
+
+      setForm((prev) => ({
+
+        ...prev,
+
+        items: prev.items.filter(
+          (item) =>
+            item.id !== id
+        ),
+      }));
+    };
 
   const addItem = () => {
 
@@ -611,6 +642,7 @@ export default function PurchaseOrderFormModal({
                 onSubmit({
                   ...form,
                   total_amount: grandTotal,
+                   deletedItems,
                 });
 
                 onClose();
