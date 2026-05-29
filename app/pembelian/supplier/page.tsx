@@ -2,6 +2,9 @@
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+
+import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
+
 import { useEffect, useState } from "react";
 
 import {
@@ -9,9 +12,13 @@ import {
   createSupplier,
   updateSupplier,
   deleteSupplier,
+  importSupplierCatalog,
+
+  getSupplierCategory,
 } from "@/lib/services";
 
 // ─── Type ──────────────────────────────────────────────────────────────────────
+
 interface Supplier {
   id: string;
   kode: string;
@@ -19,182 +26,378 @@ interface Supplier {
   telepon: string;
   email: string;
   alamat: string;
+
+  category_supplier: string;
+}
+
+interface SupplierCategory {
+  category_supplier: string;
+
+  nama_category: string;
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
+
 const COLUMNS: Column<Supplier>[] = [
-  { key: "kode", label: "Kode Supplier", width: "140px" },
-  { key: "nama", label: "Nama Supplier" },
-  { key: "telepon", label: "Telepon", width: "140px" },
-  { key: "email", label: "Email", width: "200px" },
-  { key: "alamat", label: "Alamat" },
+  {
+    key: "kode",
+    label: "KODE SUPPLIER",
+  },
+
+  {
+    key: "nama",
+    label: "NAMA SUPPLIER",
+  },
+
+  {
+    key: "telepon",
+    label: "TELEPON",
+  },
+
+  {
+    key: "email",
+    label: "EMAIL",
+  },
+
+  {
+    key: "alamat",
+    label: "ALAMAT",
+  },
 ];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
+
 export default function SupplierPage() {
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [openModal, setOpenModal] = useState(false);
+  const [suppliers, setSuppliers] =
+    useState<Supplier[]>([]);
 
-  const [isEdit, setIsEdit] = useState(false);
-  const [selectedId, setSelectedId] = useState("");
+  const [categories, setCategories] =
+    useState<SupplierCategory[]>([]);
 
-  const [openDetail, setOpenDetail] = useState(false);
-  const [detailData, setDetailData] = useState<Supplier | null>(null);
+  const [openModal, setOpenModal] =
+    useState(false);
 
-  const [formData, setFormData] = useState({
-    supplier_code: "",
-    supplier_name: "",
-    no_telp_bisnis: "",
-    email: "",
-    alamat: "",
-  });
+  const [isEdit, setIsEdit] =
+    useState(false);
+
+  const [selectedId, setSelectedId] =
+    useState("");
+
+  const [openDetail, setOpenDetail] =
+    useState(false);
+
+  const [detailData, setDetailData] =
+    useState<Supplier | null>(null);
+
+  const [catalogFile,
+    setCatalogFile] =
+      useState<File | null>(
+        null
+      );
+
+  const [formData, setFormData] =
+    useState({
+      supplier_code: "",
+      supplier_name: "",
+      no_telp_bisnis: "",
+      email: "",
+      alamat: "",
+
+      category_supplier: "",
+    });
 
   // ─── Fetch Supplier ─────────────────────────────────────────────────────────
+
   const fetchSuppliers = async () => {
+
     try {
 
-      const res = await getSuppliers();
+      const res =
+        await getSuppliers();
 
-      console.log("SUPPLIER RESPONSE:", res);
+      const supplierList =
+        Array.isArray(res)
+          ? res
+          : res.data;
 
-      const supplierList = Array.isArray(res)
-        ? res
-        : res.data;
+      const mappedData =
+        supplierList.map(
+          (item: any) => ({
+            id:
+              item.supplier_id
+                .toString(),
 
-      const mappedData = supplierList.map((item: any) => ({
-        id: item.supplier_id.toString(),
-        kode: item.supplier_code,
-        nama: item.supplier_name,
-        telepon: item.no_telp_bisnis,
-        email: item.email,
-        alamat: item.alamat,
-      }));
+            kode:
+              item.supplier_code,
 
-      setSuppliers(mappedData);
+            nama:
+              item.supplier_name,
+
+            telepon:
+              item.no_telp_bisnis
+              || "-",
+
+            email:
+              item.email,
+
+            alamat:
+              item.alamat,
+
+            category_supplier:
+              item.category_supplier
+                ?.toString() || "",
+          })
+        );
+
+      setSuppliers(
+        mappedData
+      );
 
     } catch (err) {
+
       console.error(err);
     }
   };
 
+  // ─── Fetch Categories ───────────────────────────────────────────────────────
+
+  const fetchCategories =
+    async () => {
+
+      try {
+
+        const res =
+          await getSupplierCategory();
+
+        setCategories(
+          res.data || []
+        );
+
+      } catch (err) {
+
+        console.error(err);
+      }
+    };
+
   useEffect(() => {
+
     fetchSuppliers();
+
+    fetchCategories();
+
   }, []);
 
   // ─── Submit ─────────────────────────────────────────────────────────────────
-  const handleSubmit = async () => {
-    try {
 
-      if (isEdit) {
+  const handleSubmit =
+    async () => {
 
-        await updateSupplier(selectedId, {
-          supplier_code: formData.supplier_code,
-          supplier_name: formData.supplier_name,
-          no_telp_bisnis: formData.no_telp_bisnis,
-          email: formData.email,
-          alamat: formData.alamat,
-          category_supplier: 1,
-          status: "Active",
+      try {
+
+        if (isEdit) {
+
+          await updateSupplier(
+            selectedId,
+            {
+              supplier_code:
+                formData.supplier_code,
+
+              supplier_name:
+                formData.supplier_name,
+
+              no_telp_bisnis:
+                formData.no_telp_bisnis,
+
+              email:
+                formData.email,
+
+              alamat:
+                formData.alamat,
+
+              category_supplier:
+                Number(
+                  formData.category_supplier
+                ),
+
+              status: "Active",
+            }
+          );
+
+          alert(
+            "Supplier berhasil diupdate"
+          );
+
+        } else {
+
+          const response =
+            await createSupplier({
+              supplier_code:
+                formData.supplier_code,
+
+              supplier_name:
+                formData.supplier_name,
+
+              no_telp_bisnis:
+                formData.no_telp_bisnis,
+
+              email:
+                formData.email,
+
+              alamat:
+                formData.alamat,
+
+              category_supplier:
+                Number(
+                  formData.category_supplier
+                ),
+
+              status: "Active",
+            });
+
+          const supplierId =
+            response.data.supplier_id;
+
+          // ─── Import Catalog ─────────────────
+
+          if (catalogFile) {
+
+            await importSupplierCatalog(
+              supplierId,
+              catalogFile
+            );
+          }
+
+          alert(
+            "Supplier berhasil ditambahkan"
+          );
+        }
+
+        fetchSuppliers();
+
+        setFormData({
+          supplier_code: "",
+          supplier_name: "",
+          no_telp_bisnis: "",
+          email: "",
+          alamat: "",
+
+          category_supplier: "",
         });
 
-        alert("Supplier berhasil diupdate");
+        setCatalogFile(null);
 
-      } else {
+        setIsEdit(false);
 
-        await createSupplier({
-          supplier_code: formData.supplier_code,
-          supplier_name: formData.supplier_name,
-          no_telp_bisnis: formData.no_telp_bisnis,
-          email: formData.email,
-          alamat: formData.alamat,
-          category_supplier: 1,
-          status: "Active",
-        });
+        setSelectedId("");
 
-        alert("Supplier berhasil ditambahkan");
+        setOpenModal(false);
+
+      } catch (err: any) {
+
+        console.error(err);
+
+        alert(
+          err.message ||
+          "Gagal simpan supplier"
+        );
       }
-
-      fetchSuppliers();
-
-      setFormData({
-        supplier_code: "",
-        supplier_name: "",
-        no_telp_bisnis: "",
-        email: "",
-        alamat: "",
-      });
-
-      setIsEdit(false);
-      setSelectedId("");
-
-      setOpenModal(false);
-
-    } catch (error) {
-      console.error(error);
-
-      alert("Gagal simpan supplier");
-    }
-  };
+    };
 
   // ─── Delete ─────────────────────────────────────────────────────────────────
-  const handleDelete = async (id: string) => {
 
-    const confirmDelete = confirm(
-      "Yakin ingin menghapus supplier ini?"
-    );
+  const handleDelete =
+    async (id: string) => {
 
-    if (!confirmDelete) return;
+      const confirmDelete =
+        confirm(
+          "Yakin ingin menghapus supplier ini?"
+        );
 
-    try {
+      if (!confirmDelete)
+        return;
 
-      await deleteSupplier(id);
+      try {
 
-      alert("Supplier berhasil dihapus");
+        await deleteSupplier(id);
 
-      fetchSuppliers();
+        alert(
+          "Supplier berhasil dihapus"
+        );
 
-    } catch (error) {
-      console.error(error);
+        fetchSuppliers();
 
-      alert("Gagal hapus supplier");
-    }
-  };
+      } catch (error) {
+
+        console.error(error);
+
+        alert(
+          "Gagal hapus supplier"
+        );
+      }
+    };
 
   // ─── Edit ───────────────────────────────────────────────────────────────────
-  const handleEdit = (row: Supplier) => {
 
-    setIsEdit(true);
+  const handleEdit =
+    (row: Supplier) => {
 
-    setSelectedId(row.id);
+      setIsEdit(true);
 
-    setFormData({
-      supplier_code: row.kode,
-      supplier_name: row.nama,
-      no_telp_bisnis: row.telepon,
-      email: row.email,
-      alamat: row.alamat,
-    });
+      setSelectedId(
+        row.id
+      );
 
-    setOpenModal(true);
-  };
+      setFormData({
+        supplier_code:
+          row.kode,
+
+        supplier_name:
+          row.nama,
+
+        no_telp_bisnis:
+          row.telepon,
+
+        email:
+          row.email,
+
+        alamat:
+          row.alamat,
+
+        category_supplier:
+          row.category_supplier,
+      });
+
+      setOpenModal(true);
+    };
 
   // ─── Detail ─────────────────────────────────────────────────────────────────
-  const handleDetail = (row: Supplier) => {
 
-    setDetailData(row);
+  const handleDetail =
+    (row: Supplier) => {
 
-    setOpenDetail(true);
-  };
+      setDetailData(row);
+
+      setOpenDetail(true);
+    };
 
   return (
-    <AppShell title="Data Supplier" subtitle="Master data supplier">
+
+    <AppShell
+      title="Data Supplier"
+      subtitle="Master data supplier"
+    >
 
       <DataTable<Supplier>
+
         title="Daftar Supplier"
+
         columns={COLUMNS}
+
         data={suppliers}
+
         addLabel="Tambah Supplier"
+
         onAdd={() => {
 
           setIsEdit(false);
@@ -205,176 +408,223 @@ export default function SupplierPage() {
             no_telp_bisnis: "",
             email: "",
             alamat: "",
+
+            category_supplier: "",
           });
+
+          setCatalogFile(null);
 
           setOpenModal(true);
         }}
+
         keyField="id"
+
         renderActions={(row) => (
-          <div className="flex gap-1.5 justify-center">
+
+          <div className="flex gap-2">
 
             <button
-              onClick={() => handleDetail(row)}
-              className="px-2 py-1 border rounded text-xs"
+              onClick={() =>
+                handleDetail(row)
+              }
+              className="
+                px-3 py-1
+                border
+                rounded-md
+                text-xs
+              "
             >
               Detail
             </button>
 
             <button
-              onClick={() => handleEdit(row)}
-              className="px-2 py-1 border rounded text-xs"
+              onClick={() =>
+                handleEdit(row)
+              }
+              className="
+                px-3 py-1
+                border
+                rounded-md
+                text-xs
+              "
             >
               Edit
             </button>
 
             <button
-              onClick={() => handleDelete(row.id)}
-              className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+              onClick={() =>
+                handleDelete(
+                  row.id
+                )
+              }
+              className="
+                px-3 py-1
+                bg-red-500
+                text-white
+                rounded-md
+                text-xs
+              "
             >
               Hapus
             </button>
+
           </div>
         )}
       />
 
-      {/* ─── Create / Edit Modal ───────────────────────────────────────────── */}
-      {openModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl w-[500px]">
+      {/* ─── Modal Form ───────────────────────────────────── */}
 
-            <h2 className="text-xl font-bold mb-4">
-              {isEdit ? "Edit Supplier" : "Tambah Supplier"}
-            </h2>
+      <SupplierFormModal
 
-            <input
-              type="text"
-              placeholder="Kode Supplier"
-              value={formData.supplier_code}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  supplier_code: e.target.value,
-                })
-              }
-              className="w-full border p-2 rounded mb-3"
-            />
+        open={openModal}
 
-            <input
-              type="text"
-              placeholder="Nama Supplier"
-              value={formData.supplier_name}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  supplier_name: e.target.value,
-                })
-              }
-              className="w-full border p-2 rounded mb-3"
-            />
+        isEdit={isEdit}
 
-            <input
-              type="text"
-              placeholder="Telepon"
-              value={formData.no_telp_bisnis}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  no_telp_bisnis: e.target.value,
-                })
-              }
-              className="w-full border p-2 rounded mb-3"
-            />
+        formData={formData}
 
-            <input
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  email: e.target.value,
-                })
-              }
-              className="w-full border p-2 rounded mb-3"
-            />
+        setFormData={setFormData}
 
-            <textarea
-              placeholder="Alamat"
-              value={formData.alamat}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  alamat: e.target.value,
-                })
-              }
-              className="w-full border p-2 rounded mb-4"
-            />
+        categories={categories}
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setOpenModal(false)}
-                className="px-4 py-2 border rounded"
+        onClose={() =>
+          setOpenModal(false)
+        }
+
+        onSave={handleSubmit}
+
+        setCatalogFile={
+          setCatalogFile
+        }
+      />
+
+      {/* ─── Detail Modal ─────────────────────────────────── */}
+
+      {openDetail &&
+        detailData && (
+
+        <div
+          className="
+            fixed inset-0
+            bg-black/40
+            flex items-center
+            justify-center
+            z-50
+          "
+        >
+
+          <div
+            className="
+              bg-white
+              rounded-2xl
+              w-full
+              max-w-lg
+              shadow-xl
+              overflow-hidden
+            "
+          >
+
+            <div
+              className="
+                bg-gradient-to-r
+                from-[#081F3F]
+                to-[#0E2F5A]
+                px-6 py-5
+              "
+            >
+
+              <h2
+                className="
+                  text-2xl
+                  font-bold
+                  text-white
+                "
               >
-                Batal
-              </button>
+                Detail Supplier
+              </h2>
 
-              <button
-                onClick={handleSubmit}
-                className="px-4 py-2 bg-blue-600 text-white rounded"
-              >
-                {isEdit ? "Update" : "Simpan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Detail Modal ─────────────────────────────────────────────────── */}
-      {openDetail && detailData && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl w-[500px]">
-
-            <h2 className="text-xl font-bold mb-4">
-              Detail Supplier
-            </h2>
-
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="font-semibold">Kode Supplier:</span>
-                <p>{detailData.kode}</p>
-              </div>
-
-              <div>
-                <span className="font-semibold">Nama Supplier:</span>
-                <p>{detailData.nama}</p>
-              </div>
-
-              <div>
-                <span className="font-semibold">Telepon:</span>
-                <p>{detailData.telepon}</p>
-              </div>
-
-              <div>
-                <span className="font-semibold">Email:</span>
-                <p>{detailData.email}</p>
-              </div>
-
-              <div>
-                <span className="font-semibold">Alamat:</span>
-                <p>{detailData.alamat}</p>
-              </div>
             </div>
 
-            <div className="flex justify-end mt-6">
+            <div className="p-6 space-y-5">
+
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Kode Supplier
+                </p>
+
+                <p className="font-semibold">
+                  {detailData.kode}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Nama Supplier
+                </p>
+
+                <p className="font-semibold">
+                  {detailData.nama}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Telepon
+                </p>
+
+                <p className="font-semibold">
+                  {detailData.telepon}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Email
+                </p>
+
+                <p className="font-semibold">
+                  {detailData.email}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-widest">
+                  Alamat
+                </p>
+
+                <p className="font-semibold">
+                  {detailData.alamat}
+                </p>
+              </div>
+
+            </div>
+
+            <div
+              className="
+                border-t
+                px-6 py-4
+                flex justify-end
+              "
+            >
+
               <button
-                onClick={() => setOpenDetail(false)}
-                className="px-4 py-2 border rounded"
+                onClick={() =>
+                  setOpenDetail(false)
+                }
+                className="
+                  px-5 py-2
+                  border
+                  rounded-xl
+                  hover:bg-gray-50
+                  transition
+                "
               >
                 Tutup
               </button>
+
             </div>
 
           </div>
+
         </div>
       )}
 
