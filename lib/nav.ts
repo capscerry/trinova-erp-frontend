@@ -68,9 +68,10 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
         items: [
           { id: "persediaan.produk",   label: "Goods & Service", href: "/persediaan/produk" },
           { id: "persediaan.kategori", label: "Item Category",   href: "/persediaan/kategori" },
+          { id: "persediaan.subkategori", label: "Subcategory", href: "/persediaan/subkategori" },
           { id: "persediaan.gudang",   label: "Warehouse",       href: "/persediaan/gudang" },
           { id: "persediaan.satuan",   label: "Unit of Measure", href: "/persediaan/satuan" },
-          { id: "persediaan.merk",     label: "Brand",           href: "/persediaan/merk" },
+        //  { id: "persediaan.merk",     label: "Brand",           href: "/persediaan/merk" },
         ],
       },
       {

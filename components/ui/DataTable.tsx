@@ -1,189 +1,174 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "./Button";
+import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// ─── Column Type ───────────────────────────────────────────────────────────────
 export interface Column<T> {
-  key: keyof T | string;
+  key: keyof T;
   label: string;
   width?: string;
-  render?: (value: unknown, row: T) => React.ReactNode;
+  render?: (value: T[keyof T], row: T) => React.ReactNode;
 }
 
+// ─── Props ─────────────────────────────────────────────────────────────────────
 interface DataTableProps<T> {
   title: string;
   columns: Column<T>[];
   data: T[];
+
+  loading?: boolean;
+
   addLabel?: string;
   onAdd?: () => void;
-  /** Override row actions. Defaults to Detail / Edit / Hapus */
+
   renderActions?: (row: T) => React.ReactNode;
+
   keyField?: keyof T;
   className?: string;
 }
 
-const PAGE_SIZE = 10;
-
+// ─── Component ─────────────────────────────────────────────────────────────────
 export function DataTable<T extends object>({
   title,
   columns,
   data,
+
+  loading = false,
+
   addLabel = "Tambah",
   onAdd,
   renderActions,
   keyField = "id" as keyof T,
   className,
 }: DataTableProps<T>) {
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = React.useState("");
 
-  // Client-side search across all string values
-  const filtered = data.filter((row) =>
-    columns.some((col) => {
-      const val = row[col.key as keyof T];
-      return typeof val === "string" && val.toLowerCase().includes(search.toLowerCase());
-    })
-  );
+  // ─── Filter ─────────────────────────────────────────────────────────────────
+  const filtered = React.useMemo(() => {
+    if (!search) return data;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    return data.filter((row) =>
+      Object.values(row).some((value) =>
+        String(value)
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      )
+    );
+  }, [data, search]);
+
+  // ─── Loading State ──────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">
+        Loading data...
+      </div>
+    );
+  }
 
   return (
-    <div className={cn("bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden", className)}>
+    <div
+      className={cn(
+        "rounded-2xl border border-slate-200 bg-white shadow-sm",
+        className
+      )}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-        <h2 className="font-serif font-bold text-navy-900 text-[15px]">{title}</h2>
-        {onAdd && (
-          <Button variant="primary" size="sm" onClick={onAdd}>
-            + {addLabel}
-          </Button>
-        )}
-      </div>
+      <div className="flex items-center justify-between border-b border-slate-100 p-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">
+            {title}
+          </h2>
+        </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 flex-1 max-w-xs">
-          <Search size={14} className="text-slate-400" />
+        <div className="flex items-center gap-3">
+          {/* Search */}
           <input
             type="text"
-            placeholder="Cari data..."
+            placeholder="Search..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full font-serif"
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-navy-500"
           />
+
+          {/* Add Button */}
+          {onAdd && (
+            <button
+              onClick={onAdd}
+              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800"
+            >
+              {addLabel}
+            </button>
+          )}
         </div>
-        <Button variant="secondary" size="sm">
-          <Filter size={13} /> Filter
-        </Button>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="min-w-full border-collapse">
           <thead>
             <tr className="bg-slate-50">
-              {columns.map((col) => (
+              {columns.map((column) => (
                 <th
-                  key={String(col.key)}
-                  style={col.width ? { width: col.width } : undefined}
-                  className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-serif"
+                  key={String(column.key)}
+                  style={{ width: column.width }}
+                  className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
                 >
-                  {col.label}
+                  {column.label}
                 </th>
               ))}
-              <th className="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 font-serif">
-                Aksi
-              </th>
+
+              {renderActions && (
+                <th className="border-b border-slate-200 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Actions
+                </th>
+              )}
             </tr>
           </thead>
+
           <tbody>
-            {paged.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length + 1}
-                  className="text-center py-12 text-slate-400 text-sm font-serif"
+                  colSpan={
+                    columns.length + (renderActions ? 1 : 0)
+                  }
+                  className="px-4 py-10 text-center text-sm text-slate-400"
                 >
-                  Tidak ada data ditemukan
+                  No data available
                 </td>
               </tr>
             ) : (
-              paged.map((row, ri) => (
+              filtered.map((row) => (
                 <tr
-                  key={String(row[keyField]) ?? ri}
-                  className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors"
+                  key={String(row[keyField])}
+                  className="hover:bg-slate-50"
                 >
-                  {columns.map((col, ci) => {
-                    const rawVal = row[col.key as keyof T];
+                  {columns.map((column) => {
+                    const value = row[column.key];
+
                     return (
                       <td
-                        key={String(col.key)}
-                        className={cn(
-                          "px-4 py-3 text-sm text-slate-700 font-serif align-middle",
-                          ci === 0 && "font-bold text-navy-700 font-mono text-[13px]"
-                        )}
+                        key={String(column.key)}
+                        className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700"
                       >
-                        {col.render
-                          ? col.render(rawVal, row)
-                          : String(rawVal ?? "-")}
+                        {column.render
+                          ? column.render(value, row)
+                          : String(value)}
                       </td>
                     );
                   })}
-                  <td className="px-4 py-3 align-middle">
-                    {renderActions ? (
-                      renderActions(row)
-                    ) : (
-                      <div className="flex gap-1.5 justify-center">
-                        <Button variant="secondary" size="sm">Detail</Button>
-                        <Button variant="ghost"     size="sm">Edit</Button>
-                        <Button variant="danger"    size="sm">Hapus</Button>
-                      </div>
-                    )}
-                  </td>
+
+                  {renderActions && (
+                    <td className="border-b border-slate-100 px-4 py-3 text-right">
+                      {renderActions(row)}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
           </tbody>
         </table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
-        <span className="text-xs text-slate-400 font-serif">
-          Menampilkan {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–
-          {Math.min(page * PAGE_SIZE, filtered.length)} dari {filtered.length} data
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPage(p)}
-              className={cn(
-                "w-8 h-8 rounded-md text-xs font-semibold transition-colors font-serif",
-                page === p
-                  ? "bg-navy-900 text-gold-400"
-                  : "text-slate-500 hover:bg-slate-100"
-              )}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-colors"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
       </div>
     </div>
   );
