@@ -7,15 +7,15 @@ import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 
 function getRedirectPath(role: string) {
   const normalizedRole = role.toLowerCase().trim();
-
+  console.log("User role:", role, "-> Normalized:", normalizedRole);
   switch (normalizedRole) {
-    case "sales":
+    case "penjualan":
       return "/penjualan";
 
-    case "purchasing":
+    case "pembelian":  
       return "/pembelian";
 
-    case "inventory":
+    // case "inventory":
     case "persediaan":
       return "/persediaan";
 
