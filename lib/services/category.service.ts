@@ -12,3 +12,37 @@ export async function getCategories() {
 
   return response.data.data;
 }
+
+export async function createCategory(
+  data: {
+    category_name: string;
+  }
+) {
+  const response = await api.post(
+    "/master-product-category",
+    data
+  );
+
+  return response.data;
+}
+
+export async function updateCategory(
+  data: Category
+) {
+  const response = await api.put(
+    "/master-product-category",
+    data
+  );
+
+  return response.data;
+}
+
+export async function deleteCategory(
+  id: number
+) {
+  const response = await api.delete(
+    `/master-product-category/${id}`
+  );
+
+  return response.data;
+}

@@ -44,15 +44,69 @@ export function DataTable<T extends object>({
 }: DataTableProps<T>) {
   const [search, setSearch] = React.useState("");
 
-  // ─── Filter ─────────────────────────────────────────────────────────────────
+  // ─── Recursive Search Helper ────────────────────────────────────────────────
+  function flattenValues(obj: any): string[] {
+    const values: string[] = [];
+
+    Object.values(obj).forEach((value) => {
+      if (
+        value !== null &&
+        typeof value === "object"
+      ) {
+        values.push(
+          ...flattenValues(value)
+        );
+      } else {
+        values.push(String(value));
+      }
+    });
+
+    return values;
+  }
+
+  // ─── Filter ────────────────────────────────────────────────────────────────
   const filtered = React.useMemo(() => {
     if (!search) return data;
 
+    const keyword =
+      search.toLowerCase();
+
+    function extractValues(
+      obj: any
+    ): string[] {
+      const values: string[] = [];
+
+      Object.values(obj).forEach(
+        (value) => {
+          if (
+            value === null ||
+            value === undefined
+          )
+            return;
+
+          if (
+            typeof value === "object"
+          ) {
+            values.push(
+              ...extractValues(value)
+            );
+          } else {
+            values.push(
+              String(value)
+            );
+          }
+        }
+      );
+
+      return values;
+    }
+
     return data.filter((row) =>
-      Object.values(row).some((value) =>
-        String(value)
-          .toLowerCase()
-          .includes(search.toLowerCase())
+      extractValues(row).some(
+        (value) =>
+          value
+            .toLowerCase()
+            .includes(keyword)
       )
     );
   }, [data, search]);
