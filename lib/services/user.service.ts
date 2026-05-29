@@ -1,6 +1,5 @@
 import { api, type ApiResponse } from "@/lib/api";
-
-// ─── API TYPES ────────────────────────────────────────────────────────────────
+import type { AuthUser, Role } from "@/types/auth";
 
 export interface MasterUserApi {
   id: number;
@@ -9,6 +8,21 @@ export interface MasterUserApi {
   roleName: string;
   password?: string;
   status: boolean;
+}
+
+export interface LoginApi {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponseApi {
+  token: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    roleName: string;
+  };
 }
 
 export interface MasterRoleApi {
@@ -31,8 +45,6 @@ export interface UpdateMasterUserPayload {
   roleId: number;
 }
 
-// ─── FRONTEND TYPES ───────────────────────────────────────────────────────────
-
 export interface MasterRole {
   id: number;
   roleName: string;
@@ -47,7 +59,28 @@ export interface MasterUser {
   status: boolean;
 }
 
-// ─── MAPPERS ──────────────────────────────────────────────────────────────────
+function mapBackendRole(roleName: string): Role {
+  const role = roleName.toLowerCase().trim();
+
+  switch (role) {
+    case "admin":
+      return "admin";
+
+    case "sales":
+      return "penjualan";
+
+    case "purchasing":
+      return "pembelian";
+
+    case "inventory":
+    case "warehouse":
+    case "persediaan":
+      return "persediaan";
+
+    default:
+      return "penjualan";
+  }
+}
 
 export function mapMasterUser(item: MasterUserApi): MasterUser {
   return {
@@ -67,7 +100,15 @@ export function mapMasterRole(item: MasterRoleApi): MasterRole {
   };
 }
 
-// ─── SERVICES ─────────────────────────────────────────────────────────────────
+export function mapAuthUser(item: LoginResponseApi): AuthUser {
+  return {
+    id: item.user.id,
+    username: item.user.username,
+    email: item.user.email,
+    role: mapBackendRole(item.user.roleName),
+    token: item.token,
+  };
+}
 
 export const masterUserService = {
   async getAll(): Promise<MasterUser[]> {
@@ -94,12 +135,12 @@ export const masterUserService = {
   },
 
   async toggleStatus(id: number): Promise<boolean> {
-        const response = await api.put<ApiResponse<boolean>>(
-            `/toggle-user-status/${id}`
-        );
+    const response = await api.put<ApiResponse<boolean>>(
+      `/toggle-user-status/${id}`
+    );
 
-        return response.data.data ?? false;
-    },
+    return response.data.data ?? false;
+  },
 };
 
 export const roleService = {
@@ -107,4 +148,19 @@ export const roleService = {
     const response = await api.get<ApiResponse<MasterRoleApi[]>>("/role-list");
     return (response.data.data ?? []).map(mapMasterRole);
   },
-};  
+};
+
+export const authService = {
+  async login(payload: LoginApi): Promise<AuthUser> {
+    const response = await api.post<ApiResponse<LoginResponseApi>>(
+      "/auth/login",
+      payload
+    );
+
+    if (!response.data.data) {
+      throw new Error(response.data.message ?? "Login gagal");
+    }
+
+    return mapAuthUser(response.data.data);
+  },
+};
