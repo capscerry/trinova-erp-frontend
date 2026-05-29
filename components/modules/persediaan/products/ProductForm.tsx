@@ -62,6 +62,10 @@ export default function ProductForm({
   const [uoms, setUoms] =
     useState<Uom[]>([]);
 
+    useEffect(() => {
+      fetchInitialData();
+    }, []);
+
   const [formData, setFormData] =
     useState<ProductFormData>({
       product_name: "",
