@@ -237,6 +237,9 @@ export default function
             <button
               onClick={() =>
                 handleDelete(
+                  row.category_id.toString()
+                )
+              }
               className="
                 px-3 py-1
                 bg-red-500
