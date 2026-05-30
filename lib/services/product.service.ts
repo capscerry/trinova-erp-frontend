@@ -39,8 +39,8 @@ export async function createProduct(
     }
   );
 
-  const responseBody =
-    await response.text();
+  const result =
+    await response.json();
 
   console.log(
     "STATUS:",
@@ -49,16 +49,17 @@ export async function createProduct(
 
   console.log(
     "RESPONSE:",
-    responseBody
+    result
   );
 
   if (!response.ok) {
     throw new Error(
+      result.message ??
       "Failed to create product"
     );
   }
 
-  return JSON.parse(responseBody);
+  return result;
 }
 
 // ─── Update Product ────────────────────────────────────────────
