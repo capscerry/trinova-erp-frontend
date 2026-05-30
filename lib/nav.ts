@@ -77,7 +77,7 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Operasional",
         items: [
-          { id: "persediaan.permintaan_barang",     label: "Goods Request",     href: "/persediaan/permintaan-barang" },
+          { id: "persediaan.permintaan_barang",     label: "Purchase Requisition",     href: "/persediaan/permintaan-pembelian" },
           { id: "persediaan.transfer_barang",       label: "Stock Transfer",    href: "/persediaan/transfer-barang" },
           { id: "persediaan.stok",                  label: "Stock",             href: "/persediaan/stok" },
           { id: "persediaan.transaksi_stok",        label: "Stock Transaction", href: "/persediaan/transaksi-stok",},

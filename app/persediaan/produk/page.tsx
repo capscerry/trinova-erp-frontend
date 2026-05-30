@@ -18,7 +18,7 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-} from "@/lib/services/produk.service";
+} from "@/lib/services/product.service";
 
 import { toast } from "sonner";
 

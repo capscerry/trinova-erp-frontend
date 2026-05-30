@@ -157,6 +157,10 @@ export default function UangMukaPage() {
       alamat: row.alamat,
       keterangan: row.keterangan,
       fakturType: row.fakturType,
+
+      noFakturMode: "manual",
+      noPesanan: "",
+      totalHargaPesanan: 0,
     });
     setSavedId(row.id);
     setModalOpen(true);
@@ -227,7 +231,7 @@ export default function UangMukaPage() {
         keyField="no"
         addLabel="Tambah Uang Muka"
         onAdd={handleTambah}
-        isLoading={isLoading}
+        loading={isLoading}
         renderActions={(row) => (
           <div className="flex items-center gap-1.5 justify-center">
             <button
@@ -254,6 +258,10 @@ export default function UangMukaPage() {
                   alamat: row.alamat,
                   keterangan: row.keterangan,
                   fakturType: row.fakturType,
+
+                  noFakturMode: "manual",
+                  noPesanan: "",
+                  totalHargaPesanan: 0,
                 })
               }
               disabled={isLoading}
