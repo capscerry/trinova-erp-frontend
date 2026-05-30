@@ -17,32 +17,22 @@ import {
 } from "@/lib/services";
 
 interface SupplierCategory {
-  category_supplier: string;
+  category_id: number;
 
-  nama_category: string;
-
-  status: string;
+  category_name: string;
 }
 
 const COLUMNS:
   Column<SupplierCategory>[] = [
 
   {
-    key: "category_supplier",
-
+    key: "category_id",
     label: "ID",
   },
 
   {
-    key: "nama_category",
-
+    key: "category_name",
     label: "NAMA CATEGORY",
-  },
-
-  {
-    key: "status",
-
-    label: "STATUS",
   },
 ];
 
@@ -181,15 +171,14 @@ export default function
       setIsEdit(true);
 
       setSelectedId(
-        row.category_supplier
+        row.category_id.toString()
       );
 
       setFormData({
         nama_category:
-          row.nama_category,
+          row.category_name,
 
-        status:
-          row.status,
+        status: "Active",
       });
 
       setOpenModal(true);
@@ -210,7 +199,7 @@ export default function
 
         data={data}
 
-        keyField="category_supplier"
+        keyField="category_id"
 
         addLabel="Tambah Category"
 
@@ -248,7 +237,7 @@ export default function
             <button
               onClick={() =>
                 handleDelete(
-                  row.category_supplier
+                  row.category_id.toString()
                 )
               }
               className="

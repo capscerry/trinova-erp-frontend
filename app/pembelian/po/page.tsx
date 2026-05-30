@@ -532,6 +532,16 @@ export default function PurchaseOrderPage() {
             item.purchase_order_detail_id
           ) {
 
+            console.log(
+            "UPDATE DETAIL",
+            item
+          );
+
+          console.log(
+            "DETAIL ID",
+            item.purchase_order_detail_id
+          );
+
             await updatePurchaseOrderDetail(
 
               Number(
