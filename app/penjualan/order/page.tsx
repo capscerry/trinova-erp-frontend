@@ -3,8 +3,14 @@
 import { useState, useMemo } from "react";
 import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui";
-// import { ActionBtn } from "@/components/ui/DataTable";
-import { SalesOrderModal, type SalesOrderFormData } from "@/components/modules/penjualan/SalesOrderModal";
+import { type SalesOrderFormData } from "@/components/modules/penjualan/SalesOrderModal";
+import {
+  WorkflowDraftProvider,
+  useWorkflowDraft,
+  type WorkflowDraft,
+} from "@/lib/WorkflowDraftContext";
+import { TransactionOrchestrator } from "@/components/modules/penjualan/workflow/TransactionOrchestrator";
+import { WorkflowToolbar } from "@/components/modules/penjualan/workflow/WorkflowToolbar";
 import {
   Search, Plus, RefreshCw, Download,
   Printer, ChevronDown, SlidersHorizontal,
@@ -28,16 +34,8 @@ interface SalesOrder {
   items: SalesOrderFormData["items"];
 }
 
-// ─── Dummy Data ───────────────────────────────────────────────────────────────
-const INITIAL_DATA: SalesOrder[] = [
-  { id: "1", nomor: "SO-2026-001", tanggal: "2026-03-01", tanggalKirim: "2026-03-07", pelanggan: "PT Maju Bersama",  dipesanOleh: "Ahmad Rizky",  salesQuotation: "SQ-2026-001", alamatPengiriman: "Jl. Sudirman No. 12, Jakarta",    keterangan: "",                          status: "Selesai",      total: 15000000, items: [] },
-  { id: "2", nomor: "SO-2026-002", tanggal: "2026-03-05", tanggalKirim: "2026-03-10", pelanggan: "CV Sinar Terang",  dipesanOleh: "Budi Santoso", salesQuotation: "SQ-2026-002", alamatPengiriman: "Jl. Pemuda No. 45, Surabaya",     keterangan: "Kirim pagi",              status: "Dikirim",      total: 3200000,  items: [] },
-  { id: "3", nomor: "SO-2026-003", tanggal: "2026-03-08", tanggalKirim: "2026-03-15", pelanggan: "Toko Berkah Jaya", dipesanOleh: "Ahmad Rizky",  salesQuotation: "",            alamatPengiriman: "Jl. Pandanaran No. 8, Semarang",  keterangan: "",                          status: "Diproses",     total: 7500000,  items: [] },
-  { id: "4", nomor: "SO-2026-004", tanggal: "2026-03-10", tanggalKirim: "2026-03-20", pelanggan: "PT Karya Mandiri", dipesanOleh: "Citra Dewi",   salesQuotation: "SQ-2026-004", alamatPengiriman: "Jl. Asia Afrika No. 77, Bandung",  keterangan: "Handle with care",        status: "Dikonfirmasi", total: 42000000, items: [] },
-  { id: "5", nomor: "SO-2026-005", tanggal: "2026-03-12", tanggalKirim: "2026-03-18", pelanggan: "UD Sejahtera",     dipesanOleh: "Budi Santoso", salesQuotation: "SQ-2026-005", alamatPengiriman: "Jl. Malioboro No. 3, Yogyakarta", keterangan: "",                          status: "Draft",        total: 8900000,  items: [] },
-  { id: "6", nomor: "SO-2026-006", tanggal: "2026-03-14", tanggalKirim: "2026-03-21", pelanggan: "CV Mitra Usaha",   dipesanOleh: "Citra Dewi",   salesQuotation: "",            alamatPengiriman: "Jl. Sunset Road No. 21, Bali",    keterangan: "",                          status: "Dibatalkan",   total: 5100000,  items: [] },
-];
-
+// ─── Konstanta ────────────────────────────────────────────────────────────────
+const INITIAL_DATA: SalesOrder[] = [];
 const PAGE_SIZE = 10;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -84,21 +82,63 @@ function FilterDropdown({ label, value, options, onChange }: {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page (outer) — pasang Provider di sini ───────────────────────────────────
 export default function SalesOrderPage() {
-  const [data, setData]             = useState<SalesOrder[]>(INITIAL_DATA);
-  const [search, setSearch]         = useState("");
-  const [page, setPage]             = useState(1);
-  const [modalOpen, setModalOpen]   = useState(false);
-  const [editTarget, setEditTarget] = useState<SalesOrder | null>(null);
+  /**
+   * commitToDatabase — implementasi commit semua draft.
+   *
+   * IDEAL: backend punya 1 endpoint yang nerima semua bagian dan jalankan
+   *        transaction (BEGIN ... COMMIT) di server.
+   *
+   * SEMENTARA (kalau backend belum siap): call bertahap di sini. Pastikan
+   * urutannya benar dan link FK antar dokumen-nya disetel.
+   */
+  const commitToDatabase = async (draft: WorkflowDraft) => {
+    // ── OPSI A: 1 endpoint atomic (RECOMMENDED) ─────────────────────────
+    // await api.post("/penjualan/workflow/commit", draft);
+
+    // ── OPSI B: sequential calls (sementara) ────────────────────────────
+    // let salesOrderId: string | undefined;
+    // if (draft.salesOrder) {
+    //   const payload = mapSalesOrderToPayload(draft.salesOrder);
+    //   await salesOrderService.create(payload);
+    //   salesOrderId = String(payload.header.id);
+    // }
+    // if (draft.uangMuka) {
+    //   await uangMukaService.create({ ...draft.uangMuka, salesOrderId });
+    // }
+    // if (draft.pengiriman) {
+    //   await pengirimanService.create({ ...draft.pengiriman, salesOrderId });
+    // }
+
+    // Untuk sekarang, log saja agar bisa dites:
+    console.log("[commitToDatabase] draft yang akan disimpan:", draft);
+    await new Promise((r) => setTimeout(r, 600)); // simulate latency
+  };
+
+  return (
+    <WorkflowDraftProvider onCommit={commitToDatabase}>
+      <SalesOrderPageInner />
+      <TransactionOrchestrator />
+    </WorkflowDraftProvider>
+  );
+}
+
+// ─── Page (inner) — bisa pakai useWorkflowDraft di sini ──────────────────────
+function SalesOrderPageInner() {
+  const { openModal } = useWorkflowDraft();
+
+  const [data]                     = useState<SalesOrder[]>(INITIAL_DATA);
+  const [search, setSearch]        = useState("");
+  const [page, setPage]            = useState(1);
 
   const [fTanggal,   setFTanggal]   = useState("Semua");
   const [fStatus,    setFStatus]    = useState("Semua");
   const [fPelanggan, setFPelanggan] = useState("Semua");
   const [fDipesan,   setFDipesan]   = useState("Semua");
 
-  const pelangganOpts = ["Semua", ...Array.from(new Set(INITIAL_DATA.map((d) => d.pelanggan)))];
-  const dipesanOpts   = ["Semua", ...Array.from(new Set(INITIAL_DATA.map((d) => d.dipesanOleh)))];
+  const pelangganOpts = ["Semua", ...Array.from(new Set(data.map((d) => d.pelanggan)))];
+  const dipesanOpts   = ["Semua", ...Array.from(new Set(data.map((d) => d.dipesanOleh)))];
   const statusOpts    = ["Semua", "Draft", "Dikonfirmasi", "Diproses", "Dikirim", "Selesai", "Dibatalkan"];
 
   const filtered = useMemo(() => data.filter((row) => {
@@ -128,22 +168,15 @@ export default function SalesOrderPage() {
     return [page - 2, page - 1, page, page + 1, page + 2];
   };
 
-  const handleTambah = () => { setEditTarget(null); setModalOpen(true); };
-  const handleEdit   = (row: SalesOrder) => { setEditTarget(row); setModalOpen(true); };
-  const handleHapus  = (row: SalesOrder) => setData((p) => p.filter((d) => d.id !== row.id));
-  const handleSubmit = (formData: SalesOrderFormData) => {
-    const total = formData.items.reduce((s, i) => s + i.subtotal, 0);
-    // if (editTarget) {
-    //   setData((p) => p.map((d) => d.id === editTarget.id ? { ...d, ...formData, total } : d));
-    // } else {
-    //   const newId = String(Math.max(0, ...data.map((d) => Number(d.id))) + 1);
-    //   setData((p) => [...p, { id: newId, ...formData, total }]);
-    // }
-    // TODO: ganti dengan call API ke backend
-  };
+  // ► CHANGED: buka modal via orchestrator, BUKAN state lokal lagi
+  const handleTambah = () => openModal("salesOrder");
 
   return (
     <AppShell title="Sales Order" subtitle="Kelola pesanan penjualan">
+
+      {/* ► NEW: toolbar workflow (muncul otomatis kalau ada draft) */}
+      <WorkflowToolbar />
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
         {/* Filter Bar */}
@@ -235,31 +268,9 @@ export default function SalesOrderPage() {
                   <td className="px-5 py-3 text-[13px] font-semibold text-slate-700 whitespace-nowrap">{formatRupiah(row.total)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1">
-                       <button
-                            // onClick={() => handleDetail(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-slate-100 text-navy-700 hover:bg-slate-200 transition-colors"
-                        >
-                            Detail
-                        </button>
-
-                            {/* Edit */}
-                        <button
-                            // onClick={() => handleEdit(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-                        >
-                            Edit
-                        </button>
-
-                        {/* Hapus */}
-                        <button
-                            // onClick={() => handleHapus(row)}
-                            className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                                    bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-                        >
-                            Hapus
-                        </button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-slate-100 text-navy-700 hover:bg-slate-200 transition-colors">Detail</button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">Edit</button>
+                      <button className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans bg-red-50 text-red-700 hover:bg-red-100 transition-colors">Hapus</button>
                     </div>
                   </td>
                 </tr>
@@ -293,13 +304,10 @@ export default function SalesOrderPage() {
         </div>
       </div>
 
-      {/* Modal */}
-      <SalesOrderModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmit}
-        // initialData={editTarget ?? undefined}
-      />
+      {/*
+        Modal sudah di-render oleh <TransactionOrchestrator /> di parent (SalesOrderPage).
+        Halaman ini tidak perlu render <SalesOrderModal /> lagi.
+      */}
     </AppShell>
   );
 }

@@ -12,7 +12,18 @@
     telepon:string;
     alamat: string;
     status: string;
+    category : string;
   }
+
+interface CustomerApi {
+  customerCode: string;
+  customerName: string;
+  email: string;
+  noTelpBisnis: string;
+  alamat: string;
+  isActive: boolean; // ✅
+  categoryName?: string;
+}
 
   const COLUMNS: Column<Customer>[] = [
     {
@@ -23,6 +34,15 @@
     {
       key: "nama",
       label: "Nama Customer",
+    },
+    {
+      key: "category",
+      label : "Kategori",
+      render :  (val) => (
+        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+          {String(val)}
+        </span>
+      )
     },
     {
       key: "email",
@@ -58,22 +78,45 @@
     const [data,setData] = useState<Customer[]>([]);
     const [modalOpen,setModalOpen] = useState(false);
     const [editData,setEditData] = useState<CustomerFormData | undefined>();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    useEffect(()=>{
-      const fetchCustomerData = async ()=> {
-        try{
-          const response = await fetch("https://localhost:7283/api/customer");
-          if(!response.ok){
-            throw new Error("Failed to fetch customer data");
-          }
-          const result = await response.json();
-          setData(result);
-        }catch(error){
-          console.error("Error fetching customer data:", error);
+
+    const fetchCustomerData = async () => {
+      try {
+        setLoading(true);
+
+        const response = await fetch("https://localhost:7283/api/customer");
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch customer data");
         }
-      };
+
+        const result = await response.json();
+
+        const mappedData: Customer[] = (result.data || []).map((item: CustomerApi) => ({
+          kode: item.customerCode,
+          nama: item.customerName,
+          email: item.email,
+          telepon: item.noTelpBisnis,
+          alamat: item.alamat,
+          status: item.isActive ? "Aktif" : "Nonaktif",
+          category: item.categoryName || "-",
+        }));
+
+        setData(mappedData);
+
+      } catch (error) {
+        console.error("Error fetching:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useEffect(() => {
       fetchCustomerData();
-    },[])
+    }, []);
+  
 
     const handleTambah = () => {
       setEditData(undefined);
@@ -95,15 +138,59 @@
       setData((prev) => prev.filter((c) => c.kode !== row.kode));
     };
 
+   
+    const insertCustomer = async (formData: CustomerFormData) => {
+        try {
+          setLoading(true);
+
+          const payload = {
+            customerCode: formData.kode,
+            customerName: formData.nama,
+            email: formData.email,
+            noTelpBisnis: formData.telepon,
+            alamat: formData.alamat,
+            isActive: formData.status === "Aktif",
+            categoryId: Number(formData.category),
+          };
+
+          console.log("Payload:", payload);
+
+          const response = await fetch("https://localhost:7283/api/customer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to add customer");
+          }
+
+          const result = await response.json();
+          console.log("Insert result:", result);
+
+          // ✅ REFETCH DATA (INI KUNCI NYA)
+          await fetchCustomerData();
+
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Gagal menambah customer");
+        } finally {
+          setLoading(false);
+        }
+      };
+
     const handleSubmit = (formData: CustomerFormData) => {
       if (editData) {
-        // Mode edit → update row yang ada
-        setData((prev) => prev.map((c) => (c.kode === formData.kode ? formData : c)));
+        // Mode edit → update via API
+        // updateCustomer(formData);
+        console.log("Update customer:", formData);
       } else {
-        // Mode tambah → append row baru
-        setData((prev) => [...prev, formData]);
+        // Mode tambah → insert via API
+        insertCustomer(formData);
       }
-      // TODO: ganti dengan call API ke backend
     };
 
 
