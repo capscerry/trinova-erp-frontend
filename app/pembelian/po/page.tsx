@@ -608,12 +608,12 @@ export default function PurchaseOrderPage() {
     >
 
       <DataTable<PurchaseOrder>
-        title="Daftar Purchase Order"
+        title="Daftar Order Fulfillment"
         columns={COLUMNS}
         data={purchaseOrders}
         keyField="id"
 
-        addLabel="Tambah PO"
+        addLabel="Tambah Fulfillment"
 
         onAdd={() => {
           setEditingPO(null);
