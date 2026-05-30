@@ -216,7 +216,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
             </FormField>
 
             {/* Status */}
-            <FormField label="Status" icon={<ToggleLeft size={16} />}>
+            {/* <FormField label="Status" icon={<ToggleLeft size={16} />}>
               <div className="flex gap-3">
                 {(["Aktif", "Non-aktif"] as const).map((s) => (
                   <button
@@ -236,7 +236,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
                   </button>
                 ))}
               </div>
-            </FormField>
+            </FormField> */}
 
           </div>
 

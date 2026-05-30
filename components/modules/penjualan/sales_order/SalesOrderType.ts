@@ -41,6 +41,7 @@
   }
 
   export interface SalesOrderFormData {
+    id?: string;
     nomor: string;
     noPO?: string;
 

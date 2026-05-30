@@ -20,6 +20,26 @@ export interface SalesOrderItemApi {
   subtotal: number;
 }
 
+export interface SalesOrderDetailItem {
+  productName: string;
+  productQty: number;
+  productPrice: number;
+  productDiscount: number;
+  totalPrice: number;
+}
+
+export interface SalesOrderDetailApi {
+  soNumber: string;
+  customerName: string;
+  soDate: string;
+  tanggalKirim: string;
+  poNumber: string;
+  address: string;
+  keterangan: string;
+  total: number;
+  detail: SalesOrderDetailItem[];
+}
+
 export interface ProductDropdown {
   productId: number;
   productCode: string;
@@ -62,6 +82,20 @@ export interface SalesOrder {
   status: SalesOrderStatus;
   total: number;
   items: SalesOrderItemApi[];
+}
+
+export interface SalesOrderDetail {
+  id?: number;
+  nomor: string;
+  tanggal: string;
+  tanggalKirim: string;
+  pelanggan: string;
+  poNumber: string;
+  alamat?: string;
+  keterangan: string;
+  status?: SalesOrderStatus;
+  total: number;
+  items: SalesOrderDetailItem[];
 }
 
 // ─── Payload SO → API ─────────────────────────────────────────────────────────
@@ -149,6 +183,20 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
   };
 }
 
+export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail {
+  return {
+    nomor: item.soNumber,
+    tanggal: item.soDate,
+    tanggalKirim: item.tanggalKirim,
+    poNumber: item.poNumber,
+    pelanggan: item.customerName,
+    alamat: item.address,
+    keterangan: item.keterangan,
+    total: item.total,
+    items: item.detail ?? [],
+  };
+}
+
 export function mapProductData(item: ProductDropdown): Product {
   return {
     id: item.productId,
@@ -191,12 +239,12 @@ export const salesOrderService = {
     return (response.data.data ?? []).map(mapSalesOrder);
   },
 
-  async getById(id: number | string): Promise<SalesOrder> {
-    const response = await api.get<ApiResponse<SalesOrderApi>>(
-      `/sales-order/${id}`
-    );
+  async getById(id: number | string): Promise<SalesOrderDetail> {
+  const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
+    `/sales-order/${id}`
+  );
 
-    return mapSalesOrder(response.data.data);
+    return mapSalesOrderDetail(response.data.data);
   },
 
   async create(payload: SalesOrderPayload): Promise<SalesOrder> {

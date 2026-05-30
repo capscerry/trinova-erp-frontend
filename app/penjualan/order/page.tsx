@@ -9,7 +9,8 @@ import {
   useWorkflowDraft,
 } from "@/lib/WorkflowDraftContext";
 import { TransactionOrchestrator } from "@/components/modules/penjualan/workflow/TransactionOrchestrator";
-
+import { useRouter } from "next/navigation";
+import { Eye } from "lucide-react";
 import {
   salesOrderService,
   type SalesOrder,
@@ -24,11 +25,8 @@ const formatRupiah = (n: number) =>
 
 const formatDate = (d?: string | null) => {
   if (!d) return "-";
-
   const date = new Date(d);
-
   if (isNaN(date.getTime())) return "-";
-
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
@@ -37,36 +35,27 @@ const formatDate = (d?: string | null) => {
 };
 
 const COLUMNS: Column<SalesOrder>[] = [
-  {
-    key: "nomor",
-    label: "Nomor SO",
-    width: "160px",
-  },
+  { key: "nomor", label: "Nomor SO", width: "18%" },
   {
     key: "tanggal",
     label: "Tanggal",
-    width: "130px",
+    width: "14%",
     render: (_value, row) => formatDate(row.tanggal),
   },
-  {
-    key: "pelanggan",
-    label: "Pelanggan",
-    width: "220px",
-  },
+  { key: "pelanggan", label: "Pelanggan", width: "30%" },
   {
     key: "tanggalKirim",
     label: "Tanggal Kirim",
-    width: "150px",
+    width: "16%",
     render: (_value, row) => formatDate(row.tanggalKirim),
   },
   {
     key: "total",
     label: "Total",
-    width: "160px",
+    width: "16%",
     render: (_value, row) => formatRupiah(row.total ?? 0),
   },
 ];
-
 export default function SalesOrderPage() {
   return (
     <WorkflowDraftProvider>
@@ -78,18 +67,14 @@ export default function SalesOrderPage() {
 
 function SalesOrderPageInner() {
   const { openModal } = useWorkflowDraft();
+  const router = useRouter();
 
   const [data, setData] = useState<SalesOrder[]>([]);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
-    "success"
-  );
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
-  const showMessage = (
-    msg: string,
-    type: "success" | "error" = "success"
-  ) => {
+  const showMessage = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
   };
@@ -97,11 +82,7 @@ function SalesOrderPageInner() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-
       const result = await salesOrderService.getAll();
-
-      console.log(result);
-
       setData(result);
     } catch (error) {
       console.error(error);
@@ -117,47 +98,14 @@ function SalesOrderPageInner() {
 
   useEffect(() => {
     if (!message) return;
-
-    const timer = setTimeout(() => {
-      setMessage("");
-    }, 3000);
-
+    const timer = setTimeout(() => setMessage(""), 3000);
     return () => clearTimeout(timer);
   }, [message]);
 
-  const handleTambah = () => {
-    openModal("salesOrder");
-  };
+  const handleTambah = () => openModal("salesOrder");
 
   const handleDetail = (row: SalesOrder) => {
-    console.log("Detail SO:", row);
-  };
-
-  const handleEdit = (row: SalesOrder) => {
-    console.log("Edit SO:", row);
-  };
-
-  const handleDelete = async (row: SalesOrder) => {
-    try {
-      const confirmDelete = window.confirm(
-        `Yakin ingin menghapus Sales Order ${row.nomor}?`
-      );
-
-      if (!confirmDelete) return;
-
-      setIsLoading(true);
-
-      await salesOrderService.remove(row.id);
-
-      showMessage("Sales Order berhasil dihapus", "success");
-
-      await fetchData();
-    } catch (error) {
-      console.error(error);
-      showMessage("Gagal menghapus sales order", "error");
-    } finally {
-      setIsLoading(false);
-    }
+    router.push(`/penjualan/order/${row.id}`);
   };
 
   return (
@@ -181,37 +129,18 @@ function SalesOrderPageInner() {
         keyField="id"
         addLabel="Tambah Sales Order"
         onAdd={handleTambah}
-        isLoading={isLoading}
+        className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
+        // isLoading={isLoading}
         renderActions={(row) => (
-          <div className="flex items-center gap-1.5 justify-center">
+          <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                         bg-slate-100 text-navy-700 hover:bg-slate-200
+              title="Lihat Detail"
+              className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Detail
-            </button>
-
-            <button
-              onClick={() => handleEdit(row)}
-              disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                         bg-amber-50 text-amber-700 hover:bg-amber-100
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Edit
-            </button>
-
-            <button
-              onClick={() => handleDelete(row)}
-              disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                         bg-red-50 text-red-700 hover:bg-red-100
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Hapus
+              <Eye size={15} />
             </button>
           </div>
         )}

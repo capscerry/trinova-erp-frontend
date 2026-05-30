@@ -38,3 +38,44 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #2a4a6a; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
+
+/* ─── Print / Export PDF ─────────────────────────────────────────────────── */
+@media print {
+  /* Sembunyikan semua elemen kecuali yang di-print */
+  body.printing > * {
+    display: none !important;
+  }
+
+  /* Tampilkan hanya elemen dengan class print-target */
+  body.printing .print-target {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 99999 !important;
+    background: white !important;
+    padding: 32px !important;
+    overflow: visible !important;
+  }
+
+  /* Sembunyikan tombol aksi saat print */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Styling tabel agar rapi di PDF */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Page break */
+  .page-break {
+    page-break-before: always;
+  }
+}
