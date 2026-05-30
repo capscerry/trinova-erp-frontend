@@ -42,7 +42,7 @@ export function SalesOrderHeaderForm({
   const fetchCustomerData = async()=>{
     try{
         setLoadingCustomers(true);
-        const data = await customerService.getAll();
+        const data = await customerService.getAllActive();
         console.log("Fetched customers:", data);
         
         setCustomerOptions(

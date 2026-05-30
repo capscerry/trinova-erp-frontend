@@ -10,6 +10,7 @@ import {
 import type { Column } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
 import { uangMukaService } from "@/lib/services/penjualan.service";
+import { Eye } from "lucide-react";
 
 export interface UangMuka {
   no: number;
@@ -37,26 +38,14 @@ const today = new Date().toLocaleDateString("id-ID", {
 });
 
 const COLUMNS: Column<UangMuka>[] = [
-  { key: "no", label: "No", width: "60px" },
-  { key: "noFaktur", label: "No Faktur", width: "140px" },
+  { key: "noFaktur", label: "No Faktur", width: "160px" },
   { key: "tanggal", label: "Tanggal", width: "120px" },
-  { key: "pelanggan", label: "Pelanggan", width: "180px" },
+  { key: "pelanggan", label: "Pelanggan" },
   { key: "noPesanan", label: "No SO", width: "140px" },
-  {
-    key: "totalHargaPesanan",
-    label: "Total SO",
-    width: "160px",
-    render: (value: unknown) =>
-      Number(value || 0).toLocaleString("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        maximumFractionDigits: 0,
-      }),
-  },
   {
     key: "uangMuka",
     label: "Uang Muka",
-    width: "160px",
+    width: "150px",
     render: (value: unknown) =>
       Number(value || 0).toLocaleString("id-ID", {
         style: "currency",
@@ -67,7 +56,7 @@ const COLUMNS: Column<UangMuka>[] = [
   {
     key: "isActive",
     label: "Status",
-    width: "120px",
+    width: "100px",
     render: (_: unknown, row: UangMuka) => (
       <span
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -91,60 +80,40 @@ export default function UangMukaPage() {
   const [editData, setEditData] = useState<UangMukaFormData | undefined>();
   const [savedId, setSavedId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">(
-    "success"
-  );
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
- const fetchData = async () => {
-  try {
-    setIsLoading(true);
-
-    const result = await uangMukaService.getAll();
-
-    setData(
-      result.map((item, index) => ({
-        no: index + 1,
-
-        id: index + 1,
-
-        noFaktur: item.noFaktur,
-
-        tanggal: new Date(item.tanggal).toLocaleDateString("id-ID"),
-
-        pelanggan: item.customerName,
-
-        uangMuka: item.nominalUangMuka,
-
-        kenaPajak: false,
-
-        totalTermasukPajak: false,
-
-        noPO: item.noPO ?? "",
-
-        syaratPembayaran: item.syaratPembayaran ?? "",
-
-        alamat: item.alamat ?? "",
-
-        keterangan: item.keterangan ?? "",
-
-        fakturType: "Faktur Penjualan",
-
-        noPesanan: item.nomorSo ?? "",
-
-        totalHargaPesanan: item.totalAmount ?? 0,
-
-        isActive: true,
-      }))
-    );
-  } catch (error) {
-    console.error(error);
-
-    showMessage("Gagal memuat data uang muka", "error");
-  } finally {
-    setIsLoading(false);
-  }
-};
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const result = await uangMukaService.getAll();
+      setData(
+        result.map((item, index) => ({
+          no: index + 1,
+          id: item.id ?? index + 1,
+          noFaktur: item.noFaktur,
+          tanggal: new Date(item.tanggal).toLocaleDateString("id-ID"),
+          pelanggan: item.customerName ?? "",
+          uangMuka: item.nominalUangMuka,
+          kenaPajak: false,
+          totalTermasukPajak: false,
+          noPO: item.noPO ?? "",
+          syaratPembayaran: item.syaratPembayaran ?? "",
+          alamat: item.alamat ?? "",
+          keterangan: item.keterangan ?? "",
+          fakturType: "Faktur Penjualan",
+          noPesanan: item.nomorSo ?? "",
+          totalHargaPesanan: item.totalAmount ?? 0,
+          isActive: true,
+        }))
+      );
+    } catch (error) {
+      console.error(error);
+      showMessage("Gagal memuat data uang muka", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -152,14 +121,11 @@ export default function UangMukaPage() {
 
   useEffect(() => {
     const fromSalesOrder = searchParams.get("fromSalesOrder");
-
     if (!fromSalesOrder) return;
 
     const pelanggan = searchParams.get("pelanggan") ?? "";
     const noPesanan = searchParams.get("noPesanan") ?? "";
-    const totalHargaPesanan = Number(
-      searchParams.get("totalHargaPesanan") ?? 0
-    );
+    const totalHargaPesanan = Number(searchParams.get("totalHargaPesanan") ?? 0);
     const alamat = searchParams.get("alamat") ?? "";
     const keterangan = searchParams.get("keterangan") ?? "";
 
@@ -185,17 +151,13 @@ export default function UangMukaPage() {
     setModalOpen(true);
   }, [searchParams]);
 
-  const showMessage = (
-    msg: string,
-    type: "success" | "error" = "success"
-  ) => {
+  const showMessage = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
   };
 
   useEffect(() => {
     if (!message) return;
-
     const t = setTimeout(() => setMessage(""), 3000);
     return () => clearTimeout(t);
   }, [message]);
@@ -206,56 +168,25 @@ export default function UangMukaPage() {
     setModalOpen(true);
   };
 
-  const handleEdit = (row: UangMuka) => {
-    setEditData({
-      id: row.id ?? 0,
-      pelanggan: row.pelanggan ?? "",
-      noFaktur: row.noFaktur ?? "",
-      noFakturMode: "manual",
-      tanggal: row.tanggal ?? today,
-      uangMuka: row.uangMuka ?? 0,
-      noPO: row.noPO ?? "",
-      kenaPajak: row.kenaPajak ?? false,
-      totalTermasukPajak: row.totalTermasukPajak ?? true,
-      syaratPembayaran: row.syaratPembayaran ?? "",
-      alamat: row.alamat ?? "",
-      keterangan: row.keterangan ?? "",
-      fakturType: row.fakturType ?? "Faktur Penjualan",
-      noPesanan: row.noPesanan ?? "",
-      totalHargaPesanan: row.totalHargaPesanan ?? 0,
-    });
-
-    setSavedId(row.id);
-    setModalOpen(true);
+  const handleDetail = (row: UangMuka) => {
+    router.push(`/penjualan/uang-muka/${row.id}`);
   };
 
   const handleSubmit = async (formData: UangMukaFormData) => {
     try {
       setIsLoading(true);
-
       showMessage(
-        formData.id
-          ? "Uang muka berhasil diperbarui"
-          : "Uang muka berhasil ditambahkan",
+        formData.id ? "Uang muka berhasil diperbarui" : "Uang muka berhasil ditambahkan",
         "success"
       );
-
       const newId = formData.id || Date.now();
       setSavedId(newId);
-
       setData((prev) => {
         if (formData.id) {
           return prev.map((item) =>
-            item.id === formData.id
-              ? {
-                  ...item,
-                  ...formData,
-                  isActive: item.isActive,
-                }
-              : item
+            item.id === formData.id ? { ...item, ...formData, isActive: item.isActive } : item
           );
         }
-
         return [
           ...prev,
           {
@@ -287,7 +218,6 @@ export default function UangMukaPage() {
 
   const handleProses = (formData: UangMukaFormData) => {
     setModalOpen(false);
-
     router.push(
       `/penjualan/penerimaan-penjualan/baru?fromUangMuka=${formData.id}` +
         `&pelanggan=${encodeURIComponent(formData.pelanggan ?? "")}` +
@@ -295,24 +225,6 @@ export default function UangMukaPage() {
         `&noPesanan=${encodeURIComponent(formData.noPesanan ?? "")}` +
         `&totalHargaPesanan=${formData.totalHargaPesanan ?? 0}`
     );
-  };
-
-  const handleToggleStatus = async (row: UangMuka) => {
-    try {
-      setIsLoading(true);
-
-      setData((prev) =>
-        prev.map((item) =>
-          item.id === row.id ? { ...item, isActive: !item.isActive } : item
-        )
-      );
-
-      showMessage("Status berhasil diperbarui", "success");
-    } catch {
-      showMessage("Gagal mengubah status", "error");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
@@ -333,62 +245,20 @@ export default function UangMukaPage() {
         title="Daftar Uang Muka"
         columns={COLUMNS}
         data={data}
-        keyField="no"
+        keyField="id"
         addLabel="Tambah Uang Muka"
         onAdd={handleTambah}
-        isLoading={isLoading}
+        className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
-          <div className="flex items-center gap-1.5 justify-center">
+          <div className="flex items-center justify-center">
             <button
-              onClick={() => handleEdit(row)}
+              onClick={() => handleDetail(row)}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold
-                         bg-amber-50 text-amber-700 hover:bg-amber-100
+              title="Lihat Detail"
+              className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Edit
-            </button>
-
-            <button
-              onClick={() =>
-                handleProses({
-                  id: row.id ?? 0,
-                  pelanggan: row.pelanggan ?? "",
-                  noFaktur: row.noFaktur ?? "",
-                  noFakturMode: "manual",
-                  tanggal: row.tanggal ?? today,
-                  uangMuka: row.uangMuka ?? 0,
-                  noPO: row.noPO ?? "",
-                  kenaPajak: row.kenaPajak ?? false,
-                  totalTermasukPajak: row.totalTermasukPajak ?? true,
-                  syaratPembayaran: row.syaratPembayaran ?? "",
-                  alamat: row.alamat ?? "",
-                  keterangan: row.keterangan ?? "",
-                  fakturType: row.fakturType ?? "Faktur Penjualan",
-                  noPesanan: row.noPesanan ?? "",
-                  totalHargaPesanan: row.totalHargaPesanan ?? 0,
-                })
-              }
-              disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold
-                         bg-blue-50 text-blue-700 hover:bg-blue-100
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Proses
-            </button>
-
-            <button
-              onClick={() => handleToggleStatus(row)}
-              disabled={isLoading}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed
-                         ${
-                           row.isActive
-                             ? "bg-green-50 text-green-700 hover:bg-green-100"
-                             : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                         }`}
-            >
-              {row.isActive ? "Aktif" : "Nonaktif"}
+              <Eye size={15} />
             </button>
           </div>
         )}
