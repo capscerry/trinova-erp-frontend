@@ -9,8 +9,18 @@ import { toast } from "sonner";
 import {
   getPurchaseOrders,
   getPurchaseOrderDetails,
+
+  createPurchaseOrder,
+  createPurchaseOrderDetail,
+  updatePurchaseOrderDetail,
+  deletePurchaseOrderDetail,
+
+  updatePurchaseOrder,
+
+  deletePurchaseOrder,
+
   getSuppliers,
-  getProducts,
+  getSupplierProducts,
   getUoms,
 } from "@/lib/services";
 
@@ -49,8 +59,18 @@ interface Supplier {
 
 interface Product {
   id: string;
+
   nama: string;
+
   uom_id: number;
+
+  supplier_id?: number;
+
+  supplier_price?: number;
+
+  available_stock?: number;
+
+  lead_time_days?: number;
 }
 
 interface Uom {
@@ -208,6 +228,9 @@ export default function PurchaseOrderPage() {
   const [products, setProducts] =
     useState<Product[]>([]);
 
+  const [filteredProducts, setFilteredProducts] =
+    useState<Product[]>([]);
+
   const [uoms, setUoms] =
     useState<Uom[]>([]);
 
@@ -325,21 +348,44 @@ export default function PurchaseOrderPage() {
 
     try {
 
-      const res = await getProducts();
+      const res =
+        await getSupplierProducts();
 
-      const productList = Array.isArray(res)
+      const productList =
+        Array.isArray(res)
         ? res
         : res.data;
 
-      const mappedData = productList.map(
-        (item: any) => ({
-          id: item.product_id.toString(),
-          nama: item.product_name,
-          uom_id: item.uom_id,
-        })
-      );
+      const mappedData =
+        productList.map(
+          (item: any) => ({
+
+            id:
+              item.product_id.toString(),
+
+            nama:
+              item.product_name || "-",
+
+            uom_id:
+              item.uom_id || 0,
+
+            supplier_id:
+              item.supplier_id,
+
+            supplier_price:
+              item.supplier_price,
+
+            available_stock:
+              item.available_stock,
+
+            lead_time_days:
+              item.lead_time_days,
+          })
+        );
 
       setProducts(mappedData);
+
+      setFilteredProducts(mappedData);
 
     } catch (error) {
 
@@ -380,18 +426,151 @@ export default function PurchaseOrderPage() {
   // SUBMIT
   // ─────────────────────────────────────────────────────────
 
-  const handleSubmitPO = async () => {
+  const handleSubmitPO = async (
+    payload: any
+  ) => {
 
     try {
 
+        const headerPayload = {
+
+          po_number:
+            payload.po_number,
+
+          supplier_id:
+            Number(
+              payload.supplier_id
+            ),
+
+          order_date:
+            payload.order_date,
+
+          status:
+            payload.status,
+
+          total_amount:
+            payload.total_amount,
+        };
+
+        console.log(
+          "HEADER PAYLOAD"
+        );
+
+        console.log(
+          headerPayload
+        );
+
+        console.log(
+          "DELETED ITEMS",
+          payload.deletedItems
+        );
+
+        let purchaseOrderId = 0;
+
+        if (editingPO?.purchase_order_id) {
+
+          await updatePurchaseOrder(
+            editingPO.purchase_order_id,
+            headerPayload
+          );
+
+          purchaseOrderId =
+            editingPO.purchase_order_id;
+
+        } else {
+
+          const headerResponse =
+            await createPurchaseOrder(
+              headerPayload
+            );
+
+          purchaseOrderId =
+            headerResponse.purchase_order_id;
+        }
+
+        console.log(
+          "DELETED ITEMS",
+          payload.deletedItems
+        );
+        
+        if (
+          payload.deletedItems?.length
+        ) {
+
+          for (const detailId of payload.deletedItems) {
+
+            await deletePurchaseOrderDetail(
+              Number(detailId)
+            );
+          }
+        }
+
+        for (const item of payload.items) {
+
+          const detailPayload = {
+
+            purchase_order_id:
+              purchaseOrderId,
+
+            product_id:
+              Number(item.product_id),
+
+            quantity:
+              Number(item.quantity),
+
+            uom_id:
+              Number(item.uom_id),
+
+            price:
+              Number(item.price),
+
+            subtotal:
+              Number(item.subtotal),
+          };
+
+          if (
+            item.purchase_order_detail_id
+          ) {
+
+            console.log(
+            "UPDATE DETAIL",
+            item
+          );
+
+          console.log(
+            "DETAIL ID",
+            item.purchase_order_detail_id
+          );
+
+            await updatePurchaseOrderDetail(
+
+              Number(
+                item.purchase_order_detail_id
+              ),
+
+              detailPayload
+            );
+
+          } else {
+
+            await createPurchaseOrderDetail(
+              detailPayload
+            );
+          }
+        }
+
+      await fetchPurchaseOrders();
+
+      await fetchPurchaseOrderDetails();
+
       setOpenModal(false);
 
-      fetchPurchaseOrders();
-
-      fetchPurchaseOrderDetails();
+      setEditingPO(null);
 
       toast.success(
-        "Purchase Order berhasil dibuat"
+        editingPO
+          ? "Purchase Order berhasil diperbarui"
+          : "Purchase Order berhasil dibuat"
       );
 
     } catch (error) {
@@ -402,6 +581,7 @@ export default function PurchaseOrderPage() {
         "Gagal membuat Purchase Order"
       );
     }
+  };
 
   // ─────────────────────────────────────────────────────────
   // USE EFFECT
@@ -436,6 +616,7 @@ export default function PurchaseOrderPage() {
         addLabel="Tambah PO"
 
         onAdd={() => {
+          setEditingPO(null);
           setOpenModal(true);
         }}
 
@@ -463,7 +644,7 @@ export default function PurchaseOrderPage() {
                     row.supplier,
 
                   order_date:
-                    row.tanggal,
+                    row.tanggal?.split("T")[0],
 
                   status:
                     row.status,
@@ -474,12 +655,24 @@ export default function PurchaseOrderPage() {
                         id:
                           item.purchase_order_detail_id?.toString(),
 
-                        product_name:
-                          item.product?.product_name ||
-                          `Product ${item.product_id}`,
+                          product_id:
+                            item.product_id?.toString(),
+
+                          product_name:
+                            products.find(
+                              (p) =>
+                                p.id ===
+                                item.product_id?.toString()
+                            )?.nama ||
+                            `Product ${item.product_id}`,
+
+                          isExisting: true,
 
                         quantity:
                           item.quantity,
+
+                        uom_id:
+                          item.uom_id?.toString(),
 
                         uom_name:
                           item.uom?.uom_name ||
@@ -505,18 +698,25 @@ export default function PurchaseOrderPage() {
               size="sm"
               onClick={() => {
 
-                const detailItems =
-                  purchaseOrderDetails.filter(
-                    (item: any) =>
-                      Number(item.purchase_order_id) ===
-                      Number(row.id)
-                  );
+              const detailItems =
+                purchaseOrderDetails.filter(
+                  (item: any) =>
+                    Number(item.purchase_order_id) ===
+                    Number(row.id)
+                );
+
+              console.log(
+                "DETAIL ITEMS",
+                detailItems
+              );
 
                 setEditingPO({
 
+                  purchase_order_id:
+                    Number(row.id),
+
                   po_number:
                     row.nomor,
-
                   supplier_id:
                     suppliers.find(
                       (s) =>
@@ -524,7 +724,7 @@ export default function PurchaseOrderPage() {
                     )?.id || "",
 
                   order_date:
-                    row.tanggal,
+                    row.tanggal?.split("T")[0],
 
                   status:
                     row.status,
@@ -532,15 +732,23 @@ export default function PurchaseOrderPage() {
                   items:
                     detailItems.map(
                       (item: any) => ({
-                        id:
-                          crypto.randomUUID(),
+                        
+                        id: crypto.randomUUID(),
+
+                          purchase_order_detail_id:
+                            item.purchase_order_detail_id,
 
                         product_id:
                           item.product_id?.toString(),
 
                         product_name:
-                          item.product?.product_name ||
-                          "",
+                          products.find(
+                            (p) =>
+                              p.id ===
+                              item.product_id?.toString()
+                          )?.nama || "",
+
+                        isExisting: true,
 
                         quantity:
                           item.quantity,
@@ -549,8 +757,11 @@ export default function PurchaseOrderPage() {
                           item.uom_id?.toString(),
 
                         uom_name:
-                          item.uom?.uom_name ||
-                          "",
+                          uoms.find(
+                            (u) =>
+                              u.id ===
+                              item.uom_id?.toString()
+                          )?.nama || "",
 
                         price:
                           item.price,
@@ -570,7 +781,7 @@ export default function PurchaseOrderPage() {
             <Button
               variant="danger"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
 
                 const confirmed =
                   confirm(
@@ -579,12 +790,26 @@ export default function PurchaseOrderPage() {
 
                 if (!confirmed) return;
 
-                setPurchaseOrders((prev) =>
-                  prev.filter(
-                    (item) =>
-                      item.id !== row.id
-                  )
-                );
+                try {
+
+                  await deletePurchaseOrder(
+                    Number(row.id)
+                  );
+
+                  await fetchPurchaseOrders();
+
+                  toast.success(
+                    "Purchase Order berhasil dihapus"
+                  );
+
+                } catch (error) {
+
+                  console.error(error);
+
+                  toast.error(
+                    "Gagal menghapus Purchase Order"
+                  );
+                }
               }}
             >
               Hapus
@@ -595,9 +820,7 @@ export default function PurchaseOrderPage() {
         )}
       />
 
-      {/* ───────────────────────────────────────────── */}
       {/* CREATE MODAL */}
-      {/* ───────────────────────────────────────────── */}
 
       <PurchaseOrderFormModal
         open={openModal}
@@ -611,9 +834,7 @@ export default function PurchaseOrderPage() {
         uoms={uoms}
       />
 
-      {/* ───────────────────────────────────────────── */}
       {/* DETAIL MODAL */}
-      {/* ───────────────────────────────────────────── */}
 
       <PurchaseOrderDetailModal
         open={openDetail}
@@ -625,5 +846,4 @@ export default function PurchaseOrderPage() {
 
     </AppShell>
   );
-}
 }

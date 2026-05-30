@@ -42,7 +42,7 @@ export function SalesOrderHeaderForm({
   const fetchCustomerData = async()=>{
     try{
         setLoadingCustomers(true);
-        const data = await customerService.getAll();
+        const data = await customerService.getAllActive();
         console.log("Fetched customers:", data);
         
         setCustomerOptions(
@@ -73,46 +73,57 @@ export function SalesOrderHeaderForm({
   return (
     <Section title="Informasi Dasar">
 
-      {/* Nomor SO */}
-      <FormField label="Nomor SO" icon={<Hash size={13} />} required
-        hint={
-          <div className="flex items-center gap-1.5">
-            <span className={cn(
-              "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide",
-              nomorMode === "auto" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-            )}>
-              {nomorMode === "auto" ? "Auto" : "Manual"}
-            </span>
-            {nomorMode === "auto" ? (
-              <button onClick={handleSwitchToManual}
-                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
-                <Pencil size={10} /> Isi manual
+      {/* Nomor SO + No PO */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Nomor SO" icon={<Hash size={13} />} required
+          hint={
+            <div className="flex items-center gap-1.5">
+              <span className={cn(
+                "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide",
+                nomorMode === "auto" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+              )}>
+                {nomorMode === "auto" ? "Auto" : "Manual"}
+              </span>
+              {nomorMode === "auto" ? (
+                <button onClick={handleSwitchToManual}
+                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
+                  <Pencil size={10} /> Isi manual
+                </button>
+              ) : (
+                <button onClick={handleSwitchToAuto}
+                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
+                  <RefreshCw size={10} /> Pakai auto
+                </button>
+              )}
+            </div>
+          }>
+          {nomorMode === "auto" ? (
+            <div className="flex gap-2">
+              <input readOnly value={form.nomor}
+                className={cn(inputBase, "flex-1 bg-slate-50 text-slate-500 font-mono cursor-not-allowed")} />
+              <button onClick={handleRegenerateNomor} title="Generate ulang"
+                className="w-10 flex items-center justify-center rounded-lg border
+                           border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-navy-700 transition-colors">
+                <RefreshCw size={13} />
               </button>
-            ) : (
-              <button onClick={handleSwitchToAuto}
-                className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
-                <RefreshCw size={10} /> Pakai auto
-              </button>
-            )}
-          </div>
-        }>
-        {nomorMode === "auto" ? (
-          <div className="flex gap-2">
-            <input readOnly value={form.nomor}
-              className={cn(inputBase, "flex-1 bg-slate-50 text-slate-500 font-mono cursor-not-allowed")} />
-            <button onClick={handleRegenerateNomor} title="Generate ulang"
-              className="w-10 flex items-center justify-center rounded-lg border
-                         border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-navy-700 transition-colors">
-              <RefreshCw size={13} />
-            </button>
-          </div>
-        ) : (
-          <input type="text" value={nomorManual}
-            onChange={(e) => handleNomorManualChange(e.target.value)}
-            placeholder="Contoh: SO-2026-001"
-            className={cn(inputBase, "font-mono")} />
-        )}
-      </FormField>
+            </div>
+          ) : (
+            <input type="text" value={nomorManual}
+              onChange={(e) => handleNomorManualChange(e.target.value)}
+              placeholder="Contoh: SO-2026-001"
+              className={cn(inputBase, "font-mono")} />
+          )}
+        </FormField>
+
+        {/* No PO */}
+        <FormField label="No PO" icon={<Hash size={13} />}>
+          <input type="text" 
+            value={form.noPO || ""}
+            onChange={(e) => setField("noPO", e.target.value)}
+            placeholder="Nomor Purchase Order..."
+            className={inputBase} />
+        </FormField>
+      </div>
 
       {/* Tanggal */}
       <div className="grid grid-cols-2 gap-4">

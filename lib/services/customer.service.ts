@@ -54,6 +54,11 @@ export const customerService = {
     return (res.data.data ?? []).map(mapCustomer);
   },
 
+  async getAllActive() : Promise<Customer[]> {
+    const res = await api.get<ApiResponse<CustomerApi[]>>("/customer/active");
+    return (res.data.data ?? []).map(mapCustomer);
+  },
+
   async getByCode(code: string): Promise<Customer> {
     const res = await api.get<ApiResponse<CustomerApi>>(`/customer/${code}`);
     return mapCustomer(res.data.data);

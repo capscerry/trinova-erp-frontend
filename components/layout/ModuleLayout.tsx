@@ -19,9 +19,11 @@ export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
 
   if (!user) return null;
 
-  // Ambil satu modul yang boleh diakses role ini (selain dashboard)
+  // Ambil modul berdasarkan path yang sedang aktif
   const navForRole = getNavForRole(user.role);
-  const moduleNav  = navForRole.find((m) => m.id !== "dashboard" && m.children);
+  const moduleNav  = navForRole.find(
+    (m) => m.id !== "dashboard" && m.children && pathname.startsWith(`/${m.id}`)
+  ) ?? navForRole.find((m) => m.id !== "dashboard" && m.children);
 
   return (
     <div className="min-h-screen bg-slate-100 font-serif">

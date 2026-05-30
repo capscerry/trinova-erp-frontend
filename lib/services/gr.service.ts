@@ -22,3 +22,16 @@ export const createGoodsReceipt = async (
 
   return res.data;
 };
+
+// CREATE GR DETAIL
+export const createGoodsReceiptDetail = async (
+  payload: any
+) => {
+
+  const res = await api.post(
+    "/goods-receipt-detail",
+    payload
+  );
+
+  return res.data;
+};

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import {
   getGoodsReceipts,
   createGoodsReceipt,
+  createGoodsReceiptDetail,
   getPurchaseOrders,
   getPurchaseOrderDetails,
 } from "@/lib/services";
@@ -249,7 +250,6 @@ export default function GoodsReceiptPage() {
       );
     }
   };
-
   // ─────────────────────────────────────────────────────────
   // FETCH PO
   // ─────────────────────────────────────────────────────────
@@ -265,7 +265,14 @@ export default function GoodsReceiptPage() {
         ? res
         : res.data;
 
-      setPurchaseOrders(list);
+      const approvedPOs = list.filter(
+        (po: any) =>
+          po.status === "Approved"
+      );
+
+      setPurchaseOrders(
+        approvedPOs
+      );
 
     } catch (error) {
 
@@ -307,24 +314,60 @@ export default function GoodsReceiptPage() {
 
     try {
 
-      await createGoodsReceipt({
-        purchase_order_id:
-          Number(form.purchase_order_id),
+      const grResponse =
+        await createGoodsReceipt({
+          purchase_order_id:
+            Number(form.purchase_order_id),
 
-        receipt_number:
-          form.receipt_number,
+          receipt_number:
+            form.receipt_number,
 
-        receipt_date:
-          form.receipt_date,
+          receipt_date:
+            form.receipt_date,
 
-        received_by:
-          form.received_by,
+          received_by:
+            form.received_by,
 
-        status:
-          form.status,
-      });
+          status:
+            form.status,
+        });
 
-      fetchGoodsReceipts();
+      console.log(
+        "GR RESPONSE",
+        grResponse
+      );
+
+      const goodsReceiptId =
+        grResponse.goods_receipt_id;
+
+      const detailItems =
+        purchaseOrderDetails.filter(
+          (item) =>
+            Number(item.purchase_order_id) ===
+            Number(form.purchase_order_id)
+        );
+
+      console.log(
+        "DETAIL ITEMS",
+        detailItems
+      );
+
+      for (const item of detailItems) {
+
+        await createGoodsReceiptDetail({
+
+          goods_receipt_id:
+            goodsReceiptId,
+
+          product_id:
+            item.product_id,
+
+          quantity:
+            item.quantity,
+        });
+      }
+
+      await fetchGoodsReceipts();
 
       toast.success(
         "Goods Receipt berhasil dibuat"

@@ -10,19 +10,17 @@ import {
   newItem,
   inputCompact,
 } from "./SalesOrderType";
-import { productDropdownService, type Product} from "@/lib/services/penjualan.service";
+import { productDropdownService, type Product } from "@/lib/services/penjualan.service";
 
 const SATUAN_OPTIONS = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
 ];
 
-// ─── Props ────────────────────────────────────────────────────────────────────
 interface SalesOrderDetailFormProps {
   items: SalesOrderItem[];
   onChange: (items: SalesOrderItem[]) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormProps) {
   const [produkOptions, setProdukOptions] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
@@ -50,14 +48,18 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
     }));
   };
 
+  // ← fix: simpan productId, productCode, productName sekaligus
   const selectProduk = (id: string, produkNama: string) => {
     const found = produkOptions.find((p) => p.nama === produkNama);
     if (found) {
-      // harga TIDAK di-set otomatis — user isi manual
-      // satuan tetap auto-fill dari data produk
-      updateItem(id, { produk: found.nama, satuan: found.satuan });
+      updateItem(id, {
+        productId: found.id,
+        productCode: found.kode,
+        productName: found.nama,
+        satuan: found.satuan,
+      });
     } else {
-      updateItem(id, { produk: produkNama });
+      updateItem(id, { productName: produkNama });
     }
   };
 
@@ -68,7 +70,6 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
 
   return (
     <div>
-      {/* Section header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Detail Produk</h3>
         <button onClick={addItem}
@@ -78,7 +79,6 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
         </button>
       </div>
 
-      {/* Table */}
       <div className="border border-slate-200 rounded-xl overflow-visible">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs table-fixed min-w-[900px]">
@@ -102,7 +102,7 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                   {/* Produk */}
                   <td className="px-3 py-2">
                     <ProductSearchField
-                      value={item.produk}
+                      value={item.productName ?? ""}  // ← fix: pakai productName
                       placeholder={loadingProduk ? "Memuat..." : "Cari produk..."}
                       options={produkOptions}
                       disabled={loadingProduk}
@@ -136,7 +136,7 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                     />
                   </td>
 
-                  {/* Harga — input manual */}
+                  {/* Harga */}
                   <td className="px-3 py-2">
                     <input
                       type="number"
@@ -159,7 +159,7 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                   <td className="px-3 py-2 text-center">
                     <input
                       type="checkbox"
-                      checked={item.taxable}
+                      checked={item.taxable ?? false}
                       onChange={(e) => updateItem(item.id, { taxable: e.target.checked })}
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
@@ -186,7 +186,6 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
         </div>
       </div>
 
-      {/* Grand Total */}
       <div className="flex justify-end mt-3">
         <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[220px]">
           <div className="flex items-center justify-between gap-8">
