@@ -1,57 +1,86 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { AppShell } from "@/components/layout";
-import { DataTable, type Column } from "@/components/ui/DataTable";
+import {
+  DataTable,
+  type Column,
+} from "@/components/ui/DataTable";
 
-// ─── Type ──────────────────────────────────────────────────────────────────────
-interface UnitOfMeasure {
-  id: string;
-  nama: string;
-  deskripsi: string;
-}
+import {
+  getUoms,
+  Uom,
+} from "@/lib/services/uom.service";
 
-// ─── Columns ───────────────────────────────────────────────────────────────────
-const COLUMNS: Column<UnitOfMeasure>[] = [
+import { toast } from "sonner";
+
+const COLUMNS: Column<Uom>[] = [
   {
-    key: "no",
-    label: "No",
-    width: "60px",
+    key: "uom_code",
+    label: "Code",
+    width: "180px",
+
     render: (val) => (
-      <span className="text-slate-600">{ 1}</span>
+      <span className="font-mono text-[12px] text-navy-700">
+        {String(val)}
+      </span>
     ),
   },
+
   {
-    key: "nama",
-    label: "Nama",
-    width: "200px",
+    key: "uom_name",
+    label: "Unit Name",
+
     render: (val) => (
-      <span className="font-medium text-slate-700">{String(val)}</span>
-    ),
-  },
-  {
-    key: "deskripsi",
-    label: "Deskripsi",
-    render: (val) => (
-      <span className="text-slate-600 text-sm">
-        {String(val) || "—"}
+      <span className="font-medium text-slate-700">
+        {String(val)}
       </span>
     ),
   },
 ];
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
 export default function UnitOfMeasurePage() {
+  const [uoms, setUoms] =
+    useState<Uom[]>([]);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  useEffect(() => {
+    fetchUoms();
+  }, []);
+
+  async function fetchUoms() {
+    try {
+      setLoading(true);
+
+      const data =
+        await getUoms();
+
+      setUoms(data);
+    } catch (error) {
+      console.error(error);
+
+      toast.error(
+        "Gagal mengambil data UOM"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <AppShell title="Unit Of Measure" subtitle="Kelola satuan unit">
-      <DataTable<UnitOfMeasure>
-        title="Unit Of Measure"
+    <AppShell
+      title="Unit Of Measure"
+      subtitle="Daftar satuan unit"
+    >
+      <DataTable<Uom>
+        title="Master UOM"
         columns={COLUMNS}
-        data={[]} // tanpa data
-        addLabel="Tambah UoM"
-        onAdd={() => {
-          // TODO: buka modal tambah UoM
-        }}
-        keyField="id"
+        data={uoms}
+        loading={loading}
+        keyField="uom_id"
       />
     </AppShell>
   );

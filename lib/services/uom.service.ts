@@ -1,10 +1,17 @@
-import { api } from "../api";
+import { api } from "@/lib/api";
 
-export const getUoms = async () => {
+// ─── Types ────────────────────────────────────────────────────────────────────
+export interface Uom {
+  uom_id: number;
+  uom_code: string;
+  uom_name: string;
+}
 
-  const res = await api.get(
+// ─── GET UOMS ─────────────────────────────────────────────────────────────────
+export async function getUoms() {
+  const response = await api.get(
     "/MasterUom/GetAllMasterUom"
   );
 
-  return res.data;
-};
+  return response.data.data;
+}

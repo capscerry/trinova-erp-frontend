@@ -235,7 +235,7 @@ export default function PengirimanPage() {
         keyField="no"
         addLabel="Tambah Pengiriman"
         onAdd={handleTambah}
-        isLoading={isLoading}
+        loading={isLoading}
         renderActions={(row) => (
           <div className="flex items-center gap-1.5 justify-center">
             <button

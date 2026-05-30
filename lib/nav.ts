@@ -68,17 +68,19 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
         items: [
           { id: "persediaan.produk",   label: "Goods & Service", href: "/persediaan/produk" },
           { id: "persediaan.kategori", label: "Item Category",   href: "/persediaan/kategori" },
+          { id: "persediaan.subkategori", label: "Subcategory", href: "/persediaan/subkategori" },
           { id: "persediaan.gudang",   label: "Warehouse",       href: "/persediaan/gudang" },
           { id: "persediaan.satuan",   label: "Unit of Measure", href: "/persediaan/satuan" },
-          { id: "persediaan.merk",     label: "Brand",           href: "/persediaan/merk" },
+        //  { id: "persediaan.merk",     label: "Brand",           href: "/persediaan/merk" },
         ],
       },
       {
         group: "Operasional",
         items: [
-          { id: "persediaan.permintaan_barang",    label: "Goods Request",     href: "/persediaan/permintaan-barang" },
+          { id: "persediaan.permintaan_barang",     label: "Purchase Requisition",     href: "/persediaan/permintaan-pembelian" },
           { id: "persediaan.transfer_barang",       label: "Stock Transfer",    href: "/persediaan/transfer-barang" },
           { id: "persediaan.stok",                  label: "Stock",             href: "/persediaan/stok" },
+          { id: "persediaan.transaksi_stok",        label: "Stock Transaction", href: "/persediaan/transaksi-stok",},
           { id: "persediaan.penyelesaian_pesanan",  label: "Order Fulfillment", href: "/persediaan/penyelesaian-pesanan" },
         ],
       },
