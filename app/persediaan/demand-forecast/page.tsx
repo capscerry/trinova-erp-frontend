@@ -14,6 +14,9 @@ import { toast }
 import DemandForecastTable
   from "@/components/modules/persediaan/demand-forecast/DemandForecastTable";
 
+import ForecastSummary
+  from "@/components/modules/persediaan/demand-forecast/ForecastSummary";
+
 import {
   getDemandForecast,
 } from "@/lib/services/demandForecastService";
@@ -23,7 +26,6 @@ import {
 } from "./types";
 
 export default function DemandForecastPage() {
-
   const [data, setData] =
     useState<DemandForecast[]>([]);
 
@@ -55,15 +57,58 @@ export default function DemandForecastPage() {
     }
   }
 
+  const totalProducts =
+    data.length;
+
+  const totalForecast =
+    data.reduce(
+      (sum, item) =>
+        sum + item.forecast_next_month,
+      0
+    );
+
+  const needReorder =
+    data.filter(
+      (item) =>
+        item.recommendation ===
+        "Perlu Reorder"
+    ).length;
+
+  const needRestock =
+    data.filter(
+      (item) =>
+        item.recommendation ===
+        "Segera Restock"
+    ).length;
+
   return (
     <AppShell
       title="AI Demand Forecast"
       subtitle="Prediksi kebutuhan stok bulan berikutnya"
     >
-      <DemandForecastTable
-        data={data}
-        loading={loading}
-      />
+      <div className="space-y-6">
+
+        <ForecastSummary
+          totalProducts={
+            totalProducts
+          }
+          totalForecast={
+            totalForecast
+          }
+          needReorder={
+            needReorder
+          }
+          needRestock={
+            needRestock
+          }
+        />
+
+        <DemandForecastTable
+          data={data}
+          loading={loading}
+        />
+
+      </div>
     </AppShell>
   );
 }
