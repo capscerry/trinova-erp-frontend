@@ -121,6 +121,11 @@ export default function PurchaseOrderFormModal({
 
   const isEdit = !!initialData;
 
+  const isSaved = isEdit;
+
+  const [openDPModal, setOpenDPModal] =
+  useState(false);
+
   const [form, setForm] =
     useState<PurchaseOrderFormData>({
       po_number: generatePONumber(),
@@ -602,6 +607,82 @@ const removeItem = (
 
             </Section>
 
+            {isSaved && (
+
+              <Section title="Proses Ke">
+
+                <p className="text-xs text-slate-400 mb-2">
+                  Lanjutkan proses dari Purchase Order ini ke dokumen berikut.
+                </p>
+
+                <div className="grid grid-cols-3 gap-3">
+
+                  <button
+                    className="
+                      flex flex-col items-start gap-2
+                      p-3.5
+                      rounded-xl
+                      border
+                      border-violet-200
+                      bg-violet-50
+                    "
+                  >
+                    <p className="text-xs font-bold">
+                      Uang Muka
+                    </p>
+
+                    <p className="text-[10px] text-slate-400">
+                      Buat pembayaran uang muka supplier
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setOpenDPModal(true)
+                    }
+                    className="
+                      flex flex-col items-start gap-2
+                      p-3.5
+                      rounded-xl
+                      border
+                      border-violet-200
+                      bg-violet-50
+                    "
+                  >
+                    <p className="text-xs font-bold">
+                      Goods Receipt
+                    </p>
+
+                    <p className="text-[10px] text-slate-400">
+                      Terima barang dari supplier
+                    </p>
+                  </button>
+
+                  <button
+                    className="
+                      flex flex-col items-start gap-2
+                      p-3.5
+                      rounded-xl
+                      border
+                      border-emerald-200
+                      bg-emerald-50
+                    "
+                  >
+                    <p className="text-xs font-bold">
+                      Purchase Invoice
+                    </p>
+
+                    <p className="text-[10px] text-slate-400">
+                      Buat tagihan supplier
+                    </p>
+                  </button>
+
+                </div>
+
+              </Section>
+
+            )}
+
           </div>
 
           <div
@@ -667,6 +748,81 @@ const removeItem = (
         </div>
 
       </div>
+    
+    {openDPModal && (
+
+  <div className="fixed inset-0 z-[60] flex items-center justify-center">
+
+    <div
+      className="absolute inset-0 bg-black/40"
+      onClick={() =>
+        setOpenDPModal(false)
+      }
+    />
+
+    <div className="relative bg-white rounded-2xl p-6 w-full max-w-md">
+
+      <h2 className="font-bold text-lg">
+        Uang Muka Pembelian
+      </h2>
+
+      <div className="mt-4 space-y-3">
+
+        <div>
+
+          <label className="text-sm">
+            No PO
+          </label>
+
+          <input
+            value={form.po_number}
+            readOnly
+            className={inputBase}
+          />
+
+        </div>
+
+        <div>
+
+          <label className="text-sm">
+            Total PO
+          </label>
+
+          <input
+            value={formatRupiah(
+              grandTotal
+            )}
+            readOnly
+            className={inputBase}
+          />
+
+        </div>
+
+      </div>
+
+      <div className="flex justify-end mt-4">
+
+        <button
+          onClick={() =>
+            setOpenDPModal(false)
+          }
+          className="
+            px-4 py-2
+            rounded-lg
+            bg-navy-900
+            text-gold-400
+          "
+        >
+          Tutup
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+)}
     </>
   );
 }
@@ -874,6 +1030,7 @@ function SelectField({
             ))}
 
           </div>
+
         </>
       )}
 
