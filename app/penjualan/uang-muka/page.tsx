@@ -78,7 +78,6 @@ export default function UangMukaPage() {
   const [data, setData] = useState<UangMuka[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editData, setEditData] = useState<UangMukaFormData | undefined>();
-  const [savedId, setSavedId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
@@ -147,7 +146,6 @@ export default function UangMukaPage() {
       totalHargaPesanan,
     });
 
-    setSavedId(null);
     setModalOpen(true);
   }, [searchParams]);
 
@@ -164,7 +162,6 @@ export default function UangMukaPage() {
 
   const handleTambah = () => {
     setEditData(undefined);
-    setSavedId(null);
     setModalOpen(true);
   };
 
@@ -172,59 +169,24 @@ export default function UangMukaPage() {
     router.push(`/penjualan/uang-muka/${row.id}`);
   };
 
-  const handleSubmit = async (formData: UangMukaFormData) => {
-    try {
-      setIsLoading(true);
-      showMessage(
-        formData.id ? "Uang muka berhasil diperbarui" : "Uang muka berhasil ditambahkan",
-        "success"
-      );
-      const newId = formData.id || Date.now();
-      setSavedId(newId);
-      setData((prev) => {
-        if (formData.id) {
-          return prev.map((item) =>
-            item.id === formData.id ? { ...item, ...formData, isActive: item.isActive } : item
-          );
-        }
-        return [
-          ...prev,
-          {
-            no: prev.length + 1,
-            id: newId,
-            noFaktur: formData.noFaktur ?? "",
-            tanggal: formData.tanggal ?? today,
-            pelanggan: formData.pelanggan ?? "",
-            uangMuka: formData.uangMuka ?? 0,
-            kenaPajak: formData.kenaPajak ?? false,
-            totalTermasukPajak: formData.totalTermasukPajak ?? true,
-            noPO: formData.noPO ?? "",
-            syaratPembayaran: formData.syaratPembayaran ?? "",
-            alamat: formData.alamat ?? "",
-            keterangan: formData.keterangan ?? "",
-            fakturType: formData.fakturType ?? "Faktur Penjualan",
-            noPesanan: formData.noPesanan ?? "",
-            totalHargaPesanan: formData.totalHargaPesanan ?? 0,
-            isActive: true,
-          },
-        ];
-      });
-    } catch {
-      showMessage("Gagal menyimpan uang muka", "error");
-    } finally {
-      setIsLoading(false);
-    }
+  // onSubmit dipanggil modal SETELAH create API berhasil. Modal sendiri
+  // TIDAK menutup dirinya — hanya menampilkan status "tersimpan" dan
+  // mengaktifkan tombol "Proses ke Penerimaan". Di sini kita cukup
+  // menampilkan pesan sukses; data tabel akan di-refresh saat modal
+  // benar-benar ditutup lewat handleModalClose di bawah.
+  const handleSubmit = (formData: UangMukaFormData) => {
+    showMessage(
+      formData.id ? "Uang muka berhasil diperbarui" : "Uang muka berhasil ditambahkan",
+      "success"
+    );
   };
 
-  const handleProses = (formData: UangMukaFormData) => {
+  // Dipanggil setiap kali modal ditutup — baik lewat tombol X, "Batal",
+  // "Tutup", maupun klik backdrop. Selalu refetch dari server supaya
+  // data yang baru disimpan (atau diubah dari tab lain) pasti muncul.
+  const handleModalClose = () => {
     setModalOpen(false);
-    router.push(
-      `/penjualan/penerimaan-penjualan/baru?fromUangMuka=${formData.id}` +
-        `&pelanggan=${encodeURIComponent(formData.pelanggan ?? "")}` +
-        `&nominal=${formData.uangMuka ?? 0}` +
-        `&noPesanan=${encodeURIComponent(formData.noPesanan ?? "")}` +
-        `&totalHargaPesanan=${formData.totalHargaPesanan ?? 0}`
-    );
+    fetchData();
   };
 
   return (
@@ -266,11 +228,9 @@ export default function UangMukaPage() {
 
       <UangMukaModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleModalClose}
         onSubmit={handleSubmit}
-        onProses={handleProses}
         initialData={editData}
-        isSaved={savedId !== null}
       />
     </AppShell>
   );

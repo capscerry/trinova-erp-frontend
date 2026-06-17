@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   User,
@@ -9,6 +10,8 @@ import {
   CreditCard,
   Info,
   Calendar,
+  ArrowRight,
+  Check,
 } from "lucide-react";
 
 import { uangMukaService } from "@/lib/services/penjualan.service";
@@ -22,7 +25,20 @@ import {
 interface UangMukaModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Dipanggil SETELAH create API berhasil — HANYA untuk memberi tahu parent
+   * bahwa data tersimpan (misalnya untuk menyimpan draft di context, atau
+   * menampilkan toast). Callback ini TIDAK BOLEH menutup modal sendiri.
+   * Penutupan modal murni dikontrol oleh `open` dari parent + tombol di modal.
+   */
   onSubmit: (data: UangMukaFormData) => void;
+  /**
+   * Opsional. Kalau disediakan (misalnya oleh TransactionOrchestrator untuk
+   * chaining ke modal Pengiriman berikutnya), tombol "Proses ke" akan
+   * memanggil ini. Kalau tidak disediakan, modal akan fallback navigasi
+   * langsung ke halaman /penjualan/penerimaan.
+   */
+  onProses?: (data: UangMukaFormData) => void;
   initialData?: Partial<UangMukaFormData> | any;
   isSaved?: boolean;
 }
@@ -43,14 +59,20 @@ export function UangMukaModal({
   open,
   onClose,
   onSubmit,
+  onProses,
   initialData,
   isSaved = false,
 }: UangMukaModalProps) {
   const isEdit = !!initialData;
+  const router = useRouter();
 
   const [form, setForm] = useState<UangMukaFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<Tab>("uang-muka");
-  const [saved, setSaved] = useState(isSaved);
+
+  // "saved" hanya di-set TRUE oleh modal sendiri setelah submit berhasil.
+  // Tidak lagi disinkronkan ulang dari props isSaved tiap render — itu yang
+  // menyebabkan modal kelihatan "reset"/menutup tidak terduga sebelumnya.
+  const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Customer dropdown state
@@ -66,7 +88,6 @@ export function UangMukaModal({
     try {
       setLoadingCustomers(true);
       const data = await customerService.getAll();
-      console.log("✓ Fetched customers for Uang Muka:", data);
 
       setCustomerOptions(
         data.map((c) => ({
@@ -93,10 +114,7 @@ export function UangMukaModal({
   );
 
   // Handle customer selection
-  const handleSelectCustomer = (customer: {
-    id: number;
-    name: string;
-  }) => {
+  const handleSelectCustomer = (customer: { id: number; name: string }) => {
     setForm((prev) => ({
       ...prev,
       pelanggan: customer.name,
@@ -106,7 +124,9 @@ export function UangMukaModal({
     setFilterCustomer("");
   };
 
-  // Initialize form with initial data
+  // Initialize form with initial data — HANYA saat modal baru dibuka (open
+  // transition dari false → true), bukan setiap kali initialData berubah
+  // referensinya. Ini mencegah form ter-reset tiba-tiba di tengah pengisian.
   useEffect(() => {
     if (!open) return;
 
@@ -152,22 +172,23 @@ export function UangMukaModal({
       ),
     });
 
-    setSaved(isSaved);
+    setSaved(false);
     setActiveTab("uang-muka");
-  }, [initialData, isSaved, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Handle ESC key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
-        setShowCustomerDropdown(false);
+        handleRequestClose();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved, isSubmitting]);
 
   const set = <K extends keyof UangMukaFormData>(
     field: K,
@@ -190,37 +211,85 @@ export function UangMukaModal({
   };
 
   const handleSubmit = async () => {
+    // Validasi DULU, sebelum setIsSubmitting(true) — supaya tombol tidak
+    // sempat menampilkan status "Menyimpan..." untuk validasi yang gagal.
+    if (!form.customerId) {
+      alert("⚠️ Pelanggan wajib dipilih");
+      return;
+    }
+
+    if (!form.noFaktur.trim()) {
+      alert("⚠️ No Faktur wajib diisi");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
-      // Validation
-      if (!form.customerId) {
-        alert("⚠️ Pelanggan wajib dipilih");
-        return;
-      }
-
-      if (!form.noFaktur.trim()) {
-        alert("⚠️ No Faktur wajib diisi");
-        return;
-      }
-
       const payload = mapFormToApiPayload(form);
-
-      console.log("📤 FINAL PAYLOAD:", payload);
-
-      // Call API
       const response = await uangMukaService.create(payload);
 
-      console.log("✅ SUCCESS:", response);
+      console.log("✅ Uang Muka tersimpan:", response);
 
+      // Modal TIDAK ditutup di sini — beri kesempatan user melihat hasil
+      // simpan dan memilih "Proses ke Penerimaan" atau menutup manual.
       onSubmit(form);
       setSaved(true);
     } catch (error: any) {
       console.error("❌ BACKEND ERROR:", error?.response?.data || error);
-      alert("Gagal menyimpan data: " + (error?.response?.data?.message || error?.message));
+      alert(
+        "Gagal menyimpan data: " +
+          (error?.response?.data?.message || error?.message)
+      );
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Tutup modal — kalau data sudah disimpan, ini juga jadi sinyal supaya
+  // halaman daftar refresh data terbarunya.
+  const handleRequestClose = () => {
+    if (isSubmitting) return; // jangan tutup di tengah proses simpan
+
+    if (!saved && hasUnsavedInput()) {
+      const confirmLeave = window.confirm(
+        "Data belum disimpan. Yakin ingin menutup form ini?"
+      );
+      if (!confirmLeave) return;
+    }
+
+    onClose();
+  };
+
+  const hasUnsavedInput = () => {
+    return (
+      form.pelanggan.trim().length > 0 ||
+      form.uangMuka > 0 ||
+      (form.keterangan ?? "").trim().length > 0
+    );
+  };
+
+  const handleProsesClick = () => {
+    if (onProses) {
+      // Mode workflow-chain (dipakai TransactionOrchestrator): lempar balik
+      // ke parent, parent yang akan openModal("pengiriman") dst. Modal ini
+      // TIDAK menutup dirinya sendiri di sini — biar parent yang mengatur.
+      onProses(form);
+      return;
+    }
+
+    // Mode standalone (dipakai langsung dari halaman /penjualan/uang-muka):
+    // navigasi ke halaman Penerimaan Penjualan dengan data customer & nilai
+    // uang muka sebagai prefill query param.
+    const params = new URLSearchParams({
+      customerId: String(form.customerId ?? ""),
+      pelanggan: form.pelanggan ?? "",
+      nilaiPembayaran: String(form.uangMuka ?? 0),
+      noFaktur: form.noFaktur ?? "",
+      noSo: form.noSo ?? form.noPesanan ?? "",
+    });
+    router.push(`/penjualan/penerimaan?${params.toString()}`);
+    onClose();
   };
 
   if (!open) return null;
@@ -232,12 +301,15 @@ export function UangMukaModal({
   return (
     <>
       <div
-        onClick={onClose}
+        onClick={handleRequestClose}
         className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40"
       />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
@@ -252,7 +324,7 @@ export function UangMukaModal({
             </div>
 
             <button
-              onClick={onClose}
+              onClick={handleRequestClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
             >
               <X size={16} />
@@ -261,6 +333,17 @@ export function UangMukaModal({
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto">
+            {saved && (
+              <div className="mx-6 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-700">
+                  ✓ Uang Muka berhasil disimpan
+                </p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Anda bisa menutup form ini atau lanjut ke Penerimaan Penjualan di bawah.
+                </p>
+              </div>
+            )}
+
             {/* Top Section */}
             <div className="px-6 pt-5 pb-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Customer Dropdown */}
@@ -285,7 +368,7 @@ export function UangMukaModal({
                         ? "Memuat customer..."
                         : "Cari/Pilih Pelanggan..."
                     }
-                    disabled={loadingCustomers}
+                    disabled={loadingCustomers || saved}
                     className={inputClass}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -294,29 +377,35 @@ export function UangMukaModal({
 
                   {/* Dropdown Menu */}
                   {showCustomerDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                      {filteredCustomers.length > 0 ? (
-                        filteredCustomers.map((customer) => (
-                          <button
-                            key={customer.id}
-                            type="button"
-                            onClick={() => handleSelectCustomer(customer)}
-                            className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
-                          >
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-xs text-slate-500">
-                              ID: {customer.id}
-                            </div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
-                          {customerOptions.length === 0
-                            ? "Tidak ada customer"
-                            : "Tidak ada hasil"}
-                        </div>
-                      )}
-                    </div>
+                    <>
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowCustomerDropdown(false)}
+                      />
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                        {filteredCustomers.length > 0 ? (
+                          filteredCustomers.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
+                            >
+                              <div className="font-medium">{customer.name}</div>
+                              <div className="text-xs text-slate-500">
+                                ID: {customer.id}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                            {customerOptions.length === 0
+                              ? "Tidak ada customer"
+                              : "Tidak ada hasil"}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </FormField>
@@ -327,8 +416,9 @@ export function UangMukaModal({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      disabled={saved}
                       onClick={toggleFakturMode}
-                      className={`relative w-10 h-5 rounded-full transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-navy-500/30 ${
+                      className={`relative w-10 h-5 rounded-full transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-navy-500/30 disabled:opacity-50 ${
                         form.noFakturMode === "auto"
                           ? "bg-navy-900"
                           : "bg-slate-300"
@@ -361,8 +451,9 @@ export function UangMukaModal({
                       </span>
                       <button
                         type="button"
+                        disabled={saved}
                         onClick={() => set("noFaktur", generateAutoFaktur())}
-                        className="text-slate-400 hover:text-navy-600 transition-colors text-xs"
+                        className="text-slate-400 hover:text-navy-600 transition-colors text-xs disabled:opacity-50"
                       >
                         ↻
                       </button>
@@ -373,6 +464,7 @@ export function UangMukaModal({
                       value={form.noFaktur ?? ""}
                       onChange={(e) => set("noFaktur", e.target.value)}
                       placeholder="Masukkan nomor faktur..."
+                      disabled={saved}
                       className={inputClass}
                     />
                   )}
@@ -385,6 +477,7 @@ export function UangMukaModal({
                   type="date"
                   value={form.tanggal ?? ""}
                   onChange={(e) => set("tanggal", e.target.value)}
+                  disabled={saved}
                   className={inputClass}
                 />
               </FormField>
@@ -426,6 +519,7 @@ export function UangMukaModal({
                         value={form.noPesanan ?? ""}
                         onChange={(e) => set("noPesanan", e.target.value)}
                         placeholder="Nomor Pesanan"
+                        disabled={saved}
                         className={inputClass}
                       />
                     </FormField>
@@ -451,6 +545,7 @@ export function UangMukaModal({
                               : ""
                           }
                           placeholder="0"
+                          disabled={saved}
                           onChange={(e) => {
                             const raw = e.target.value.replace(/\D/g, "");
                             set("totalHargaPesanan", raw ? Number(raw) : 0);
@@ -480,6 +575,7 @@ export function UangMukaModal({
                             : ""
                         }
                         placeholder="0"
+                        disabled={saved}
                         onChange={(e) => {
                           const raw = e.target.value.replace(/\D/g, "");
                           set("uangMuka", raw ? Number(raw) : 0);
@@ -499,6 +595,7 @@ export function UangMukaModal({
                       value={form.noPO ?? ""}
                       onChange={(e) => set("noPO", e.target.value)}
                       placeholder="Nomor Purchase Order"
+                      disabled={saved}
                       className={inputClass}
                     />
                   </FormField>
@@ -510,6 +607,7 @@ export function UangMukaModal({
                         <input
                           type="checkbox"
                           checked={form.kenaPajak ?? false}
+                          disabled={saved}
                           onChange={(e) => set("kenaPajak", e.target.checked)}
                           className="w-4 h-4 rounded border-slate-300 accent-navy-900"
                         />
@@ -520,6 +618,7 @@ export function UangMukaModal({
                         <input
                           type="checkbox"
                           checked={form.totalTermasukPajak ?? false}
+                          disabled={saved}
                           onChange={(e) =>
                             set("totalTermasukPajak", e.target.checked)
                           }
@@ -573,6 +672,7 @@ export function UangMukaModal({
                       value={form.syaratPembayaran ?? ""}
                       onChange={(e) => set("syaratPembayaran", e.target.value)}
                       placeholder="Cari/Pilih..."
+                      disabled={saved}
                       className={inputClass}
                     />
                   </FormField>
@@ -584,6 +684,7 @@ export function UangMukaModal({
                       onChange={(e) => set("alamat", e.target.value)}
                       rows={4}
                       placeholder="Masukkan alamat pengiriman..."
+                      disabled={saved}
                       className={inputClass + " resize-y"}
                     />
                   </FormField>
@@ -595,10 +696,61 @@ export function UangMukaModal({
                       onChange={(e) => set("keterangan", e.target.value)}
                       rows={4}
                       placeholder="Catatan tambahan..."
+                      disabled={saved}
                       className={inputClass + " resize-y"}
                     />
                   </FormField>
                 </div>
+              )}
+            </div>
+
+            {/* Proses ke */}
+            <div className="px-6 pb-5">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                Proses ke
+              </h3>
+              <p className="text-xs text-slate-400 mb-2">
+                {saved
+                  ? "Lanjutkan proses dari Uang Muka ini ke dokumen berikut."
+                  : "Simpan Uang Muka terlebih dahulu untuk mengaktifkan proses lanjutan."}
+              </p>
+
+              <button
+                disabled={!saved}
+                onClick={handleProsesClick}
+                className={`w-full flex items-center justify-between gap-2 p-3.5 rounded-xl border text-left transition-all ${
+                  saved
+                    ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer"
+                    : "bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      saved ? "bg-white/70" : "bg-slate-100"
+                    }`}
+                  >
+                    <CreditCard size={15} className={saved ? "text-emerald-600" : "text-slate-400"} />
+                  </div>
+                  <div>
+                    <p className={`text-xs font-bold ${saved ? "text-slate-800" : "text-slate-500"}`}>
+                      {onProses ? "Pengiriman" : "Penerimaan Penjualan"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {onProses
+                        ? "Lanjutkan ke dokumen pengiriman"
+                        : "Catat pembayaran yang diterima dari pelanggan ini"}
+                    </p>
+                  </div>
+                </div>
+                {saved && <ArrowRight size={14} className="text-emerald-600" />}
+              </button>
+
+              {!saved && (
+                <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-2">
+                  <Check size={10} className="text-slate-300" />
+                  Tombol akan aktif setelah Uang Muka berhasil disimpan
+                </p>
               )}
             </div>
           </div>
@@ -606,18 +758,25 @@ export function UangMukaModal({
           {/* Footer */}
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0 bg-white">
             <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+              onClick={handleRequestClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Batal
+              {saved ? "Tutup" : "Batal"}
             </button>
 
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || saved}
               className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Uang Muka"}
+              {isSubmitting
+                ? "Menyimpan..."
+                : saved
+                ? "Tersimpan"
+                : isEdit
+                ? "Simpan Perubahan"
+                : "Simpan Uang Muka"}
             </button>
           </div>
         </div>

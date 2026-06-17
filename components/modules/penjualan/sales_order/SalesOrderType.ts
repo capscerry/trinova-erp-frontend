@@ -1,4 +1,4 @@
-  import { CreditCard, Truck, Receipt } from "lucide-react";
+import { CreditCard, Truck, Receipt } from "lucide-react";
 
   // ─── Types ────────────────────────────────────────────────────────────────────
   export interface SalesOrderItem {
@@ -44,6 +44,10 @@
     id?: string;
     nomor: string;
     noPO?: string;
+
+    /** Referensi ke penawaran penjualan (opsional) */
+    quotationId?: number;
+    quotationNumber?: string;
 
     tanggal: string;
     tanggalKirim: string;
@@ -123,10 +127,12 @@
 
   // ─── Helpers ──────────────────────────────────────────────────────────────────
   export function generateNomor() {
-    const year = new Date().getFullYear();
-    const rand = Math.floor(Math.random() * 9000) + 1000;
+    const now   = new Date();
+    const year  = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const seq   = String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0");
 
-    return `SO-${year}-${rand}`;
+    return `SO.${year}.${month}.${seq}`;
   }
 
   export const todayStr = () =>
@@ -164,6 +170,9 @@
     nomor: "",
     noPO: "",
 
+    quotationId: undefined,
+    quotationNumber: undefined,
+
     tanggal: todayStr(),
     tanggalKirim: "",
 
@@ -194,6 +203,8 @@
         soNumber: form.nomor,
 
         poNumber: form.noPO ?? "",
+
+        quotationId: form.quotationId ?? null,
 
         soDate: new Date(form.tanggal).toISOString(),
 

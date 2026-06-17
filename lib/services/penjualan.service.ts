@@ -48,6 +48,7 @@ export interface ProductDropdown {
   categoryId: number;
   categoryName: string;
   uom: string;
+  uomId: number;         // ← BARU: pastikan backend mengirim ini
 }
 
 export interface Product {
@@ -55,8 +56,63 @@ export interface Product {
   kode: string;
   nama: string;
   satuan: string;
+  uomId : number;
   tipe: string;
   kategori: string;
+}
+
+export interface QuotationItem {
+  id: string;
+  productId?: number;    // ← BARU: id produk dari API
+  uomId?: number;        // ← BARU: id satuan dari API
+  produk: string;
+  deskripsi: string;
+  qty: number;
+  satuan: string;
+  harga: number;
+  diskon: number;
+  subtotal: number;
+}
+
+ 
+export interface SalesQuotationFormData {
+  nomor: string;
+  tanggal: string;
+  customerId: number | null;
+  dipesanOleh: string;
+  address: string;
+  keterangan: string;
+  kenaPajak: boolean;
+  totalTermasukPajak: boolean;
+  items: QuotationItem[];
+}
+
+export interface SalesQuotationPayload {
+  customerId: number;
+  quotationNumber: string;
+  quotationDate: string;
+  address: string;
+  notes: string;
+  isTaxable: boolean;
+  isTaxIncluded: boolean;
+  subtotal: number;
+  discountTotal: number;
+  details: {
+    productId: number;
+    quantity: number;
+    uomId: number;
+    price: number;
+    discountPercent: number;
+    discountAmount: number;
+  }[];
+}
+
+interface SalesQuotationModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: SalesQuotationFormData) => void | Promise<void>;
+  initialData?: SalesQuotationFormData;
+  submitting?: boolean;
 }
 
 export interface SalesOrderApi {
@@ -203,6 +259,7 @@ export function mapProductData(item: ProductDropdown): Product {
     kode: item.productCode,
     nama: item.productName,
     satuan: item.uom,
+    uomId: item.uomId,    // ← BARU
     tipe: item.productType,
     kategori: item.categoryName,
   };
@@ -363,29 +420,170 @@ export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
   };
 }
 
+// ─── Quotation Detail Items (GET /api/quotation-detail/{quotationId}) ─────────
+
+export interface QuotationDetailItemApi {
+  productId: number;
+  productCode: string;
+  productName: string;
+  quantity: number;
+  uomId: number;
+  uomCode: string;
+  price: number;
+}
+
+export interface QuotationDetailItem {
+  productId: number;
+  productCode: string;
+  productName: string;
+  qty: number;
+  uomId: number;
+  satuan: string;
+  harga: number;
+}
+
+export function mapQuotationDetailItem(item: QuotationDetailItemApi): QuotationDetailItem {
+  return {
+    productId: item.productId,
+    productCode: item.productCode ?? "",
+    productName: item.productName,
+    qty: item.quantity,
+    uomId: item.uomId,
+    satuan: item.uomCode ?? "",
+    harga: item.price,
+  };
+}
+
+// ─── Quotation Full Detail (untuk halaman Detail & Print Penawaran) ──────────
+// Sumber: GET /api/header-detail/{id}
+
+export interface SalesQuotationHeaderDetailApi {
+  header: {
+    id: number;
+    quotationNumber: string;
+    customerName: string;
+    quotationDate: string;
+    notes: string;
+    subtotal: number;
+  };
+  detail: {
+    productId: number;
+    productCode: string;
+    productName: string;
+    quantity: number;
+    uomId: number;
+    uomCode: string;
+    price: number;
+  }[];
+}
+
+export interface SalesQuotationDetail {
+  id: number;
+  nomor: string;
+  tanggal: string;
+  pelanggan: string;
+  keterangan: string;
+  subtotal: number;
+  items: {
+    productCode: string;
+    productName: string;
+    qty: number;
+    satuan: string;
+    harga: number;
+    totalHarga: number;
+  }[];
+}
+
+export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): SalesQuotationDetail {
+  const items = (item.detail ?? []).map((d) => ({
+    productCode: d.productCode ?? "",
+    productName: d.productName,
+    qty: d.quantity,
+    satuan: d.uomCode ?? "",
+    harga: d.price,
+    totalHarga: d.price * d.quantity,
+  }));
+
+  return {
+    id: item.header.id,
+    nomor: item.header.quotationNumber,
+    tanggal: item.header.quotationDate,
+    pelanggan: item.header.customerName,
+    keterangan: item.header.notes ?? "",
+    subtotal: item.header.subtotal,
+    items,
+  };
+}
+
 export const salesQuotationService = {
   async getAll(): Promise<SalesQuotation[]> {
-    const response = await api.get<ApiResponse<SalesQuotationApi[]>>(
-      "/sales-quotation"
-    );
+  const response = await api.get<ApiResponse<any[]>>(
+    "/SalesQuotation"
+  );
 
-    return (response.data.data ?? []).map(mapSalesQuotation);
-  },
+  return (response.data.data ?? []).map((item) => ({
+    id: String(item.id),
+    nomor: item.quotationNumber,
+    tanggal: item.quotationDate,
+    berlakuHingga: "",
+    pelanggan: item.customerName,
+    keterangan: item.notes ?? "",
+    status: "Draft",
+    total: item.subtotal ?? 0,
+    items: [],
+  }));
+},
 
   async getById(id: number | string): Promise<SalesQuotation> {
     const response = await api.get<ApiResponse<SalesQuotationApi>>(
-      `/sales-quotation/${id}`
+      `/SalesQuotation/${id}`
     );
 
     return mapSalesQuotation(response.data.data);
   },
 
-  async create(payload: Partial<SalesQuotationApi>): Promise<SalesQuotation> {
-    const response = await api.post<ApiResponse<SalesQuotationApi>>(
-      "/sales-quotation",
-      payload
+  /** Detail items untuk "Ambil dari Penawaran Penjualan" di form SO */
+  async getDetailItems(quotationId: number | string): Promise<QuotationDetailItem[]> {
+    const response = await api.get<ApiResponse<QuotationDetailItemApi[]>>(
+      `/quotation-detail/${quotationId}`
     );
 
+    return (response.data.data ?? []).map(mapQuotationDetailItem);
+  },
+
+  /** Detail lengkap (header + items) untuk halaman Detail & Print Penawaran. */
+  async getFullDetailById(id: number | string): Promise<SalesQuotationDetail> {
+    const response = await api.get<ApiResponse<SalesQuotationHeaderDetailApi>>(
+      `/header-detail/${id}`
+    );
+
+    return mapSalesQuotationDetail(response.data.data);
+  },
+
+  /** Ambil daftar quotation berdasarkan customer */
+  async getByCustomerId(customerId: number): Promise<SalesQuotation[]> {
+    const response = await api.get<ApiResponse<any[]>>(
+      `/SalesQuotation/${customerId}`
+    );
+
+    return (response.data.data ?? []).map((item: any) => ({
+      id: String(item.id),
+      nomor: item.quotationNumber,
+      tanggal: item.quotationDate,
+      berlakuHingga: "",
+      pelanggan: item.customerName,
+      keterangan: item.notes ?? "",
+      status: item.status ?? "Draft",
+      total: item.subtotal ?? 0,
+      items: [],
+    }));
+  },
+
+  async create(payload: SalesQuotationPayload): Promise<SalesQuotation> {
+    const response = await api.post<ApiResponse<SalesQuotationApi>>(
+      "/SalesQuotation",
+      payload
+    );
     return mapSalesQuotation(response.data.data);
   },
 
@@ -393,10 +591,10 @@ export const salesQuotationService = {
     id: number | string,
     payload: Partial<SalesQuotationApi>
   ): Promise<void> {
-    await api.put(`/sales-quotation/${id}`, payload);
+    await api.put(`/SalesQuotation/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/sales-quotation/${id}`);
+    await api.delete(`/SalesQuotation/${id}`);
   },
 };

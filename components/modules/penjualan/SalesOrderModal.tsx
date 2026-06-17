@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Check, ArrowRight, RefreshCw } from "lucide-react";
+import { X, Check, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type SalesOrderFormData,
   type SalesOrderModalProps,
+  type SalesOrderItem,
   mapFormToApiPayload,
   PROSES_LINKS,
   EMPTY_FORM,
   generateNomor,
+  newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
+import { QuotationPickerModal } from "./QuotationPickerModal";
 
 export type { SalesOrderItem, SalesOrderFormData } from "./sales_order/SalesOrderType";
 
@@ -36,6 +39,7 @@ export function SalesOrderModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [savedSo, setSavedSo] = useState<any>(null);
+  const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -64,6 +68,24 @@ export function SalesOrderModal({
 
   const patchForm = (patch: Partial<SalesOrderFormData>) =>
     setForm((prev) => ({ ...prev, ...patch }));
+
+  const handleQuotationConfirm = (
+    items: SalesOrderItem[],
+    quotation: { id: number; nomor: string }
+  ) => {
+    // Gabungkan: hapus baris kosong default, lalu tambahkan item dari quotation
+    const existingItems = form.items.filter(
+      (i) => i.productId && i.productId > 0
+    );
+    const merged = [...existingItems, ...items];
+
+    patchForm({
+      quotationId: quotation.id,
+      quotationNumber: quotation.nomor,
+      items: merged.length > 0 ? merged : [newItem()],
+    });
+    setQuotationPickerOpen(false);
+  };
 
   const formatRupiah = (value: number) =>
     new Intl.NumberFormat("id-ID", {
@@ -259,6 +281,7 @@ export function SalesOrderModal({
               onChange={patchForm}
               pelangganOptions={pelangganOptions}
               salesOptions={salesOptions}
+              onOpenQuotationPicker={() => setQuotationPickerOpen(true)}
             />
 
             <SalesOrderDetailForm
@@ -347,37 +370,74 @@ export function SalesOrderModal({
 
           {/* Footer */}
           <div
-            className="flex items-center justify-end gap-2 px-6 py-4
+            className="flex items-center justify-between px-6 py-4
                        border-t border-slate-100 bg-slate-50/60 shrink-0"
           >
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white
-                         border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              Batal
-            </button>
+            {/* Sisi kiri: Back button (hanya tampil setelah berhasil simpan) */}
+            <div>
+              {isSubmitted && (
+                <button
+                  onClick={() => {
+                    onSubmit(form);
+                    onClose();
+                  }}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white
+                             border border-slate-200 rounded-lg hover:bg-slate-100
+                             transition-colors inline-flex items-center gap-1.5"
+                >
+                  <ArrowLeft size={13} />
+                  Kembali ke Daftar
+                </button>
+              )}
+            </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || isSubmitted}
-              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900
-                         hover:bg-navy-700 rounded-lg transition-colors shadow-sm
-                         disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSubmitting && (
-                <RefreshCw size={13} className="animate-spin" />
+            {/* Sisi kanan: Cancel / Submit */}
+            <div className="flex items-center gap-2">
+              {!isSubmitted && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white
+                             border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  Batal
+                </button>
               )}
 
-              {isSubmitted
-                ? "Tersimpan"
-                : isEdit
-                ? "Simpan Perubahan"
-                : "Buat Sales Order"}
-            </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || isSubmitted}
+                className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900
+                           hover:bg-navy-700 rounded-lg transition-colors shadow-sm
+                           disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isSubmitting && (
+                  <RefreshCw size={13} className="animate-spin" />
+                )}
+
+                {isSubmitted ? (
+                  <>
+                    <Check size={13} />
+                    Tersimpan
+                  </>
+                ) : isEdit ? (
+                  "Simpan Perubahan"
+                ) : (
+                  "Buat Sales Order"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* ── Quotation Picker Modal ─────────────────── */}
+      <QuotationPickerModal
+        open={quotationPickerOpen}
+        onClose={() => setQuotationPickerOpen(false)}
+        customerId={form.customerId ?? 0}
+        customerName={form.pelanggan ?? ""}
+        onConfirm={handleQuotationConfirm}
+      />
     </>
   );
 }

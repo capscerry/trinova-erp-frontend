@@ -64,8 +64,19 @@ export function TransactionOrchestrator() {
   };
 
   // ── Uang Muka ─────────────────────────────────────────────────────────────
+  // PENTING: onSubmit HANYA menyimpan draft. Modal Uang Muka sendiri yang
+  // mengatur kapan dirinya boleh ditutup (lewat tombol "Tutup" setelah saved,
+  // atau "Batal" sebelum saved). Jangan panggil closeModal() di sini —
+  // itu menyebabkan modal hilang dari DOM tepat saat baru selesai submit,
+  // sehingga user tidak pernah melihat status "tersimpan" dan tombol
+  // "Proses ke Penerimaan/Pengiriman" tidak pernah terlihat aktif.
   const handleUMSubmit = (data: UangMukaFormData) => {
     setDraftPart("uangMuka", data);
+  };
+
+  // Dipanggil saat modal Uang Muka benar-benar ditutup (tombol X / Batal /
+  // Tutup / backdrop). Di sinilah tempat yang tepat untuk closeModal().
+  const handleUMClose = () => {
     closeModal();
   };
 
@@ -75,8 +86,12 @@ export function TransactionOrchestrator() {
   };
 
   // ── Pengiriman ────────────────────────────────────────────────────────────
+  // Sama seperti Uang Muka: onSubmit tidak menutup modal.
   const handlePengirimanSubmit = (data: PengirimanFormData) => {
     setDraftPart("pengiriman", data);
+  };
+
+  const handlePengirimanClose = () => {
     closeModal();
   };
 
@@ -175,7 +190,7 @@ export function TransactionOrchestrator() {
 
       <UangMukaModal
         open={activeModal === "uangMuka"}
-        onClose={closeModal}
+        onClose={handleUMClose}
         onSubmit={handleUMSubmit}
         onProses={handleUMProses}
         initialData={uangMukaInitialData}
@@ -184,7 +199,7 @@ export function TransactionOrchestrator() {
 
       <PengirimanModal
         open={activeModal === "pengiriman"}
-        onClose={closeModal}
+        onClose={handlePengirimanClose}
         onSubmit={handlePengirimanSubmit}
         onProses={handlePengirimanProses}
         initialData={pengirimanInitialData}

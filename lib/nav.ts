@@ -17,20 +17,21 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Master Data",
         items: [
-          { id: "penjualan.pelanggan",         label: "Customer",          href: "/penjualan/pelanggan" },
-          { id: "penjualan.kategori_pelanggan", label: "Customer Category", href: "/penjualan/kategori-pelanggan" },
-          { id: "penjualan.kategori_penjualan", label: "Sales Category",    href: "/penjualan/kategori-penjualan" },
+          { id: "penjualan.pelanggan",         label: "Pelanggan",          href: "/penjualan/pelanggan" },
+          { id: "penjualan.kategori_pelanggan", label: "Kategori Pelanggan", href: "/penjualan/kategori-pelanggan" },
+          { id: "penjualan.kategori_penjualan", label: "Kategori Penjualan",    href: "/penjualan/kategori-penjualan" },
         ],
       },
       {
         group: "Operasional",
         items: [
-          { id: "penjualan.order",      label: "Sales Quotation", href: "/penjualan/quotation" },
-          { id: "penjualan.order_list", label: "Sales Order",     href: "/penjualan/order" },
-          { id: "penjualan.invoice",    label: "Invoice",         href: "/penjualan/invoice" },
-          { id: "penjualan.retur",      label: "Sales Returns",   href: "/penjualan/retur" },
-          { id: "penjualn.uang_muka", label  : "Uang Muka" , href : "/penjualan/uang-muka"},
-          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Penjualan", href : "/penjualan/pengiriman-penjualan"}
+          { id: "penjualan.order",      label: "Penawaran Penjualan", href: "/penjualan/quotation" },
+          { id: "penjualan.order_list", label: "Pesanan Penjualan",     href: "/penjualan/order" },
+          { id: "penjualan.invoice",    label: "Faktur Penjualan",         href: "/penjualan/invoice" },
+          { id: "penjualan.retur",      label: "Retur Penjualan",   href: "/penjualan/retur" },
+          { id: "penjualn.uang_muka", label  : "Uang Muka Penjualan" , href : "/penjualan/uang-muka"},
+          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Pesanan", href : "/penjualan/pengiriman-penjualan"},
+          {id : "penjualan.penerimaan_penjualan", label : "Penerimaan Penjualan", href : "/penjualan/penerimaan-penjualan"}
         ],
       },
     ],

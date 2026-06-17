@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { SalesOrderFormData } from "@/components/modules/penjualan/sales_order/SalesOrderType";
-import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
+import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

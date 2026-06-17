@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Hash, Calendar, User, Users, FileText, MapPin,
-  RefreshCw, Pencil,
+  RefreshCw, Pencil, FileDown, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,11 +24,13 @@ interface SalesOrderHeaderFormProps {
   onChange: (patch: Partial<SalesOrderFormData>) => void;
   pelangganOptions?: { id: number; nama: string }[];
   salesOptions?: { id: number; nama: string }[];
+  onOpenQuotationPicker?: () => void;
 }
 
 export function SalesOrderHeaderForm({
   form, onChange,
   pelangganOptions = [], salesOptions = [],
+  onOpenQuotationPicker,
 }: SalesOrderHeaderFormProps) {
   const [nomorMode, setNomorMode] = useState<"auto" | "manual">("auto");
   const [nomorManual, setNomorManual] = useState("");
@@ -154,10 +156,66 @@ export function SalesOrderHeaderForm({
             onChange({
                 pelanggan: v,
                 customerId: selected?.id,
+                // Reset quotation reference saat ganti customer
+                quotationId: undefined,
+                quotationNumber: undefined,
             });
             }}
           />
         </FormField>
+      </div>
+
+      {/* ── Ambil dari Penawaran Penjualan ──────────── */}
+      <div className={cn(
+        "rounded-xl border px-4 py-3 transition-all",
+        form.customerId
+          ? "border-sky-200 bg-sky-50/50"
+          : "border-slate-200 bg-slate-50/50 opacity-60"
+      )}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileDown size={14} className={form.customerId ? "text-sky-600" : "text-slate-400"} />
+            <div className="min-w-0">
+              <span className="text-xs font-bold text-slate-600">
+                Ambil dari Penawaran Penjualan
+              </span>
+              {form.quotationNumber ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md
+                                   bg-sky-100 text-sky-700 text-[11px] font-semibold font-mono">
+                    {form.quotationNumber}
+                    <button type="button"
+                      onClick={() => onChange({ quotationId: undefined, quotationNumber: undefined })}
+                      className="hover:text-sky-900 transition-colors">
+                      <X size={10} />
+                    </button>
+                  </span>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {form.customerId
+                    ? "Opsional — pilih penawaran untuk mengisi produk otomatis"
+                    : "Pilih pelanggan terlebih dahulu"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenQuotationPicker}
+            disabled={!form.customerId}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0",
+              "inline-flex items-center gap-1.5",
+              form.customerId
+                ? "bg-sky-600 text-white hover:bg-sky-700 shadow-sm"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+            )}>
+            <FileDown size={11} />
+            {form.quotationNumber ? "Ganti" : "Pilih"}
+          </button>
+        </div>
       </div>
       {/* Alamat + Keterangan */}
       <FormField label="Alamat Pengiriman" icon={<MapPin size={13} />}>
