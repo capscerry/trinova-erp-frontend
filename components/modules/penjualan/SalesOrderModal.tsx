@@ -286,6 +286,7 @@ export function SalesOrderModal({
 
             <SalesOrderDetailForm
               items={form.items}
+              kenaPajak={form.kenaPajak ?? false}
               onChange={(items) => patchForm({ items })}
             />
 

@@ -84,7 +84,14 @@ export default function SalesQuotationPrintPage() {
   }
 
   const grandTotal = data.subtotal;
+  const grossAmount = data.subtotal + data.discountTotal - data.taxTotal;
   const terbilangText = terbilang(grandTotal);
+
+  // Status pajak untuk ditampilkan sebagai keterangan di dokumen cetak.
+  const taxStatusText =
+    data.taxTotal > 0
+      ? "Sudah termasuk PPN"
+      : "Belum termasuk PPN (PPN 0 / tidak dikenakan)";
 
   return (
     <>
@@ -211,6 +218,24 @@ export default function SalesQuotationPrintPage() {
         .info-cell .cell-value {
           font-size: 11px;
           font-weight: 600;
+        }
+        .tax-status {
+          display: inline-block;
+          font-size: 9px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 3px;
+          margin-top: 2px;
+        }
+        .tax-status.included {
+          background: #dcfce7;
+          color: #166534;
+          border: 1px solid #166534;
+        }
+        .tax-status.excluded {
+          background: #fef3c7;
+          color: #92400e;
+          border: 1px solid #92400e;
         }
 
         .items-table {
@@ -366,6 +391,14 @@ export default function SalesQuotationPrintPage() {
               <div className="cell-label">Nomor</div>
               <div className="cell-value">{data.nomor}</div>
             </div>
+            <div className="info-cell">
+              <div className="cell-label">Status Pajak</div>
+              <div className="cell-value">
+                <span className={`tax-status ${data.taxTotal > 0 ? "included" : "excluded"}`}>
+                  {taxStatusText}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -373,12 +406,13 @@ export default function SalesQuotationPrintPage() {
         <table className="items-table">
           <thead>
             <tr>
-              <th style={{ width: "14%" }}>Kode Barang</th>
-              <th style={{ width: "38%" }}>Nama Barang</th>
-              <th style={{ width: "10%" }}>Kts.</th>
-              <th style={{ width: "10%" }}>Satuan</th>
-              <th style={{ width: "14%" }}>@Harga</th>
-              <th style={{ width: "14%" }}>Total Harga</th>
+              <th style={{ width: "13%" }}>Kode Barang</th>
+              <th style={{ width: "32%" }}>Nama Barang</th>
+              <th style={{ width: "8%" }}>Kts.</th>
+              <th style={{ width: "9%" }}>Satuan</th>
+              <th style={{ width: "13%" }}>@Harga</th>
+              <th style={{ width: "10%" }}>Diskon</th>
+              <th style={{ width: "15%" }}>Total Harga</th>
             </tr>
           </thead>
           <tbody>
@@ -389,6 +423,7 @@ export default function SalesQuotationPrintPage() {
                 <td className="center">{item.qty}</td>
                 <td className="center">{item.satuan}</td>
                 <td className="right">{formatRupiah(item.harga)}</td>
+                <td className="center">{item.discountPercent > 0 ? `${item.discountPercent}%` : "—"}</td>
                 <td className="right">{formatRupiah(item.totalHarga)}</td>
               </tr>
             ))}
@@ -396,6 +431,7 @@ export default function SalesQuotationPrintPage() {
               Array.from({ length: 5 - (data.items?.length ?? 0) }).map((_, i) => (
                 <tr key={`empty-${i}`}>
                   <td>&nbsp;</td>
+                  <td></td>
                   <td></td>
                   <td></td>
                   <td></td>
@@ -421,14 +457,42 @@ export default function SalesQuotationPrintPage() {
             </div>
           </div>
 
-          <table className="summary-table">
-            <tbody>
-              <tr className="grand-total">
-                <td>Total</td>
-                <td>{formatRupiah(grandTotal)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div>
+            <table className="summary-table">
+              <tbody>
+                <tr>
+                  <td>Subtotal</td>
+                  <td>{formatRupiah(grossAmount)}</td>
+                </tr>
+                {data.discountTotal > 0 && (
+                  <tr>
+                    <td>Diskon</td>
+                    <td>-{formatRupiah(data.discountTotal)}</td>
+                  </tr>
+                )}
+                {data.taxTotal > 0 && (
+                  <tr>
+                    <td>PPN</td>
+                    <td>{formatRupiah(data.taxTotal)}</td>
+                  </tr>
+                )}
+                <tr className="grand-total">
+                  <td>Total</td>
+                  <td>{formatRupiah(grandTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p
+              style={{
+                fontSize: "9px",
+                color: "#666",
+                marginTop: "4px",
+                textAlign: "right",
+              }}
+            >
+              * Total di atas {data.taxTotal > 0 ? "sudah termasuk PPN" : "belum termasuk PPN"}
+            </p>
+          </div>
         </div>
 
         {/* TTD */}

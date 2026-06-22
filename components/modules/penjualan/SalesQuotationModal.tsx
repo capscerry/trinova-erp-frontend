@@ -66,7 +66,6 @@ const EMPTY_FORM: SalesQuotationFormData = {
   address: "",
   keterangan: "",
   kenaPajak: false,
-  totalTermasukPajak: false,
   items: [newItem()],
 };
 
@@ -174,7 +173,21 @@ export function SalesQuotationModal({
     setForm((p) => ({ ...p, items: p.items.filter((i) => i.id !== id) }));
 
   // ── Totals ───────────────────────────────────────────
-  const grandTotal = form.items.reduce((sum, i) => sum + i.subtotal, 0);
+  // Definisi:
+  //   subtotal      = Σ (harga × qty)            — SEBELUM diskon & pajak
+  //   discountTotal = Σ (harga × qty × diskon%)   — total potongan diskon
+  //   taxableBase   = subtotal − discountTotal    — dasar pengenaan pajak
+  //   taxAmount     = taxableBase × 11%           — hanya jika checkbox PPN dicentang
+  //   grandTotal    = taxableBase + taxAmount     — PPN selalu otomatis masuk ke Total
+  const subtotal = form.items.reduce((sum, i) => sum + i.harga * i.qty, 0);
+  const discountTotal = form.items.reduce(
+    (sum, i) => sum + i.harga * i.qty * (i.diskon / 100),
+    0
+  );
+  const taxableBase = subtotal - discountTotal;
+  const taxAmount = form.kenaPajak ? taxableBase * 0.11 : 0;
+  const grandTotal = taxableBase + taxAmount;
+
   const handleSubmit = () => { onSubmit(form); };
 
   if (!open) return null;
@@ -307,14 +320,13 @@ export function SalesQuotationModal({
                   rows={2} className={cn(inputBase, "resize-none")} />
               </FormField>
 
-              {/* Row 4: Checkbox Pajak */}
+              {/* Row 4: Checkbox Pajak — hanya PPN 11%. Kalau dicentang,
+                  pajak otomatis dihitung DAN masuk ke Total (selalu
+                  inclusive — tidak ada lagi pilihan exclusive/terpisah). */}
               <div className="flex items-center gap-6 pt-1">
-                <Checkbox label="Kena Pajak"
+                <Checkbox label="PPN 11%"
                   checked={form.kenaPajak}
                   onChange={(v) => setField("kenaPajak", v)} />
-                <Checkbox label="Total termasuk Pajak"
-                  checked={form.totalTermasukPajak}
-                  onChange={(v) => setField("totalTermasukPajak", v)} />
               </div>
             </Section>
 
@@ -397,10 +409,26 @@ export function SalesQuotationModal({
                 </table>
               </div>
 
-              {/* Grand Total */}
+              {/* Ringkasan: Subtotal → Diskon → Pajak → Total */}
               <div className="flex justify-end mt-3">
-                <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[220px]">
-                  <div className="flex items-center justify-between gap-8">
+                <div className="bg-navy-900 text-white rounded-xl px-5 py-3.5 min-w-[260px] space-y-1.5">
+                  <div className="flex items-center justify-between gap-8 text-xs">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="font-semibold text-slate-200">{formatRupiah(subtotal)}</span>
+                  </div>
+                  {discountTotal > 0 && (
+                    <div className="flex items-center justify-between gap-8 text-xs">
+                      <span className="text-slate-400">Diskon</span>
+                      <span className="font-semibold text-red-300">-{formatRupiah(discountTotal)}</span>
+                    </div>
+                  )}
+                  {form.kenaPajak && (
+                    <div className="flex items-center justify-between gap-8 text-xs">
+                      <span className="text-slate-400">PPN 11%</span>
+                      <span className="font-semibold text-slate-200">{formatRupiah(taxAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-8 pt-1.5 border-t border-white/10">
                     <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Total</span>
                     <span className="text-base font-bold text-gold-400">{formatRupiah(grandTotal)}</span>
                   </div>

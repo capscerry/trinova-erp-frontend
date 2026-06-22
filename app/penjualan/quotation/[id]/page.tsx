@@ -114,7 +114,13 @@ export default function SalesQuotationDetailPage() {
     load();
   }, [id]);
 
+  // ── Breakdown untuk tampilan ──────────────────────────
+  // Semua nilai (subtotal final, discountTotal, taxTotal) datang LANGSUNG
+  // dari API — tidak ada kalkulasi pajak/diskon manual di frontend.
+  //   grossAmount = subtotal final + discountTotal − taxTotal
+  //               = nilai SEBELUM diskon & pajak (titik awal breakdown)
   const grandTotal = data?.subtotal ?? 0;
+  const grossAmount = data ? data.subtotal + data.discountTotal - data.taxTotal : 0;
   const totalQty = data?.items?.reduce((s, i) => s + i.qty, 0) ?? 0;
 
   return (
@@ -278,19 +284,22 @@ export default function SalesQuotationDetailPage() {
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[34%]">
+                            <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[28%]">
                               Produk
                             </th>
-                            <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[12%]">
+                            <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[10%]">
                               Qty
                             </th>
-                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">
+                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">
                               Satuan
                             </th>
-                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[20%]">
+                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[16%]">
                               Harga Satuan
                             </th>
-                            <th className="px-5 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[22%]">
+                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[12%]">
+                              Diskon
+                            </th>
+                            <th className="px-5 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[24%]">
                               Total
                             </th>
                           </tr>
@@ -317,6 +326,9 @@ export default function SalesQuotationDetailPage() {
                               <td className="px-4 py-3 text-right text-slate-600">
                                 {formatRupiah(item.harga)}
                               </td>
+                              <td className="px-4 py-3 text-right text-slate-400">
+                                {item.discountPercent > 0 ? `${item.discountPercent}%` : "—"}
+                              </td>
                               <td className="px-5 py-3 text-right font-bold text-slate-800">
                                 {formatRupiah(item.totalHarga)}
                               </td>
@@ -326,11 +338,35 @@ export default function SalesQuotationDetailPage() {
                       </table>
                     </div>
 
-                    {/* Total */}
+                    {/* Ringkasan: Subtotal → Diskon → Pajak → Total */}
+                    {/* Semua nilai (subtotal, discountTotal, taxTotal) berasal
+                        langsung dari API — tidak ada kalkulasi 11% manual. */}
                     <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40">
                       <div className="flex justify-end">
-                        <div className="w-64">
-                          <div className="flex justify-between pt-2">
+                        <div className="w-72 space-y-1.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-500">Subtotal</span>
+                            <span className="font-semibold text-slate-700">
+                              {formatRupiah(grossAmount)}
+                            </span>
+                          </div>
+                          {data.discountTotal > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-500">Diskon</span>
+                              <span className="font-semibold text-red-500">
+                                -{formatRupiah(data.discountTotal)}
+                              </span>
+                            </div>
+                          )}
+                          {data.taxTotal > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-500">PPN</span>
+                              <span className="font-semibold text-slate-700">
+                                {formatRupiah(data.taxTotal)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between pt-2 border-t border-slate-200">
                             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
                               Total
                             </span>

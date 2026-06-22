@@ -139,8 +139,8 @@ export function QuotationPickerModal({
         qtyTerkirim: 0,
         satuan: qi.satuan,
         harga: qi.harga,
-        diskon: 0,
-        subtotal: qi.harga * qi.qty,
+        diskon: qi.discountPercent,
+        subtotal: qi.harga * qi.qty * (1 - qi.discountPercent / 100),
         taxable: false,
       }));
 
@@ -316,8 +316,11 @@ export function QuotationPickerModal({
                           <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">
                             Satuan
                           </th>
-                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[18%]">
+                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[16%]">
                             Harga
+                          </th>
+                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[10%]">
+                            Diskon
                           </th>
                         </tr>
                       </thead>
@@ -357,6 +360,9 @@ export function QuotationPickerModal({
                               </td>
                               <td className="px-3 py-2.5 text-right font-medium text-slate-600">
                                 {formatRupiah(item.harga)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-slate-500">
+                                {item.discountPercent > 0 ? `${item.discountPercent}%` : "—"}
                               </td>
                             </tr>
                           );

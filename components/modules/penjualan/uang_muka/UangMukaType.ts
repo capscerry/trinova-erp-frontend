@@ -8,8 +8,8 @@ export interface UangMukaFormData {
   uangMuka: number;
   noPO: string;
   noSo: string;
-  kenaPajak: boolean;
-  totalTermasukPajak: boolean;
+  /** ID Sales Order — terisi otomatis saat dipilih lewat SalesOrderPickerModal */
+  salesOrderId?: number;
   syaratPembayaran: string;
   alamat: string;
   keterangan: string;
@@ -26,9 +26,6 @@ export interface UangMukaPayload {
   noPO: string;
   noSo: string;
   nominalUangMuka: number;
-  isTaxable: boolean;
-  isTaxIncluded: boolean;
-  taxAmount: number;
   totalAmount: number;
   syaratPembayaran: string;
   alamat: string;
@@ -42,12 +39,13 @@ export interface UangMukaPayload {
 export const todayStr = () =>
   new Date().toISOString().split("T")[0];
 
+/** Format: UM.{tahun}.{bulan}.{5 digit} — konsisten dengan SQ.{tahun}.{bulan}.{5 digit} */
 export function generateAutoFaktur() {
   const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const seq = String(Math.floor(Math.random() * 900) + 100);
-  return `UM/${yy}${mm}/${seq}`;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const seq = String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0");
+  return `UM.${year}.${month}.${seq}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -64,8 +62,7 @@ export const EMPTY_FORM: UangMukaFormData = {
   uangMuka: 0,
   noPO: "",
   noSo: "",
-  kenaPajak: false,
-  totalTermasukPajak: true,
+  salesOrderId: undefined,
   syaratPembayaran: "",
   alamat: "",
   keterangan: "",
@@ -81,12 +78,8 @@ export const EMPTY_FORM: UangMukaFormData = {
 export function mapFormToApiPayload(
   form: UangMukaFormData
 ): UangMukaPayload {
-  const taxAmount = form.kenaPajak ? form.uangMuka * 0.11 : 0;
-
-  const totalAmount = form.totalTermasukPajak
-    ? form.uangMuka + taxAmount
-    : form.uangMuka;
-
+  // Sesuai keputusan: Uang Muka tidak lagi punya konsep pajak terpisah.
+  // nominalUangMuka adalah nilai final yang dibayar, totalAmount = sama.
   return {
     id: form.id || undefined,
     noFaktur: form.noFaktur,
@@ -95,10 +88,7 @@ export function mapFormToApiPayload(
     noPO: form.noPO,
     noSo: form.noSo || "",
     nominalUangMuka: Number(form.uangMuka),
-    isTaxable: form.kenaPajak,
-    isTaxIncluded: form.totalTermasukPajak,
-    taxAmount: Number(taxAmount),
-    totalAmount: Number(form.totalHargaPesanan),
+    totalAmount: Number(form.uangMuka),
     syaratPembayaran: form.syaratPembayaran,
     alamat: form.alamat,
     keterangan: form.keterangan,

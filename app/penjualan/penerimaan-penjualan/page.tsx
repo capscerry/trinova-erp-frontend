@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import type { Column } from "@/components/ui";
 import { Eye } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PenerimaanModal } from "@/components/modules/penjualan/penerimaan_penjualan/PenerimaanModal";
 import {
   type PenerimaanFormData,
-  type PenerimaanRow,
-  DUMMY_PENERIMAAN_LIST,
+  generateNoBukti,
+  todayStr,
 } from "@/components/modules/penjualan/penerimaan_penjualan/PenerimaanPenjualanType";
+import {
+  penerimaanPenjualanService,
+  type PenerimaanPenjualan,
+} from "@/lib/services/penjualan.service";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -31,7 +35,7 @@ const formatDate = (d?: string | null) => {
   }).format(date);
 };
 
-const COLUMNS: Column<PenerimaanRow>[] = [
+const COLUMNS: Column<PenerimaanPenjualan>[] = [
   { key: "noBukti", label: "No Bukti", width: "16%" },
   {
     key: "tanggalBayar",
@@ -51,46 +55,118 @@ const COLUMNS: Column<PenerimaanRow>[] = [
 
 export default function PenerimaanPenjualanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Sementara pakai dummy data — nanti diganti fetch dari API
-  const [data, setData] = useState<PenerimaanRow[]>(DUMMY_PENERIMAAN_LIST);
+  const [data, setData] = useState<PenerimaanPenjualan[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [initialFormData, setInitialFormData] = useState<Partial<PenerimaanFormData> | undefined>(undefined);
+
+  const showMessage = (msg: string, type: "success" | "error" = "success") => {
+    setMessage(msg);
+    setMessageType(type);
+  };
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const result = await penerimaanPenjualanService.getAll();
+      setData(result);
+    } catch (err) {
+      console.error(err);
+      showMessage("Gagal memuat data penerimaan penjualan", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(() => setMessage(""), 3000);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  // ── Baca query params dari redirect Uang Muka ──────────
+  // Contoh URL: /penjualan/penerimaan-penjualan?customerId=6&pelanggan=PT.+Enseval...
+  //             &nilaiPembayaran=1107225&uangMukaId=12&salesOrderId=7
+  useEffect(() => {
+    const customerIdParam = searchParams.get("customerId");
+    const pelangganParam = searchParams.get("pelanggan");
+
+    // Kalau tidak ada param relevan, jangan auto-buka modal
+    if (!customerIdParam && !pelangganParam) return;
+
+    const customerId = customerIdParam ? Number(customerIdParam) : undefined;
+    const pelanggan = pelangganParam ?? "";
+    const nilaiPembayaran = Number(searchParams.get("nilaiPembayaran") ?? 0);
+
+    const uangMukaIdParam = searchParams.get("uangMukaId");
+    const salesOrderIdParam = searchParams.get("salesOrderId");
+    const uangMukaId = uangMukaIdParam ? Number(uangMukaIdParam) : undefined;
+    const salesOrderId = salesOrderIdParam ? Number(salesOrderIdParam) : undefined;
+
+    setInitialFormData({
+      customerId,
+      pelanggan,
+      nilaiPembayaran,
+      tanggalBayar: todayStr(),
+      noBukti: generateNoBukti(),
+      noBuktiMode: "auto",
+      uangMukaId: uangMukaId && uangMukaId > 0 ? uangMukaId : undefined,
+      salesOrderId: salesOrderId && salesOrderId > 0 ? salesOrderId : undefined,
+    });
+
+    setModalOpen(true);
+
+    // Bersihkan query string dari address bar setelah dibaca, supaya kalau
+    // user refresh halaman tidak membuka modal prefill yang sama berulang.
+    router.replace("/penjualan/penerimaan-penjualan");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleTambah = () => {
     setInitialFormData(undefined);
     setModalOpen(true);
   };
 
-  const handleDetail = (row: PenerimaanRow) => {
+  const handleDetail = (row: PenerimaanPenjualan) => {
     // TODO: arahkan ke halaman detail saat sudah dibuat
     console.log("Lihat detail:", row);
   };
 
+  // Dipanggil modal SETELAH create API berhasil. Di sini kita tutup modal
+  // dan refresh data dari server agar tabel selalu sinkron.
   const handleModalSubmit = (formData: PenerimaanFormData) => {
-    // Sementara: tambahkan langsung ke state lokal (belum hit API)
-    setData((prev) => [
-      {
-        id: prev.length + 1,
-        noBukti: formData.noBukti,
-        tanggalBayar: formData.tanggalBayar,
-        pelanggan: formData.pelanggan,
-        bank: formData.bank,
-        nilaiPembayaran: formData.nilaiPembayaran,
-      },
-      ...prev,
-    ]);
     setModalOpen(false);
-    setMessage("Penerimaan penjualan berhasil disimpan (sementara, belum ke backend)");
-    setTimeout(() => setMessage(""), 3000);
+    setInitialFormData(undefined);
+    showMessage("Penerimaan penjualan berhasil disimpan");
+    fetchData();
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    // Bersihkan prefill supaya kalau user buka modal lagi lewat "Tambah
+    // Penerimaan" biasa, tidak ada sisa data dari redirect Uang Muka.
+    setInitialFormData(undefined);
   };
 
   return (
     <AppShell title="Penerimaan Penjualan" subtitle="Kelola pembayaran yang diterima dari pelanggan">
       {message && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm font-semibold bg-green-100 text-green-700 border border-green-300">
+        <div
+          className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
+            messageType === "error"
+              ? "bg-red-100 text-red-700 border border-red-300"
+              : "bg-green-100 text-green-700 border border-green-300"
+          }`}
+        >
           {message}
         </div>
       )}
@@ -107,8 +183,10 @@ export default function PenerimaanPenjualanPage() {
           <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
+              disabled={isLoading}
               title="Lihat Detail"
-              className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100 transition-colors"
+              className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
+                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Eye size={15} />
             </button>
@@ -118,7 +196,7 @@ export default function PenerimaanPenjualanPage() {
 
       <PenerimaanModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleModalClose}
         onSubmit={handleModalSubmit}
         initialData={initialFormData}
       />

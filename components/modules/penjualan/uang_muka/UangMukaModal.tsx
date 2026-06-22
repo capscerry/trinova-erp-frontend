@@ -12,6 +12,9 @@ import {
   Calendar,
   ArrowRight,
   Check,
+  RefreshCw,
+  PenLine,
+  FileDown,
 } from "lucide-react";
 
 import { uangMukaService } from "@/lib/services/penjualan.service";
@@ -20,7 +23,10 @@ import {
   type UangMukaFormData,
   EMPTY_FORM,
   mapFormToApiPayload,
+  generateAutoFaktur,
+  todayStr,
 } from "@/components/modules/penjualan/uang_muka/UangMukaType";
+import { SalesOrderPickerModal } from "@/components/modules/penjualan/SalesOrderPickerModal";
 
 interface UangMukaModalProps {
   open: boolean;
@@ -36,22 +42,14 @@ interface UangMukaModalProps {
    * Opsional. Kalau disediakan (misalnya oleh TransactionOrchestrator untuk
    * chaining ke modal Pengiriman berikutnya), tombol "Proses ke" akan
    * memanggil ini. Kalau tidak disediakan, modal akan fallback navigasi
-   * langsung ke halaman /penjualan/penerimaan.
+   * langsung ke halaman /penjualan/penerimaan-penjualan.
    */
   onProses?: (data: UangMukaFormData) => void;
   initialData?: Partial<UangMukaFormData> | any;
   isSaved?: boolean;
 }
 
-const today = new Date().toISOString().split("T")[0];
-
-const generateAutoFaktur = () => {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const seq = String(Math.floor(Math.random() * 900) + 100);
-  return `UM/${yy}${mm}/${seq}`;
-};
+const today = todayStr();
 
 type Tab = "uang-muka" | "info-lainnya";
 
@@ -82,6 +80,9 @@ export function UangMukaModal({
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState("");
+
+  // Sales Order Picker state — "Ambil dari Pesanan Penjualan"
+  const [soPickerOpen, setSoPickerOpen] = useState(false);
 
   // Fetch customer data
   const fetchCustomerData = async () => {
@@ -119,9 +120,42 @@ export function UangMukaModal({
       ...prev,
       pelanggan: customer.name,
       customerId: customer.id,
+      // Reset referensi SO sebelumnya saat ganti customer
+      noPesanan: "",
+      noSo: "",
+      salesOrderId: undefined,
+      noPO: "",
+      totalHargaPesanan: 0,
+      uangMuka: 0,
     }));
     setShowCustomerDropdown(false);
     setFilterCustomer("");
+  };
+
+  // Handle SO selection dari SalesOrderPickerModal — isi field referensi
+  // sekaligus auto-fill nominal Uang Muka dengan Total Harga Pesanan
+  // (so.total — nilai final setelah diskon & pajak). User tetap bisa
+  // mengubahnya manual sesudahnya kalau uang muka tidak sama dengan total.
+  const handleSoConfirm = (so: {
+    id: number;
+    nomor: string;
+    poNumber: string;
+    alamat: string;
+    keterangan: string;
+    total: number;
+  }) => {
+    setForm((prev) => ({
+      ...prev,
+      noPesanan: so.nomor,
+      noSo: so.nomor,
+      salesOrderId: so.id,
+      noPO: so.poNumber || prev.noPO,
+      alamat: so.alamat || prev.alamat,
+      keterangan: so.keterangan || prev.keterangan,
+      totalHargaPesanan: so.total,
+      uangMuka: so.total,
+    }));
+    setSoPickerOpen(false);
   };
 
   // Initialize form with initial data — HANYA saat modal baru dibuka (open
@@ -144,10 +178,6 @@ export function UangMukaModal({
       uangMuka: Number(data.uangMuka ?? 0),
       noPO: data.noPO ?? data.poNumber ?? "",
       noSo: data.noSo ?? "",
-      kenaPajak: Boolean(data.kenaPajak ?? data.isTaxable ?? false),
-      totalTermasukPajak: Boolean(
-        data.totalTermasukPajak ?? data.isTaxIncluded ?? true
-      ),
       syaratPembayaran: data.syaratPembayaran ?? "",
       alamat: data.alamat ?? data.alamatPengiriman ?? data.address ?? "",
       keterangan: data.keterangan ?? data.notes ?? "",
@@ -200,16 +230,6 @@ export function UangMukaModal({
     }));
   };
 
-  const toggleFakturMode = () => {
-    if (form.noFakturMode === "auto") {
-      set("noFakturMode", "manual");
-      set("noFaktur", "");
-    } else {
-      set("noFakturMode", "auto");
-      set("noFaktur", generateAutoFaktur());
-    }
-  };
-
   const handleSubmit = async () => {
     // Validasi DULU, sebelum setIsSubmitting(true) — supaya tombol tidak
     // sempat menampilkan status "Menyimpan..." untuk validasi yang gagal.
@@ -231,9 +251,14 @@ export function UangMukaModal({
 
       console.log("✅ Uang Muka tersimpan:", response);
 
+      // PENTING: simpan id hasil create ke form. Tanpa ini, form.id tetap 0
+      // selamanya, sehingga fitur "Proses ke Penerimaan" tidak punya ID
+      // valid untuk dikirim sebagai relasi uangMukaId.
+      setForm((prev) => ({ ...prev, id: response.id ?? prev.id }));
+
       // Modal TIDAK ditutup di sini — beri kesempatan user melihat hasil
       // simpan dan memilih "Proses ke Penerimaan" atau menutup manual.
-      onSubmit(form);
+      onSubmit({ ...form, id: response.id ?? form.id });
       setSaved(true);
     } catch (error: any) {
       console.error("❌ BACKEND ERROR:", error?.response?.data || error);
@@ -280,23 +305,27 @@ export function UangMukaModal({
 
     // Mode standalone (dipakai langsung dari halaman /penjualan/uang-muka):
     // navigasi ke halaman Penerimaan Penjualan dengan data customer & nilai
-    // uang muka sebagai prefill query param.
+    // uang muka sebagai prefill query param. ID Uang Muka (form.id) sudah
+    // didapat langsung dari response create di handleSubmit, dan ID Sales
+    // Order (form.salesOrderId) dari SalesOrderPickerModal — keduanya
+    // dikirim sebagai number FK, tidak perlu lookup ulang di halaman tujuan.
     const params = new URLSearchParams({
       customerId: String(form.customerId ?? ""),
       pelanggan: form.pelanggan ?? "",
       nilaiPembayaran: String(form.uangMuka ?? 0),
-      noFaktur: form.noFaktur ?? "",
-      noSo: form.noSo ?? form.noPesanan ?? "",
+      uangMukaId: String(form.id ?? ""),
+      salesOrderId: String(form.salesOrderId ?? ""),
     });
-    router.push(`/penjualan/penerimaan?${params.toString()}`);
+    router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
     onClose();
   };
 
   if (!open) return null;
 
   const hasPelanggan = form.pelanggan.trim().length > 0;
+  // Formula sama persis dengan mapFormToApiPayload — supaya yang
+  // ditampilkan ke user identik dengan yang benar-benar dikirim ke backend.
   const subTotal = form.uangMuka;
-  const total = form.uangMuka * (form.kenaPajak ? 1.11 : 1);
 
   return (
     <>
@@ -410,64 +439,73 @@ export function UangMukaModal({
                 </div>
               </FormField>
 
-              {/* No Faktur */}
-              <FormField label="No Faktur #" icon={<Hash size={14} />} required>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+              {/* No Faktur — toggle auto/manual sama format dengan No Quotation (SQ) */}
+              <FormField
+                label="No Faktur Uang Muka"
+                icon={<Hash size={14} />}
+                required
+                hint={form.noFakturMode === "auto" ? "Auto-generate" : "Input manual"}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border border-slate-200 p-0.5 shrink-0">
                     <button
                       type="button"
                       disabled={saved}
-                      onClick={toggleFakturMode}
-                      className={`relative w-10 h-5 rounded-full transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-navy-500/30 disabled:opacity-50 ${
+                      onClick={() => {
+                        set("noFakturMode", "auto");
+                        set("noFaktur", generateAutoFaktur());
+                      }}
+                      title="Auto-generate"
+                      className={`w-8 h-8 flex items-center justify-center rounded-md transition-all disabled:opacity-50 ${
                         form.noFakturMode === "auto"
-                          ? "bg-navy-900"
-                          : "bg-slate-300"
+                          ? "bg-navy-900 text-gold-400 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      <span
-                        className={`absolute top-0.5 left-0.5 block w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
-                          form.noFakturMode === "auto"
-                            ? "translate-x-5"
-                            : "translate-x-0"
-                        }`}
-                      />
+                      <RefreshCw size={13} />
                     </button>
-
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        form.noFakturMode === "auto"
-                          ? "bg-navy-50 text-navy-700"
-                          : "bg-amber-50 text-amber-700"
+                    <button
+                      type="button"
+                      disabled={saved}
+                      onClick={() => set("noFakturMode", "manual")}
+                      title="Input manual"
+                      className={`w-8 h-8 flex items-center justify-center rounded-md transition-all disabled:opacity-50 ${
+                        form.noFakturMode === "manual"
+                          ? "bg-navy-900 text-gold-400 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      {form.noFakturMode === "auto" ? "Auto" : "Manual"}
-                    </span>
+                      <PenLine size={13} />
+                    </button>
                   </div>
 
-                  {form.noFakturMode === "auto" ? (
-                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-slate-300 bg-slate-50">
-                      <span className="text-sm text-slate-700 font-mono flex-1 font-semibold">
-                        {form.noFaktur ?? ""}
-                      </span>
+                  <div className="relative flex-1">
+                    <input
+                      readOnly={form.noFakturMode === "auto"}
+                      value={form.noFaktur ?? ""}
+                      onChange={(e) => {
+                        if (form.noFakturMode === "manual") set("noFaktur", e.target.value);
+                      }}
+                      placeholder={form.noFakturMode === "manual" ? "Masukkan no faktur uang muka..." : ""}
+                      disabled={saved}
+                      className={`${inputClass} font-mono ${
+                        form.noFakturMode === "auto"
+                          ? "bg-slate-50 text-slate-500 cursor-not-allowed pr-10"
+                          : "bg-white"
+                      }`}
+                    />
+                    {form.noFakturMode === "auto" && (
                       <button
                         type="button"
                         disabled={saved}
                         onClick={() => set("noFaktur", generateAutoFaktur())}
-                        className="text-slate-400 hover:text-navy-600 transition-colors text-xs disabled:opacity-50"
+                        title="Generate ulang"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100 disabled:opacity-50 transition-colors"
                       >
-                        ↻
+                        <RefreshCw size={12} />
                       </button>
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={form.noFaktur ?? ""}
-                      onChange={(e) => set("noFaktur", e.target.value)}
-                      placeholder="Masukkan nomor faktur..."
-                      disabled={saved}
-                      className={inputClass}
-                    />
-                  )}
+                    )}
+                  </div>
                 </div>
               </FormField>
 
@@ -507,6 +545,73 @@ export function UangMukaModal({
             <div className="px-6 py-5">
               {activeTab === "uang-muka" && (
                 <div className="space-y-4">
+                  {/* Ambil dari Pesanan Penjualan */}
+                  <div
+                    className={`rounded-xl border px-4 py-3 transition-all ${
+                      hasPelanggan
+                        ? "border-violet-200 bg-violet-50/50"
+                        : "border-slate-200 bg-slate-50/50 opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileDown
+                          size={14}
+                          className={hasPelanggan ? "text-violet-600" : "text-slate-400"}
+                        />
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-600">
+                            Ambil dari Pesanan Penjualan
+                          </span>
+                          {form.noPesanan ? (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 text-[11px] font-semibold font-mono">
+                                {form.noPesanan}
+                                <button
+                                  type="button"
+                                  disabled={saved}
+                                  onClick={() =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      noPesanan: "",
+                                      noSo: "",
+                                      salesOrderId: undefined,
+                                      totalHargaPesanan: 0,
+                                      uangMuka: 0,
+                                    }))
+                                  }
+                                  className="hover:text-violet-900 transition-colors disabled:opacity-50"
+                                >
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {hasPelanggan
+                                ? "Opsional — pilih pesanan untuk mengisi referensi otomatis"
+                                : "Pilih pelanggan terlebih dahulu"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSoPickerOpen(true)}
+                        disabled={!hasPelanggan || saved}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 inline-flex items-center gap-1.5 ${
+                          hasPelanggan && !saved
+                            ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm"
+                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                        }`}
+                      >
+                        <FileDown size={11} />
+                        {form.noPesanan ? "Ganti" : "Pilih"}
+                      </button>
+                    </div>
+                  </div>
+
                   {/* No Pesanan */}
                   <div
                     className={`transition-all duration-300 overflow-hidden ${
@@ -600,56 +705,14 @@ export function UangMukaModal({
                     />
                   </FormField>
 
-                  {/* Pajak */}
-                  <FormField label="Pajak" icon={<Info size={14} />}>
-                    <div className="flex flex-wrap gap-6 items-center pt-1">
-                      <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={form.kenaPajak ?? false}
-                          disabled={saved}
-                          onChange={(e) => set("kenaPajak", e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 accent-navy-900"
-                        />
-                        Kena Pajak
-                      </label>
-
-                      <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={form.totalTermasukPajak ?? false}
-                          disabled={saved}
-                          onChange={(e) =>
-                            set("totalTermasukPajak", e.target.checked)
-                          }
-                          className="w-4 h-4 rounded border-slate-300 accent-navy-900"
-                        />
-                        Total termasuk Pajak
-                      </label>
-                    </div>
-                  </FormField>
-
                   {/* Summary */}
                   <div className="border-t border-slate-100 pt-4 flex justify-end gap-8 text-sm">
                     <div className="text-right">
                       <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">
-                        Sub Total
-                      </p>
-                      <p className="text-slate-800 font-bold mt-1">
-                        {subTotal.toLocaleString("id-ID", {
-                          style: "currency",
-                          currency: "IDR",
-                          maximumFractionDigits: 0,
-                        })}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">
-                        Total
+                        Total Uang Muka
                       </p>
                       <p className="text-navy-900 font-bold mt-1">
-                        {total.toLocaleString("id-ID", {
+                        {subTotal.toLocaleString("id-ID", {
                           style: "currency",
                           currency: "IDR",
                           maximumFractionDigits: 0,
@@ -781,6 +844,15 @@ export function UangMukaModal({
           </div>
         </div>
       </div>
+
+      {/* ── Sales Order Picker Modal ────────────────── */}
+      <SalesOrderPickerModal
+        open={soPickerOpen}
+        onClose={() => setSoPickerOpen(false)}
+        customerId={form.customerId ?? 0}
+        customerName={form.pelanggan ?? ""}
+        onConfirm={handleSoConfirm}
+      />
     </>
   );
 }

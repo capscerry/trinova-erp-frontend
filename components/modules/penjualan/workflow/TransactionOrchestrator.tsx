@@ -24,31 +24,37 @@ export function TransactionOrchestrator() {
 
   const isSaved = (key: DraftKey) => hasDraftPart(key);
 
+  // Hitung total final SO (setelah diskon & PPN) dari draft form SO.
+  // PENTING: draft.salesOrder adalah FORM DATA mentah (belum di-submit ke
+  // backend), bukan response API — jadi tidak punya field total/subTotal
+  // yang sudah final. Total harus dihitung ulang dari items[] dengan
+  // formula yang SAMA dengan mapFormToApiPayload di SalesOrderType.ts:
+  //   grossAmount   = Σ (harga × qty)
+  //   discountTotal = Σ (harga × qty × diskon%)
+  //   taxableBase   = grossAmount − discountTotal
+  //   taxAmount     = taxableBase × 11% (hanya jika so.kenaPajak)
+  //   total final   = taxableBase + taxAmount
   const getSalesOrderTotal = (so: any): number => {
-    const directTotal = Number(
-      so.totalHargaPesanan ??
-        so.total ??
-        so.subTotal ??
-        so.subtotal ??
-        so.totalAmount ??
-        0
-    );
+    const items: any[] = so.items ?? [];
 
-    if (directTotal > 0) return directTotal;
+    const grossAmount = items.reduce((sum: number, item: any) => {
+      const qty = Number(item.qty ?? item.quantity ?? item.productQty ?? 0);
+      const harga = Number(item.harga ?? item.unitPrice ?? item.price ?? item.productPrice ?? 0);
+      return sum + qty * harga;
+    }, 0);
 
-    return Number(
-      (so.items ?? []).reduce((sum: number, item: any) => {
-        const itemTotal = Number(
-          item.subtotal ??
-            item.totalPrice ??
-            item.total ??
-            Number(item.qty ?? item.quantity ?? 0) *
-              Number(item.harga ?? item.unitPrice ?? item.price ?? 0)
-        );
+    const discountTotal = items.reduce((sum: number, item: any) => {
+      const qty = Number(item.qty ?? item.quantity ?? item.productQty ?? 0);
+      const harga = Number(item.harga ?? item.unitPrice ?? item.price ?? item.productPrice ?? 0);
+      const diskonPercent = Number(item.diskon ?? item.discountPercent ?? 0);
+      return sum + qty * harga * (diskonPercent / 100);
+    }, 0);
 
-        return sum + itemTotal;
-      }, 0)
-    );
+    const taxableBase = grossAmount - discountTotal;
+    const kenaPajak = Boolean(so.kenaPajak ?? so.isTaxAble ?? so.isTaxable ?? false);
+    const taxAmount = kenaPajak ? taxableBase * 0.11 : 0;
+
+    return taxableBase + taxAmount;
   };
 
   // ── Sales Order ────────────────────────────────────────────────────────────
@@ -80,10 +86,12 @@ export function TransactionOrchestrator() {
     closeModal();
   };
 
-  const handleUMProses = (data: UangMukaFormData) => {
-    setDraftPart("uangMuka", data);
-    openModal("pengiriman");
-  };
+  // CATATAN: Uang Muka TIDAK lagi chain ke modal Pengiriman.
+  // Setelah Uang Muka disimpan, tombol "Proses ke" di dalam modal akan
+  // mengarahkan user ke halaman Penerimaan Penjualan (lihat fallback
+  // navigasi di dalam UangMukaModal). Karena itu, prop `onProses` TIDAK
+  // di-pass ke <UangMukaModal /> di bawah — biarkan modal pakai fallback
+  // router.push miliknya sendiri ke /penjualan/penerimaan-penjualan.
 
   // ── Pengiriman ────────────────────────────────────────────────────────────
   // Sama seperti Uang Muka: onSubmit tidak menutup modal.
@@ -118,17 +126,14 @@ export function TransactionOrchestrator() {
           noFakturMode: "auto" as const,
           tanggal: new Date().toISOString().split("T")[0],
 
-          uangMuka: 0,
+          // Auto-fill nominal Uang Muka dengan total final SO (sudah
+          // termasuk diskon & PPN) — user tetap bisa mengubahnya manual.
+          uangMuka: getSalesOrderTotal(so),
 
           noPO: so.noPO ?? so.poNumber ?? "",
           noSo: so.noSo ?? so.nomor ?? so.soNumber ?? so.orderNumber ?? "",
           noPesanan:
             so.noPesanan ?? so.nomor ?? so.soNumber ?? so.orderNumber ?? "",
-
-          kenaPajak: Boolean(so.kenaPajak ?? so.isTaxable ?? false),
-          totalTermasukPajak: Boolean(
-            so.totalTermasukPajak ?? so.isTaxIncluded ?? true
-          ),
 
           syaratPembayaran: "",
 
@@ -192,7 +197,6 @@ export function TransactionOrchestrator() {
         open={activeModal === "uangMuka"}
         onClose={handleUMClose}
         onSubmit={handleUMSubmit}
-        onProses={handleUMProses}
         initialData={uangMukaInitialData}
         isSaved={isSaved("uangMuka")}
       />

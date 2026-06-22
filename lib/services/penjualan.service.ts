@@ -36,7 +36,10 @@ export interface SalesOrderDetailApi {
   poNumber: string;
   address: string;
   keterangan: string;
+  /** Grand total final — sudah dikurangi diskon, ditambah pajak */
   total: number;
+  discountTotal?: number;
+  taxTotal?: number;
   detail: SalesOrderDetailItem[];
 }
 
@@ -82,8 +85,8 @@ export interface SalesQuotationFormData {
   dipesanOleh: string;
   address: string;
   keterangan: string;
+  /** PPN 11% — kalau dicentang, pajak otomatis dihitung & masuk ke Total (selalu inclusive) */
   kenaPajak: boolean;
-  totalTermasukPajak: boolean;
   items: QuotationItem[];
 }
 
@@ -150,7 +153,10 @@ export interface SalesOrderDetail {
   alamat?: string;
   keterangan: string;
   status?: SalesOrderStatus;
+  /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
   total: number;
+  discountTotal: number;
+  taxTotal: number;
   items: SalesOrderDetailItem[];
 }
 
@@ -202,6 +208,7 @@ export interface UangMukaPayload {
 
 export interface UangMukaApi extends UangMukaPayload {
   customerName?: string;
+  soNumber ? : string;
 }
 
 export interface UangMuka {
@@ -249,6 +256,8 @@ export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail
     alamat: item.address,
     keterangan: item.keterangan,
     total: item.total,
+    discountTotal: item.discountTotal ?? 0,
+    taxTotal: item.taxTotal ?? 0,
     items: item.detail ?? [],
   };
 }
@@ -273,7 +282,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
     customerId: item.customerId,
     customerName: item.customerName,
     noPO: item.noPO,
-    nomorSo: item.noSo,
+    nomorSo: item.noSo || item.soNumber || "",
     nominalUangMuka: item.nominalUangMuka,
     isTaxable: item.isTaxable,
     isTaxIncluded: item.isTaxIncluded,
@@ -323,6 +332,35 @@ export const salesOrderService = {
 
   async confirm(id: number | string): Promise<void> {
     await api.patch(`/sales-order/${id}/confirm`);
+  },
+
+  /** Ambil daftar Sales Order berdasarkan customer — untuk "Ambil dari Pesanan Penjualan" */
+  async getByCustomerId(customerId: number): Promise<SalesOrder[]> {
+    const response = await api.get<ApiResponse<any[]>>(
+      `/sales-order/by-customer/${customerId}`
+    );
+
+    return (response.data.data ?? []).map((item: any) => ({
+      id: item.orderId ?? item.id,
+      nomor: item.soNumber ?? item.nomor,
+      tanggal: item.soDate ?? item.tanggal,
+      tanggalKirim: item.tanggalKirim ?? "",
+      poNumber: item.poNumber ?? "",
+      pelanggan: item.customerName ?? item.pelanggan ?? "",
+      keterangan: item.notes ?? item.keterangan ?? "",
+      status: item.status ?? "Draft",
+      total: item.subTotal ?? item.total ?? 0,
+      items: [],
+    }));
+  },
+
+  /** Detail items SO (kode produk, qty, harga) — untuk isi referensi di form Uang Muka */
+  async getDetailItems(orderId: number | string): Promise<SalesOrderDetailItem[]> {
+    const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
+      `/sales-order/${orderId}`
+    );
+
+    return response.data.data?.detail ?? [];
   },
 };
 
@@ -430,6 +468,7 @@ export interface QuotationDetailItemApi {
   uomId: number;
   uomCode: string;
   price: number;
+  discountPercent?: number;
 }
 
 export interface QuotationDetailItem {
@@ -439,7 +478,10 @@ export interface QuotationDetailItem {
   qty: number;
   uomId: number;
   satuan: string;
+  /** Harga asli per unit, SEBELUM diskon */
   harga: number;
+  /** Persentase diskon dari quotation (0 jika tidak ada) */
+  discountPercent: number;
 }
 
 export function mapQuotationDetailItem(item: QuotationDetailItemApi): QuotationDetailItem {
@@ -451,6 +493,7 @@ export function mapQuotationDetailItem(item: QuotationDetailItemApi): QuotationD
     uomId: item.uomId,
     satuan: item.uomCode ?? "",
     harga: item.price,
+    discountPercent: item.discountPercent ?? 0,
   };
 }
 
@@ -464,7 +507,10 @@ export interface SalesQuotationHeaderDetailApi {
     customerName: string;
     quotationDate: string;
     notes: string;
+    /** Grand total final dari backend — sudah dikurangi diskon, ditambah pajak */
     subtotal: number;
+    discountTotal?: number;
+    taxTotal?: number;
   };
   detail: {
     productId: number;
@@ -474,6 +520,7 @@ export interface SalesQuotationHeaderDetailApi {
     uomId: number;
     uomCode: string;
     price: number;
+    discountPercent?: number;
   }[];
 }
 
@@ -483,26 +530,38 @@ export interface SalesQuotationDetail {
   tanggal: string;
   pelanggan: string;
   keterangan: string;
+  /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
   subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
   items: {
     productCode: string;
     productName: string;
     qty: number;
     satuan: string;
     harga: number;
+    discountPercent: number;
+    /** Total per baris SETELAH diskon (pajak dihitung & ditampilkan di header) */
     totalHarga: number;
   }[];
 }
 
 export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): SalesQuotationDetail {
-  const items = (item.detail ?? []).map((d) => ({
-    productCode: d.productCode ?? "",
-    productName: d.productName,
-    qty: d.quantity,
-    satuan: d.uomCode ?? "",
-    harga: d.price,
-    totalHarga: d.price * d.quantity,
-  }));
+  const items = (item.detail ?? []).map((d) => {
+    const discountPercent = d.discountPercent ?? 0;
+    const lineGross = d.price * d.quantity;
+    const totalHarga = lineGross * (1 - discountPercent / 100);
+
+    return {
+      productCode: d.productCode ?? "",
+      productName: d.productName,
+      qty: d.quantity,
+      satuan: d.uomCode ?? "",
+      harga: d.price,
+      discountPercent,
+      totalHarga,
+    };
+  });
 
   return {
     id: item.header.id,
@@ -511,6 +570,8 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     pelanggan: item.header.customerName,
     keterangan: item.header.notes ?? "",
     subtotal: item.header.subtotal,
+    discountTotal: item.header.discountTotal ?? 0,
+    taxTotal: item.header.taxTotal ?? 0,
     items,
   };
 }
@@ -596,5 +657,105 @@ export const salesQuotationService = {
 
   async remove(id: number | string): Promise<void> {
     await api.delete(`/SalesQuotation/${id}`);
+  },
+};
+
+// ─── Bank Dropdown ────────────────────────────────────────────────────────────
+
+export interface BankApi {
+  id: number;
+  bankName: string;
+  bankAccount: string;
+}
+
+export interface Bank {
+  id: number;
+  nama: string;
+  noRekening: string;
+}
+
+export function mapBank(item: BankApi): Bank {
+  return {
+    id: item.id,
+    nama: item.bankName,
+    noRekening: item.bankAccount,
+  };
+}
+
+export const bankService = {
+  async getAll(): Promise<Bank[]> {
+    const response = await api.get<ApiResponse<BankApi[]>>("/bank");
+    return (response.data.data ?? []).map(mapBank);
+  },
+};
+
+// ─── Penerimaan Penjualan (Sales Receipt) ─────────────────────────────────────
+
+export interface PenerimaanPenjualanApi {
+  id: number;
+  noBukti: string;
+  customerId: number;
+  customerName: string;
+  bankId: number;
+  bankName: string;
+  nilaiPembayaran: number;
+  tanggalBayar: string;
+  uangMukaId?: number | null;
+  salesOrderId?: number | null;
+}
+
+export interface PenerimaanPenjualan {
+  id: number;
+  noBukti: string;
+  customerId: number;
+  pelanggan: string;
+  bankId: number;
+  bank: string;
+  nilaiPembayaran: number;
+  tanggalBayar: string;
+  uangMukaId?: number;
+  salesOrderId?: number;
+}
+
+/** Payload untuk POST /api/sales-receipt — id TIDAK dikirim (auto dari backend) */
+export interface PenerimaanPenjualanPayload {
+  noBukti: string;
+  customerId: number;
+  bankId: number;
+  nilaiPembayaran: number;
+  tanggalBayar: string;
+  uangMukaId?: number | null;
+  salesOrderId?: number | null;
+}
+
+export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): PenerimaanPenjualan {
+  return {
+    id: item.id,
+    noBukti: item.noBukti,
+    customerId: item.customerId,
+    pelanggan: item.customerName,
+    bankId: item.bankId,
+    bank: item.bankName,
+    nilaiPembayaran: item.nilaiPembayaran,
+    tanggalBayar: item.tanggalBayar,
+    uangMukaId: item.uangMukaId ?? undefined,
+    salesOrderId: item.salesOrderId ?? undefined,
+  };
+}
+
+export const penerimaanPenjualanService = {
+  async getAll(): Promise<PenerimaanPenjualan[]> {
+    const response = await api.get<ApiResponse<PenerimaanPenjualanApi[]>>(
+      "/sales-receipt"
+    );
+    return (response.data.data ?? []).map(mapPenerimaanPenjualan);
+  },
+
+  async create(payload: PenerimaanPenjualanPayload): Promise<PenerimaanPenjualan> {
+    const response = await api.post<ApiResponse<PenerimaanPenjualanApi>>(
+      "/sales-receipt",
+      payload
+    );
+    return mapPenerimaanPenjualan(response.data.data);
   },
 };

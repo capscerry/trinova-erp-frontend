@@ -87,9 +87,10 @@ export default function SalesOrderPrintPage() {
     );
   }
 
-  const subTotal = data.items?.reduce((s, i) => s + i.totalPrice, 0) ?? 0;
-  const ppn = data.items ? Math.round(subTotal * 0.11) : 0; // asumsi PPN 11% — sesuaikan jika ada field dari API
-  const grandTotal = data.total ?? subTotal;
+  // Semua nilai (total final, discountTotal, taxTotal) datang LANGSUNG dari
+  // API — tidak ada kalkulasi pajak/diskon manual di frontend.
+  const grandTotal = data.total ?? 0;
+  const grossAmount = data.total + data.discountTotal - data.taxTotal;
   const terbilangText = terbilang(grandTotal);
 
   return (
@@ -223,6 +224,23 @@ export default function SalesOrderPrintPage() {
         .info-cell .cell-value {
           font-size: 11px;
           font-weight: 600;
+        }
+        .tax-status {
+          display: inline-block;
+          font-size: 9px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 3px;
+        }
+        .tax-status.included {
+          background: #dcfce7;
+          color: #166534;
+          border: 1px solid #166534;
+        }
+        .tax-status.excluded {
+          background: #fef3c7;
+          color: #92400e;
+          border: 1px solid #92400e;
         }
 
         /* Tabel Produk */
@@ -392,8 +410,12 @@ export default function SalesOrderPrintPage() {
               <div className="cell-value">{data.nomor}</div>
             </div>
             <div className="info-cell">
-              <div className="cell-label">Syarat Pembayaran</div>
-              <div className="cell-value">—</div>
+              <div className="cell-label">Status Pajak</div>
+              <div className="cell-value">
+                <span className={`tax-status ${data.taxTotal > 0 ? "included" : "excluded"}`}>
+                  {data.taxTotal > 0 ? "Sudah termasuk PPN" : "Belum termasuk PPN"}
+                </span>
+              </div>
             </div>
             <div className="info-cell">
               <div className="cell-label">FOB</div>
@@ -429,7 +451,7 @@ export default function SalesOrderPrintPage() {
                 <td>{item.productName}</td>
                 <td className="center">{item.productQty}</td>
                 <td className="right">{formatRupiah(item.productPrice)}</td>
-                <td className="right">{item.productDiscount > 0 ? item.productDiscount : 0}</td>
+                <td className="right">{item.productDiscount > 0 ? `${item.productDiscount}%` : "—"}</td>
                 <td className="right">{formatRupiah(item.totalPrice)}</td>
               </tr>
             ))}
@@ -465,30 +487,42 @@ export default function SalesOrderPrintPage() {
           </div>
 
           {/* Summary */}
-          <table className="summary-table">
-            <tbody>
-              <tr>
-                <td>Sub Total</td>
-                <td>{formatRupiah(subTotal)}</td>
-              </tr>
-              <tr>
-                <td>Diskon</td>
-                <td>0</td>
-              </tr>
-              <tr>
-                <td>PPN (11%)</td>
-                <td>{formatRupiah(ppn)}</td>
-              </tr>
-              <tr>
-                <td>Biaya Lain-lain</td>
-                <td>0</td>
-              </tr>
-              <tr className="grand-total">
-                <td>Total</td>
-                <td>{formatRupiah(grandTotal)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div>
+            <table className="summary-table">
+              <tbody>
+                <tr>
+                  <td>Subtotal</td>
+                  <td>{formatRupiah(grossAmount)}</td>
+                </tr>
+                {data.discountTotal > 0 && (
+                  <tr>
+                    <td>Diskon</td>
+                    <td>-{formatRupiah(data.discountTotal)}</td>
+                  </tr>
+                )}
+                {data.taxTotal > 0 && (
+                  <tr>
+                    <td>PPN</td>
+                    <td>{formatRupiah(data.taxTotal)}</td>
+                  </tr>
+                )}
+                <tr className="grand-total">
+                  <td>Total</td>
+                  <td>{formatRupiah(grandTotal)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p
+              style={{
+                fontSize: "9px",
+                color: "#666",
+                marginTop: "4px",
+                textAlign: "right",
+              }}
+            >
+              * Total di atas {data.taxTotal > 0 ? "sudah termasuk PPN" : "belum termasuk PPN"}
+            </p>
+          </div>
         </div>
 
         {/* TTD */}

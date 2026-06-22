@@ -13,7 +13,6 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     harga: number;
     diskon: number;
     subtotal: number;
-    taxable?: boolean;
   }
 
   export interface SalesOrder {
@@ -61,7 +60,6 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     keterangan: string;
 
     kenaPajak?: boolean;
-    totalTermasukPajak?: boolean;
 
     items: SalesOrderItem[];
   }
@@ -162,8 +160,6 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     harga: 0,
     diskon: 0,
     subtotal: 0,
-
-    taxable: false,
   });
 
   export const EMPTY_FORM: SalesOrderFormData = {
@@ -185,7 +181,6 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     keterangan: "",
 
     kenaPajak: false,
-    totalTermasukPajak: false,
 
     items: [newItem()],
   };
@@ -193,10 +188,26 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
   export function mapFormToApiPayload(
     form: SalesOrderFormData
   ) {
-    const subTotal = form.items.reduce(
-      (s, item) => s + item.subtotal,
+    // Definisi konsisten dengan SQ:
+    //   grossAmount = Σ (harga × qty)               — SEBELUM diskon & pajak (internal saja)
+    //   discountTotal = Σ (harga × qty × diskon%)    — total potongan diskon
+    //   taxableBase   = grossAmount − discountTotal  — dasar pengenaan pajak
+    //   taxAmount     = taxableBase × 11%            — hanya jika kenaPajak
+    //   subTotal (dikirim ke backend) = taxableBase + taxAmount — GRAND TOTAL
+    //   final, sama seperti keputusan field Subtotal di Sales Quotation.
+    const grossAmount = form.items.reduce(
+      (s, item) => s + item.harga * item.qty,
       0
     );
+
+    const discountTotal = form.items.reduce(
+      (s, item) => s + item.harga * item.qty * (item.diskon / 100),
+      0
+    );
+
+    const taxableBase = grossAmount - discountTotal;
+    const taxAmount = (form.kenaPajak ?? false) ? taxableBase * 0.11 : 0;
+    const subTotal = taxableBase + taxAmount;
 
     return {
       header: {
@@ -216,15 +227,13 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
 
         isTaxAble: form.kenaPajak ?? false,
 
-        isTaxIncluded:
-          form.totalTermasukPajak ?? false,
-
         address: form.alamatPengiriman,
 
         notes: form.keterangan,
-        
 
         subTotal: subTotal,
+        discountTotal: discountTotal,
+        taxTotal: taxAmount,
       },
 
       detail: form.items.map((item) => ({
@@ -238,7 +247,10 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
 
         productPrice: item.harga,
 
-        discountAmount: item.diskon,
+        // FIX: model backend SalesOrderDetail punya field DiscountPercent
+        // (int, persentase) — BUKAN discountAmount (nominal). Sebelumnya
+        // field ini terkirim dengan nama salah sehingga diabaikan backend.
+        discountPercent: item.diskon,
 
         totalPrice: item.subtotal,
       })),

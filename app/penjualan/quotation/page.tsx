@@ -187,7 +187,9 @@ export default function SalesQuotationPage() {
     setSubmitting(true);
 
     try {
-      const subtotal = formData.items.reduce(
+      // grossAmount = Σ (harga × qty) — SEBELUM diskon, hanya dipakai
+      // internal untuk menghitung discountTotal, TIDAK dikirim ke backend.
+      const grossAmount = formData.items.reduce(
         (s, i) => s + i.harga * i.qty,
         0
       );
@@ -196,6 +198,16 @@ export default function SalesQuotationPage() {
         (s, i) => s + i.harga * i.qty * (i.diskon / 100),
         0
       );
+
+      // taxableBase = setelah diskon, sebelum pajak
+      const taxableBase = grossAmount - discountTotal;
+      const taxTotal = formData.kenaPajak ? taxableBase * 0.11 : 0;
+
+      // Sesuai keputusan: field `Subtotal` di backend berfungsi sebagai
+      // GRAND TOTAL (harga bersih final) — bukan subtotal sebelum diskon.
+      // subtotal = taxableBase + taxTotal (selalu, tidak bergantung pada
+      // totalTermasukPajak — itu hanya flag info untuk laporan/cetak).
+      const subtotal = taxableBase + taxTotal;
 
       const payload = {
         customerId: formData.customerId ?? 0,
@@ -207,10 +219,16 @@ export default function SalesQuotationPage() {
         isTaxIncluded: formData.totalTermasukPajak,
         subtotal,
         discountTotal,
+        taxTotal,
         details: formData.items.map((item) => {
           const lineGross = item.harga * item.qty;
           const discountAmount = lineGross * (item.diskon / 100);
 
+          // CATATAN: Backend punya field TaxPercent/TaxAmount per baris
+          // (SalesQuotationDetail), tapi SENGAJA tidak diisi di sini.
+          // Pajak saat ini dihitung & disimpan di level header saja
+          // (lihat taxTotal di atas). Jangan tambahkan taxPercent/taxAmount
+          // ke object di bawah sampai ada keputusan untuk pajak per-item.
           return {
             productId: item.productId ?? 0,
             quantity: item.qty,

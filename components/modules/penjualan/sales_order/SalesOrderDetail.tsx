@@ -18,10 +18,15 @@ const SATUAN_OPTIONS = [
 
 interface SalesOrderDetailFormProps {
   items: SalesOrderItem[];
+  kenaPajak?: boolean;
   onChange: (items: SalesOrderItem[]) => void;
 }
 
-export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormProps) {
+export function SalesOrderDetailForm({
+  items,
+  kenaPajak = false,
+  onChange,
+}: SalesOrderDetailFormProps) {
   const [produkOptions, setProdukOptions] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
 
@@ -66,7 +71,20 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
   const addItem    = () => onChange([...items, newItem()]);
   const removeItem = (id: string) => onChange(items.filter((i) => i.id !== id));
 
-  const grandTotal = items.reduce((s, i) => s + i.subtotal, 0);
+  // Definisi konsisten dengan SQ:
+  //   subtotal      = Σ (harga × qty)            — SEBELUM diskon & pajak
+  //   discountTotal = Σ (harga × qty × diskon%)   — total potongan diskon
+  //   taxableBase   = subtotal − discountTotal    — dasar pengenaan pajak
+  //   taxAmount     = taxableBase × 11%           — hanya jika kenaPajak (header)
+  //   grandTotal    = taxableBase + taxAmount     — PPN selalu otomatis masuk ke Total
+  const subtotal = items.reduce((s, i) => s + i.harga * i.qty, 0);
+  const discountTotal = items.reduce(
+    (s, i) => s + i.harga * i.qty * (i.diskon / 100),
+    0
+  );
+  const taxableBase = subtotal - discountTotal;
+  const taxAmount = kenaPajak ? taxableBase * 0.11 : 0;
+  const grandTotal = taxableBase + taxAmount;
 
   return (
     <div>
@@ -84,14 +102,13 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
           <table className="w-full border-collapse text-xs table-fixed min-w-[900px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[20%]">Produk</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Deskripsi</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[21%]">Produk</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[17%]">Deskripsi</th>
                 <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Qty</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[11%]">Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Harga</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[9%]">Diskon %</th>
-                <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[8%]">Taxable (PPN 11%)</th>
-                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Subtotal</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Satuan</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Harga</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Diskon %</th>
+                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
                 <th className="px-3 py-2.5 w-[4%]"></th>
               </tr>
             </thead>
@@ -155,16 +172,6 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
                       className={cn(inputCompact, "w-full text-center")} />
                   </td>
 
-                  {/* Taxable */}
-                  <td className="px-3 py-2 text-center">
-                    <input
-                      type="checkbox"
-                      checked={item.taxable ?? false}
-                      onChange={(e) => updateItem(item.id, { taxable: e.target.checked })}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </td>
-
                   {/* Subtotal */}
                   <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap text-right">
                     {formatRupiah(item.subtotal)}
@@ -187,8 +194,24 @@ export function SalesOrderDetailForm({ items, onChange }: SalesOrderDetailFormPr
       </div>
 
       <div className="flex justify-end mt-3">
-        <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[220px]">
-          <div className="flex items-center justify-between gap-8">
+        <div className="bg-navy-900 text-white rounded-xl px-5 py-3.5 min-w-[260px] space-y-1.5">
+          <div className="flex items-center justify-between gap-8 text-xs">
+            <span className="text-slate-400">Subtotal</span>
+            <span className="font-semibold text-slate-200">{formatRupiah(subtotal)}</span>
+          </div>
+          {discountTotal > 0 && (
+            <div className="flex items-center justify-between gap-8 text-xs">
+              <span className="text-slate-400">Diskon</span>
+              <span className="font-semibold text-red-300">-{formatRupiah(discountTotal)}</span>
+            </div>
+          )}
+          {kenaPajak && (
+            <div className="flex items-center justify-between gap-8 text-xs">
+              <span className="text-slate-400">PPN 11%</span>
+              <span className="font-semibold text-slate-200">{formatRupiah(taxAmount)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-8 pt-1.5 border-t border-white/10">
             <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Total</span>
             <span className="text-base font-bold text-gold-400">{formatRupiah(grandTotal)}</span>
           </div>

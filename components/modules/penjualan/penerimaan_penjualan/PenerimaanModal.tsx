@@ -10,9 +10,14 @@ import {
   generateNoBukti,
   todayStr,
   inputClass,
-  DUMMY_CUSTOMERS,
-  DUMMY_BANKS,
+  mapFormToApiPayload,
 } from "./PenerimaanPenjualanType";
+import {
+  bankService,
+  type Bank,
+  penerimaanPenjualanService,
+} from "@/lib/services/penjualan.service";
+import { customerService } from "@/lib/services/customer.service";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PenerimaanModalProps {
@@ -34,13 +39,55 @@ export function PenerimaanModal({
   const [form, setForm] = useState<PenerimaanFormData>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ── Customer dropdown (dummy, sebelum API tersedia) ──
+  // ── Customer dropdown — fetch dari API /api/customer/active ──
+  const [customerOptions, setCustomerOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState("");
 
-  // ── Bank dropdown (dummy, sebelum API tersedia) ──────
+  useEffect(() => {
+    if (!open) return;
+
+    const loadCustomers = async () => {
+      try {
+        setLoadingCustomers(true);
+        const data = await customerService.getAllActive();
+        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama })));
+      } catch (err) {
+        console.error("Gagal memuat data customer:", err);
+        setCustomerOptions([]);
+      } finally {
+        setLoadingCustomers(false);
+      }
+    };
+    loadCustomers();
+  }, [open]);
+
+  // ── Bank dropdown — fetch dari API /api/bank ─────────
+  const [bankOptions, setBankOptions] = useState<Bank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
   const [showBankDropdown, setShowBankDropdown] = useState(false);
   const [filterBank, setFilterBank] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadBanks = async () => {
+      try {
+        setLoadingBanks(true);
+        const data = await bankService.getAll();
+        setBankOptions(data);
+      } catch (err) {
+        console.error("Gagal memuat data bank:", err);
+        setBankOptions([]);
+      } finally {
+        setLoadingBanks(false);
+      }
+    };
+    loadBanks();
+  }, [open]);
 
   // ── Initialize form ───────────────────────────────────
   useEffect(() => {
@@ -59,6 +106,8 @@ export function PenerimaanModal({
       noBukti: data.noBukti ?? generateNoBukti(),
       noBuktiMode: data.noBuktiMode ?? "auto",
       keterangan: data.keterangan ?? "",
+      uangMukaId: data.uangMukaId ?? undefined,
+      salesOrderId: data.salesOrderId ?? undefined,
     });
   }, [initialData, open]);
 
@@ -76,7 +125,7 @@ export function PenerimaanModal({
   };
 
   // ── Customer selection ───────────────────────────────
-  const filteredCustomers = DUMMY_CUSTOMERS.filter((c) =>
+  const filteredCustomers = customerOptions.filter((c) =>
     c.name.toLowerCase().includes(filterCustomer.toLowerCase())
   );
 
@@ -87,11 +136,11 @@ export function PenerimaanModal({
   };
 
   // ── Bank selection ───────────────────────────────────
-  const filteredBanks = DUMMY_BANKS.filter((b) =>
+  const filteredBanks = bankOptions.filter((b) =>
     b.nama.toLowerCase().includes(filterBank.toLowerCase())
   );
 
-  const handleSelectBank = (bank: typeof DUMMY_BANKS[number]) => {
+  const handleSelectBank = (bank: Bank) => {
     setForm((prev) => ({ ...prev, bank: bank.nama, bankId: bank.id }));
     setShowBankDropdown(false);
     setFilterBank("");
@@ -103,8 +152,8 @@ export function PenerimaanModal({
     if (mode === "auto") set("noBukti", generateNoBukti());
   };
 
-  // ── Submit (sementara: tanpa hit API) ─────────────────
-  const handleSubmit = () => {
+  // ── Submit ─────────────────────────────────────────────
+  const handleSubmit = async () => {
     if (!form.customerId) {
       alert("⚠️ Pelanggan (Terima dari) wajib dipilih");
       return;
@@ -122,12 +171,20 @@ export function PenerimaanModal({
       return;
     }
 
-    setIsSubmitting(true);
-    // TODO: ganti dengan call API saat backend tersedia
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      setIsSubmitting(true);
+      const payload = mapFormToApiPayload(form);
+      await penerimaanPenjualanService.create(payload);
       onSubmit(form);
-    }, 300);
+    } catch (err: any) {
+      console.error("❌ Gagal menyimpan penerimaan penjualan:", err);
+      alert(
+        "Gagal menyimpan data: " +
+          (err?.response?.data?.message || err?.message || "Terjadi kesalahan")
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!open) return null;
@@ -173,10 +230,13 @@ export function PenerimaanModal({
                     setShowCustomerDropdown(true);
                     setFilterCustomer("");
                   }}
-                  placeholder="Cari/Pilih Pelanggan..."
+                  placeholder={loadingCustomers ? "Memuat pelanggan..." : "Cari/Pilih Pelanggan..."}
+                  disabled={loadingCustomers}
                   className={inputClass}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                  {loadingCustomers ? "⏳" : "🔍"}
+                </span>
 
                 {showCustomerDropdown && (
                   <>
@@ -194,7 +254,9 @@ export function PenerimaanModal({
                           </button>
                         ))
                       ) : (
-                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">Tidak ada hasil</div>
+                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                          {customerOptions.length === 0 ? "Tidak ada data pelanggan" : "Tidak ada hasil"}
+                        </div>
                       )}
                     </div>
                   </>
@@ -215,10 +277,13 @@ export function PenerimaanModal({
                     setShowBankDropdown(true);
                     setFilterBank("");
                   }}
-                  placeholder="Cari/Pilih Bank..."
+                  placeholder={loadingBanks ? "Memuat bank..." : "Cari/Pilih Bank..."}
+                  disabled={loadingBanks}
                   className={inputClass}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                  {loadingBanks ? "⏳" : "🔍"}
+                </span>
 
                 {showBankDropdown && (
                   <>
@@ -234,7 +299,7 @@ export function PenerimaanModal({
                           >
                             <div className="font-medium text-slate-700">{bank.nama}</div>
                             <div className="text-xs text-slate-400 font-mono">
-                              {bank.noRekening} · {bank.namaRekening}
+                              {bank.noRekening}
                             </div>
                           </button>
                         ))

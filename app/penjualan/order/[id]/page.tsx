@@ -125,7 +125,14 @@ export default function SalesOrderDetailPage() {
     load();
   }, [id]);
 
+  // Semua nilai (total final, discountTotal, taxTotal) datang LANGSUNG dari
+  // API — tidak ada kalkulasi pajak/diskon manual di frontend.
+  //   grossAmount = total final + discountTotal − taxTotal
+  //               = nilai SEBELUM diskon & pajak (titik awal breakdown)
   const grandTotal = data?.total ?? 0;
+  const grossAmount = data
+    ? data.total + data.discountTotal - data.taxTotal
+    : 0;
   const totalQty   = data?.items?.reduce((s, i) => s + i.productQty, 0) ?? 0;
 
   return (
@@ -348,11 +355,35 @@ export default function SalesOrderDetailPage() {
                       </table>
                     </div>
 
-                    {/* Total */}
+                    {/* Ringkasan: Subtotal → Diskon → Pajak → Total */}
+                    {/* Semua nilai berasal langsung dari API — tidak ada
+                        kalkulasi pajak/diskon manual di frontend. */}
                     <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40">
                       <div className="flex justify-end">
-                        <div className="w-64">
-                          <div className="flex justify-between pt-2">
+                        <div className="w-72 space-y-1.5">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-500">Subtotal</span>
+                            <span className="font-semibold text-slate-700">
+                              {formatRupiah(grossAmount)}
+                            </span>
+                          </div>
+                          {data.discountTotal > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-500">Diskon</span>
+                              <span className="font-semibold text-red-500">
+                                -{formatRupiah(data.discountTotal)}
+                              </span>
+                            </div>
+                          )}
+                          {data.taxTotal > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-500">PPN</span>
+                              <span className="font-semibold text-slate-700">
+                                {formatRupiah(data.taxTotal)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between pt-2 border-t border-slate-200">
                             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
                               Total
                             </span>

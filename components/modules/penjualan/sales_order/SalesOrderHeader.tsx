@@ -233,7 +233,7 @@ export function SalesOrderHeaderForm({
 
 
         <div className="flex items-center gap-6 pt-1">
-        {/* Kena Pajak */}
+        {/* PPN (11%) */}
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -242,26 +242,9 @@ export function SalesOrderHeaderForm({
             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
           <span className="text-sm text-slate-700 font-medium">
-            Kena Pajak
+            PPN (11%)
           </span>
         </label>
-
-        {/* Total Termasuk Pajak */}
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.totalTermasukPajak}
-            onChange={(e) =>
-              setField("totalTermasukPajak", e.target.checked)
-            }
-            disabled={!form.kenaPajak}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-          />
-          <span className="text-sm text-slate-700 font-medium">
-            Total termasuk Pajak
-          </span>
-        </label>
-
       </div>
     </Section>
   );
