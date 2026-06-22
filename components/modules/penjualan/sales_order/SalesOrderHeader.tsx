@@ -25,12 +25,14 @@ interface SalesOrderHeaderFormProps {
   pelangganOptions?: { id: number; nama: string }[];
   salesOptions?: { id: number; nama: string }[];
   onOpenQuotationPicker?: () => void;
+  isEdit?: boolean;
 }
 
 export function SalesOrderHeaderForm({
   form, onChange,
   pelangganOptions = [], salesOptions = [],
   onOpenQuotationPicker,
+  isEdit = false,
 }: SalesOrderHeaderFormProps) {
   const [nomorMode, setNomorMode] = useState<"auto" | "manual">("auto");
   const [nomorManual, setNomorManual] = useState("");
@@ -79,27 +81,36 @@ export function SalesOrderHeaderForm({
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Nomor SO" icon={<Hash size={13} />} required
           hint={
-            <div className="flex items-center gap-1.5">
-              <span className={cn(
-                "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide",
-                nomorMode === "auto" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-              )}>
-                {nomorMode === "auto" ? "Auto" : "Manual"}
+            isEdit ? (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500">
+                Tidak dapat diubah
               </span>
-              {nomorMode === "auto" ? (
-                <button onClick={handleSwitchToManual}
-                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
-                  <Pencil size={10} /> Isi manual
-                </button>
-              ) : (
-                <button onClick={handleSwitchToAuto}
-                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
-                  <RefreshCw size={10} /> Pakai auto
-                </button>
-              )}
-            </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className={cn(
+                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide",
+                  nomorMode === "auto" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                )}>
+                  {nomorMode === "auto" ? "Auto" : "Manual"}
+                </span>
+                {nomorMode === "auto" ? (
+                  <button onClick={handleSwitchToManual}
+                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
+                    <Pencil size={10} /> Isi manual
+                  </button>
+                ) : (
+                  <button onClick={handleSwitchToAuto}
+                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-navy-700 transition-colors">
+                    <RefreshCw size={10} /> Pakai auto
+                  </button>
+                )}
+              </div>
+            )
           }>
-          {nomorMode === "auto" ? (
+          {isEdit ? (
+            <input readOnly disabled value={form.nomor}
+              className={cn(inputBase, "bg-slate-50 text-slate-500 font-mono cursor-not-allowed")} />
+          ) : nomorMode === "auto" ? (
             <div className="flex gap-2">
               <input readOnly value={form.nomor}
                 className={cn(inputBase, "flex-1 bg-slate-50 text-slate-500 font-mono cursor-not-allowed")} />
@@ -143,11 +154,15 @@ export function SalesOrderHeaderForm({
 
       {/* Pelanggan + Dipesan Oleh */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Dipesan Oleh" icon={<Users size={13} />} required>
+        <FormField label="Dipesan Oleh" icon={<Users size={13} />} required
+          hint={isEdit ? (
+            <span className="text-[10px] text-slate-400">Tidak dapat diubah</span>
+          ) : undefined}>
           <DropdownField
             value={form.pelanggan}
             placeholder="Pilih sales / staff..."
             options={customerOptions.map((s) => s.name)}
+            disabled={isEdit}
             onChange={(v) => {
             const selected = customerOptions.find(
                 (c) => c.name === v

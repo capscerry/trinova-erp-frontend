@@ -19,7 +19,10 @@ import { cn } from "@/lib/utils";
 import {
   salesQuotationService,
   type SalesQuotationDetail,
+  type SalesQuotationFormData,
+  type QuotationItem,
 } from "@/lib/services/penjualan.service";
+import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,23 +99,106 @@ export default function SalesQuotationDetailPage() {
   const [data, setData] = useState<SalesQuotationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const fetchData = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const result = await salesQuotationService.getFullDetailById(id);
+      setData(result);
+    } catch (err) {
+      console.error(err);
+      setError("Gagal memuat data Penawaran Penjualan");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!id) return;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const result = await salesQuotationService.getFullDetailById(id);
-        setData(result);
-      } catch (err) {
-        console.error(err);
-        setError("Gagal memuat data Penawaran Penjualan");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Konversi SalesQuotationDetail (hasil GET) → SalesQuotationFormData
+  // (bentuk yang dipakai modal create/edit). API detail TIDAK mengembalikan
+  // productId/uomId per item — field itu dikosongkan (0) karena modal edit
+  // saat ini hanya untuk mengubah data header (nomor & customer readonly,
+  // sisanya bisa diubah). API update belum tersedia, jadi submit belum
+  // benar-benar mengirim perubahan ke backend.
+  const toFormData = (detail: SalesQuotationDetail): SalesQuotationFormData => ({
+    id: detail.id,
+    nomor: detail.nomor,
+    tanggal: detail.tanggal?.split("T")[0] ?? detail.tanggal,
+    customerId: detail.customerId,
+    dipesanOleh: detail.pelanggan,
+    address: detail.alamat ?? "",
+    keterangan: detail.keterangan ?? "",
+    kenaPajak: detail.taxTotal > 0,
+    items: (detail.items ?? []).map((it): QuotationItem => ({
+      id: crypto.randomUUID(),
+      produk: it.productName,
+      deskripsi: "",
+      qty: it.qty,
+      satuan: it.satuan,
+      harga: it.harga,
+      diskon: it.discountPercent,
+      subtotal: it.totalHarga,
+    })),
+  });
+
+  const handleEditSubmit = async (formData: SalesQuotationFormData) => {
+    // Formula sama dengan saat create (lihat app/penjualan/quotation/page.tsx):
+    //   subtotal      = Σ (harga × qty)            — sebelum diskon & pajak
+    //   discountTotal = Σ (harga × qty × diskon%)
+    //   taxableBase   = subtotal − discountTotal
+    //   taxTotal      = taxableBase × 11% (jika kenaPajak)
+    //   subtotal yang dikirim = taxableBase + taxTotal (= grand total final)
+    const grossAmount = formData.items.reduce((s, i) => s + i.harga * i.qty, 0);
+    const discountTotal = formData.items.reduce(
+      (s, i) => s + i.harga * i.qty * (i.diskon / 100),
+      0
+    );
+    const taxableBase = grossAmount - discountTotal;
+    const taxTotal = formData.kenaPajak ? taxableBase * 0.11 : 0;
+    const subtotal = taxableBase + taxTotal;
+
+    const payload = {
+      // Menyertakan id → backend akan UPDATE record ini (upsert),
+      // bukan membuat quotation baru.
+      id: formData.id,
+      customerId: formData.customerId ?? 0,
+      quotationNumber: formData.nomor,
+      quotationDate: formData.tanggal,
+      address: formData.address || "",
+      notes: formData.keterangan || "",
+      isTaxable: formData.kenaPajak,
+      isTaxIncluded: formData.kenaPajak,
+      subtotal,
+      discountTotal,
+      details: formData.items.map((item) => {
+        const lineGross = item.harga * item.qty;
+        const discountAmount = lineGross * (item.diskon / 100);
+        return {
+          productId: item.productId ?? 0,
+          quantity: item.qty,
+          uomId: item.uomId ?? 0,
+          price: item.harga,
+          discountPercent: item.diskon,
+          discountAmount,
+        };
+      }),
+    };
+
+    try {
+      await salesQuotationService.create(payload);
+      setEditModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error("Gagal menyimpan perubahan:", err);
+      alert("Gagal menyimpan perubahan Penawaran Penjualan");
+    }
+  };
 
   // ── Breakdown untuk tampilan ──────────────────────────
   // Semua nilai (subtotal final, discountTotal, taxTotal) datang LANGSUNG
@@ -149,6 +235,7 @@ export default function SalesQuotationDetailPage() {
               <Printer size={13} /> Cetak / PDF
             </button>
             <button
+              onClick={() => setEditModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
                          bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
             >
@@ -389,6 +476,16 @@ export default function SalesQuotationDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Modal Edit — Nomor & Customer dibuat readonly di dalam modal */}
+      {data && (
+        <SalesQuotationModal
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          onSubmit={handleEditSubmit}
+          initialData={toFormData(data)}
+        />
+      )}
     </AppShell>
   );
 }

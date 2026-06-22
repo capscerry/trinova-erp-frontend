@@ -211,6 +211,10 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
 
     return {
       header: {
+        // Opsional — kalau diisi (mode edit), backend akan UPDATE record
+        // ini (upsert), bukan membuat Sales Order baru.
+        orderId: form.id ? Number(form.id) : undefined,
+
         soNumber: form.nomor,
 
         poNumber: form.noPO ?? "",

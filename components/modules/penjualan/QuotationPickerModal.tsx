@@ -8,7 +8,7 @@ import {
   type SalesQuotation,
   type QuotationDetailItem,
 } from "@/lib/services/penjualan.service";
-import { type SalesOrderItem } from "./SalesOrderType";
+import { type SalesOrderItem } from "./sales_order/SalesOrderType";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface QuotationPickerModalProps {
@@ -18,7 +18,7 @@ interface QuotationPickerModalProps {
   customerName: string;
   onConfirm: (
     items: SalesOrderItem[],
-    quotation: { id: number; nomor: string }
+    quotation: { id: number; nomor: string ,alamat : string}
   ) => void;
 }
 
@@ -147,6 +147,7 @@ export function QuotationPickerModal({
     onConfirm(selectedItems, {
       id: Number(selectedQId),
       nomor: selectedQuotationData?.nomor ?? "",
+      alamat : selectedQuotationData?.alamat ?? "",
     });
   };
 

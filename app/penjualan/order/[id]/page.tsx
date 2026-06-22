@@ -30,6 +30,8 @@ import {
   type SalesOrder,
   type SalesOrderDetailItem,
 } from "@/lib/services/penjualan.service";
+import { SalesOrderModal } from "@/components/modules/penjualan/SalesOrderModal";
+import type { SalesOrderFormData, SalesOrderItem } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -106,24 +108,67 @@ export default function SalesOrderDetailPage() {
   const [data, setData] = useState<SalesOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const fetchData = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const result = await salesOrderService.getById(id);
+      console.log("Loaded Sales Order Detail:", result);
+      setData(result);
+    } catch (err) {
+      console.error(err);
+      setError("Gagal memuat data Sales Order");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!id) return;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const result = await salesOrderService.getById(id);
-        console.log("Loaded Sales Order Detail:", result);
-        setData(result);
-      } catch (err) {
-        console.error(err);
-        setError("Gagal memuat data Sales Order");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Konversi SalesOrderDetail (hasil GET) → SalesOrderFormData (bentuk yang
+  // dipakai modal create/edit). API detail TIDAK mengembalikan productId
+  // per item — dikosongkan (0) karena modal edit saat ini hanya untuk
+  // mengubah field non-produk (nomor & customer readonly). API update
+  // belum tersedia, jadi submit belum benar-benar mengirim ke backend.
+  const toFormData = (detail: SalesOrderDetail): SalesOrderFormData => ({
+    id: String(detail.id ?? ""),
+    nomor: detail.nomor,
+    noPO: detail.poNumber ?? "",
+    tanggal: detail.tanggal?.split("T")[0] ?? detail.tanggal,
+    tanggalKirim: detail.tanggalKirim?.split("T")[0] ?? detail.tanggalKirim ?? "",
+    pelanggan: detail.pelanggan,
+    customerId: detail.customerId,
+    dipesanOleh: detail.pelanggan,
+    alamatPengiriman: detail.alamat ?? "",
+    keterangan: detail.keterangan ?? "",
+    kenaPajak: detail.taxTotal > 0,
+    items: (detail.items ?? []).map((it): SalesOrderItem => ({
+      id: crypto.randomUUID(),
+      productId: it.productId,
+      productCode: it.productCode,
+      productName: it.productName,
+      deskripsi: "",
+      qty: it.productQty,
+      qtyTerkirim: 0,
+      satuan: it.satuan ?? "",
+      harga: it.productPrice,
+      diskon: it.productDiscount,
+      subtotal: it.totalPrice,
+    })),
+  });
+
+  const handleEditSubmit = async (formData: SalesOrderFormData) => {
+    // TODO: panggil API update saat sudah tersedia, misalnya:
+    // await salesOrderService.update(id, payload);
+    console.log("Submit edit SO (belum terhubung ke API update):", formData);
+    setEditModalOpen(false);
+    fetchData();
+  };
 
   // Semua nilai (total final, discountTotal, taxTotal) datang LANGSUNG dari
   // API — tidak ada kalkulasi pajak/diskon manual di frontend.
@@ -162,6 +207,7 @@ export default function SalesOrderDetailPage() {
               <Printer size={13} /> Cetak
             </button>
             <button
+              onClick={() => setEditModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
                          bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
             >
@@ -406,6 +452,16 @@ export default function SalesOrderDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Modal Edit — Nomor SO & Customer dibuat readonly di dalam modal */}
+      {data && (
+        <SalesOrderModal
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          onSubmit={handleEditSubmit}
+          initialData={toFormData(data)}
+        />
+      )}
     </AppShell>
   );
 }

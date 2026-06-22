@@ -21,15 +21,21 @@ export interface SalesOrderItemApi {
 }
 
 export interface SalesOrderDetailItem {
+  productId?: number;
+  productCode?: string;
   productName: string;
   productQty: number;
   productPrice: number;
   productDiscount: number;
   totalPrice: number;
+  uomId?: number;
+  satuan?: string;
 }
 
 export interface SalesOrderDetailApi {
+  orderId: number;
   soNumber: string;
+  customerId: number;
   customerName: string;
   soDate: string;
   tanggalKirim: string;
@@ -79,6 +85,8 @@ export interface QuotationItem {
 
  
 export interface SalesQuotationFormData {
+  /** Opsional — diisi saat mode edit, dipakai untuk upsert ke backend */
+  id?: number;
   nomor: string;
   tanggal: string;
   customerId: number | null;
@@ -91,6 +99,8 @@ export interface SalesQuotationFormData {
 }
 
 export interface SalesQuotationPayload {
+  /** Opsional — kalau diisi, backend akan UPDATE record yang sudah ada (upsert). Kosongkan untuk create baru. */
+  id?: number;
   customerId: number;
   quotationNumber: string;
   quotationDate: string;
@@ -145,6 +155,7 @@ export interface SalesOrder {
 
 export interface SalesOrderDetail {
   id?: number;
+  customerId?: number;
   nomor: string;
   tanggal: string;
   tanggalKirim: string;
@@ -248,6 +259,8 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
 
 export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail {
   return {
+    id: item.orderId,
+    customerId: item.customerId,
     nomor: item.soNumber,
     tanggal: item.soDate,
     tanggalKirim: item.tanggalKirim,
@@ -426,6 +439,7 @@ export interface SalesQuotationApi {
   quotationDate: string;
   validUntil: string;
   customerName: string;
+  address : string;
   notes: string;
   status: QuotationStatus;
   totalAmount: number;
@@ -438,6 +452,7 @@ export interface SalesQuotation {
   tanggal: string;
   berlakuHingga: string;
   pelanggan: string;
+  alamat : string;
   keterangan: string;
   status: QuotationStatus;
   total: number;
@@ -451,6 +466,7 @@ export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
     tanggal: item.quotationDate,
     berlakuHingga: item.validUntil,
     pelanggan: item.customerName,
+    alamat : item.address ?? "",
     keterangan: item.notes,
     status: item.status,
     total: item.totalAmount,
@@ -503,9 +519,11 @@ export function mapQuotationDetailItem(item: QuotationDetailItemApi): QuotationD
 export interface SalesQuotationHeaderDetailApi {
   header: {
     id: number;
+    customerId: number;
     quotationNumber: string;
     customerName: string;
     quotationDate: string;
+    address?: string;
     notes: string;
     /** Grand total final dari backend — sudah dikurangi diskon, ditambah pajak */
     subtotal: number;
@@ -526,9 +544,11 @@ export interface SalesQuotationHeaderDetailApi {
 
 export interface SalesQuotationDetail {
   id: number;
+  customerId: number;
   nomor: string;
   tanggal: string;
   pelanggan: string;
+  alamat: string;
   keterangan: string;
   /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
   subtotal: number;
@@ -565,9 +585,11 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
 
   return {
     id: item.header.id,
+    customerId: item.header.customerId,
     nomor: item.header.quotationNumber,
     tanggal: item.header.quotationDate,
     pelanggan: item.header.customerName,
+    alamat: item.header.address ?? "",
     keterangan: item.header.notes ?? "",
     subtotal: item.header.subtotal,
     discountTotal: item.header.discountTotal ?? 0,
@@ -588,6 +610,7 @@ export const salesQuotationService = {
     tanggal: item.quotationDate,
     berlakuHingga: "",
     pelanggan: item.customerName,
+    alamat : item.address ?? "",
     keterangan: item.notes ?? "",
     status: "Draft",
     total: item.subtotal ?? 0,
@@ -633,6 +656,7 @@ export const salesQuotationService = {
       tanggal: item.quotationDate,
       berlakuHingga: "",
       pelanggan: item.customerName,
+      alamat : item.address ?? "",
       keterangan: item.notes ?? "",
       status: item.status ?? "Draft",
       total: item.subtotal ?? 0,

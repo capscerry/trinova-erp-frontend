@@ -9,9 +9,10 @@ interface DropdownFieldProps {
   placeholder: string;
   options: string[];
   onChange: (v: string) => void;
+  disabled?: boolean;
 }
 
-export function DropdownField({ value, placeholder, options, onChange }: DropdownFieldProps) {
+export function DropdownField({ value, placeholder, options, onChange, disabled = false }: DropdownFieldProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -19,18 +20,21 @@ export function DropdownField({ value, placeholder, options, onChange }: Dropdow
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => { setOpen((p) => !p); setSearch(""); }}
+      <button type="button"
+        onClick={() => { if (!disabled) { setOpen((p) => !p); setSearch(""); } }}
+        disabled={disabled}
         className={cn(
           "w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm rounded-lg",
           "border border-slate-200 bg-white text-left transition-all",
           "focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500",
-          value ? "text-slate-700" : "text-slate-400"
+          value ? "text-slate-700" : "text-slate-400",
+          disabled && "bg-slate-50 text-slate-500 cursor-not-allowed opacity-75"
         )}>
         <span className="truncate">{value || placeholder}</span>
         <ChevronDown size={13} className={cn("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
       </button>
 
-      {open && (
+      {open && !disabled && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full mt-1 left-0 z-20 bg-white border border-slate-200

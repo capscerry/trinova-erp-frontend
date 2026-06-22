@@ -40,6 +40,7 @@ export function SalesOrderModal({
   const [successMessage, setSuccessMessage] = useState("");
   const [savedSo, setSavedSo] = useState<any>(null);
   const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
+  const [editSaved, setEditSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -54,6 +55,7 @@ export function SalesOrderModal({
       setIsSubmitting(false);
       setSuccessMessage("");
       setSavedSo(null);
+      setEditSaved(false);
     }
   }, [open, initialData]);
 
@@ -71,7 +73,7 @@ export function SalesOrderModal({
 
   const handleQuotationConfirm = (
     items: SalesOrderItem[],
-    quotation: { id: number; nomor: string }
+    quotation: { id: number; nomor: string ,alamat : string}
   ) => {
     // Gabungkan: hapus baris kosong default, lalu tambahkan item dari quotation
     const existingItems = form.items.filter(
@@ -82,6 +84,7 @@ export function SalesOrderModal({
     patchForm({
       quotationId: quotation.id,
       quotationNumber: quotation.nomor,
+      ...(quotation.alamat ? {alamatPengiriman : quotation.alamat} : {}),
       items: merged.length > 0 ? merged : [newItem()],
     });
     setQuotationPickerOpen(false);
@@ -132,15 +135,15 @@ export function SalesOrderModal({
       const payload = mapFormToApiPayload(form);
       console.log("Mapped payload:", payload);
 
+      // Endpoint create() sekarang berperan sebagai upsert di backend:
+      // kalau payload.header.orderId terisi (mode edit), backend akan
+      // UPDATE record yang sudah ada, bukan membuat SO baru.
       const response = await salesOrderService.create(payload);
       console.log("Return API Sales Order:", response);
 
       const header = response?.header;
 
       setSavedSo(response);
-      setIsSubmitted(true);
-      setSuccessMessage("Sales Order berhasil disimpan.");
-
       setForm((prev) => ({
         ...prev,
         nomor: header?.soNumber ?? header?.orderNumber ?? prev.nomor,
@@ -149,12 +152,23 @@ export function SalesOrderModal({
         keterangan: header?.notes ?? prev.keterangan,
       }));
 
-      // Jangan panggil onSubmit di sini,
-      // karena biasanya parent akan menutup modal.
-      // onSubmit(form);
+      if (isEdit) {
+        // Mode edit: cukup beri tahu parent perubahan berhasil disimpan,
+        // tanpa menampilkan panel "Proses ke" (itu khusus alur create →
+        // lanjut ke Uang Muka/Pengiriman/Faktur untuk SO yang baru dibuat).
+        setSuccessMessage("Perubahan Sales Order berhasil disimpan.");
+        setEditSaved(true);
+        onSubmit(form);
+      } else {
+        setIsSubmitted(true);
+        setSuccessMessage("Sales Order berhasil disimpan.");
+        // Jangan panggil onSubmit di sini,
+        // karena biasanya parent akan menutup modal.
+        // onSubmit(form);
+      }
     } catch (error) {
-      console.error("Gagal membuat SO:", error);
-      alert("Gagal menyimpan Sales Order");
+      console.error("Gagal menyimpan SO:", error);
+      alert(isEdit ? "Gagal menyimpan perubahan Sales Order" : "Gagal menyimpan Sales Order");
     } finally {
       setIsSubmitting(false);
     }
@@ -252,6 +266,14 @@ export function SalesOrderModal({
 
           {/* Body */}
           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+            {editSaved && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-700">
+                  {successMessage}
+                </p>
+              </div>
+            )}
+
             {isSubmitted && savedSo && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <p className="text-sm font-semibold text-emerald-700">
@@ -282,6 +304,7 @@ export function SalesOrderModal({
               pelangganOptions={pelangganOptions}
               salesOptions={salesOptions}
               onOpenQuotationPicker={() => setQuotationPickerOpen(true)}
+              isEdit={isEdit}
             />
 
             <SalesOrderDetailForm

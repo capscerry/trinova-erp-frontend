@@ -229,15 +229,17 @@ export function SalesQuotationModal({
               {/* Row 1: Nomor + Tanggal */}
               <div className="grid grid-cols-1 gap-4">
 
-                {/* Nomor Quotation — toggle auto/manual */}
+                {/* Nomor Quotation — toggle auto/manual (disabled saat edit) */}
                 <FormField label="Nomor Quotation" icon={<Hash size={13} />} hint={
-                  nomorMode === "auto" ? "Auto-generate" : "Input manual"
+                  isEdit ? "Tidak dapat diubah" : (nomorMode === "auto" ? "Auto-generate" : "Input manual")
                 }>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center rounded-lg border border-slate-200 p-0.5 shrink-0">
                       <button type="button" onClick={() => switchNomorMode("auto")} title="Auto-generate"
+                        disabled={isEdit}
                         className={cn(
                           "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                          isEdit && "opacity-40 cursor-not-allowed",
                           nomorMode === "auto"
                             ? "bg-navy-900 text-gold-400 shadow-sm"
                             : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
@@ -245,8 +247,10 @@ export function SalesQuotationModal({
                         <RefreshCw size={13} />
                       </button>
                       <button type="button" onClick={() => switchNomorMode("manual")} title="Input manual"
+                        disabled={isEdit}
                         className={cn(
                           "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                          isEdit && "opacity-40 cursor-not-allowed",
                           nomorMode === "manual"
                             ? "bg-navy-900 text-gold-400 shadow-sm"
                             : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
@@ -257,18 +261,19 @@ export function SalesQuotationModal({
 
                     <div className="relative flex-1">
                       <input
-                        readOnly={nomorMode === "auto"}
+                        readOnly={isEdit || nomorMode === "auto"}
+                        disabled={isEdit}
                         value={form.nomor}
-                        onChange={(e) => { if (nomorMode === "manual") setField("nomor", e.target.value); }}
-                        placeholder={nomorMode === "manual" ? "Masukkan nomor quotation..." : ""}
+                        onChange={(e) => { if (!isEdit && nomorMode === "manual") setField("nomor", e.target.value); }}
+                        placeholder={!isEdit && nomorMode === "manual" ? "Masukkan nomor quotation..." : ""}
                         className={cn(
                           inputBase, "font-mono",
-                          nomorMode === "auto"
+                          (isEdit || nomorMode === "auto")
                             ? "bg-slate-50 text-slate-500 cursor-not-allowed pr-10"
                             : "bg-white"
                         )}
                       />
-                      {nomorMode === "auto" && (
+                      {!isEdit && nomorMode === "auto" && (
                         <button type="button" onClick={handleGenerateNomor} title="Generate ulang"
                           className="absolute right-2 top-1/2 -translate-y-1/2
                                      w-6 h-6 flex items-center justify-center rounded-md
@@ -289,11 +294,13 @@ export function SalesQuotationModal({
 
               {/* Row 2: Dipesan Oleh + Address */}
               <div className="grid grid-cols-2 gap-4">
-                <FormField label="Dipesan Oleh" icon={<Users size={13} />} required>
+                <FormField label="Dipesan Oleh" icon={<Users size={13} />} required
+                  hint={isEdit ? "Tidak dapat diubah" : undefined}>
                   <DropdownField
                     value={form.dipesanOleh}
                     placeholder="Pilih customer..."
                     options={customerOptions.map((c) => c.name)}
+                    disabled={isEdit}
                     onChange={(v) => {
                       const selected = customerOptions.find((c) => c.name === v);
                       setForm((p) => ({
