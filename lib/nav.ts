@@ -25,12 +25,13 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Operasional",
         items: [
-          { id: "penjualan.order",      label: "Sales Quotation", href: "/penjualan/quotation" },
-          { id: "penjualan.order_list", label: "Sales Order",     href: "/penjualan/order" },
-          { id: "penjualan.invoice",    label: "Invoice",         href: "/penjualan/invoice" },
-          { id: "penjualan.retur",      label: "Sales Returns",   href: "/penjualan/retur" },
-          { id: "penjualn.uang_muka", label  : "Uang Muka" , href : "/penjualan/uang-muka"},
-          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Penjualan", href : "/penjualan/pengiriman-penjualan"}
+          { id: "penjualan.order",      label: "Penawaran Penjualan", href: "/penjualan/quotation" },
+          { id: "penjualan.order_list", label: "Pesanan Penjualan",     href: "/penjualan/order" },
+          { id: "penjualan.invoice",    label: "Faktur Penjualan",         href: "/penjualan/invoice" },
+          { id: "penjualan.retur",      label: "Retur Penjualan",   href: "/penjualan/retur" },
+          { id: "penjualn.uang_muka", label  : "Uang Muka Penjualan" , href : "/penjualan/uang-muka"},
+          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Pesanan", href : "/penjualan/pengiriman-penjualan"},
+          {id : "penjualan.penerimaan_penjualan", label : "Penerimaan Penjualan", href : "/penjualan/penerimaan-penjualan"}
         ],
       },
     ],
@@ -43,17 +44,19 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Master Data",
         items: [
-          { id: "pembelian.supplier", label: "Supplier",          href: "/pembelian/supplier" },
           { id: "pembelian.produk",   label: "Supplier Category", href: "/pembelian/category-supplier" },
+          { id: "pembelian.supplier", label: "Supplier",          href: "/pembelian/supplier" },
         ],
       },
       {
         group: "Operasional",
         items: [
-          { id: "pembelian.po",         label: "Purchase Order",   href: "/pembelian/po" },
-          { id: "pembelian.penerimaan", label: "Goods Receipt",    href: "/pembelian/gr" },
-          { id: "pembelian.invoice",    label: "Purchase Invoice", href: "/pembelian/invoice" },
-          { id: "pembelian.retur",      label: "Purchase Returns", href: "/pembelian/retur" },
+          { id: "pembelian.po",         label: "Purchase Order",       href: "/pembelian/po" },
+          { id: "pembelian.dp",         label: "Purchase Down Payment", href: "/pembelian/pdp" },
+          { id: "pembelian.penerimaan", label: "Goods Receipt",        href: "/pembelian/gr" },
+          { id: "pembelian.invoice",    label: "Purchase Invoice",     href: "/pembelian/invoice" },
+          { id: "pembelian.payment",    label: "Purchase Payment",      href: "/pembelian/payment" },
+          { id: "pembelian.retur",      label: "Purchase Returns",     href: "/pembelian/retur" },
         ],
       },
     ],

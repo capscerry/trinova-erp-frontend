@@ -40,6 +40,8 @@ interface PurchaseInvoice {
   total_amount: number;
   status: InvoiceStatus;
   age: number;
+  dp_paid: number;
+  outstanding_amount: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -169,6 +171,27 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
       </span>
     ),
   },
+
+  {
+  key: "dp_paid",
+  label: "DP Paid",
+
+  render: (val) => (
+    <span className="font-semibold text-emerald-700">
+      Rp {formatNumber(Number(val))}
+    </span>
+  ),
+},
+{
+  key: "outstanding_amount",
+  label: "Outstanding",
+
+  render: (val) => (
+    <span className="font-semibold text-amber-700">
+      Rp {formatNumber(Number(val))}
+    </span>
+  ),
+},
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -209,6 +232,8 @@ export default function PurchaseInvoicePage() {
         ? res
         : res.data;
 
+      console.log(list);
+      
       const mapped = list.map(
         (item: any) => ({
 
@@ -229,6 +254,12 @@ export default function PurchaseInvoicePage() {
 
           total_amount:
             item.total_amount,
+
+          dp_paid:
+            item.dp_paid ?? 0,
+
+          outstanding_amount:
+            item.outstanding_amount ?? 0,
 
           status:
             item.status,

@@ -126,6 +126,14 @@ export default function PurchaseOrderFormModal({
   const [openDPModal, setOpenDPModal] =
   useState(false);
 
+  const [paymentType, setPaymentType] =
+  useState<"partial" | "full">(
+    "partial"
+  );
+
+const [dpAmount, setDpAmount] =
+  useState(0);
+
   const [form, setForm] =
     useState<PurchaseOrderFormData>({
       po_number: generatePONumber(),
@@ -618,6 +626,9 @@ const removeItem = (
                 <div className="grid grid-cols-3 gap-3">
 
                   <button
+                    onClick={() =>
+                      setOpenDPModal(true)
+                    }
                     className="
                       flex flex-col items-start gap-2
                       p-3.5
@@ -637,9 +648,6 @@ const removeItem = (
                   </button>
 
                   <button
-                    onClick={() =>
-                      setOpenDPModal(true)
-                    }
                     className="
                       flex flex-col items-start gap-2
                       p-3.5
@@ -784,6 +792,25 @@ const removeItem = (
 
         <div>
 
+        <label className="text-sm">
+          Supplier
+        </label>
+
+        <input
+          value={
+            suppliers.find(
+              (s) =>
+                s.id === form.supplier_id
+            )?.nama || ""
+          }
+          readOnly
+          className={inputBase}
+        />
+
+      </div>
+
+        <div>
+
           <label className="text-sm">
             Total PO
           </label>
@@ -798,10 +825,121 @@ const removeItem = (
 
         </div>
 
+        <div className="space-y-2">
+
+          <p className="text-sm font-medium">
+            Jenis Pembayaran
+          </p>
+
+          <label className="flex items-center gap-2">
+
+            <input
+              type="radio"
+              checked={
+                paymentType === "partial"
+              }
+              onChange={() =>
+                setPaymentType(
+                  "partial"
+                )
+              }
+            />
+
+            Bayar Sebagian
+
+          </label>
+
+          <label className="flex items-center gap-2">
+
+            <input
+              type="radio"
+              checked={
+                paymentType === "full"
+              }
+              onChange={() => {
+
+                setPaymentType("full");
+
+                setDpAmount(
+                  grandTotal
+                );
+              }}
+            />
+
+            Bayar Penuh
+
+          </label>
+
+        </div>
+
+        {paymentType === "partial" && (
+
+        <div>
+
+          <label className="text-sm">
+            Nominal Uang Muka
+          </label>
+
+          <input
+            type="number"
+            value={dpAmount}
+            onChange={(e) =>
+              setDpAmount(
+                Number(e.target.value)
+              )
+            }
+            max={grandTotal}
+            className={inputBase}
+          />
+
+        </div>
+
+      )}
+
       </div>
 
-      <div className="flex justify-end mt-4">
+        {paymentType === "partial" &&
+          dpAmount > grandTotal && (
 
+          <p className="text-sm text-red-500 mt-3">
+            Nominal DP tidak boleh melebihi Total PO
+          </p>
+
+        )}
+
+        <div className="flex justify-end gap-2 mt-4">
+          
+        <button
+          onClick={() => {
+
+            if (
+              paymentType === "partial" &&
+              dpAmount > grandTotal
+            ) {
+              return;
+            }
+
+            console.log({
+              po: form.po_number,
+              paymentType,
+              amount:
+                paymentType === "full"
+                  ? grandTotal
+                  : dpAmount,
+            });
+
+            setOpenDPModal(false);
+
+          }}
+          className="
+            px-4 py-2
+            rounded-lg
+            bg-green-600
+            text-white
+          "
+        >
+          Simpan
+        </button>
         <button
           onClick={() =>
             setOpenDPModal(false)
