@@ -261,8 +261,11 @@ export default function PurchaseInvoicePage() {
           outstanding_amount:
             item.outstanding_amount ?? 0,
 
-          status:
-            item.status,
+          status: (item.status === "Cancelled"
+            ? "Cancelled"
+            : (item.outstanding_amount ?? 0) === 0
+              ? "Paid"
+              : "Unpaid") as InvoiceStatus,
 
           age:
             Math.floor(
@@ -320,6 +323,9 @@ useEffect(() => {
           columns={COLUMNS}
           data={invoices}
           keyField="id"
+          dateField="invoice_date"
+          nameField="supplier_name"
+          statusOptions={["Unpaid", "Paid", "Cancelled"]}
           addLabel="Tambah Invoice"
           onAdd={() => {
             setOpenModal(true);

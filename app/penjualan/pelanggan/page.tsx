@@ -201,6 +201,8 @@ interface CustomerApi {
           columns={COLUMNS}
           data={data}
           keyField="kode"
+          nameField="nama"
+          statusOptions={["Aktif", "Nonaktif"]}
           addLabel="Tambah Pelanggan"
           onAdd={handleTambah}
           renderActions={(row)=>(

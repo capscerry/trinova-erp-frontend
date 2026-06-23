@@ -9,6 +9,8 @@ import {
   type Column,
 } from "@/components/ui/DataTable";
 
+import { Button } from "@/components/ui/Button";
+
 import {
   getSupplierCategory,
   createSupplierCategory,
@@ -218,38 +220,27 @@ export default function
 
         renderActions={(row) => (
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 justify-center">
 
-            <button
-              onClick={() =>
-                handleEdit(row)
-              }
-              className="
-                px-3 py-1
-                border
-                rounded-md
-                text-xs
-              "
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEdit(row)}
             >
               Edit
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() =>
                 handleDelete(
                   row.category_id.toString()
                 )
               }
-              className="
-                px-3 py-1
-                bg-red-500
-                text-white
-                rounded-md
-                text-xs
-              "
             >
               Hapus
-            </button>
+            </Button>
 
           </div>
         )}
@@ -262,7 +253,8 @@ export default function
         <div
           className="
             fixed inset-0
-            bg-black/40
+            bg-black/50
+            backdrop-blur-[2px]
             flex items-center
             justify-center
             z-50
@@ -275,73 +267,82 @@ export default function
               rounded-2xl
               w-full
               max-w-lg
-              shadow-xl
+              shadow-2xl
+              border
+              border-slate-200
               overflow-hidden
             "
           >
 
+            {/* Header */}
+
             <div
               className="
+                flex items-center
+                justify-between
+                px-6 py-4
                 bg-gradient-to-r
-                from-[#081F3F]
-                to-[#0E2F5A]
-                px-6 py-5
+                from-navy-900
+                to-navy-600
               "
             >
 
-              <h2
+              <div>
+
+                <h2 className="text-white font-semibold text-[15px]">
+                  {isEdit ? "Edit Category" : "Tambah Category"}
+                </h2>
+
+                <p className="text-slate-400 text-xs mt-0.5">
+                  {isEdit ? "Perbarui data category supplier" : "Tambah category supplier baru"}
+                </p>
+
+              </div>
+
+              <button
+                onClick={() => setOpenModal(false)}
                 className="
-                  text-2xl
-                  font-bold
-                  text-white
+                  w-8 h-8
+                  rounded-lg
+                  flex items-center justify-center
+                  text-slate-400
+                  hover:text-white hover:bg-white/10
+                  transition-colors
                 "
               >
-                {
-                  isEdit
-                    ? "Edit Category"
-                    : "Tambah Category"
-                }
-              </h2>
+                ✕
+              </button>
 
             </div>
 
-            <div className="p-6 space-y-5">
+            {/* Body */}
+
+            <div className="p-6 space-y-4">
 
               <div>
 
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    block mb-2
-                  "
-                >
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
                   Nama Category
                 </label>
 
                 <input
                   type="text"
-
-                  value={
-                    formData.nama_category
-                  }
-
+                  value={formData.nama_category}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-
-                      nama_category:
-                        e.target.value,
-                    })
+                    setFormData({ ...formData, nama_category: e.target.value })
                   }
-
+                  placeholder="Masukkan nama category..."
                   className="
                     w-full
-                    border
+                    border border-slate-200
                     rounded-xl
-                    px-4 py-3
+                    px-4 py-2.5
+                    text-sm
+                    text-slate-700
                     outline-none
+                    focus:ring-2 focus:ring-navy-900/20
+                    focus:border-navy-900
+                    transition
                   "
                 />
 
@@ -349,89 +350,61 @@ export default function
 
               <div>
 
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    block mb-2
-                  "
-                >
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
                   Status
                 </label>
 
                 <select
-                  value={
-                    formData.status
-                  }
-
+                  value={formData.status}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-
-                      status:
-                        e.target.value,
-                    })
+                    setFormData({ ...formData, status: e.target.value })
                   }
-
                   className="
                     w-full
-                    border
+                    border border-slate-200
                     rounded-xl
-                    px-4 py-3
+                    px-4 py-2.5
+                    text-sm
+                    text-slate-700
                     outline-none
+                    focus:ring-2 focus:ring-navy-900/20
+                    focus:border-navy-900
+                    transition
+                    bg-white
                   "
                 >
-
-                  <option value="Active">
-                    Active
-                  </option>
-
-                  <option value="Inactive">
-                    Inactive
-                  </option>
-
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                 </select>
 
               </div>
 
             </div>
 
+            {/* Footer */}
+
             <div
               className="
-                border-t
+                border-t border-slate-100
                 px-6 py-4
-                flex justify-end
-                gap-3
+                flex justify-end gap-2
+                bg-slate-50/60
               "
             >
 
-              <button
-                onClick={() =>
-                  setOpenModal(false)
-                }
-
-                className="
-                  px-5 py-2
-                  border
-                  rounded-xl
-                "
+              <Button
+                variant="ghost"
+                onClick={() => setOpenModal(false)}
               >
                 Batal
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="primary"
                 onClick={handleSubmit}
-
-                className="
-                  px-5 py-2
-                  bg-[#081F3F]
-                  text-white
-                  rounded-xl
-                "
               >
-                Simpan
-              </button>
+                {isEdit ? "Simpan Perubahan" : "Tambah Category"}
+              </Button>
 
             </div>
 

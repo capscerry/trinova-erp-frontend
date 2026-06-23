@@ -45,13 +45,13 @@ export function Sidebar() {
       {/* ── Nav ──────────────────────────────────────────── */}
       <nav className="flex-1 py-4 overflow-y-auto">
         {navConfig.map((module: NavModule) => {
-          const isDashboard = module.id === "dashboard";
-          const isActive    = isDashboard
-            ? pathname === "/dashboard"
+          const isDirectLink = !!module.href && !module.children;
+          const isActive    = isDirectLink
+            ? pathname === module.href || pathname.startsWith("/" + module.id)
             : pathname.startsWith("/" + module.id);
           const isOpen      = openModule === module.id;
 
-          if (isDashboard) {
+          if (isDirectLink) {
             return (
               <Link
                 key={module.id}

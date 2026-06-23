@@ -59,7 +59,19 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
           { id: "pembelian.retur",      label: "Purchase Returns",     href: "/pembelian/retur" },
         ],
       },
+      {
+        group: "AI & Analitik",
+        items: [
+          { id: "pembelian.insight", label: "AI Purchasing Insight", href: "/pembelian/insight" },
+        ],
+      },
     ],
+  },
+  {
+    id: "rekomendasi",
+    label: "Rekomendasi AI",
+    href: "/rekomendasi",
+    allowedRoles: ["admin", "penjualan", "pembelian", "persediaan"],
   },
   {
     id: "persediaan",

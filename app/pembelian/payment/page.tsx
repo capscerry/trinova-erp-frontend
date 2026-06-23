@@ -160,6 +160,8 @@ export default function PurchasePaymentPage() {
         columns={COLUMNS}
         data={payments}
         keyField="purchase_payment_id"
+        nameField="supplier_name"
+        statusOptions={["Paid", "Unpaid", "Cancelled"]}
         addLabel="Tambah Payment"
         onAdd={() =>
           setOpenModal(true)

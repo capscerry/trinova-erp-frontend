@@ -29,54 +29,20 @@ const COLUMNS = [
   },
 
   {
-    key: "po_number",
-    label: "PO Number",
-  },
-
-  {
-    key: "po_total",
-    label: "PO Total",
-
-    render: (val: any) => (
-        <span className="font-semibold text-slate-700">
-        Rp {Number(val).toLocaleString("id-ID")}
-        </span>
-    ),
-    },
-
-  {
     key: "supplier_name",
     label: "Supplier",
   },
 
-    {
+  {
     key: "amount",
     label: "DP Paid",
 
     render: (val: any) => (
-        <span className="font-semibold text-slate-700">
+      <span className="font-semibold text-slate-700">
         Rp {Number(val).toLocaleString("id-ID")}
-        </span>
+      </span>
     ),
-    },
-
-    {
-    key: "payment_date",
-    label: "Payment Date",
-
-    render: (val: any) => (
-        <span>
-        {new Date(val).toLocaleDateString(
-            "id-ID",
-            {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-            }
-        )}
-        </span>
-    ),
-    },
+  },
 
   {
     key: "status",
@@ -195,6 +161,8 @@ export default function PurchaseDownPaymentPage() {
             columns={COLUMNS}
             data={downPayments}
             keyField="purchase_down_payment_id"
+            dateField="payment_date"
+            nameField="supplier_name"
 
             renderActions={(row: any) => (
 

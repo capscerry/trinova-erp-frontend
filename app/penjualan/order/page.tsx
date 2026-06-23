@@ -179,6 +179,8 @@ function SalesOrderPageInner() {
         columns={COLUMNS}
         data={data}
         keyField="id"
+        dateField="tanggal"
+        nameField="pelanggan"
         addLabel="Tambah Sales Order"
         onAdd={handleTambah}
         isLoading={isLoading}

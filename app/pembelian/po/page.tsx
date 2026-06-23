@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -23,6 +24,26 @@ import {
   getSupplierProducts,
   getUoms,
 } from "@/lib/services";
+
+import {
+  createPurchaseDownPayment,
+  getPurchaseDownPayments,
+} from "@/lib/services/purchase-down-payment.service";
+
+import {
+  createGoodsReceipt,
+  createGoodsReceiptDetail,
+  getGoodsReceipts,
+} from "@/lib/services/gr.service";
+
+import {
+  createPurchaseInvoice,
+  getPurchaseInvoices,
+} from "@/lib/services/purchase-invoice.service";
+
+import {
+  createPurchasePayment,
+} from "@/lib/services/purchase-payment.service";
 
 import PurchaseOrderFormModal from "@/components/modules/pembelian/PurchaseOrderFormModal";
 
@@ -46,6 +67,7 @@ interface PurchaseOrder {
   nomor: string;
   tanggal: string;
   supplier: string;
+  supplier_id: string;
   informasi: string;
   status: POStatus;
   total: number;
@@ -165,29 +187,6 @@ const COLUMNS: Column<PurchaseOrder>[] = [
   },
 
   {
-    key: "supplier",
-    label: "Supplier",
-    width: "200px",
-
-    render: (val) => (
-      <span className="font-medium text-slate-700">
-        {String(val)}
-      </span>
-    ),
-  },
-
-  {
-    key: "informasi",
-    label: "Information",
-
-    render: (val) => (
-      <span className="text-slate-500 text-xs">
-        {String(val) || "—"}
-      </span>
-    ),
-  },
-
-  {
     key: "status",
     label: "Status",
     width: "180px",
@@ -216,10 +215,21 @@ const COLUMNS: Column<PurchaseOrder>[] = [
 
 export default function PurchaseOrderPage() {
 
+  const router = useRouter();
+
   const [purchaseOrders, setPurchaseOrders] =
     useState<PurchaseOrder[]>([]);
 
   const [purchaseOrderDetails, setPurchaseOrderDetails] =
+    useState<any[]>([]);
+
+  const [downPayments, setDownPayments] =
+    useState<any[]>([]);
+
+  const [goodsReceipts, setGoodsReceipts] =
+    useState<any[]>([]);
+
+  const [purchaseInvoices, setPurchaseInvoices] =
     useState<any[]>([]);
 
   const [suppliers, setSuppliers] =
@@ -270,6 +280,10 @@ export default function PurchaseOrderPage() {
         supplier:
           item.supplier?.supplier_name || "-",
 
+        supplier_id:
+          item.supplier_id?.toString() ||
+          item.supplier?.supplier_id?.toString() || "",
+
         informasi:
           item.status || "-",
 
@@ -307,6 +321,50 @@ export default function PurchaseOrderPage() {
 
     } catch (error) {
 
+      console.error(error);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // FETCH DOWN PAYMENTS / GR / INVOICES
+  // ─────────────────────────────────────────────────────────
+
+  const fetchWorkflowData = async () => {
+    try {
+      const [dpRes, grRes, invRes] = await Promise.all([
+        getPurchaseDownPayments(),
+        getGoodsReceipts(),
+        getPurchaseInvoices(),
+      ]);
+
+      const dps  = Array.isArray(dpRes)  ? dpRes  : dpRes.data  ?? [];
+      const grs  = Array.isArray(grRes)  ? grRes  : grRes.data  ?? [];
+      const invs = Array.isArray(invRes) ? invRes : invRes.data ?? [];
+
+      setDownPayments(dps);
+      setGoodsReceipts(grs);
+
+      // Enrich invoices with purchase_order_id by joining through GR
+      // The GR row has both goods_receipt_id and purchase_order_id.
+      // The invoice row from the API has goods_receipt_id on the raw object
+      // even if it wasn't in the mapped type — keep raw data here.
+      const grMap: Record<number, number> = {};
+      grs.forEach((gr: any) => {
+        if (gr.goods_receipt_id != null && gr.purchase_order_id != null) {
+          grMap[Number(gr.goods_receipt_id)] = Number(gr.purchase_order_id);
+        }
+      });
+
+      const enriched = invs.map((inv: any) => ({
+        ...inv,
+        purchase_order_id:
+          grMap[Number(inv.goods_receipt_id)] ??
+          inv.purchase_order_id ??
+          null,
+      }));
+
+      setPurchaseInvoices(enriched);
+    } catch (error) {
       console.error(error);
     }
   };
@@ -563,15 +621,17 @@ export default function PurchaseOrderPage() {
 
       await fetchPurchaseOrderDetails();
 
-      setOpenModal(false);
-
-      setEditingPO(null);
-
-      toast.success(
-        editingPO
-          ? "Purchase Order berhasil diperbarui"
-          : "Purchase Order berhasil dibuat"
-      );
+      if (editingPO?.purchase_order_id) {
+        // Edit: close the modal
+        setOpenModal(false);
+        setEditingPO(null);
+        toast.success("Purchase Order berhasil diperbarui");
+      } else {
+        // Create: keep modal open so Proses Ke section becomes active
+        setEditingPO(null);
+        toast.success("Purchase Order berhasil dibuat");
+        return { purchase_order_id: purchaseOrderId, po_number: payload.po_number };
+      }
 
     } catch (error) {
 
@@ -584,6 +644,115 @@ export default function PurchaseOrderPage() {
   };
 
   // ─────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────
+
+  // Build the full PO header payload the API requires for PUT.
+  // Normalises order_date to YYYY-MM-DD regardless of whether the
+  // value came from an input (already trimmed) or the API (ISO datetime).
+  const buildPOUpdatePayload = (formData: any, status: string) => ({
+    po_number:    formData.po_number,
+    supplier_id:  Number(formData.supplier_id),
+    order_date:   (formData.order_date ?? "").split("T")[0],
+    status,
+    total_amount: Number(formData.total_amount ?? 0),
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // APPROVE PO
+  // ─────────────────────────────────────────────────────────
+
+  const handleApprovePO = async (poId: number, formData?: any) => {
+    // Prefer the live form data passed from the modal (covers newly-created POs
+    // that aren't in the purchaseOrders list yet). Fall back to the table row.
+    let data: any;
+
+    if (formData) {
+      data = formData;
+    } else {
+      const po = purchaseOrders.find(p => Number(p.id) === poId);
+      const supplier = suppliers.find(s => s.nama === po?.supplier);
+      data = {
+        po_number:    po?.nomor ?? "",
+        supplier_id:  supplier?.id ?? "0",
+        order_date:   po?.tanggal ?? "",
+        total_amount: po?.total ?? 0,
+      };
+    }
+
+    await updatePurchaseOrder(poId, buildPOUpdatePayload(data, "Approved"));
+    await fetchPurchaseOrders();
+    toast.success("Purchase Order berhasil disetujui");
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // CREATE DOWN PAYMENT
+  // ─────────────────────────────────────────────────────────
+
+  const handleCreateDP = async (data: any) => {
+    await createPurchaseDownPayment(data);
+    await fetchWorkflowData();
+    toast.success("Down payment berhasil dicatat");
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // CREATE GOODS RECEIPT
+  // ─────────────────────────────────────────────────────────
+
+  const handleCreateGR = async (
+    poId: number,
+    receiptData: any,
+    lineItems: any[]
+  ) => {
+    const grResponse = await createGoodsReceipt(receiptData);
+    const goodsReceiptId = grResponse.goods_receipt_id;
+
+    for (const item of lineItems) {
+      await createGoodsReceiptDetail({
+        goods_receipt_id: goodsReceiptId,
+        product_id: item.product_id,
+        quantity: item.quantity,
+      });
+    }
+
+    await fetchPurchaseOrderDetails();
+    await fetchWorkflowData();
+    toast.success("Goods Receipt berhasil dibuat");
+    return grResponse;
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // CREATE INVOICE
+  // ─────────────────────────────────────────────────────────
+
+  const handleCreateInvoice = async (data: any, poId: number, formData: any) => {
+    const result = await createPurchaseInvoice(data);
+    await fetchWorkflowData();
+    await fetchPurchaseOrders();
+    console.log("CREATE INVOICE RESULT:", result);
+    toast.success("Purchase Invoice berhasil dibuat");
+    return result;
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // CREATE PAYMENT
+  // ─────────────────────────────────────────────────────────
+
+  const handleCreatePayment = async (data: any) => {
+    await createPurchasePayment(data);
+    await fetchWorkflowData();
+    toast.success("Pembayaran berhasil dicatat");
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // NAVIGATE TO INVOICE PAGE
+  // ─────────────────────────────────────────────────────────
+
+  const handleNavigateToInvoicePage = () => {
+    router.push("/pembelian/invoice");
+  };
+
+  // ─────────────────────────────────────────────────────────
   // USE EFFECT
   // ─────────────────────────────────────────────────────────
 
@@ -591,6 +760,7 @@ export default function PurchaseOrderPage() {
 
     fetchPurchaseOrders();
     fetchPurchaseOrderDetails();
+    fetchWorkflowData();
     fetchSuppliers();
     fetchProducts();
     fetchUoms();
@@ -612,6 +782,17 @@ export default function PurchaseOrderPage() {
         columns={COLUMNS}
         data={purchaseOrders}
         keyField="id"
+        dateField="tanggal"
+        nameField="supplier"
+        statusOptions={[
+          "Waiting to be processed",
+          "Processed",
+          "Partially processed",
+          "Cancelled",
+          "Draft",
+          "Approved",
+          "Completed",
+        ]}
 
         addLabel="Tambah PO"
 
@@ -718,6 +899,7 @@ export default function PurchaseOrderPage() {
                   po_number:
                     row.nomor,
                   supplier_id:
+                    row.supplier_id ||
                     suppliers.find(
                       (s) =>
                         s.nama === row.supplier
@@ -820,18 +1002,29 @@ export default function PurchaseOrderPage() {
         )}
       />
 
-      {/* CREATE MODAL */}
+      {/* CREATE / EDIT MODAL */}
 
       <PurchaseOrderFormModal
         open={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
+        onClose={() => {
+          setOpenModal(false);
+          setEditingPO(null);
+        }}
         initialData={editingPO}
         onSubmit={handleSubmitPO}
+        onApprove={handleApprovePO}
+        onCreateDP={handleCreateDP}
+        onCreateGR={handleCreateGR}
+        onCreateInvoice={handleCreateInvoice}
+        onCreatePayment={handleCreatePayment}
+        onNavigateToInvoicePage={handleNavigateToInvoicePage}
         suppliers={suppliers}
         products={products}
         uoms={uoms}
+        purchaseOrderDetails={purchaseOrderDetails}
+        existingDownPayments={downPayments}
+        existingGoodsReceipts={goodsReceipts}
+        existingInvoices={purchaseInvoices}
       />
 
       {/* DETAIL MODAL */}

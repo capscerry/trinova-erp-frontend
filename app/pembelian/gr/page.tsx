@@ -141,28 +141,6 @@ const COLUMNS: Column<GoodsReceipt>[] = [
   },
 
   {
-    key: "po_number",
-    label: "Purchase Order",
-
-    render: (val) => (
-      <span className="font-medium text-slate-700">
-        {String(val)}
-      </span>
-    ),
-  },
-
-  {
-    key: "received_by",
-    label: "Received By",
-
-    render: (val) => (
-      <span className="text-slate-600">
-        {String(val)}
-      </span>
-    ),
-  },
-
-  {
     key: "status",
     label: "Status",
 
@@ -410,6 +388,8 @@ export default function GoodsReceiptPage() {
         columns={COLUMNS}
         data={goodsReceipts}
         keyField="id"
+        dateField="receipt_date"
+        statusOptions={["Received", "Partial", "Cancelled"]}
 
         addLabel="Tambah GR"
 
