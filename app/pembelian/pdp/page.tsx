@@ -162,6 +162,7 @@ export default function PurchaseDownPaymentPage() {
             data={downPayments}
             keyField="purchase_down_payment_id"
             dateField="payment_date"
+            createdAtField="created_at"
             nameField="supplier_name"
 
             renderActions={(row: any) => (

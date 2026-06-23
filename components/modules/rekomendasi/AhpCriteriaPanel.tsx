@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 
 export interface Criterion {
   id: string;
@@ -61,11 +61,15 @@ export function AhpCriteriaPanel({
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-navy-900 to-navy-600 flex items-center justify-center">
-            <span className="text-gold-400 text-[11px] font-extrabold">AHP</span>
+            <Tooltip
+              term="AHP"
+              label="Analytic Hierarchy Process — metode untuk menentukan bobot kepentingan tiap kriteria secara terstruktur."
+              className="text-gold-400 text-[11px] font-extrabold"
+            />
           </div>
           <div>
             <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">
-              Bobot Kriteria (AHP)
+              Bobot Kriteria
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
               Tentukan bobot tiap kriteria evaluasi
@@ -90,11 +94,10 @@ export function AhpCriteriaPanel({
       {/* Info banner */}
       {showInfo && (
         <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 text-[12px] text-blue-700 leading-relaxed">
-          <strong>Analytic Hierarchy Process (AHP)</strong> mengubah pertimbangan
-          subjektif menjadi bobot prioritas. Pastikan total bobot semua kriteria
-          berjumlah <strong>100%</strong>. Tipe <em>Benefit</em> berarti nilai
-          lebih tinggi = lebih baik; tipe <em>Cost</em> berarti nilai lebih
-          rendah = lebih baik.
+          Sistem membandingkan setiap pilihan berdasarkan kriteria yang Anda tentukan.
+          Pastikan total bobot semua kriteria berjumlah <strong>100%</strong>.
+          Tipe <em>Menguntungkan</em> berarti nilai lebih tinggi = lebih baik (misalnya kualitas);
+          tipe <em>Diminimalkan</em> berarti nilai lebih rendah = lebih baik (misalnya harga atau waktu tunggu).
         </div>
       )}
 
@@ -109,7 +112,7 @@ export function AhpCriteriaPanel({
               <p className="text-[11px] text-slate-400 truncate">{c.description}</p>
             </div>
 
-            {/* Benefit / Cost toggle */}
+            {/* Menguntungkan / Diminimalkan toggle */}
             <button
               onClick={() => toggleBenefit(c.id)}
               className={cn(
@@ -118,9 +121,15 @@ export function AhpCriteriaPanel({
                   ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                   : "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
               )}
-              title={c.benefit ? "Ubah ke Cost" : "Ubah ke Benefit"}
             >
-              {c.benefit ? "Benefit" : "Cost"}
+              <Tooltip
+                term={c.benefit ? "Menguntungkan" : "Diminimalkan"}
+                label={
+                  c.benefit
+                    ? "Benefit — nilai lebih tinggi lebih baik (contoh: kualitas, reputasi). Klik untuk mengubah."
+                    : "Cost — nilai lebih rendah lebih baik (contoh: harga, waktu pengiriman). Klik untuk mengubah."
+                }
+              />
             </button>
 
             {/* Weight input + mini bar */}

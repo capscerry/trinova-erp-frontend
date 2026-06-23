@@ -355,23 +355,47 @@ export default function PurchaseOrderFormModal({
       );
       const apiOutstanding = result?.outstanding_amount ?? result?.data?.outstanding_amount ?? null;
       const apiDpPaid      = result?.dp_paid ?? result?.data?.dp_paid ?? null;
+      const invoiceId      = result?.purchase_invoice_id ?? result?.id ?? 0;
+      const outstandingAmt = apiOutstanding ?? Math.max(0, grandTotal - totalDpPaid);
+
       setSavedInvoice({
-        purchase_invoice_id: result?.purchase_invoice_id ?? result?.id ?? 0,
+        purchase_invoice_id: invoiceId,
         invoice_number:      result?.invoice_number ?? "",
         total_amount:        grandTotal,
         dp_paid:             apiDpPaid ?? totalDpPaid,
-        outstanding_amount:  apiOutstanding ?? Math.max(0, grandTotal - totalDpPaid),
+        outstanding_amount:  outstandingAmt,
         goods_receipt_id:    grSavedId ?? 0,
       });
       setInvoiceDone(true);
+
+      // If the user already filled in a payment amount, immediately record
+      // the payment — no need for a second click.
+      if (paymentForm.amount > 0 && invoiceId && onCreatePayment) {
+        await onCreatePayment({
+          purchase_invoice_id: invoiceId,
+          payment_date: paymentForm.payment_date,
+          amount: paymentForm.amount,
+          payment_method: paymentForm.payment_method,
+          notes: paymentForm.notes,
+          status: "Paid",
+          _outstanding_amount: outstandingAmt,
+        });
+        setPaymentDone(true);
+      }
+
       setInvoiceOpen(false);
-    } catch { /* parent handles */ }
-    finally { setInvoiceSaving(false); }
+    } catch (err) {
+      console.error("Invoice/payment error:", err);
+    } finally {
+      setInvoiceSaving(false);
+    }
   };
 
   const handleSavePayment = async (invoiceId: number, outstandingAmount: number) => {
     if (!onCreatePayment) return;
     setPaymentSaving(true);
+    console.log("[handleSavePayment] invoiceId:", invoiceId, "outstandingAmount:", outstandingAmount, "paymentAmount:", paymentForm.amount);
+    console.log("[handleSavePayment] poInvoice:", poInvoice, "savedInvoice:", savedInvoice);
     try {
       await onCreatePayment({
         purchase_invoice_id: invoiceId,
@@ -380,11 +404,17 @@ export default function PurchaseOrderFormModal({
         payment_method: paymentForm.payment_method,
         notes: paymentForm.notes,
         status: "Paid",
+        _outstanding_amount: outstandingAmount,
       });
+      // Only mark done / close sub-modal if not navigating away.
+      // If the parent navigates, the whole modal unmounts anyway.
       setPaymentDone(true);
-      setPaymentOpen(false);
-    } catch { /* parent handles */ }
-    finally { setPaymentSaving(false); }
+      setInvoiceOpen(false);
+    } catch (err) {
+      console.error("Payment error:", err);
+    } finally {
+      setPaymentSaving(false);
+    }
   };
 
   const handleNavigate = (key: typeof PROSES_LINKS[number]["key"]) => {
@@ -426,11 +456,14 @@ export default function PurchaseOrderFormModal({
           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
             {isSubmitted && savedPO && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-sm font-semibold text-emerald-700">Purchase Order berhasil disimpan.</p>
+                <p className="text-sm font-semibold text-emerald-700">Purchase Order berhasil disimpan sebagai Draft.</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-emerald-700">
                   <p>No PO: <span className="font-semibold">{savedPO.po_number ?? form.po_number}</span></p>
                   <p>Total: <span className="font-semibold">{formatRupiah(grandTotal)}</span></p>
                 </div>
+                <p className="text-xs text-emerald-600 mt-2">
+                  Anda dapat menutup modal ini — PO tersimpan sebagai Draft. Lanjutkan dengan Persetujuan PO di bawah jika diperlukan.
+                </p>
               </div>
             )}
 
@@ -574,7 +607,7 @@ export default function PurchaseOrderFormModal({
 
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
             <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
-              {isCompleted ? "Tutup" : "Batal"}
+              {isCompleted || (isSubmitted && !isEdit) ? "Tutup" : "Batal"}
             </button>
             {!isCompleted && (
               <button onClick={handleSavePO} disabled={isSubmitting || (isSubmitted && !isEdit)}
@@ -810,10 +843,10 @@ export default function PurchaseOrderFormModal({
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">
-                    {invoiceDone || poInvoice ? "Tambah Purchase Payment" : "Tambah Purchase Invoice"}
+                    {invoiceDone || poInvoice ? "Tambah Purchase Payment" : "Purchase Invoice & Payment"}
                   </h2>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    {invoiceDone || poInvoice ? "Catat pembayaran invoice supplier" : "Buat tagihan atas Purchase Order ini"}
+                    {invoiceDone || poInvoice ? "Catat pembayaran invoice supplier" : "Buat invoice dan catat pembayaran sekaligus"}
                   </p>
                 </div>
                 <button onClick={() => setInvoiceOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
@@ -830,7 +863,7 @@ export default function PurchaseOrderFormModal({
                         ? `${poInvoice.invoice_number ?? "—"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
                         : invoiceDone
                           ? `${savedInvoice?.invoice_number ?? "—"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
-                          : "Belum dibuat"
+                          : "Akan dibuat otomatis saat menyimpan"
                     }
                     className={cn(inputBase, "bg-slate-50 text-slate-600")} />
                 </div>
@@ -943,7 +976,8 @@ export default function PurchaseOrderFormModal({
                 {!invoiceDone && !poInvoice && (
                   <button onClick={handleSaveInvoice} disabled={invoiceSaving}
                     className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 rounded-lg disabled:opacity-60">
-                    {invoiceSaving && <Loader2 size={13} className="animate-spin" />} Simpan Invoice
+                    {invoiceSaving && <Loader2 size={13} className="animate-spin" />}
+                    {paymentForm.amount > 0 ? "Simpan Invoice & Payment" : "Simpan Invoice"}
                   </button>
                 )}
 

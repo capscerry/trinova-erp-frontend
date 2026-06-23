@@ -9,7 +9,7 @@ import {
 import Link from "next/link";
 
 import { AppShell } from "@/components/layout";
-import { Button, Card, PageHeader } from "@/components/ui";
+import { Button, Card, PageHeader, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { formatRupiah } from "@/lib/utils";
 
@@ -54,7 +54,7 @@ function SectionTitle({ icon: Icon, label, sub }: { icon: React.ElementType; lab
 }
 
 function KpiCard({ label, value, sub, trend, color = "text-navy-900" }: {
-  label: string; value: string; sub?: string;
+  label: string; value: string; sub?: React.ReactNode;
   trend?: "up" | "down" | "neutral"; color?: string;
 }) {
   return (
@@ -63,9 +63,9 @@ function KpiCard({ label, value, sub, trend, color = "text-navy-900" }: {
       <p className={cn("text-2xl font-bold font-serif leading-tight", color)}>{value}</p>
       {sub && (
         <p className="text-[11px] text-slate-400 flex items-center gap-1">
-          {trend === "up"   && <TrendingUp  size={11} className="text-green-500" />}
-          {trend === "down" && <TrendingDown size={11} className="text-rose-500" />}
-          {trend === "neutral" && <Minus size={11} className="text-slate-400" />}
+          {trend === "up"      && <TrendingUp   size={11} className="text-green-500" />}
+          {trend === "down"    && <TrendingDown  size={11} className="text-rose-500" />}
+          {trend === "neutral" && <Minus         size={11} className="text-slate-400" />}
           {sub}
         </p>
       )}
@@ -90,28 +90,90 @@ function MiniBar({ value, max, color = "bg-navy-600" }: { value: number; max: nu
 
 // ─── Spend bar chart (monthly) ────────────────────────────────────────────────
 
+const BAR_AREA_PX = 180; // fixed pixel height for the bar drawing area
+
 function SpendBarChart({ data }: { data: SpendSummary["spendByMonth"] }) {
-  if (data.length === 0) return <p className="text-[12px] text-slate-400 text-center py-8">Tidak ada data periode</p>;
+  if (data.length === 0)
+    return <p className="text-[12px] text-slate-400 text-center py-8">Tidak ada data periode</p>;
+
   const max = Math.max(...data.map((d) => d.amount), 1);
   const fmt = (n: number) =>
-    new Intl.NumberFormat("id-ID", { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(n);
+    new Intl.NumberFormat("id-ID", {
+      notation: "compact",
+      compactDisplay: "short",
+      maximumFractionDigits: 1,
+    }).format(n);
+
+  // Y-axis guide lines at 25 / 50 / 75 / 100 %
+  const guides = [0.25, 0.5, 0.75, 1];
+
   return (
-    <div className="flex items-end gap-2 h-40 pt-2">
-      {data.map((d) => {
-        const pct = Math.max(4, Math.round((d.amount / max) * 100));
-        return (
-          <div key={d.month} className="flex flex-col items-center gap-1 flex-1 min-w-0" title={`${d.month}: ${fmt(d.amount)}`}>
-            <span className="text-[9px] text-slate-400 hidden sm:block truncate w-full text-center">
-              {fmt(d.amount)}
+    <div className="w-full select-none">
+      {/* bar area */}
+      <div className="relative w-full" style={{ height: BAR_AREA_PX }}>
+
+        {/* horizontal guide lines */}
+        {guides.map((g) => (
+          <div
+            key={g}
+            className="absolute left-0 right-0 border-t border-dashed border-slate-100"
+            style={{ bottom: `${g * 100}%` }}
+          >
+            <span className="absolute right-0 -top-3.5 text-[9px] text-slate-300 tabular-nums pr-1">
+              {fmt(max * g)}
             </span>
-            <div
-              className="w-full rounded-t-md bg-gradient-to-t from-navy-900 to-navy-600 transition-all duration-700"
-              style={{ height: `${pct}%` }}
-            />
-            <span className="text-[9px] text-slate-400 truncate w-full text-center">{d.month}</span>
           </div>
-        );
-      })}
+        ))}
+
+        {/* bars */}
+        <div className="absolute inset-0 flex items-end gap-1.5 pr-8">
+          {data.map((d) => {
+            const pct = Math.max(3, Math.round((d.amount / max) * 100));
+            const isMax = d.amount === max;
+            return (
+              <div
+                key={d.month}
+                className="group relative flex-1 min-w-0 flex flex-col items-center justify-end"
+                style={{ height: "100%" }}
+                title={`${d.month}: Rp ${fmt(d.amount)}`}
+              >
+                {/* value label — appears on hover, always visible for max */}
+                <span
+                  className={cn(
+                    "absolute text-[9px] font-semibold tabular-nums text-navy-700 whitespace-nowrap transition-opacity duration-150 pointer-events-none",
+                    isMax ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  )}
+                  style={{ bottom: `${pct}%`, marginBottom: 4 }}
+                >
+                  {fmt(d.amount)}
+                </span>
+
+                {/* the bar itself */}
+                <div
+                  className={cn(
+                    "w-full rounded-t-lg transition-all duration-700",
+                    isMax
+                      ? "bg-gradient-to-t from-gold-600 to-gold-400"
+                      : "bg-gradient-to-t from-navy-900 to-navy-500 group-hover:from-navy-700 group-hover:to-navy-400"
+                  )}
+                  style={{ height: `${pct}%` }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* month labels below the bar area */}
+      <div className="flex gap-1.5 mt-1 pr-8">
+        {data.map((d) => (
+          <div key={d.month} className="flex-1 min-w-0 text-center">
+            <span className="text-[9px] text-slate-400 truncate block leading-none">
+              {d.month}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -134,9 +196,17 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
       <table className="w-full text-[12px] border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
-            {["#", "Supplier", "Skor Ci", "Lead Time", "On-Time", "Spend", "Orders"].map((h) => (
+            {[
+              { h: "#",                 tip: null },
+              { h: "Supplier",          tip: null },
+              { h: "Nilai Kecocokan",   tip: "Ci — seberapa dekat supplier ke kondisi ideal terbaik. Mendekati 1 = terbaik." },
+              { h: "Estimasi Pengiriman", tip: "Lead Time — rata-rata hari dari tanggal pesanan hingga barang diterima." },
+              { h: "Ketepatan Kirim",   tip: "On-Time Rate — persentase pengiriman yang tiba sesuai target waktu katalog." },
+              { h: "Total Pembelian",   tip: "Spend — total nilai Purchase Order yang ditempatkan ke supplier ini." },
+              { h: "Pesanan",           tip: "Order Count — jumlah Purchase Order historis." },
+            ].map(({ h, tip }) => (
               <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif whitespace-nowrap">
-                {h}
+                {tip ? <Tooltip term={h} label={tip} /> : h}
               </th>
             ))}
           </tr>
@@ -166,7 +236,11 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
                 <div className="flex items-center gap-2">
                   <MiniBar value={s.ahpScore} max={1}
                     color={s.ahpScore >= 0.6 ? "bg-green-500" : s.ahpScore >= 0.4 ? "bg-amber-400" : "bg-rose-400"} />
-                  <span className="tabular-nums font-bold text-slate-700 w-12 shrink-0">{s.ahpScore.toFixed(4)}</span>
+                  <Tooltip
+                    term={s.ahpScore.toFixed(4)}
+                    label="Nilai Kecocokan (Ci) — mendekati 1 berarti supplier paling mendekati kondisi ideal di semua kriteria."
+                    className="tabular-nums font-bold text-slate-700 w-12 shrink-0"
+                  />
                 </div>
               </td>
               <td className="px-3 py-3">
@@ -180,10 +254,11 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
                   {fmtDays(s.avgLeadTimeDays)}
                 </span>
                 {s.catalogLeadTime != null && (
-                  <p className="text-[10px] text-slate-400">katalog: {s.catalogLeadTime}h</p>
+                  <p className="text-[10px] text-slate-400">
+                    <Tooltip term="katalog" label="Target Lead Time dari data katalog supplier (hari)." />: {s.catalogLeadTime}h
+                  </p>
                 )}
-              </td>
-              <td className="px-3 py-3">
+              </td>              <td className="px-3 py-3">
                 <span className={cn(
                   "font-semibold",
                   s.onTimeRate >= 0.8 ? "text-green-600" : s.onTimeRate >= 0.5 ? "text-amber-600" : "text-rose-500"
@@ -207,16 +282,22 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
 
 function LeadTimeTable({ data }: { data: LeadTimeStats[] }) {
   if (data.length === 0)
-    return <p className="text-[12px] text-slate-400 text-center py-8">Data GR belum cukup untuk menghitung lead time</p>;
+    return <p className="text-[12px] text-slate-400 text-center py-8">Data penerimaan barang belum cukup untuk menghitung estimasi pengiriman</p>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[12px] border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
-            {["Supplier", "Aktual (avg)", "Katalog", "Delta", "# GR"].map((h) => (
+            {[
+              { h: "Supplier",             tip: null },
+              { h: "Aktual (rata-rata)",   tip: "Lead Time aktual — rata-rata hari dari tanggal PO hingga tanggal penerimaan barang (GR)." },
+              { h: "Target Katalog",       tip: "Lead Time katalog — target hari pengiriman yang dijanjikan supplier dalam katalog produk." },
+              { h: "Selisih",              tip: "Delta Lead Time — selisih antara aktual dan target. Positif = terlambat, negatif = lebih cepat." },
+              { h: "# Penerimaan",         tip: "Jumlah Goods Receipt (GR) yang digunakan sebagai dasar perhitungan." },
+            ].map(({ h, tip }) => (
               <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif whitespace-nowrap">
-                {h}
+                {tip ? <Tooltip term={h} label={tip} /> : h}
               </th>
             ))}
           </tr>
@@ -241,7 +322,7 @@ function LeadTimeTable({ data }: { data: LeadTimeStats[] }) {
                 </td>
                 <td className="px-3 py-3 tabular-nums text-slate-500">{r.catalogLeadTime != null ? `${r.catalogLeadTime}h` : "—"}</td>
                 <td className={cn("px-3 py-3 tabular-nums font-semibold", deltaColor)}>
-                  {delta == null ? "—" : delta > 0 ? `+${delta}h` : `${delta}h`}
+                  {delta == null ? "—" : delta > 0 ? `+${delta}h (terlambat)` : `${delta}h (tepat waktu)`}
                 </td>
                 <td className="px-3 py-3 tabular-nums text-slate-500">{r.grCount}</td>
               </tr>
@@ -268,9 +349,16 @@ function ReorderTable({ data }: { data: ReorderCandidate[] }) {
       <table className="w-full text-[12px] border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
-            {["Produk", "Supplier", "Stok", "Lead Time", "Harga Terakhir", "Urgensi"].map((h) => (
+            {[
+              { h: "Produk",           tip: null },
+              { h: "Supplier",         tip: null },
+              { h: "Stok",             tip: null },
+              { h: "Est. Pengiriman",  tip: "Estimasi Lead Time — perkiraan hari dari pemesanan hingga barang tersedia, berdasarkan katalog supplier." },
+              { h: "Harga Terakhir",   tip: null },
+              { h: "Prioritas",        tip: "Urgency Score — skor 0–100 yang menggabungkan tingkat kehabisan stok dan lamanya estimasi pengiriman. Makin tinggi makin mendesak." },
+            ].map(({ h, tip }) => (
               <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif whitespace-nowrap">
-                {h}
+                {tip ? <Tooltip term={h} label={tip} /> : h}
               </th>
             ))}
           </tr>
@@ -295,8 +383,7 @@ function ReorderTable({ data }: { data: ReorderCandidate[] }) {
               </td>
               <td className="px-3 py-3 tabular-nums text-slate-600">
                 {r.catalogLeadTime != null ? `${r.catalogLeadTime} hari` : "—"}
-              </td>
-              <td className="px-3 py-3 tabular-nums text-slate-700">
+              </td>              <td className="px-3 py-3 tabular-nums text-slate-700">
                 {r.lastPrice != null ? `Rp ${fmtRp(r.lastPrice)}` : "—"}
               </td>
               <td className="px-3 py-3">
@@ -329,10 +416,18 @@ function ConcentrationBadge({ result }: { result: ConcentrationResult }) {
     High:     { bg: "bg-rose-50",   border: "border-rose-200",   text: "text-rose-700"   },
   };
   const c = colors[result.hhiLabel];
+  const labels = {
+    Low:      "Rendah",
+    Moderate: "Sedang",
+    High:     "Tinggi",
+  };
   return (
     <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold", c.bg, c.border, c.text)}>
       {result.hhiLabel === "High" && <AlertTriangle size={11} />}
-      {result.hhiLabel} Concentration
+      <Tooltip
+        term={`Diversifikasi ${labels[result.hhiLabel]}`}
+        label={`Concentration (HHI) — Indeks Diversifikasi Supplier. HHI ${result.hhi}: ${result.hhiLabel === "High" ? "pembelian sangat terpusat pada sedikit supplier" : result.hhiLabel === "Moderate" ? "diversifikasi supplier cukup baik" : "pembelian tersebar merata di banyak supplier"}.`}
+      />
     </span>
   );
 }
@@ -376,20 +471,20 @@ function PaymentGauge({ rate }: { rate: number }) {
 
 function AhpMethodNote() {
   const criteria = [
-    { label: "Lead Time",    weight: "30%", type: "Cost",    desc: "Waktu pengiriman aktual rata-rata" },
-    { label: "On-Time Rate", weight: "25%", type: "Benefit", desc: "% pengiriman tepat waktu vs katalog" },
-    { label: "Harga",        weight: "20%", type: "Cost",    desc: "Rata-rata harga katalog supplier" },
-    { label: "Spend Share",  weight: "15%", type: "Benefit", desc: "Kontribusi spend terhadap total" },
-    { label: "Order Count",  weight: "10%", type: "Benefit", desc: "Volume transaksi histori" },
+    { label: "Estimasi Pengiriman", weight: "30%", type: "Diminimalkan", desc: "Rata-rata hari dari pemesanan hingga barang tiba" },
+    { label: "Ketepatan Kirim",     weight: "25%", type: "Menguntungkan", desc: "% pengiriman yang tiba sesuai jadwal" },
+    { label: "Harga",               weight: "20%", type: "Diminimalkan", desc: "Rata-rata harga katalog supplier" },
+    { label: "Porsi Pembelian",     weight: "15%", type: "Menguntungkan", desc: "Kontribusi supplier terhadap total pembelian" },
+    { label: "Jumlah Pesanan",      weight: "10%", type: "Menguntungkan", desc: "Volume transaksi historis" },
   ];
   return (
     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
       <div className="flex items-start gap-2 mb-3">
         <Info size={13} className="text-blue-400 mt-0.5 shrink-0" />
         <p className="text-[12px] text-blue-700 leading-relaxed">
-          Skor supplier dihitung dengan <strong>AHP + TOPSIS</strong>. Bobot kriteria ditetapkan via matriks
-          perbandingan berpasangan AHP. TOPSIS meranking berdasarkan jarak ke solusi ideal positif (A⁺)
-          dan negatif (A⁻) — skor <em>Ci</em> mendekati 1 = terbaik.
+          Setiap supplier dinilai berdasarkan <strong>5 kriteria bisnis</strong> yang masing-masing
+          diberi bobot kepentingan. Supplier kemudian diranking dari yang paling sesuai hingga
+          yang paling tidak sesuai — nilai kecocokan mendekati 1 berarti performa terbaik.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -398,7 +493,7 @@ function AhpMethodNote() {
             <span className="font-bold text-navy-900">{c.label}</span>
             <span className="text-slate-400 mx-1">·</span>
             <span className="font-bold text-blue-600">{c.weight}</span>
-            <span className={cn("ml-1 text-[10px] font-bold", c.type === "Benefit" ? "text-green-600" : "text-rose-500")}>
+            <span className={cn("ml-1 text-[10px] font-bold", c.type === "Menguntungkan" ? "text-green-600" : "text-rose-500")}>
               ({c.type})
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5">{c.desc}</p>
@@ -493,8 +588,8 @@ export default function PurchasingInsightPage() {
             Analisis Penuh Performa Pembelian
           </h1>
           <p className="text-slate-300 text-[13px] mt-1 max-w-xl">
-            Skor supplier AHP+TOPSIS, analitik spend, lead time aktual vs katalog,
-            kesehatan pembayaran, dan kandidat reorder — semua dari data transaksi nyata.
+            Penilaian supplier, tren pembelian bulanan, estimasi pengiriman aktual vs target,
+            kesehatan pembayaran, diversifikasi, dan produk perlu restok — semua dari data transaksi nyata.
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
@@ -520,16 +615,21 @@ export default function PurchasingInsightPage() {
           Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} h="h-28" />)
         ) : spend ? (
           <>
-            <KpiCard label="Total Spend" value={`Rp ${fmtCompact(spend.totalSpend)}`}
+            <KpiCard label="Total Pembelian" value={`Rp ${fmtCompact(spend.totalSpend)}`}
               sub={`${spend.totalOrders} purchase order`} trend="up" />
-            <KpiCard label="Avg Order Value" value={`Rp ${fmtCompact(spend.avgOrderValue)}`}
-              sub="per PO rata-rata" trend="neutral" />
+            <KpiCard label="Rata-rata Nilai Pesanan" value={`Rp ${fmtCompact(spend.avgOrderValue)}`}
+              sub="per pesanan rata-rata" trend="neutral" />
             <KpiCard label="PO Disetujui" value={String(spend.totalApproved)}
               sub={`${spend.totalPending} pending · ${spend.totalCancelled} batal`}
               trend={spend.totalPending > 5 ? "down" : "up"}
               color={spend.totalApproved > 0 ? "text-green-600" : "text-slate-700"} />
             <KpiCard label="Supplier Aktif" value={String(spend.spendBySupplier.length)}
-              sub={concentration ? `HHI ${concentration.hhi} — ${concentration.hhiLabel}` : ""}
+              sub={concentration ? (
+                <><Tooltip
+                  term={`HHI ${concentration.hhi}`}
+                  label={`Indeks Diversifikasi (HHI) — mengukur sebaran pembelian antar supplier. Di bawah 1.500 = tersebar merata (baik); di atas 2.500 = sangat terpusat (berisiko).`}
+                /> — {concentration.hhiLabel === "High" ? "Diversifikasi Rendah" : concentration.hhiLabel === "Moderate" ? "Diversifikasi Sedang" : "Diversifikasi Tinggi"}</>
+              ) : ""}
               trend="neutral" />
           </>
         ) : null}
@@ -540,8 +640,8 @@ export default function PurchasingInsightPage() {
 
         {/* Monthly spend bar chart */}
         <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={BarChart2} label="Spend Bulanan" sub="Total pembelian per bulan" />
-          {loading ? <SkeletonBlock h="h-40" /> : <SpendBarChart data={spend?.spendByMonth ?? []} />}
+          <SectionTitle icon={BarChart2} label="Pembelian Bulanan" sub="Total nilai pembelian per bulan" />
+          {loading ? <SkeletonBlock h="h-52" /> : <SpendBarChart data={spend?.spendByMonth ?? []} />}
         </div>
 
         {/* Payment health */}
@@ -583,7 +683,7 @@ export default function PurchasingInsightPage() {
 
         {/* Spend by supplier */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={ShoppingCart} label="Spend per Supplier" sub="Top 8 berdasarkan total nilai PO" />
+          <SectionTitle icon={ShoppingCart} label="Pembelian per Supplier" sub="Top 8 berdasarkan total nilai PO" />
           {loading ? <SkeletonBlock h="h-48" /> : (
             <div className="flex flex-col gap-2.5 mt-1">
               {(spend?.spendBySupplier ?? []).slice(0, 8).map((s, i) => {
@@ -617,12 +717,16 @@ export default function PurchasingInsightPage() {
               <ConcentrationBadge result={concentration} />
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center">
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif">Pareto (20% supplier)</p>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif">
+                    <Tooltip term="Pareto (20% supplier)" label="Aturan Pareto — berapa persen total pembelian yang berasal dari 20% supplier teratas." />
+                  </p>
                   <p className="text-3xl font-bold text-navy-900 font-serif mt-1">{concentration.paretoPercent}%</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">dari total spend</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">dari total pembelian</p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center">
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif">HHI Index</p>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif">
+                    <Tooltip term="HHI Index" label="Herfindahl–Hirschman Index — Indeks Diversifikasi Supplier. &lt;1.500 = baik, 1.500–2.500 = sedang, &gt;2.500 = terlalu terpusat." />
+                  </p>
                   <p className={cn(
                     "text-3xl font-bold font-serif mt-1",
                     concentration.hhi >= 2500 ? "text-rose-600" : concentration.hhi >= 1500 ? "text-amber-600" : "text-green-600"
@@ -633,13 +737,13 @@ export default function PurchasingInsightPage() {
               <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-[11px] text-slate-500 leading-relaxed">
                 {concentration.hhiLabel === "High" && (
                   <><AlertTriangle size={11} className="inline text-rose-500 mr-1" />
-                  Spend sangat terkonsentrasi. Pertimbangkan diversifikasi supplier untuk mengurangi risiko ketergantungan.</>
+                  Pembelian sangat terkonsentrasi. Pertimbangkan diversifikasi supplier untuk mengurangi risiko ketergantungan.</>
                 )}
                 {concentration.hhiLabel === "Moderate" && (
-                  "Konsentrasi spend moderat. Ada ruang untuk mendiversifikasi supplier pada kategori utama."
+                  "Diversifikasi pembelian moderat. Ada ruang untuk memperluas supplier pada kategori utama."
                 )}
                 {concentration.hhiLabel === "Low" && (
-                  "Spend terdistribusi dengan baik. Portfolio supplier sudah terdiversifikasi."
+                  "Pembelian terdistribusi dengan baik. Portfolio supplier sudah terdiversifikasi."
                 )}
               </div>
             </div>
@@ -648,7 +752,7 @@ export default function PurchasingInsightPage() {
 
         {/* Best supplier highlight */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={Trophy} label="Top Supplier" sub="Berdasarkan skor AHP+TOPSIS" />
+          <SectionTitle icon={Trophy} label="Top Supplier" sub="Berdasarkan nilai kecocokan tertinggi" />
           {loading ? <SkeletonBlock h="h-48" /> : supplierScores.length > 0 ? (
             <div className="flex flex-col gap-3">
               {supplierScores.slice(0, 3).map((s) => (
@@ -670,7 +774,10 @@ export default function PurchasingInsightPage() {
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold",
                           s.rank === 1 ? "bg-white/10 text-gold-400" : "bg-slate-100 text-slate-500")}>
-                          Ci {s.ahpScore.toFixed(3)}
+                          <Tooltip
+                            term={`Kecocokan ${s.ahpScore.toFixed(3)}`}
+                            label="Nilai Kecocokan (Ci) — mendekati 1 berarti supplier paling sesuai di semua kriteria."
+                          />
                         </span>
                         <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold",
                           s.rank === 1 ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-500")}>
@@ -694,7 +801,7 @@ export default function PurchasingInsightPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
         <div className="flex items-start justify-between gap-4 mb-4">
           <SectionTitle icon={Brain}
-            label="Perankingan Supplier — AHP + TOPSIS"
+            label="Penilaian Supplier"
             sub="Semua supplier diranking berdasarkan 5 kriteria terbobot" />
         </div>
         <AhpMethodNote />
@@ -709,16 +816,16 @@ export default function PurchasingInsightPage() {
         {/* Lead time */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <SectionTitle icon={Clock}
-            label="Lead Time Aktual vs Katalog"
-            sub="Selisih hari antara tanggal PO dan tanggal GR" />
+            label="Estimasi Pengiriman Aktual vs Target"
+            sub="Selisih hari antara tanggal pesanan dan tanggal barang diterima" />
           {loading ? <SkeletonBlock h="h-48" /> : <LeadTimeTable data={leadTimes} />}
         </div>
 
         {/* Reorder */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <SectionTitle icon={Package}
-            label="Kandidat Reorder"
-            sub="Produk stok rendah diurutkan berdasarkan skor urgensi" />
+            label="Produk Perlu Restok"
+            sub="Produk stok rendah diurutkan berdasarkan tingkat prioritas" />
           {loading ? <SkeletonBlock h="h-48" /> : <ReorderTable data={reorderList} />}
         </div>
       </div>

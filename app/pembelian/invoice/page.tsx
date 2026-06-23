@@ -1,6 +1,7 @@
 "use client";
 
 import PurchaseInvoiceFormModal from "@/components/modules/pembelian/PurchaseInvoiceFormModal";
+import PurchaseInvoiceDetailModal from "@/components/modules/pembelian/PurchaseInvoiceDetailModal";
 import { AppShell } from "@/components/layout";
 import {
   DataTable,
@@ -11,8 +12,11 @@ import { Button } from "@/components/ui/Button";
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
+
+import { CheckCircle2, FileText, X } from "lucide-react";
 
 import {
   getPurchaseInvoices,
@@ -21,6 +25,8 @@ import {
   updatePurchaseInvoice,
   deletePurchaseInvoice,
 } from "@/lib/services";
+
+import { getPurchasePayments } from "@/lib/services/purchase-payment.service";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -174,7 +180,7 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
 
   {
   key: "dp_paid",
-  label: "DP Paid",
+  label: "Paid",
 
   render: (val) => (
     <span className="font-semibold text-emerald-700">
@@ -221,61 +227,87 @@ export default function PurchaseInvoicePage() {
   const [selectedStatus, setSelectedStatus] =
     useState("");
 
+  const [openSuccessModal, setOpenSuccessModal] =
+    useState(false);
+
+  const [createdInvoiceNumber, setCreatedInvoiceNumber] =
+    useState("");
+
+  const tableRef = useRef<HTMLDivElement>(null);
+
   const fetchInvoices = async () => {
 
     try {
 
-      const res =
-        await getPurchaseInvoices();
+      const [invoiceRes, paymentRes] = await Promise.all([
+        getPurchaseInvoices(),
+        getPurchasePayments(),
+      ]);
 
-      const list = Array.isArray(res)
-        ? res
-        : res.data;
+      const list = Array.isArray(invoiceRes)
+        ? invoiceRes
+        : invoiceRes.data;
 
-      console.log(list);
-      
+      const allPayments: any[] = Array.isArray(paymentRes)
+        ? paymentRes
+        : paymentRes.data ?? [];
+
+      // Build a map of invoice_id -> sum of actual payments made
+      const paymentSumByInvoice: Record<number, number> = {};
+      for (const p of allPayments) {
+        const invId = Number(p.purchase_invoice_id);
+        if (!invId) continue;
+        paymentSumByInvoice[invId] =
+          (paymentSumByInvoice[invId] ?? 0) + Number(p.amount ?? 0);
+      }
+
       const mapped = list.map(
-        (item: any) => ({
+        (item: any) => {
+          const invId = Number(item.purchase_invoice_id);
+          const actualPaid = paymentSumByInvoice[invId] ?? 0;
 
-          id:
-            item.purchase_invoice_id.toString(),
+          return {
 
-          invoice_number:
-            item.invoice_number,
+            id:
+              item.purchase_invoice_id.toString(),
 
-          invoice_date:
-            item.invoice_date,
+            invoice_number:
+              item.invoice_number,
 
-          supplier_id:
-            item.supplier_id,
+            invoice_date:
+              item.invoice_date,
 
-          supplier_name:
-            item.supplier_name,
+            supplier_id:
+              item.supplier_id,
 
-          total_amount:
-            item.total_amount,
+            supplier_name:
+              item.supplier_name,
 
-          dp_paid:
-            item.dp_paid ?? 0,
+            total_amount:
+              item.total_amount,
 
-          outstanding_amount:
-            item.outstanding_amount ?? 0,
+            dp_paid:
+              actualPaid,
 
-          status: (item.status === "Cancelled"
-            ? "Cancelled"
-            : (item.outstanding_amount ?? 0) === 0
-              ? "Paid"
-              : "Unpaid") as InvoiceStatus,
+            outstanding_amount:
+              item.outstanding_amount ?? 0,
 
-          age:
-            Math.floor(
-              (Date.now() -
-                new Date(
-                  item.invoice_date
-                ).getTime()) /
-                (1000 * 60 * 60 * 24)
-            ),
-        })
+            status: (item.status === "Cancelled"
+              ? "Cancelled"
+              : (item.outstanding_amount ?? 0) === 0
+                ? "Paid"
+                : "Unpaid") as InvoiceStatus,
+
+            age:
+              Math.floor(
+                (Date.now() -
+                  new Date(
+                    item.invoice_date
+                  ).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              ),
+          };
+        }
       );
 
       setInvoices(mapped);
@@ -318,6 +350,7 @@ useEffect(() => {
       subtitle="Kelola invoice pembelian"
     >
 
+        <div ref={tableRef}>
         <DataTable<PurchaseInvoice>
           title="Daftar Purchase Invoice"
           columns={COLUMNS}
@@ -334,7 +367,6 @@ useEffect(() => {
           renderActions={(row) => (
 
     <div className="flex gap-1.5 justify-center">
-
     <Button
       variant="secondary"
       size="sm"
@@ -393,6 +425,16 @@ useEffect(() => {
 
       )}
     />
+        </div>
+
+<PurchaseInvoiceDetailModal
+  open={openDetailModal}
+  onClose={() => {
+    setOpenDetailModal(false);
+    setSelectedInvoice(null);
+  }}
+  invoice={selectedInvoice}
+/>
 
 <PurchaseInvoiceFormModal
   open={openModal}
@@ -404,7 +446,7 @@ useEffect(() => {
 
     try {
 
-      await createPurchaseInvoice({
+      const created = await createPurchaseInvoice({
         goods_receipt_id:
           data.goods_receipt_id,
 
@@ -415,11 +457,16 @@ useEffect(() => {
           data.total_amount,
       });
 
+      // Refresh list BEFORE opening modal so the new row is already visible
       await fetchInvoices();
 
-      alert(
-        "Purchase Invoice berhasil dibuat"
+      setCreatedInvoiceNumber(
+        created?.invoice_number ??
+        created?.data?.invoice_number ??
+        ""
       );
+
+      setOpenSuccessModal(true);
 
     } catch (error) {
 
@@ -588,6 +635,131 @@ useEffect(() => {
     </div>
 
   </div>
+
+)}
+
+{/* ── SUCCESS MODAL ─────────────────────────────────────────── */}
+
+{openSuccessModal && (
+
+  <>
+    {/* Backdrop */}
+    <div
+      className="
+        fixed inset-0 z-50
+        bg-black/50 backdrop-blur-[2px]
+      "
+    />
+
+    {/* Modal */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+
+      <div
+        className="
+          bg-white rounded-2xl shadow-2xl
+          w-full max-w-md
+          border border-slate-200
+          overflow-hidden
+        "
+      >
+
+        {/* Header */}
+        <div
+          className="
+            flex items-center justify-between
+            px-6 py-4
+            bg-gradient-to-r from-navy-900 to-navy-600
+          "
+        >
+          <div>
+            <h2 className="text-white font-semibold text-[15px]">
+              Invoice Berhasil Dibuat
+            </h2>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Purchase Invoice baru telah tersimpan
+            </p>
+          </div>
+
+          <button
+            onClick={() => setOpenSuccessModal(false)}
+            className="
+              w-8 h-8 rounded-lg flex items-center justify-center
+              text-slate-400 hover:text-white hover:bg-white/10
+            "
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex flex-col items-center gap-4">
+
+          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
+            <CheckCircle2 size={36} className="text-emerald-500" />
+          </div>
+
+          <div className="text-center space-y-1">
+            <p className="text-slate-800 font-semibold text-base">
+              Purchase Invoice berhasil dibuat!
+            </p>
+            {createdInvoiceNumber && (
+              <p className="text-slate-500 text-sm">
+                Nomor Invoice:{" "}
+                <span className="font-mono font-semibold text-navy-700">
+                  {createdInvoiceNumber}
+                </span>
+              </p>
+            )}
+          </div>
+
+          <div className="w-full rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
+            Invoice baru sudah ditambahkan ke daftar Purchase Invoice.
+            Anda dapat langsung melihat dan mengelolanya di tabel di bawah.
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div
+          className="
+            flex items-center justify-end gap-2
+            px-6 py-4 border-t border-slate-100 bg-slate-50/60
+          "
+        >
+          <button
+            onClick={() => setOpenSuccessModal(false)}
+            className="
+              px-4 py-2 text-sm font-semibold
+              text-slate-600 bg-white border border-slate-200 rounded-lg
+            "
+          >
+            Tutup
+          </button>
+
+          <button
+            onClick={() => {
+              setOpenSuccessModal(false);
+              // Scroll the table into view so the new invoice is visible
+              tableRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            }}
+            className="
+              flex items-center gap-2
+              px-5 py-2 text-sm font-semibold
+              text-gold-400 bg-navy-900 rounded-lg
+            "
+          >
+            <FileText size={15} />
+            Lihat Purchase Invoice
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </>
 
 )}
 

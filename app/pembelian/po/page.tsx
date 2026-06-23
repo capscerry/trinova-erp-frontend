@@ -39,6 +39,7 @@ import {
 import {
   createPurchaseInvoice,
   getPurchaseInvoices,
+  updatePurchaseInvoice,
 } from "@/lib/services/purchase-invoice.service";
 
 import {
@@ -501,7 +502,7 @@ export default function PurchaseOrderPage() {
             ),
 
           order_date:
-            payload.order_date,
+            (payload.order_date ?? "").split("T")[0],
 
           status:
             payload.status,
@@ -739,7 +740,45 @@ export default function PurchaseOrderPage() {
   // ─────────────────────────────────────────────────────────
 
   const handleCreatePayment = async (data: any) => {
-    await createPurchasePayment(data);
+    // Strip the internal helper field before sending to API
+    const { _outstanding_amount, ...apiPayload } = data;
+
+    console.log("[handleCreatePayment] data:", data);
+    console.log("[handleCreatePayment] outstanding:", _outstanding_amount, "amount:", data.amount);
+
+    await createPurchasePayment(apiPayload);
+
+    // Use the outstanding amount passed directly from the modal
+    // (avoids stale-state lookup for newly-created invoices)
+    const outstanding = Number(_outstanding_amount ?? 0);
+
+    console.log("[handleCreatePayment] outstanding (num):", outstanding, "fully paid:", Number(data.amount) >= outstanding);
+
+    if (outstanding > 0 && Number(data.amount) >= outstanding) {
+      // Payment fully covers the outstanding — mark invoice as Paid
+      try {
+        await updatePurchaseInvoice(
+          Number(data.purchase_invoice_id),
+          { status: "Paid" }
+        );
+        console.log("[handleCreatePayment] invoice status updated to Paid");
+      } catch (err) {
+        console.error("[handleCreatePayment] updatePurchaseInvoice failed:", err);
+        // Non-fatal: payment was recorded, status update failed
+        // Still navigate so the user sees the updated list
+      }
+
+      toast.success("Invoice telah lunas — mengarahkan ke Purchase Invoice");
+
+      // Close modal first, then navigate on next tick to avoid
+      // React mid-render conflicts with router.push
+      setOpenModal(false);
+      setEditingPO(null);
+      console.log("[handleCreatePayment] navigating to /pembelian/invoice");
+      setTimeout(() => router.push("/pembelian/invoice"), 0);
+      return;
+    }
+
     await fetchWorkflowData();
     toast.success("Pembayaran berhasil dicatat");
   };

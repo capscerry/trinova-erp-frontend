@@ -4,5 +4,6 @@ export { DataTable }   from "./DataTable";
 export { PageHeader }  from "./PageHeader";
 export { StatCard }    from "./StatCard";
 export { StatusBadge } from "./StatusBadge";
+export { Tooltip }     from "./Tooltip";
 
 export type { Column } from "./DataTable";

@@ -30,6 +30,11 @@ interface DataTableProps<T> {
    */
   dateField?: keyof T;
   /**
+   * When provided, the "Terbaru / Terlama (Tgl Dibuat)" sort uses this field
+   * (e.g. "created_at") for exact timestamp precision instead of dateField.
+   */
+  createdAtField?: keyof T;
+  /**
    * The field name used for alphabetical A–Z / Z–A sorting.
    * Typically the supplier name, customer name, or item name field.
    */
@@ -61,6 +66,7 @@ export function DataTable<T extends object>({
   keyField = "id" as keyof T,
   className,
   dateField,
+  createdAtField,
   nameField,
   statusOptions,
   statusField = "status" as keyof T,
@@ -72,7 +78,7 @@ export function DataTable<T extends object>({
   // ── Filter panel state ──────────────────────────────────────────────────────
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>(
-    dateField ? "newest" : ""
+    (dateField || createdAtField) ? "newest" : ""
   );
   const [statusFilter, setStatusFilter] = useState<string>(""); // "" = all
   const panelRef = useRef<HTMLDivElement>(null);
@@ -95,13 +101,17 @@ export function DataTable<T extends object>({
 
   // ── Clear all filters ────────────────────────────────────────────────────────
   function clearFilters() {
-    setSortOrder(dateField ? "newest" : "");
+    setSortOrder((dateField || createdAtField) ? "newest" : "");
     setStatusFilter("");
     setPage(1);
   }
 
   // ── Pipeline: search → status filter → sort ─────────────────────────────────
-  let processed = data.filter((row) => {
+  // Tag each row with its original API index so we can fall back to insertion order.
+  type Indexed = T & { __idx: number };
+  const indexed: Indexed[] = data.map((row, i) => ({ ...row, __idx: i }));
+
+  let processed: Indexed[] = indexed.filter((row) => {
     // text search
     const matchesSearch = columns.some((col) => {
       const val = row[col.key as keyof T];
@@ -120,13 +130,27 @@ export function DataTable<T extends object>({
 
   // sort
   if (sortOrder === "newest" || sortOrder === "oldest") {
-    if (dateField) {
-      processed = [...processed].sort((a, b) => {
-        const da = new Date(String(a[dateField] ?? "")).getTime();
-        const db = new Date(String(b[dateField] ?? "")).getTime();
-        return sortOrder === "newest" ? db - da : da - db;
-      });
-    }
+    // Prefer createdAtField, then dateField; if both are absent/invalid fall back to insertion index.
+    const sortKey = createdAtField ?? dateField;
+    processed = [...processed].sort((a, b) => {
+      let diff = 0;
+      if (sortKey) {
+        const da = new Date(String(a[sortKey as keyof Indexed] ?? "")).getTime();
+        const db = new Date(String(b[sortKey as keyof Indexed] ?? "")).getTime();
+        const validA = !isNaN(da);
+        const validB = !isNaN(db);
+        if (validA && validB) {
+          diff = db - da; // newest first
+        } else if (validA) {
+          diff = -1;
+        } else if (validB) {
+          diff = 1;
+        }
+      }
+      // Fallback: use original array index (higher index = added later = newer)
+      if (diff === 0) diff = b.__idx - a.__idx;
+      return sortOrder === "newest" ? diff : -diff;
+    });
   } else if (sortOrder === "az" || sortOrder === "za") {
     if (nameField) {
       processed = [...processed].sort((a, b) => {
@@ -144,8 +168,8 @@ export function DataTable<T extends object>({
 
   // ── Sort option helpers ──────────────────────────────────────────────────────
   const sortOptions: { value: SortOrder; label: string; available: boolean }[] = [
-    { value: "newest", label: "Terbaru (Tgl Dibuat)", available: !!dateField },
-    { value: "oldest", label: "Terlama (Tgl Dibuat)", available: !!dateField },
+    { value: "newest", label: "Terbaru (Tgl Dibuat)", available: !!(dateField || createdAtField) },
+    { value: "oldest", label: "Terlama (Tgl Dibuat)", available: !!(dateField || createdAtField) },
     { value: "az",     label: "A → Z",                available: !!nameField },
     { value: "za",     label: "Z → A",                available: !!nameField },
   ].filter((o) => o.available);
@@ -279,7 +303,7 @@ export function DataTable<T extends object>({
               )}
 
               {/* Clear button */}
-              {(statusFilter || (sortOrder && sortOrder !== "newest" && dateField) || (sortOrder && !dateField && sortOrder)) && (
+              {(statusFilter || (sortOrder && sortOrder !== "newest" && (dateField || createdAtField)) || (sortOrder && !(dateField || createdAtField) && sortOrder)) && (
                 <button
                   onClick={clearFilters}
                   className="text-xs text-rose-500 hover:text-rose-700 font-semibold font-serif text-left transition-colors"
@@ -298,7 +322,7 @@ export function DataTable<T extends object>({
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold font-serif">
                 {sortOrder === "oldest" ? "Terlama" : sortOrder === "az" ? "A → Z" : "Z → A"}
                 <button
-                  onClick={() => { setSortOrder(dateField ? "newest" : ""); setPage(1); }}
+                  onClick={() => { setSortOrder((dateField || createdAtField) ? "newest" : ""); setPage(1); }}
                   className="hover:text-rose-500 transition-colors ml-0.5"
                   aria-label="Hapus urutan"
                 >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AppShell } from "@/components/layout";
 
@@ -19,6 +20,7 @@ import {
 
 import {
   getPurchaseInvoices,
+  updatePurchaseInvoice,
 } from "@/lib/services";
 
 // ─────────────────────────────────────────────
@@ -88,6 +90,8 @@ const COLUMNS: Column<any>[] = [
 // ─────────────────────────────────────────────
 
 export default function PurchasePaymentPage() {
+
+  const router = useRouter();
 
   const [payments, setPayments] =
     useState<any[]>([]);
@@ -203,6 +207,36 @@ export default function PurchasePaymentPage() {
             await createPurchasePayment(
               payload
             );
+
+            // Find the invoice that was just paid
+            const paidInvoice =
+              purchaseInvoices.find(
+                (inv) =>
+                  inv.purchase_invoice_id ===
+                  data.purchase_invoice_id
+              );
+
+            // If payment fully covers the outstanding amount,
+            // update the invoice status to Paid and redirect
+            if (
+              paidInvoice &&
+              data.amount >=
+                Number(paidInvoice.outstanding_amount)
+            ) {
+
+              await updatePurchaseInvoice(
+                paidInvoice.purchase_invoice_id,
+                { status: "Paid" }
+              );
+
+              setOpenModal(false);
+
+              router.push(
+                "/pembelian/invoice"
+              );
+
+              return;
+            }
 
             await loadData();
             await fetchInvoices();

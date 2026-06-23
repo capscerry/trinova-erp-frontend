@@ -2,6 +2,7 @@
 
 import { Trophy, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,10 @@ function ScoreBar({ score }: { score: number }) {
         />
       </div>
       <span className="text-[12px] font-bold tabular-nums text-slate-700 w-10 text-right shrink-0">
-        {(score).toFixed(4)}
+        <Tooltip
+          term={(score).toFixed(4)}
+          label="Nilai Kecocokan (Ci) — mendekati 1 berarti pilihan ini paling dekat ke kondisi ideal di semua kriteria."
+        />
       </span>
     </div>
   );
@@ -118,10 +122,10 @@ export function TopsisResultsPanel({
         </div>
         <div>
           <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">
-            Hasil Perankingan (TOPSIS)
+            Hasil Perankingan
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Diurutkan berdasarkan closeness coefficient tertinggi
+            Diurutkan berdasarkan nilai kecocokan tertinggi
           </p>
         </div>
       </div>
@@ -132,16 +136,16 @@ export function TopsisResultsPanel({
           #
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif">
-          Alternatif
+          Pilihan
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif">
-          Skor (Ci)
+          <Tooltip term="Nilai Kecocokan" label="Closeness Coefficient (Ci) — seberapa dekat pilihan ke kondisi ideal terbaik. Mendekati 1 = paling direkomendasikan." />
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif text-center">
-          Trend
+          Tren
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif text-right">
-          D+ / D−
+          <Tooltip term="Jarak ↑ / ↓" label="D+ (Jarak Terbaik) / D− (Jarak Terburuk) — jarak pilihan ke solusi ideal positif dan negatif. D+ kecil dan D− besar = terbaik." />
         </span>
       </div>
 
@@ -195,15 +199,19 @@ export function TopsisResultsPanel({
                 <TrendIcon score={r.score} />
               </div>
 
-              {/* D+ / D- */}
+              {/* Distance from best / worst */}
               <div className="text-right">
-                <span className="text-[11px] tabular-nums text-rose-500 font-semibold">
-                  {r.dPlus.toFixed(3)}
-                </span>
+                <Tooltip
+                  term={r.dPlus.toFixed(3)}
+                  label="D+ (Jarak Terbaik) — jarak pilihan ke solusi ideal positif. Semakin kecil semakin baik."
+                  className="text-[11px] tabular-nums text-rose-500 font-semibold"
+                />
                 <span className="text-[11px] text-slate-300 mx-1">/</span>
-                <span className="text-[11px] tabular-nums text-green-600 font-semibold">
-                  {r.dMinus.toFixed(3)}
-                </span>
+                <Tooltip
+                  term={r.dMinus.toFixed(3)}
+                  label="D− (Jarak Terburuk) — jarak pilihan ke solusi ideal negatif. Semakin besar semakin baik."
+                  className="text-[11px] tabular-nums text-green-600 font-semibold"
+                />
               </div>
             </div>
           ))}

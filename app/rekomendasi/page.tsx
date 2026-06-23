@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/layout";
-import { Button, Card, PageHeader } from "@/components/ui";
+import { Button, Card, PageHeader, Tooltip } from "@/components/ui";
 import { AhpCriteriaPanel } from "@/components/modules/rekomendasi/AhpCriteriaPanel";
 import { TopsisResultsPanel } from "@/components/modules/rekomendasi/TopsisResultsPanel";
 import { topsis } from "@/lib/ahp-topsis";
@@ -42,8 +42,8 @@ const DEFAULT_CRITERIA: Criterion[] = [
   },
   {
     id: "waktu",
-    label: "Lead Time",
-    description: "Estimasi waktu pengiriman (hari)",
+    label: "Waktu Pengiriman",
+    description: "Estimasi hari pengiriman dari pemesanan",
     weight: 20,
     benefit: false, // shorter = better
   },
@@ -159,7 +159,7 @@ export default function RekomendasiPage() {
   // ── Export CSV ──────────────────────────────────────────────────────────────
   function exportCsv() {
     if (results.length === 0) return;
-    const header = ["Rank", "Kode", "Nama", "Skor (Ci)", "D+", "D-"].join(",");
+    const header = ["Rank", "Kode", "Nama", "Nilai Kecocokan", "Jarak Terbaik", "Jarak Terburuk"].join(",");
     const rows = results.map((r) =>
       [r.rank, r.code ?? "", r.name, r.score.toFixed(6), r.dPlus.toFixed(6), r.dMinus.toFixed(6)].join(",")
     );
@@ -178,12 +178,12 @@ export default function RekomendasiPage() {
   return (
     <AppShell
       title="Rekomendasi AI"
-      subtitle="Sistem pendukung keputusan berbasis AHP & TOPSIS"
+      subtitle="Bandingkan dan temukan pilihan terbaik berdasarkan kriteria bisnis Anda"
     >
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <PageHeader
         title="Rekomendasi AI"
-        subtitle="Perankingan alternatif menggunakan metode AHP (pembobotan) dan TOPSIS (perankingan)"
+        subtitle="Setiap pilihan dinilai dan diranking berdasarkan kriteria yang Anda tentukan"
       >
         {hasRun && results.length > 0 && (
           <Button variant="secondary" size="md" onClick={exportCsv}>
@@ -197,18 +197,9 @@ export default function RekomendasiPage() {
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 mb-6">
         <Info size={15} className="text-blue-400 mt-0.5 shrink-0" />
         <div className="text-[12px] text-blue-700 leading-relaxed">
-          <strong>Cara kerja:</strong> Metode{" "}
-          <strong>AHP (Analytic Hierarchy Process)</strong> digunakan untuk
-          menentukan bobot tiap kriteria berdasarkan tingkat kepentingan
-          relatif.{" "}
-          <strong>
-            TOPSIS (Technique for Order of Preference by Similarity to Ideal
-            Solution)
-          </strong>{" "}
-          kemudian meranking setiap alternatif berdasarkan jaraknya terhadap
-          solusi ideal positif (A⁺) dan ideal negatif (A⁻). Alternatif
-          dengan closeness coefficient (Ci) tertinggi adalah rekomendasi
-          terbaik.
+          <strong>Cara kerja:</strong> Setiap pilihan diberi nilai berdasarkan seberapa dekat
+          ia dengan kondisi ideal terbaik dan terjauh dari kondisi terburuk, dengan mempertimbangkan
+          bobot kepentingan tiap kriteria. Pilihan dengan <strong>nilai kecocokan tertinggi</strong> adalah rekomendasi utama.
         </div>
       </div>
 
@@ -236,10 +227,10 @@ export default function RekomendasiPage() {
                 </div>
                 <div className="text-left">
                   <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">
-                    Data Alternatif
+                    Data Pilihan
                   </h2>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {alternatives.length} alternatif terdaftar
+                    {alternatives.length} pilihan terdaftar
                   </p>
                 </div>
               </div>
@@ -279,13 +270,11 @@ export default function RekomendasiPage() {
                           key={c.id}
                           className="px-3 py-2.5 text-center font-bold uppercase tracking-widest text-slate-400 text-[10px] border-b border-slate-100 font-serif min-w-[90px]"
                         >
-                          <span title={c.description}>{c.label}</span>
-                          <span
-                            className={cn(
-                              "ml-1 text-[8px]",
-                              c.benefit ? "text-green-500" : "text-rose-400"
-                            )}
-                          >
+                          <Tooltip
+                            term={c.label}
+                            label={`${c.description} — ${c.benefit ? "Lebih tinggi lebih baik (Benefit)" : "Lebih rendah lebih baik (Cost)"}`}
+                          />
+                          <span className={cn("ml-1 text-[8px]", c.benefit ? "text-green-500" : "text-rose-400")}>
                             {c.benefit ? "↑" : "↓"}
                           </span>
                         </th>
@@ -393,7 +382,12 @@ export default function RekomendasiPage() {
                       {results[0].name}
                     </p>
                     <p className="text-slate-400 text-[11px] font-mono">
-                      {results[0].code} &mdash; Ci ={" "}
+                      {results[0].code} &mdash;{" "}
+                      <Tooltip
+                        term="Kecocokan"
+                        label="Nilai Kecocokan (Ci) — seberapa dekat pilihan ini ke kondisi ideal terbaik di semua kriteria. Mendekati 1 = terbaik."
+                        className="text-slate-400"
+                      />:{" "}
                       <strong className="text-gold-400">
                         {results[0].score.toFixed(4)}
                       </strong>
@@ -412,15 +406,19 @@ export default function RekomendasiPage() {
                         key={c.id}
                         className="inline-flex items-center gap-1.5 bg-slate-100 rounded-lg px-2.5 py-1.5 text-[11px]"
                       >
-                        <span
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full",
-                            c.benefit ? "bg-green-400" : "bg-rose-400"
-                          )}
+                        <span className={cn(
+                          "w-1.5 h-1.5 rounded-full shrink-0",
+                          c.benefit ? "bg-green-400" : "bg-rose-400"
+                        )} />
+                        <Tooltip
+                          term={c.label}
+                          label={
+                            c.benefit
+                              ? `Menguntungkan (Benefit) — nilai lebih tinggi lebih baik. Bobot: ${c.weight}%.`
+                              : `Diminimalkan (Cost) — nilai lebih rendah lebih baik. Bobot: ${c.weight}%.`
+                          }
+                          className="font-semibold text-slate-600 font-serif"
                         />
-                        <span className="font-semibold text-slate-600 font-serif">
-                          {c.label}
-                        </span>
                         <span className="text-slate-400">{c.weight}%</span>
                       </span>
                     ))}
@@ -431,7 +429,7 @@ export default function RekomendasiPage() {
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     {
-                      label: "Alternatif",
+                      label: "Pilihan",
                       value: String(results.length),
                       sub: "dievaluasi",
                     },
@@ -441,9 +439,9 @@ export default function RekomendasiPage() {
                       sub: "dibobot",
                     },
                     {
-                      label: "Skor Tertinggi",
+                      label: "Nilai Tertinggi",
                       value: results[0].score.toFixed(3),
-                      sub: "closeness Ci",
+                      sub: "nilai kecocokan (Ci)",
                     },
                   ].map((s) => (
                     <div

@@ -11,6 +11,17 @@ export const getPurchasePayments =
     return res.data;
 };
 
+// GET PAYMENTS BY INVOICE
+export const getPaymentsByInvoice =
+  async (invoiceId: number) => {
+
+    const res = await api.get(
+      `/purchase-payment?purchase_invoice_id=${invoiceId}`
+    );
+
+    return res.data;
+};
+
 // CREATE PAYMENT
 export const createPurchasePayment =
   async (payload: any) => {

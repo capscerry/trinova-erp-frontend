@@ -9,10 +9,6 @@ import {
   BadgeCheck,
 } from "lucide-react";
 
-// ─────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────
-
 interface PurchaseDownPaymentDetailData {
   dp_number: string;
 
@@ -41,10 +37,6 @@ interface PurchaseDownPaymentDetailModalProps {
   data: PurchaseDownPaymentDetailData | null;
 }
 
-// ─────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────
-
 const formatDate = (d: string) =>
   new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
@@ -58,10 +50,6 @@ const formatRupiah = (n: number) =>
     currency: "IDR",
     minimumFractionDigits: 0,
   }).format(n);
-
-// ─────────────────────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────────────────────
 
 export default function PurchaseDownPaymentDetailModal({
   open,
