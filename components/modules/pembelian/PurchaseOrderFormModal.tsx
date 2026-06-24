@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
-import { goodsRequestService, type GoodsRequest } from "@/lib/services/goods-request.service";
+import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
 
 interface Supplier { id: string; nama: string; }
 interface Product {
@@ -44,7 +44,7 @@ interface PurchaseOrderFormModalProps {
   existingGoodsReceipts?: any[];
   existingInvoices?: any[];
   initialData?: PurchaseOrderFormData | null;
-  prList?: GoodsRequest[];
+  prList?: PurchaseRequisition[];
 }
 
 const PROSES_LINKS = [
@@ -157,8 +157,8 @@ export default function PurchaseOrderFormModal({
   const [prPickerOpen, setPrPickerOpen] = useState(false);
   const [prSearch, setPrSearch] = useState("");
   const [prLoading, setPrLoading] = useState(false);
-  const [prItems, setPrItems] = useState<GoodsRequest[]>([]);
-  const [selectedPR, setSelectedPR] = useState<GoodsRequest | null>(null);
+  const [prItems, setPrItems] = useState<PurchaseRequisition[]>([]);
+  const [selectedPR, setSelectedPR] = useState<PurchaseRequisition | null>(null);
 
   // Track whether the modal was just opened so only seed state once per open
   const wasOpenRef = useRef(false);
@@ -452,7 +452,7 @@ export default function PurchaseOrderFormModal({
     }
     setPrLoading(true);
     try {
-      const data = await goodsRequestService.getAll();
+      const data = await purchaseRequisitionService.getAll();
       setPrItems(data);
     } catch {
       setPrItems([]);
@@ -461,13 +461,13 @@ export default function PurchaseOrderFormModal({
     }
   };
 
-  const handleSelectPR = async (pr: GoodsRequest) => {
+  const handleSelectPR = async (pr: PurchaseRequisition) => {
     // If the record already has details embedded, use them immediately.
     // Otherwise, fetch the full record by id to get line items.
     let fullPR = pr;
     if (!pr.details || pr.details.length === 0) {
       try {
-        fullPR = await goodsRequestService.getById(pr.id);
+        fullPR = await purchaseRequisitionService.getById(pr.id);
       } catch {
         fullPR = pr;
       }
@@ -479,19 +479,20 @@ export default function PurchaseOrderFormModal({
     if (fullPR.details && fullPR.details.length > 0) {
       const mappedItems: PurchaseOrderItem[] = fullPR.details.map(d => {
         const prod = products.find(p => p.id === String(d.product_id));
+        // PR details don't carry uom — fall back to the product's default uom
         const uomMatch = uoms.find(u =>
-          u.id === String(d.uom_id) || u.nama === d.uom_name
+          u.id === String(d.uom_id ?? prod?.uom_id ?? "")
         );
         const price = prod?.supplier_price ?? 0;
-        const qty = d.quantity ?? 1;
+        const qty = d.qty_requested ?? 1;
         const subtotal = qty * price;
         return {
           id: crypto.randomUUID(),
           product_id: String(d.product_id),
           product_name: d.product_name ?? prod?.nama ?? `Product ${d.product_id}`,
           quantity: qty,
-          uom_id: uomMatch?.id ?? String(d.uom_id ?? ""),
-          uom_name: uomMatch?.nama ?? d.uom_name ?? "",
+          uom_id: uomMatch?.id ?? String(prod?.uom_id ?? ""),
+          uom_name: uomMatch?.nama ?? "",
           price,
           tax_percent: 0,
           tax_amount: 0,
@@ -790,7 +791,7 @@ export default function PurchaseOrderFormModal({
                   const filtered = prItems.filter(pr =>
                     pr.nomor.toLowerCase().includes(prSearch.toLowerCase()) ||
                     pr.keterangan.toLowerCase().includes(prSearch.toLowerCase()) ||
-                    pr.tipe_permintaan.toLowerCase().includes(prSearch.toLowerCase())
+                    (pr.warehouse_name ?? "").toLowerCase().includes(prSearch.toLowerCase())
                   );
                   if (filtered.length === 0) {
                     return (
@@ -806,8 +807,8 @@ export default function PurchaseOrderFormModal({
                         <tr>
                           <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Nomor</th>
                           <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggal</th>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tipe</th>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Keterangan</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Warehouse</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Remarks</th>
                           <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
                           <th className="px-4 py-2.5" />
                         </tr>
@@ -820,14 +821,14 @@ export default function PurchaseOrderFormModal({
                             <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
                               {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(pr.tanggal))}
                             </td>
-                            <td className="px-4 py-3 text-slate-600 text-xs">{pr.tipe_permintaan || "—"}</td>
+                            <td className="px-4 py-3 text-slate-600 text-xs">{pr.warehouse_name || "—"}</td>
                             <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{pr.keterangan || "—"}</td>
                             <td className="px-4 py-3">
                               <span className={cn(
                                 "inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border",
                                 pr.status === "Processed"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : pr.status === "Waiting to be processed"
+                                  : pr.status === "Requested" || pr.status === "REQUESTED"
                                   ? "bg-amber-50 text-amber-700 border-amber-200"
                                   : pr.status === "Partially processed"
                                   ? "bg-blue-50 text-blue-700 border-blue-200"

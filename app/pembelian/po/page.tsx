@@ -47,9 +47,9 @@ import {
 } from "@/lib/services/purchase-payment.service";
 
 import {
-  goodsRequestService,
-  type GoodsRequest,
-} from "@/lib/services/goods-request.service";
+  purchaseRequisitionService,
+  type PurchaseRequisition,
+} from "@/lib/services/purchase-requisition.service";
 
 import PurchaseOrderFormModal from "@/components/modules/pembelian/PurchaseOrderFormModal";
 
@@ -251,7 +251,7 @@ export default function PurchaseOrderPage() {
     useState<Uom[]>([]);
 
   const [prList, setPrList] =
-    useState<GoodsRequest[]>([]);
+    useState<PurchaseRequisition[]>([]);
 
   const [openModal, setOpenModal] =
     useState(false);
@@ -816,7 +816,7 @@ export default function PurchaseOrderPage() {
 
   const fetchPrList = async () => {
     try {
-      const data = await goodsRequestService.getAll();
+      const data = await purchaseRequisitionService.getAll();
       setPrList(data);
     } catch (error) {
       console.error("Failed to fetch PR list:", error);
