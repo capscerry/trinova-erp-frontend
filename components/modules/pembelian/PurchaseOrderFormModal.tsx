@@ -19,6 +19,7 @@ interface Uom { id: string; nama: string; }
 
 export interface PurchaseOrderFormData {
   po_number: string; supplier_id: string; order_date: string;
+  expected_date: string;
   status: string; total_amount: number;
   items: PurchaseOrderItem[]; deletedItems?: number[];
   purchase_order_id?: number;
@@ -89,12 +90,13 @@ const generateGRNumber = () =>
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
-    style: "currency", currency: "IDR", minimumFractionDigits: 0,
+    style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(n);
 
 const newItem = (): PurchaseOrderItem => ({
   id: crypto.randomUUID(), product_id: "", product_name: "",
-  quantity: 1, uom_id: "", uom_name: "", price: 0, subtotal: 0,
+  quantity: 1, uom_id: "", uom_name: "", price: 0,
+  tax_percent: 0, tax_amount: 0, subtotal: 0,
 });
 
 export default function PurchaseOrderFormModal({
@@ -144,7 +146,7 @@ export default function PurchaseOrderFormModal({
 
   const [form, setForm] = useState<PurchaseOrderFormData>({
     po_number: generatePONumber(), supplier_id: "", order_date: todayStr(),
-    status: "Draft", total_amount: 0, items: [newItem()],
+    expected_date: "", status: "Draft", total_amount: 0, items: [newItem()],
   });
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [deletedItems, setDeletedItems] = useState<number[]>([]);
@@ -194,13 +196,19 @@ export default function PurchaseOrderFormModal({
       setDeletedItems([]);
 
       if (initialData) {
-        setForm(initialData);
+        // Normalize items to ensure tax fields exist (older records won't have them)
+        const normalizedItems = (initialData.items ?? []).map(item => ({
+          ...item,
+          tax_percent: item.tax_percent ?? 0,
+          tax_amount: item.tax_amount ?? 0,
+        }));
+        setForm({ ...initialData, items: normalizedItems });
         setFilteredProducts(products.filter(p => p.supplier_id?.toString() === initialData.supplier_id));
         seedFromExisting(initialData.purchase_order_id ?? 0);
       } else {
         setIsApproved(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
-        setForm({ po_number: generatePONumber(), supplier_id: "", order_date: todayStr(), status: "Draft", total_amount: 0, items: [newItem()] });
+        setForm({ po_number: generatePONumber(), supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()] });
         setFilteredProducts([]);
       }
     } else if (!open) {
@@ -224,7 +232,9 @@ export default function PurchaseOrderFormModal({
       items: prev.items.map(item => {
         if (item.id !== id) return item;
         const u = { ...item, ...patch };
-        return { ...u, subtotal: u.quantity * u.price };
+        const base = u.quantity * u.price;
+        const taxAmount = base * (u.tax_percent / 100);
+        return { ...u, tax_amount: taxAmount, subtotal: base + taxAmount };
       }),
     }));
 
@@ -243,6 +253,8 @@ export default function PurchaseOrderFormModal({
   const poLineItems = purchaseOrderDetails.filter(d => Number(d.purchase_order_id) === poId);
   const prosesActive = isSubmitted || (isEdit && !!poId);
   const isCompleted = form.status === "Completed";
+  // Treat as approved if the status field is Approved/Completed, or if approved in this session
+  const effectivelyApproved = isApproved || form.status === "Approved" || form.status === "Completed";
 
   // Find the invoice that belongs to this PO.
   const poGrIds = existingGoodsReceipts
@@ -259,11 +271,14 @@ export default function PurchaseOrderFormModal({
   const poInvoiceOutstanding = Number(poInvoice?.outstanding_amount ?? 0);
 
   const totalDpPaid = (() => {
-    const fromExisting = existingDownPayments
-      .filter((dp: any) => Number(dp.purchase_order_id) === poId)
-      .reduce((sum: number, dp: any) => sum + Number(dp.amount ?? 0), 0);
-    const sessionDp = dpDone && fromExisting === 0 ? (dpForm.amount || 0) : 0;
-    return fromExisting + sessionDp;
+    const dpsForPO = existingDownPayments
+      .filter((dp: any) => Number(dp.purchase_order_id) === poId);
+    // Use the most recently saved DP amount, not a cumulative sum
+    const latestDp = dpsForPO.length > 0
+      ? Math.round(Number(dpsForPO[dpsForPO.length - 1].amount ?? 0) * 100) / 100
+      : 0;
+    const sessionDp = dpDone && dpsForPO.length === 0 ? (dpForm.amount || 0) : 0;
+    return Math.round((latestDp + sessionDp) * 100) / 100;
   })();
 
 
@@ -473,8 +488,14 @@ export default function PurchaseOrderFormModal({
                   <input readOnly value={form.po_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
                 </FormField>
                 <FormField label="Tanggal" icon={<Calendar size={13} />}>
-                  <input type="date" value={form.order_date}
-                    onChange={e => setField("order_date", e.target.value)} className={inputBase} />
+                  <input readOnly value={form.order_date}
+                    className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-default")} />
+                </FormField>
+                <FormField label="Tanggal Ekspektasi" icon={<Calendar size={13} />}>
+                  <input type="date" value={form.expected_date}
+                    onChange={e => setField("expected_date", e.target.value)}
+                    className={inputBase}
+                    placeholder="Pilih tanggal ekspektasi..." />
                 </FormField>
               </div>
 
@@ -550,12 +571,12 @@ export default function PurchaseOrderFormModal({
                   // Uang Muka, GR, Invoice: only active after Approved but not if Completed
                   const isActive = !isCompleted && (
                     key === "persetujuan"
-                      ? prosesActive
-                      : prosesActive && isApproved
+                      ? prosesActive && !effectivelyApproved
+                      : prosesActive && effectivelyApproved
                   );
 
                   const isDone =
-                    (key === "persetujuan" && isApproved) ||
+                    (key === "persetujuan" && effectivelyApproved) ||
                     (key === "uang-muka" && dpDone) ||
                     (key === "goods-receipt" && grDone) ||
                     (key === "purchase-invoice" && invoiceDone);
@@ -678,68 +699,60 @@ export default function PurchaseOrderFormModal({
         <>
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setDpOpen(false)} />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
                 <div>
-                  <h2 className="text-white font-semibold text-[15px]">Uang Muka Pembelian</h2>
+                  <h2 className="text-white font-semibold text-[15px]">Tambah Purchase Down Payment</h2>
                   <p className="text-slate-400 text-xs mt-0.5">Catat pembayaran uang muka supplier</p>
                 </div>
                 <button onClick={() => setDpOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                   <X size={16} />
                 </button>
               </div>
-              <div className="p-5 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">No PO</label>
-                    <input readOnly value={form.po_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total PO</label>
-                    <input readOnly value={formatRupiah(grandTotal)} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
-                  </div>
+              <div className="p-6 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Purchase Order</label>
+                  <input readOnly value={form.po_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Supplier</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Supplier</label>
                   <input readOnly value={supplierName} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tanggal Bayar</label>
-                    <input type="date" value={dpForm.payment_date}
-                      onChange={e => setDpForm(f => ({ ...f, payment_date: e.target.value }))} className={inputBase} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nominal</label>
-                    <input type="number" value={dpForm.amount}
-                      onChange={e => setDpForm(f => ({ ...f, amount: Number(e.target.value) }))}
-                      max={grandTotal} className={inputBase} />
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Total PO</label>
+                  <input readOnly value={formatRupiah(grandTotal)} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Jenis Pembayaran</label>
-                  <div className="flex gap-2">
-                    {["Partial", "Full"].map(t => (
-                      <button key={t} type="button"
-                        onClick={() => setDpForm(f => ({ ...f, payment_type: t, amount: t === "Full" ? grandTotal : f.amount }))}
-                        className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                          dpForm.payment_type === t ? "bg-navy-900 text-gold-400 border-navy-900" : "bg-white border-slate-200 text-slate-500")}>
-                        {t === "Partial" ? "Sebagian" : "Penuh"}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Payment Date</label>
+                  <input type="date" value={dpForm.payment_date}
+                    onChange={e => setDpForm(f => ({ ...f, payment_date: e.target.value }))} className={inputBase} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan</label>
-                  <textarea rows={2} value={dpForm.notes}
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Amount</label>
+                  <input type="number" step="0.01" value={dpForm.amount}
+                    onChange={e => setDpForm(f => ({ ...f, amount: Math.round(parseFloat(e.target.value || "0") * 100) / 100 }))}
+                    max={grandTotal} className={inputBase} />
+                  {dpForm.payment_type === "Partial" && dpForm.amount > grandTotal && (
+                    <p className="text-xs text-red-500 mt-1">Amount tidak boleh melebihi total PO.</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Payment Type</label>
+                  <select value={dpForm.payment_type}
+                    onChange={e => setDpForm(f => ({ ...f, payment_type: e.target.value, amount: e.target.value === "Full" ? grandTotal : f.amount }))}
+                    className={inputBase}>
+                    <option value="Partial">Partial</option>
+                    <option value="Full">Full</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Notes</label>
+                  <textarea rows={3} value={dpForm.notes}
                     onChange={e => setDpForm(f => ({ ...f, notes: e.target.value }))}
                     className={cn(inputBase, "resize-none")} />
                 </div>
-                {dpForm.payment_type === "Partial" && dpForm.amount > grandTotal && (
-                  <p className="text-xs text-red-500">Nominal tidak boleh melebihi total PO.</p>
-                )}
               </div>
-              <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100 bg-slate-50/60">
+              <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/60">
                 <button onClick={() => setDpOpen(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">Batal</button>
                 <button onClick={handleSaveDP}
                   disabled={dpSaving || (dpForm.payment_type === "Partial" && dpForm.amount > grandTotal)}

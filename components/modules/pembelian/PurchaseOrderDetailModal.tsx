@@ -321,10 +321,10 @@ export default function PurchaseOrderDetailModal({
 
                     <tbody className="divide-y divide-slate-100">
 
-                      {data.items.map((item) => (
+                      {data.items.map((item, idx) => (
 
                         <tr
-                          key={item.id}
+                          key={item.id ? `${item.id}-${idx}` : idx}
                           className="hover:bg-slate-50/50"
                         >
 

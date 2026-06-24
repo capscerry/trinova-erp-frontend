@@ -250,12 +250,12 @@ export default function PurchaseDownPaymentModal({
 
               <input
                 type="number"
+                step="0.01"
                 value={form.amount}
                 onChange={(e) =>
                   setForm({
                     ...form,
-                    amount:
-                      Number(e.target.value),
+                    amount: Math.round(parseFloat(e.target.value || "0") * 100) / 100,
                   })
                 }
                 className={inputBase}

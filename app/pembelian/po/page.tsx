@@ -504,6 +504,11 @@ export default function PurchaseOrderPage() {
           order_date:
             (payload.order_date ?? "").split("T")[0],
 
+          expected_date:
+            payload.expected_date
+              ? (payload.expected_date ?? "").split("T")[0]
+              : null,
+
           status:
             payload.status,
 
@@ -582,6 +587,12 @@ export default function PurchaseOrderPage() {
 
             price:
               Number(item.price),
+
+            tax_percent:
+              Number(item.tax_percent ?? 0),
+
+            tax_amount:
+              Number(item.tax_amount ?? 0),
 
             subtotal:
               Number(item.subtotal),
@@ -871,9 +882,11 @@ export default function PurchaseOrderPage() {
 
                   items:
                     detailItems.map(
-                      (item: any) => ({
+                      (item: any, idx: number) => ({
                         id:
-                          item.purchase_order_detail_id?.toString(),
+                          item.purchase_order_detail_id != null
+                            ? `${item.purchase_order_detail_id}-${idx}`
+                            : crypto.randomUUID(),
 
                           product_id:
                             item.product_id?.toString(),

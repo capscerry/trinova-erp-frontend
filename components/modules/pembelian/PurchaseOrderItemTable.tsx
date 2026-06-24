@@ -22,6 +22,13 @@ export interface PurchaseOrderItem {
 
   price: number;
 
+  /** Tax rate as a percentage, e.g. 11 for 11% */
+  tax_percent: number;
+
+  /** Computed tax amount = (quantity * price) * (tax_percent / 100) */
+  tax_amount: number;
+
+  /** price * quantity + tax_amount */
   subtotal: number;
 
   purchase_order_detail_id?: number;
@@ -109,6 +116,8 @@ export default function PurchaseOrderItemTable({
                 "Qty",
                 "UOM",
                 "Price",
+                "Tax %",
+                "Tax Amount",
                 "Subtotal",
                 "",
               ].map((header) => (
@@ -136,10 +145,10 @@ export default function PurchaseOrderItemTable({
 
           <tbody className="divide-y divide-slate-100">
 
-            {items.map((item) => (
+            {items.map((item, idx) => (
 
               <tr
-                key={item.id}
+                key={item.id || idx}
                 className="hover:bg-slate-50/50"
               >
 
@@ -322,14 +331,40 @@ export default function PurchaseOrderItemTable({
 
                 </td>
 
+                {/* TAX % */}
+
+                <td className="px-3 py-2">
+
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={item.tax_percent ?? 0}
+                      onChange={(e) => {
+                        const tax = Math.min(100, Math.max(0, Number(e.target.value)));
+                        onUpdateItem(item.id, { tax_percent: tax });
+                      }}
+                      className={cn(inputCompact, "w-16 text-right")}
+                    />
+                    <span className="text-slate-400 text-xs">%</span>
+                  </div>
+
+                </td>
+
+                {/* TAX AMOUNT */}
+
+                <td className="px-3 py-2 whitespace-nowrap text-slate-400 text-xs font-normal">
+                  {item.tax_percent > 0
+                    ? `+${formatRupiah(item.tax_amount)}`
+                    : "-"}
+                </td>
+
                 {/* SUBTOTAL */}
 
                 <td className="px-3 py-2 font-semibold whitespace-nowrap">
-
-                  {formatRupiah(
-                    item.subtotal
-                  )}
-
+                  {formatRupiah(item.subtotal)}
                 </td>
 
                 {/* DELETE */}

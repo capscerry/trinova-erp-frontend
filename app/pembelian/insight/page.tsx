@@ -364,8 +364,8 @@ function ReorderTable({ data }: { data: ReorderCandidate[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {data.map((r) => (
-            <tr key={`${r.productId}-${r.supplierId}`} className="hover:bg-slate-50 transition-colors">
+          {data.map((r, idx) => (
+            <tr key={`${r.productId}-${r.supplierId}-${idx}`} className="hover:bg-slate-50 transition-colors">
               <td className="px-3 py-3">
                 <p className="font-semibold text-navy-900 font-serif">{r.productName}</p>
                 <p className="text-[10px] text-slate-400 font-mono">#{r.productId}</p>
@@ -603,6 +603,13 @@ export default function PurchasingInsightPage() {
               ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
               : "Refresh"}
           </button>
+          <Link
+            href="/rekomendasi"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold-400 text-navy-900 text-[11px] font-bold hover:bg-gold-300 transition-colors"
+          >
+            <Brain size={11} />
+            Kalkulator Rekomendasi AI
+          </Link>
           <Link href="/pembelian" className="text-[11px] text-slate-500 hover:text-gold-400 transition-colors flex items-center gap-1">
             ← Kembali ke Pembelian
           </Link>
