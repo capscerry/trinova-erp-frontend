@@ -7,9 +7,12 @@ import { Button, Tooltip } from "@/components/ui";
 import {
   ahpWeightsFromMatrix,
   defaultPairwiseMatrix,
+  applyPreset,
+  PRIORITY_PRESETS,
   SAATY_SCALE,
   type AhpResult,
   type Criterion,
+  type PresetKey,
 } from "@/lib/ahp-topsis";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,35 +24,30 @@ interface AhpCriteriaPanelProps {
   isLoading?: boolean;
 }
 
-// ─── Saaty fraction display ───────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatSaaty(v: number): string {
   if (v >= 1) return String(Math.round(v));
-  // reciprocal — find denominator
   const denom = Math.round(1 / v);
   return `1/${denom}`;
 }
 
-// ─── CR badge ────────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CrBadge({ cr, isConsistent }: { cr: number; isConsistent: boolean }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border",
-        isConsistent
-          ? "bg-green-50 border-green-200 text-green-700"
-          : "bg-red-50 border-red-200 text-red-600"
-      )}
-    >
+    <span className={cn(
+      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border",
+      isConsistent
+        ? "bg-green-50 border-green-200 text-green-700"
+        : "bg-red-50 border-red-200 text-red-600"
+    )}>
       {isConsistent ? <CheckCircle size={11} /> : <AlertTriangle size={11} />}
       CR = {(cr * 100).toFixed(1)}%
       {isConsistent ? " ✓ Konsisten" : " ✗ Tidak Konsisten"}
     </span>
   );
 }
-
-// ─── Weight bar row ───────────────────────────────────────────────────────────
 
 function WeightRow({ label, weight, benefit }: { label: string; weight: number; benefit: boolean }) {
   const pct = Math.round(weight * 100);
@@ -60,13 +58,20 @@ function WeightRow({ label, weight, benefit }: { label: string; weight: number; 
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500",
-            benefit ? "bg-gradient-to-r from-green-400 to-green-600" : "bg-gradient-to-r from-rose-400 to-rose-600"
+            benefit
+              ? "bg-gradient-to-r from-green-400 to-green-600"
+              : "bg-gradient-to-r from-rose-400 to-rose-600"
           )}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[12px] font-bold tabular-nums text-navy-900 w-10 text-right shrink-0">{pct}%</span>
-      <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0", benefit ? "bg-green-50 text-green-700" : "bg-rose-50 text-rose-600")}>
+      <span className="text-[12px] font-bold tabular-nums text-navy-900 w-10 text-right shrink-0">
+        {pct}%
+      </span>
+      <span className={cn(
+        "text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0",
+        benefit ? "bg-green-50 text-green-700" : "bg-rose-50 text-rose-600"
+      )}>
         {benefit ? "↑ B" : "↓ C"}
       </span>
     </div>
@@ -83,18 +88,19 @@ export function AhpCriteriaPanel({
 }: AhpCriteriaPanelProps) {
   const n = criteria.length;
 
-  // Pairwise matrix state: n×n, upper-triangle only (lower is auto-reciprocal)
   const [matrix, setMatrix] = useState<number[][]>(() => defaultPairwiseMatrix(n));
   const [ahpResult, setAhpResult] = useState<AhpResult | null>(null);
+  const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [matrixOpen, setMatrixOpen] = useState(true);
   const [resultOpen, setResultOpen] = useState(true);
 
-  // Recompute if criteria length changes
   const safeMatrix =
     matrix.length === n && matrix[0]?.length === n
       ? matrix
       : defaultPairwiseMatrix(n);
+
+  // ── Handlers ────────────────────────────────────────────────────────────
 
   function setCell(i: number, j: number, raw: string) {
     const parsed = parseFloat(raw);
@@ -103,33 +109,45 @@ export function AhpCriteriaPanel({
     next[i][j] = parsed;
     next[j][i] = 1 / parsed;
     setMatrix(next);
+    setActivePreset(null); // user customised — deselect preset
+  }
+
+  function runAhp(m: number[][]) {
+    const result = ahpWeightsFromMatrix(m);
+    setAhpResult(result);
+    onChange(criteria.map((c, i) => ({ ...c, weight: result.weights[i] })));
+    setResultOpen(true);
   }
 
   function handleCompute() {
-    const result = ahpWeightsFromMatrix(safeMatrix);
-    setAhpResult(result);
-    // Update criteria weights
-    onChange(
-      criteria.map((c, i) => ({ ...c, weight: result.weights[i] }))
-    );
+    runAhp(safeMatrix);
   }
 
   function handleEqualize() {
     const eq = defaultPairwiseMatrix(n);
     setMatrix(eq);
-    const result = ahpWeightsFromMatrix(eq);
+    setActivePreset(null);
+    runAhp(eq);
+  }
+
+  function handleSelectPreset(key: PresetKey) {
+    if (activePreset === key) return; // already active
+    const { result, matrix: presetMatrix } = applyPreset(key);
+    setMatrix(presetMatrix);
     setAhpResult(result);
+    setActivePreset(key);
+    setResultOpen(true);
     onChange(criteria.map((c, i) => ({ ...c, weight: result.weights[i] })));
   }
 
   const canRun = ahpResult?.isConsistent === true && !isLoading;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-      {/* ── Panel header ───────────────────────────────────────────────────── */}
+      {/* ── Panel header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-navy-900 to-navy-600 flex items-center justify-center">
@@ -140,7 +158,7 @@ export function AhpCriteriaPanel({
               Pembobotan Kriteria (AHP)
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Bandingkan kepentingan antar kriteria secara berpasangan
+              Pilih preset prioritas atau atur matriks secara manual
             </p>
           </div>
         </div>
@@ -158,34 +176,103 @@ export function AhpCriteriaPanel({
         </div>
       </div>
 
-      {/* ── Info banner ────────────────────────────────────────────────────── */}
+      {/* ── Priority preset selector ─────────────────────────────────────── */}
+      <div className="px-5 py-3.5 border-b border-slate-100">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">
+          Preset Prioritas
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {PRIORITY_PRESETS.map((preset) => {
+            const isActive = activePreset === preset.key;
+            const colors: Record<string, { inactive: string; active: string }> = {
+              rose:  { inactive: "bg-white border-rose-200  text-rose-600  hover:bg-rose-50",  active: "bg-rose-600  text-white border-rose-600"  },
+              amber: { inactive: "bg-white border-amber-300 text-amber-700 hover:bg-amber-50", active: "bg-amber-500 text-white border-amber-500" },
+              blue:  { inactive: "bg-white border-blue-200  text-blue-600  hover:bg-blue-50",  active: "bg-blue-600  text-white border-blue-600"  },
+              slate: { inactive: "bg-white border-slate-200 text-slate-600 hover:bg-slate-50", active: "bg-slate-600 text-white border-slate-600" },
+            };
+            const c = colors[preset.color];
+            return (
+              <button
+                key={preset.key}
+                type="button"
+                onClick={() => handleSelectPreset(preset.key)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
+                  isActive ? c.active : c.inactive
+                )}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Description + top-weight hints for active preset */}
+        {activePreset && (() => {
+          const preset = PRIORITY_PRESETS.find((p) => p.key === activePreset)!;
+          const topWeights = Object.entries(preset.approxWeights)
+            .sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]))
+            .slice(0, 3);
+          return (
+            <div className="mt-2.5 flex items-start gap-2">
+              <p className="text-[11px] text-slate-500 leading-snug flex-1">
+                {preset.description}
+              </p>
+              <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                {topWeights.map(([cid, w]) => {
+                  const crit = criteria.find((c) => c.id === cid);
+                  return (
+                    <span
+                      key={cid}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-navy-900/10 text-navy-900 text-[10px] font-semibold border border-navy-900/10"
+                    >
+                      {crit?.label ?? cid} {w}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Info banner ─────────────────────────────────────────────────── */}
       {showInfo && (
         <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 text-[12px] text-blue-700 leading-relaxed space-y-1">
           <p>
-            <strong>Skala Saaty:</strong> 1 = sama penting &nbsp;|&nbsp; 3 = sedikit lebih penting &nbsp;|&nbsp;
-            5 = lebih penting &nbsp;|&nbsp; 7 = sangat penting &nbsp;|&nbsp; 9 = mutlak lebih penting.
+            <strong>Skala Saaty:</strong> 1 = sama penting &nbsp;|&nbsp;
+            3 = sedikit lebih penting &nbsp;|&nbsp; 5 = lebih penting &nbsp;|&nbsp;
+            7 = sangat penting &nbsp;|&nbsp; 9 = mutlak lebih penting.
             Nilai pecahan (1/3, 1/5, …) berarti kebalikannya.
           </p>
           <p>
-            <strong>Consistency Ratio (CR)</strong> harus &lt; 10% agar pembobotan dianggap konsisten.
-            Klik <em>Hitung Bobot AHP</em> untuk melihat hasilnya.
+            <strong>Consistency Ratio (CR)</strong> harus &lt; 10% agar pembobotan konsisten.
+            Preset sudah divalidasi CR &lt; 10% — aman langsung digunakan.
           </p>
           <p>
-            <strong>Tipe Kriteria:</strong> <span className="text-green-700 font-semibold">↑ Benefit</span> = nilai lebih besar lebih baik (contoh: On-Time Rate). &nbsp;
-            <span className="text-rose-600 font-semibold">↓ Cost</span> = nilai lebih kecil lebih baik (contoh: Harga, Lead Time).
+            <strong>Tipe:</strong>{" "}
+            <span className="text-green-700 font-semibold">↑ Benefit</span> = lebih besar lebih baik. &nbsp;
+            <span className="text-rose-600 font-semibold">↓ Cost</span> = lebih kecil lebih baik.
           </p>
         </div>
       )}
 
-      {/* ── Pairwise matrix ─────────────────────────────────────────────────── */}
+      {/* ── Pairwise matrix ──────────────────────────────────────────────── */}
       <button
         className="w-full flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors"
         onClick={() => setMatrixOpen((v) => !v)}
       >
         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
           Matriks Perbandingan Berpasangan
+          {activePreset && (
+            <span className="ml-2 font-normal text-slate-400 normal-case tracking-normal">
+              (diisi dari preset — bisa diedit manual)
+            </span>
+          )}
         </span>
-        {matrixOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+        {matrixOpen
+          ? <ChevronUp size={14} className="text-slate-400" />
+          : <ChevronDown size={14} className="text-slate-400" />}
       </button>
 
       {matrixOpen && (
@@ -193,7 +280,6 @@ export function AhpCriteriaPanel({
           <table className="text-[11px] border-collapse w-full">
             <thead>
               <tr>
-                {/* top-left empty corner */}
                 <th className="w-32 pb-2" />
                 {criteria.map((c) => (
                   <th key={c.id} className="pb-2 px-1 text-center font-bold text-slate-500 min-w-[80px]">
@@ -208,14 +294,11 @@ export function AhpCriteriaPanel({
             <tbody className="divide-y divide-slate-50">
               {criteria.map((rowC, i) => (
                 <tr key={rowC.id} className="hover:bg-slate-50/50">
-                  {/* Row label */}
                   <td className="pr-3 py-2 font-semibold text-slate-700 text-[12px] truncate max-w-[120px]">
                     {rowC.label}
                   </td>
-
                   {criteria.map((colC, j) => {
                     if (i === j) {
-                      // Diagonal = 1, not editable
                       return (
                         <td key={colC.id} className="px-1 py-2 text-center">
                           <span className="inline-block w-16 text-center text-slate-300 font-bold bg-slate-50 rounded-lg px-2 py-1.5 border border-slate-100">
@@ -224,10 +307,8 @@ export function AhpCriteriaPanel({
                         </td>
                       );
                     }
-
                     if (j < i) {
-                      // Lower triangle: show reciprocal (read-only, derived)
-                      const reciprocal = safeMatrix[i][j]; // already stored as 1/upper
+                      const reciprocal = safeMatrix[i][j];
                       return (
                         <td key={colC.id} className="px-1 py-2 text-center">
                           <span className="inline-block w-16 text-center text-slate-400 bg-slate-50/80 rounded-lg px-2 py-1.5 border border-slate-100 font-mono">
@@ -236,8 +317,6 @@ export function AhpCriteriaPanel({
                         </td>
                       );
                     }
-
-                    // Upper triangle: editable select
                     const val = safeMatrix[i][j];
                     return (
                       <td key={colC.id} className="px-1 py-2 text-center">
@@ -260,7 +339,6 @@ export function AhpCriteriaPanel({
             </tbody>
           </table>
 
-          {/* Compute button */}
           <div className="mt-4 flex items-center justify-between">
             <p className="text-[11px] text-slate-400">
               Isi sel <span className="font-semibold text-navy-900">baris ÷ kolom</span> — berapa kali baris lebih penting dari kolom?
@@ -272,7 +350,7 @@ export function AhpCriteriaPanel({
         </div>
       )}
 
-      {/* ── AHP Result ─────────────────────────────────────────────────────── */}
+      {/* ── AHP Result ──────────────────────────────────────────────────── */}
       {ahpResult && (
         <>
           <button
@@ -284,13 +362,14 @@ export function AhpCriteriaPanel({
             </span>
             <div className="flex items-center gap-2">
               <CrBadge cr={ahpResult.cr} isConsistent={ahpResult.isConsistent} />
-              {resultOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+              {resultOpen
+                ? <ChevronUp size={14} className="text-slate-400" />
+                : <ChevronDown size={14} className="text-slate-400" />}
             </div>
           </button>
 
           {resultOpen && (
             <div className="px-5 py-4 space-y-3">
-              {/* CR / λmax info */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: "λmax", value: ahpResult.lambdaMax.toFixed(4), sub: "Eigenvalue Utama" },
@@ -298,7 +377,9 @@ export function AhpCriteriaPanel({
                   { label: "CR",   value: `${(ahpResult.cr * 100).toFixed(2)}%`, sub: "Consistency Ratio" },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif mb-1">{stat.label}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif mb-1">
+                      {stat.label}
+                    </p>
                     <p className={cn(
                       "text-lg font-bold font-serif leading-none",
                       stat.label === "CR"
@@ -316,15 +397,15 @@ export function AhpCriteriaPanel({
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                   <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
                   <p className="text-[12px] text-red-700">
-                    CR ≥ 10% — penilaian tidak konsisten. Tinjau kembali matriks perbandingan dan kurangi inkonsistensi
-                    sebelum melanjutkan analisis.
+                    CR ≥ 10% — penilaian tidak konsisten. Tinjau kembali matriks atau pilih preset yang sudah tervalidasi.
                   </p>
                 </div>
               )}
 
-              {/* Weight bars */}
               <div className="space-y-2.5">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Bobot Normalised</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Bobot Normalised
+                </p>
                 {criteria.map((c, i) => (
                   <WeightRow
                     key={c.id}
@@ -339,21 +420,19 @@ export function AhpCriteriaPanel({
         </>
       )}
 
-      {/* ── Footer / Run button ─────────────────────────────────────────────── */}
+      {/* ── Footer / Run button ─────────────────────────────────────────── */}
       <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
         <p className="text-[11px] text-slate-400">
           {ahpResult
             ? ahpResult.isConsistent
               ? "Bobot siap digunakan. Klik Jalankan Analisis untuk lanjut ke TOPSIS."
-              : "Perbaiki matriks agar CR < 10% sebelum menjalankan analisis."
-            : "Klik Hitung Bobot AHP terlebih dahulu untuk mendapatkan bobot kriteria."}
+              : "Perbaiki matriks atau pilih preset lain agar CR < 10%."
+            : "Pilih preset di atas atau klik Hitung Bobot AHP untuk memulai."}
         </p>
         <Button variant="primary" size="md" onClick={onRun} disabled={!canRun}>
-          {isLoading ? (
-            <><RefreshCw size={13} className="animate-spin" /> Menghitung…</>
-          ) : (
-            "Jalankan Analisis →"
-          )}
+          {isLoading
+            ? <><RefreshCw size={13} className="animate-spin" /> Menghitung…</>
+            : "Jalankan Analisis →"}
         </Button>
       </div>
     </div>
