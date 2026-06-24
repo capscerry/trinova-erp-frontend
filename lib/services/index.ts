@@ -9,3 +9,4 @@ export * from "./gr.service";
 export * from "./supplier-product.service";
 export * from "./supplierCategory.service";
 export * from "./purchase-invoice.service";
+export * from "./goods-request.service";

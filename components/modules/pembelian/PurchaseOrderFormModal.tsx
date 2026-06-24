@@ -4,10 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
-  ShieldCheck, Loader2, Check,
+  ShieldCheck, Loader2, Check, ClipboardList, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
+import { goodsRequestService, type GoodsRequest } from "@/lib/services/goods-request.service";
 
 interface Supplier { id: string; nama: string; }
 interface Product {
@@ -43,6 +44,7 @@ interface PurchaseOrderFormModalProps {
   existingGoodsReceipts?: any[];
   existingInvoices?: any[];
   initialData?: PurchaseOrderFormData | null;
+  prList?: GoodsRequest[];
 }
 
 const PROSES_LINKS = [
@@ -104,7 +106,7 @@ export default function PurchaseOrderFormModal({
   onCreatePayment, onNavigateToInvoicePage,
   suppliers, products, uoms, purchaseOrderDetails = [],
   existingDownPayments = [], existingGoodsReceipts = [], existingInvoices = [],
-  initialData,
+  initialData, prList = [],
 }: PurchaseOrderFormModalProps) {
 
   const isEdit = !!initialData;
@@ -151,6 +153,13 @@ export default function PurchaseOrderFormModal({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [deletedItems, setDeletedItems] = useState<number[]>([]);
 
+  // ── PR (Purchase Requisition) picker state ─────────────────────────────────
+  const [prPickerOpen, setPrPickerOpen] = useState(false);
+  const [prSearch, setPrSearch] = useState("");
+  const [prLoading, setPrLoading] = useState(false);
+  const [prItems, setPrItems] = useState<GoodsRequest[]>([]);
+  const [selectedPR, setSelectedPR] = useState<GoodsRequest | null>(null);
+
   // Track whether the modal was just opened so only seed state once per open
   const wasOpenRef = useRef(false);
 
@@ -194,7 +203,7 @@ export default function PurchaseOrderFormModal({
       setPaymentOpen(false); setPaymentDone(false); setPaymentSaving(false);
       setPaymentForm({ payment_date: todayStr(), amount: 0, payment_method: "Transfer", notes: "" });
       setDeletedItems([]);
-
+      setPrPickerOpen(false); setPrSearch(""); setSelectedPR(null);
       if (initialData) {
         // Normalize items to ensure tax fields exist (older records won't have them)
         const normalizedItems = (initialData.items ?? []).map(item => ({
@@ -432,6 +441,74 @@ export default function PurchaseOrderFormModal({
     }
   };
 
+  // ── PR Picker handlers ─────────────────────────────────────────────────────
+  const handleOpenPrPicker = async () => {
+    setPrPickerOpen(true);
+    setPrSearch("");
+    // Prefer the list passed as a prop; fall back to fetching live if empty.
+    if (prList.length > 0) {
+      setPrItems(prList);
+      return;
+    }
+    setPrLoading(true);
+    try {
+      const data = await goodsRequestService.getAll();
+      setPrItems(data);
+    } catch {
+      setPrItems([]);
+    } finally {
+      setPrLoading(false);
+    }
+  };
+
+  const handleSelectPR = async (pr: GoodsRequest) => {
+    // If the record already has details embedded, use them immediately.
+    // Otherwise, fetch the full record by id to get line items.
+    let fullPR = pr;
+    if (!pr.details || pr.details.length === 0) {
+      try {
+        fullPR = await goodsRequestService.getById(pr.id);
+      } catch {
+        fullPR = pr;
+      }
+    }
+
+    setSelectedPR(fullPR);
+
+    // Map PR detail lines → PO item rows
+    if (fullPR.details && fullPR.details.length > 0) {
+      const mappedItems: PurchaseOrderItem[] = fullPR.details.map(d => {
+        const prod = products.find(p => p.id === String(d.product_id));
+        const uomMatch = uoms.find(u =>
+          u.id === String(d.uom_id) || u.nama === d.uom_name
+        );
+        const price = prod?.supplier_price ?? 0;
+        const qty = d.quantity ?? 1;
+        const subtotal = qty * price;
+        return {
+          id: crypto.randomUUID(),
+          product_id: String(d.product_id),
+          product_name: d.product_name ?? prod?.nama ?? `Product ${d.product_id}`,
+          quantity: qty,
+          uom_id: uomMatch?.id ?? String(d.uom_id ?? ""),
+          uom_name: uomMatch?.nama ?? d.uom_name ?? "",
+          price,
+          tax_percent: 0,
+          tax_amount: 0,
+          subtotal,
+        };
+      });
+      setForm(prev => ({ ...prev, items: mappedItems }));
+
+      // Auto-filter products to the current supplier if one is already set
+      if (form.supplier_id) {
+        setFilteredProducts(products.filter(p => p.supplier_id?.toString() === form.supplier_id));
+      }
+    }
+
+    setPrPickerOpen(false);
+  };
+
   const handleNavigate = (key: typeof PROSES_LINKS[number]["key"]) => {
     if (key === "persetujuan") { setApprovalOpen(true); return; }
     if (key === "uang-muka") { setDpOpen(true); return; }
@@ -534,6 +611,32 @@ export default function PurchaseOrderFormModal({
                 </div>
               </FormField>
             </Section>
+
+            {/* ── Ambil dari PR banner (new PO only) ─────────────────────── */}
+            {!isEdit && !isCompleted && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <ClipboardList size={16} className="text-blue-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">
+                      {selectedPR ? `PR dipilih: ${selectedPR.nomor}` : "Ambil dari Purchase Requisition"}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      {selectedPR
+                        ? `${selectedPR.details.length} item dimuat dari PR — Opsional, ubah item di bawah jika diperlukan`
+                        : "Opsional — pilih PR untuk mengisi item produk secara otomatis"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenPrPicker}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors shrink-0"
+                >
+                  <ClipboardList size={12} /> {selectedPR ? "Ganti PR" : "Pilih"}
+                </button>
+              </div>
+            )}
 
             <Section title="Detail Item" action={
               !isCompleted && (
@@ -641,6 +744,129 @@ export default function PurchaseOrderFormModal({
 
         </div>
       </div>
+
+      {/* ── PR Picker sub-modal (z-60) ────────────────────────────────────── */}
+      {prPickerOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setPrPickerOpen(false)} />
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden max-h-[80vh] flex flex-col">
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+                <div>
+                  <h2 className="text-white font-semibold text-[15px]">Pilih Purchase Requisition</h2>
+                  <p className="text-slate-400 text-xs mt-0.5">Pilih PR untuk mengisi item produk secara otomatis</p>
+                </div>
+                <button onClick={() => setPrPickerOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Search bar */}
+              <div className="px-5 py-3 border-b border-slate-100 shrink-0">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Cari nomor atau keterangan PR..."
+                    value={prSearch}
+                    onChange={e => setPrSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500"
+                  />
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="overflow-y-auto flex-1">
+                {prLoading ? (
+                  <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
+                    <Loader2 size={16} className="animate-spin" />
+                    <span className="text-sm">Memuat data PR...</span>
+                  </div>
+                ) : (() => {
+                  const filtered = prItems.filter(pr =>
+                    pr.nomor.toLowerCase().includes(prSearch.toLowerCase()) ||
+                    pr.keterangan.toLowerCase().includes(prSearch.toLowerCase()) ||
+                    pr.tipe_permintaan.toLowerCase().includes(prSearch.toLowerCase())
+                  );
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <ClipboardList size={28} className="mb-2 opacity-30" />
+                        <p className="text-sm">Tidak ada Purchase Requisition ditemukan</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 z-10">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Nomor</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tanggal</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tipe</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Keterangan</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                          <th className="px-4 py-2.5" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map(pr => (
+                          <tr key={pr.id}
+                            className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-mono font-semibold text-[12px] text-navy-700">{pr.nomor}</td>
+                            <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
+                              {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(pr.tanggal))}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 text-xs">{pr.tipe_permintaan || "—"}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{pr.keterangan || "—"}</td>
+                            <td className="px-4 py-3">
+                              <span className={cn(
+                                "inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border",
+                                pr.status === "Processed"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : pr.status === "Waiting to be processed"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : pr.status === "Partially processed"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : pr.status === "Cancelled"
+                                  ? "bg-rose-50 text-rose-600 border-rose-200"
+                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                              )}>
+                                {pr.status || "—"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectPR(pr)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-navy-900 text-gold-400 hover:bg-navy-700 transition-colors"
+                              >
+                                Pilih
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end px-5 py-3 border-t border-slate-100 bg-slate-50/60 shrink-0">
+                <button onClick={() => setPrPickerOpen(false)}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
+                  Batal
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </>
+      )}
 
       {approvalOpen && (
         <>

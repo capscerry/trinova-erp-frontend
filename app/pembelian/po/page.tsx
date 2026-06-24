@@ -46,6 +46,11 @@ import {
   createPurchasePayment,
 } from "@/lib/services/purchase-payment.service";
 
+import {
+  goodsRequestService,
+  type GoodsRequest,
+} from "@/lib/services/goods-request.service";
+
 import PurchaseOrderFormModal from "@/components/modules/pembelian/PurchaseOrderFormModal";
 
 import PurchaseOrderDetailModal from "@/components/modules/pembelian/PurchaseOrderDetailModal";
@@ -244,6 +249,9 @@ export default function PurchaseOrderPage() {
 
   const [uoms, setUoms] =
     useState<Uom[]>([]);
+
+  const [prList, setPrList] =
+    useState<GoodsRequest[]>([]);
 
   const [openModal, setOpenModal] =
     useState(false);
@@ -803,6 +811,19 @@ export default function PurchaseOrderPage() {
   };
 
   // ─────────────────────────────────────────────────────────
+  // FETCH PR LIST
+  // ─────────────────────────────────────────────────────────
+
+  const fetchPrList = async () => {
+    try {
+      const data = await goodsRequestService.getAll();
+      setPrList(data);
+    } catch (error) {
+      console.error("Failed to fetch PR list:", error);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
   // USE EFFECT
   // ─────────────────────────────────────────────────────────
 
@@ -814,6 +835,7 @@ export default function PurchaseOrderPage() {
     fetchSuppliers();
     fetchProducts();
     fetchUoms();
+    fetchPrList();
 
   }, []);
 
@@ -1077,6 +1099,7 @@ export default function PurchaseOrderPage() {
         existingDownPayments={downPayments}
         existingGoodsReceipts={goodsReceipts}
         existingInvoices={purchaseInvoices}
+        prList={prList}
       />
 
       {/* DETAIL MODAL */}
