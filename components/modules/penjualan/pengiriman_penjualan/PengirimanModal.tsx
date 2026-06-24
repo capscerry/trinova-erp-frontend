@@ -2,229 +2,393 @@
 
 import { useState, useEffect } from "react";
 import {
-  X,
-  User,
-  Hash,
-  FileText,
-  MapPin,
-  Info,
-  Calendar,
-  Truck,
-  Package,
-  ClipboardList,
+  X, Hash, Calendar, User, MapPin, FileText, Truck,
+  RefreshCw, PenLine, FileDown, Package, Trash2, Plus,
+  Warehouse as WarehouseIcon, AlertTriangle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-export interface PengirimanItem {
-  id: number;
-  kodeBarang: string;
-  namaBarang: string;
-  satuan: string;
-  qtyDipesan: number;
-  qtyDikirim: number;
-  keterangan: string;
-}
+import {
+  type PengirimanFormData,
+  type PengirimanItemForm,
+  EMPTY_FORM,
+  generateNoSuratJalan,
+  todayStr,
+  mapFormToApiPayload,
+  newPengirimanItem,
+  inputClass,
+} from "./PengirimanType";
+import {
+  PengirimanSOPickerModal,
+  type PengirimanSOPickerResultItem,
+} from "../PengirimanSOPickerModal";
+import {
+  pengirimanPenjualanService,
+  shippingTypeService,
+  inventoryStockService,
+  type ShippingType,
+  type StockItem,
+} from "@/lib/services/pengiriman-penjualan.service";
+import { customerService } from "@/lib/services/customer.service";
+import { getWarehouses, type Warehouse as WarehouseOption } from "@/lib/services/warehouse.service";
 
-export interface PengirimanFormData {
-  id: number;
-  pelanggan: string;
-  noSuratJalan: string;
-  tanggal: string;
-  noSO: string;
-  noPO: string;
-  ekspedisi: string;
-  noResi: string;
-  alamatPengiriman: string;
-  kotaTujuan: string;
-  keterangan: string;
-  fakturType: string;
-  items: PengirimanItem[];
-}
-
-interface PengirimanModalProps {
+// ─── Props ────────────────────────────────────────────────────────────────────
+export interface PengirimanModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PengirimanFormData) => void;
-  onProses?: (data: PengirimanFormData) => void;
-  initialData?: PengirimanFormData;
-  isSaved?: boolean;
+  initialData?: Partial<PengirimanFormData> | any;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const today = new Date().toLocaleDateString("id-ID", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
-
-const EMPTY_FORM: PengirimanFormData = {
-  id: 0,
-  pelanggan: "",
-  noSuratJalan: "",
-  tanggal: today,
-  noSO: "",
-  noPO: "",
-  ekspedisi: "",
-  noResi: "",
-  alamatPengiriman: "",
-  kotaTujuan: "",
-  keterangan: "",
-  fakturType: "Faktur Penjualan",
-  items: [],
-};
-
-const EMPTY_ITEM: PengirimanItem = {
-  id: 0,
-  kodeBarang: "",
-  namaBarang: "",
-  satuan: "PCS",
-  qtyDipesan: 0,
-  qtyDikirim: 0,
-  keterangan: "",
-};
-
-type Tab = "pengiriman" | "barang" | "info-lainnya";
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const inputClass = `
-  w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white
-  text-slate-700 placeholder-slate-400
-  focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500
-  transition-all
-`;
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function FormField({
-  label,
-  icon,
-  required,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
-        {icon && <span className="text-slate-400">{icon}</span>}
-        {label}
-        {required && <span className="text-red-400 font-bold">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-// ─── Main Modal ───────────────────────────────────────────────────────────────
+// ─── Component ────────────────────────────────────────────────────────────────
 export function PengirimanModal({
   open,
   onClose,
   onSubmit,
-  onProses,
   initialData,
-  isSaved = false,
 }: PengirimanModalProps) {
-  const isEdit = !!initialData;
+  const isEdit = !!initialData?.id;
 
   const [form, setForm] = useState<PengirimanFormData>(EMPTY_FORM);
-  const [activeTab, setActiveTab] = useState<Tab>("pengiriman");
-  const [saved, setSaved] = useState(isSaved);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Customer dropdown ────────────────────────────────
+  const [customerOptions, setCustomerOptions] = useState<{ id: number; name: string }[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [filterCustomer, setFilterCustomer] = useState("");
+
+  // ── Tipe Pengiriman dropdown (hit API) ────────────────
+  const [shippingTypes, setShippingTypes] = useState<ShippingType[]>([]);
+  const [loadingShippingTypes, setLoadingShippingTypes] = useState(false);
+  const [showShippingDropdown, setShowShippingDropdown] = useState(false);
+  const [filterShipping, setFilterShipping] = useState("");
+
+  // ── Gudang dropdown (hit API) ──────────────────────────
+  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false);
+  const [filterWarehouse, setFilterWarehouse] = useState("");
+
+  // ── Stok gudang (untuk validasi qty kirim vs stok tersedia) ────
+  const [stocks, setStocks] = useState<StockItem[]>([]);
+  const [loadingStocks, setLoadingStocks] = useState(false);
+
+  // ── SO Picker ─────────────────────────────────────────
+  const [soPickerOpen, setSoPickerOpen] = useState(false);
 
   useEffect(() => {
-    setForm(initialData ?? EMPTY_FORM);
-    setSaved(isSaved);
-    setActiveTab("pengiriman");
-  }, [initialData, isSaved, open]);
+    if (!open) return;
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const loadCustomers = async () => {
+      try {
+        setLoadingCustomers(true);
+        const data = await customerService.getAllActive();
+        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama })));
+      } catch (err) {
+        console.error("Gagal memuat data customer:", err);
+        setCustomerOptions([]);
+      } finally {
+        setLoadingCustomers(false);
+      }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+
+    const loadShippingTypes = async () => {
+      try {
+        setLoadingShippingTypes(true);
+        const data = await shippingTypeService.getAll();
+        setShippingTypes(data);
+      } catch (err) {
+        console.error("Gagal memuat tipe pengiriman:", err);
+        setShippingTypes([]);
+      } finally {
+        setLoadingShippingTypes(false);
+      }
+    };
+
+    const loadWarehouses = async () => {
+      try {
+        setLoadingWarehouses(true);
+        const data = await getWarehouses();
+        setWarehouses(data ?? []);
+      } catch (err) {
+        console.error("Gagal memuat data gudang:", err);
+        setWarehouses([]);
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+
+    const loadStocks = async () => {
+      try {
+        setLoadingStocks(true);
+        const data = await inventoryStockService.getAll();
+        setStocks(data);
+      } catch (err) {
+        console.error("Gagal memuat data stok:", err);
+        setStocks([]);
+      } finally {
+        setLoadingStocks(false);
+      }
+    };
+
+    loadCustomers();
+    loadShippingTypes();
+    loadWarehouses();
+    loadStocks();
+  }, [open]);
+
+  // ── Initialize form ───────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+
+    const data = initialData ?? {};
+
+    setForm({
+      id: data.id,
+      customerId: data.customerId,
+      pelanggan: data.pelanggan ?? "",
+      noSuratJalan: data.noSuratJalan ?? generateNoSuratJalan(),
+      noSuratJalanMode: data.noSuratJalanMode ?? "auto",
+      tanggalKirim: data.tanggalKirim ?? todayStr(),
+      salesOrderId: data.salesOrderId ?? undefined,
+      noSo: data.noSo ?? "",
+      noPO: data.noPO ?? "",
+      shippingTypeId: data.shippingTypeId ?? undefined,
+      shippingType: data.shippingType ?? "",
+      warehouseId: data.warehouseId ?? undefined,
+      warehouseName: data.warehouseName ?? "",
+      alamatPengiriman: data.alamatPengiriman ?? "",
+      keterangan: data.keterangan ?? "",
+      items: data.items?.length
+        ? data.items.map((it: any) => ({
+            id: it.id ?? crypto.randomUUID(),
+            productId: it.productId,
+            productCode: it.productCode ?? "",
+            productName: it.productName ?? "",
+            satuan: it.satuan ?? "",
+            uomId: it.uomId,
+            qtyDipesan: it.qtyDipesan ?? 0,
+            qtyDikirim: it.qtyDikirim ?? 0,
+            stokTersedia: undefined,
+          }))
+        : [],
+    });
+  }, [initialData, open]);
+
+  // ── Escape to close ──────────────────────────────────
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  const set = <K extends keyof PengirimanFormData>(
-    field: K,
-    value: PengirimanFormData[K]
-  ) => setForm((prev) => ({ ...prev, [field]: value }));
-
-  // ── Item handlers ────────────────────────────────────────────────────────
-  const addItem = () => {
-    setForm((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        { ...EMPTY_ITEM, id: Date.now() },
-      ],
-    }));
+  const set = <K extends keyof PengirimanFormData>(field: K, value: PengirimanFormData[K]) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateItem = <K extends keyof PengirimanItem>(
-    idx: number,
-    field: K,
-    value: PengirimanItem[K]
+  // ── Customer selection ───────────────────────────────
+  const filteredCustomers = customerOptions.filter((c) =>
+    c.name.toLowerCase().includes(filterCustomer.toLowerCase())
+  );
+
+  const handleSelectCustomer = (customer: { id: number; name: string }) => {
+    setForm((prev) => ({
+      ...prev,
+      pelanggan: customer.name,
+      customerId: customer.id,
+      // Reset referensi SO sebelumnya saat ganti customer
+      salesOrderId: undefined,
+      noSo: "",
+      noPO: "",
+      items: [],
+    }));
+    setShowCustomerDropdown(false);
+    setFilterCustomer("");
+  };
+
+  // ── Shipping type selection ───────────────────────────
+  const filteredShippingTypes = shippingTypes.filter((s) =>
+    s.nama.toLowerCase().includes(filterShipping.toLowerCase())
+  );
+
+  const handleSelectShippingType = (st: ShippingType) => {
+    setForm((prev) => ({ ...prev, shippingType: st.nama, shippingTypeId: st.id }));
+    setShowShippingDropdown(false);
+    setFilterShipping("");
+  };
+
+  // ── Warehouse selection ────────────────────────────────
+  const filteredWarehouses = warehouses.filter((w) =>
+    w.warehouse_name.toLowerCase().includes(filterWarehouse.toLowerCase())
+  );
+
+  const handleSelectWarehouse = (wh: WarehouseOption) => {
+    setForm((prev) => ({
+      ...prev,
+      warehouseId: wh.warehouse_id,
+      warehouseName: wh.warehouse_name,
+    }));
+    setShowWarehouseDropdown(false);
+    setFilterWarehouse("");
+  };
+
+  // ── Cek stok otomatis setiap kali gudang atau daftar produk berubah ──
+  // Mengisi item.stokTersedia dari data inventoryStockService yang sudah
+  // di-fetch sekali di awal (lihat loadStocks di atas). Tidak fetch ulang
+  // ke server di sini — cukup re-lookup dari cache lokal `stocks`.
+  useEffect(() => {
+    if (!form.warehouseId || form.items.length === 0) return;
+
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) => {
+        if (!item.productId) return item;
+        const qty = inventoryStockService.findQty(stocks, item.productId, prev.warehouseId!);
+        return { ...item, stokTersedia: qty };
+      }),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.warehouseId, stocks, form.items.length]);
+
+  // ── No Surat Jalan mode toggle ─────────────────────────
+  const switchNoSuratJalanMode = (mode: "auto" | "manual") => {
+    set("noSuratJalanMode", mode);
+    if (mode === "auto") set("noSuratJalan", generateNoSuratJalan());
+  };
+
+  // ── SO Picker confirm ─────────────────────────────────
+  const handleSoConfirm = (
+    so: { id: number; nomor: string; poNumber: string; alamat: string },
+    items: PengirimanSOPickerResultItem[]
   ) => {
-    setForm((prev) => {
-      const items = [...prev.items];
-      items[idx] = { ...items[idx], [field]: value };
-      return { ...prev, items };
-    });
-  };
-
-  const removeItem = (idx: number) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
+      salesOrderId: so.id,
+      noSo: so.nomor,
+      noPO: so.poNumber || prev.noPO,
+      alamatPengiriman: so.alamat || prev.alamatPengiriman,
+      items: items.map((it) => ({
+        id: crypto.randomUUID(),
+        productId: it.productId,
+        productCode: it.productCode,
+        productName: it.productName,
+        satuan: it.satuan,
+        uomId: it.uomId,
+        qtyDipesan: it.qtyDipesan,
+        qtyDikirim: it.qtyDikirim,
+      })),
+    }));
+    setSoPickerOpen(false);
+  };
+
+  const handleClearSoReference = () => {
+    setForm((prev) => ({
+      ...prev,
+      salesOrderId: undefined,
+      noSo: "",
+      noPO: "",
+      items: [],
     }));
   };
 
-  const handleSubmit = () => {
-    onSubmit(form);
-    setSaved(true);
+  // ── Manual item handlers (kalau buat sendiri tanpa SO) ────
+  const addItem = () => {
+    setForm((prev) => ({ ...prev, items: [...prev.items, newPengirimanItem()] }));
   };
 
-  const handleProses = () => {
-    if (onProses) onProses(form);
+  const updateItem = (id: string, patch: Partial<PengirimanItemForm>) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    }));
+  };
+
+  const removeItem = (id: string) => {
+    setForm((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== id) }));
+  };
+
+  // Sesuai permintaan: "proses saja dahulu barang yang ada stoknya" —
+  // turunkan qtyDikirim ke stokTersedia untuk SEMUA item yang stoknya
+  // kurang dari qty yang mau dikirim. Item dengan stok cukup tidak diubah.
+  const handleAdjustToStock = () => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) => {
+        if (item.stokTersedia === undefined) return item;
+        if (item.qtyDikirim > item.stokTersedia) {
+          return { ...item, qtyDikirim: item.stokTersedia };
+        }
+        return item;
+      }),
+    }));
+  };
+
+  // ── Submit ───────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!form.customerId) {
+      alert("⚠️ Pelanggan wajib dipilih");
+      return;
+    }
+    if (!form.warehouseId) {
+      alert("⚠️ Gudang wajib dipilih");
+      return;
+    }
+    if (!form.shippingTypeId) {
+      alert("⚠️ Tipe Pengiriman wajib dipilih");
+      return;
+    }
+    if (!form.noSuratJalan.trim()) {
+      alert("⚠️ No Surat Jalan wajib diisi");
+      return;
+    }
+    if (form.items.length === 0) {
+      alert("⚠️ Tambahkan minimal 1 barang untuk dikirim");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const payload = mapFormToApiPayload(form);
+      await pengirimanPenjualanService.create(payload);
+      onSubmit(form);
+    } catch (err: any) {
+      console.error("❌ Gagal menyimpan pengiriman:", err);
+      alert(
+        "Gagal menyimpan data: " +
+          (err?.response?.data?.message || err?.message || "Terjadi kesalahan")
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!open) return null;
 
-  const totalQtyDipesan = form.items.reduce((s, i) => s + i.qtyDipesan, 0);
-  const totalQtyDikirim = form.items.reduce((s, i) => s + i.qtyDikirim, 0);
+  const hasPelanggan = !!form.customerId;
+  const totalDipesan = form.items.reduce((s, i) => s + i.qtyDipesan, 0);
+  const totalDikirim = form.items.reduce((s, i) => s + i.qtyDikirim, 0);
+  const adaStokKurang = form.items.some(
+    (i) => i.stokTersedia !== undefined && i.qtyDikirim > i.stokTersedia
+  );
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40"
-      />
+      <div onClick={onClose} className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40" />
 
-      {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="
-            bg-white rounded-2xl shadow-2xl
-            w-full max-w-5xl
-            border border-slate-200
-            overflow-hidden
-            flex flex-col
-            max-h-[96vh]
-          "
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]"
         >
-          {/* ── Header ── */}
+          {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Pengiriman Penjualan" : "Tambah Pengiriman Penjualan"}
               </h2>
               <p className="text-slate-400 text-xs mt-0.5">
-                {isEdit
-                  ? "Perbarui data pengiriman"
-                  : "Isi data surat jalan di bawah ini"}
+                {isEdit ? "Perbarui data surat jalan" : "Buat surat jalan untuk pengiriman barang"}
               </p>
             </div>
             <button
@@ -235,374 +399,479 @@ export function PengirimanModal({
             </button>
           </div>
 
-          {/* ── Scrollable Body ── */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-            {/* ── Top Fields ── */}
-            <div className="px-6 pt-5 pb-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Pelanggan */}
+            {/* Top row: Customer + Tanggal */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Customer */}
               <FormField label="Pelanggan" icon={<User size={14} />} required>
                 <div className="relative">
                   <input
                     type="text"
-                    value={form.pelanggan}
-                    onChange={(e) => set("pelanggan", e.target.value)}
-                    placeholder="Cari/Pilih Pelanggan..."
+                    value={showCustomerDropdown ? filterCustomer : form.pelanggan ?? ""}
+                    onChange={(e) => { if (showCustomerDropdown) setFilterCustomer(e.target.value); }}
+                    onFocus={() => { setShowCustomerDropdown(true); setFilterCustomer(""); }}
+                    placeholder={loadingCustomers ? "Memuat pelanggan..." : "Cari/Pilih Pelanggan..."}
+                    disabled={loadingCustomers}
                     className={inputClass}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                    {loadingCustomers ? "⏳" : "🔍"}
+                  </span>
+
+                  {showCustomerDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowCustomerDropdown(false)} />
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                        {filteredCustomers.length > 0 ? (
+                          filteredCustomers.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
+                            >
+                              {customer.name}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                            {customerOptions.length === 0 ? "Tidak ada data pelanggan" : "Tidak ada hasil"}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </FormField>
 
-              {/* No Surat Jalan */}
-              <FormField label="No Surat Jalan #" icon={<Hash size={14} />} required>
-                <div className="flex gap-2 items-center">
-                  <button
-                    type="button"
-                    onClick={() => set("noSuratJalan", form.noSuratJalan ? "" : "AUTO")}
-                    className={`w-10 h-5 rounded-full transition-colors shrink-0 ${
-                      form.noSuratJalan ? "bg-navy-900" : "bg-slate-300"
-                    }`}
-                  >
-                    <span
-                      className={`block w-4 h-4 bg-white rounded-full shadow transition-transform mx-0.5 ${
-                        form.noSuratJalan ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                  <select
-                    value={form.fakturType}
-                    onChange={(e) => set("fakturType", e.target.value)}
-                    className={inputClass}
-                  >
-                    <option>Faktur Penjualan</option>
-                    <option>Faktur Proforma</option>
-                  </select>
-                </div>
-              </FormField>
-
-              {/* Tanggal */}
-              <FormField label="Tanggal" icon={<Calendar size={14} />} required>
+              {/* Tanggal Kirim */}
+              <FormField label="Tanggal Kirim" icon={<Calendar size={14} />} required>
                 <input
-                  type="text"
-                  value={form.tanggal}
-                  onChange={(e) => set("tanggal", e.target.value)}
+                  type="date"
+                  value={form.tanggalKirim}
+                  onChange={(e) => set("tanggalKirim", e.target.value)}
                   className={inputClass}
-                  placeholder="DD/MM/YYYY"
                 />
               </FormField>
+            </div>
 
-              {/* Proses Button */}
-              <div className="flex items-end justify-end">
+            {/* No Surat Jalan — toggle auto/manual */}
+            <FormField
+              label="No Surat Jalan"
+              icon={<Hash size={14} />}
+              required
+              hint={form.noSuratJalanMode === "auto" ? "Auto-generate" : "Input manual"}
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => switchNoSuratJalanMode("auto")}
+                    title="Auto-generate"
+                    className={cn(
+                      "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                      form.noSuratJalanMode === "auto"
+                        ? "bg-navy-900 text-gold-400 shadow-sm"
+                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <RefreshCw size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchNoSuratJalanMode("manual")}
+                    title="Input manual"
+                    className={cn(
+                      "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                      form.noSuratJalanMode === "manual"
+                        ? "bg-navy-900 text-gold-400 shadow-sm"
+                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <PenLine size={13} />
+                  </button>
+                </div>
+
+                <div className="relative flex-1">
+                  <input
+                    readOnly={form.noSuratJalanMode === "auto"}
+                    value={form.noSuratJalan}
+                    onChange={(e) => {
+                      if (form.noSuratJalanMode === "manual") set("noSuratJalan", e.target.value);
+                    }}
+                    placeholder={form.noSuratJalanMode === "manual" ? "Masukkan no surat jalan..." : ""}
+                    className={cn(
+                      inputClass,
+                      "font-mono",
+                      form.noSuratJalanMode === "auto"
+                        ? "bg-slate-50 text-slate-500 cursor-not-allowed pr-10"
+                        : "bg-white"
+                    )}
+                  />
+                  {form.noSuratJalanMode === "auto" && (
+                    <button
+                      type="button"
+                      onClick={() => set("noSuratJalan", generateNoSuratJalan())}
+                      title="Generate ulang"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100 transition-colors"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </FormField>
+
+            {/* Ambil dari Pesanan Penjualan */}
+            <div
+              className={cn(
+                "rounded-xl border px-4 py-3 transition-all",
+                hasPelanggan ? "border-sky-200 bg-sky-50/50" : "border-slate-200 bg-slate-50/50 opacity-60"
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileDown size={14} className={hasPelanggan ? "text-sky-600" : "text-slate-400"} />
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-slate-600">
+                      Ambil dari Pesanan Penjualan
+                    </span>
+                    {form.noSo ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 text-sky-700 text-[11px] font-semibold font-mono">
+                          {form.noSo}
+                          <button
+                            type="button"
+                            onClick={handleClearSoReference}
+                            className="hover:text-sky-900 transition-colors"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {hasPelanggan
+                          ? "Opsional — pilih pesanan untuk mengisi barang otomatis"
+                          : "Pilih pelanggan terlebih dahulu"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <button
-                  disabled={!saved}
-                  onClick={handleProses}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                    saved
-                      ? "bg-navy-900 text-gold-400 hover:bg-navy-700 shadow-sm"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
+                  type="button"
+                  onClick={() => setSoPickerOpen(true)}
+                  disabled={!hasPelanggan}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 inline-flex items-center gap-1.5",
+                    hasPelanggan
+                      ? "bg-sky-600 text-white hover:bg-sky-700 shadow-sm"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  )}
                 >
-                  Proses ▾
+                  <FileDown size={11} />
+                  {form.noSo ? "Ganti" : "Pilih"}
                 </button>
               </div>
             </div>
 
-            {/* ── Tabs ── */}
-            <div className="flex border-b border-slate-200 px-6 bg-slate-50">
-              {(
-                [
-                  { id: "pengiriman", label: "🚚 Pengiriman" },
-                  { id: "barang",     label: "📦 Barang"     },
-                  { id: "info-lainnya", label: "ℹ️ Info Lainnya" },
-                ] as { id: Tab; label: string }[]
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-                    activeTab === tab.id
-                      ? "border-navy-900 text-navy-900"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Gudang (search dropdown dari API) — dipilih dulu sebelum cek stok */}
+            <FormField label="Gudang" icon={<WarehouseIcon size={14} />} required>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={showWarehouseDropdown ? filterWarehouse : form.warehouseName ?? ""}
+                  onChange={(e) => { if (showWarehouseDropdown) setFilterWarehouse(e.target.value); }}
+                  onFocus={() => { setShowWarehouseDropdown(true); setFilterWarehouse(""); }}
+                  placeholder={loadingWarehouses ? "Memuat gudang..." : "Cari/Pilih Gudang..."}
+                  disabled={loadingWarehouses}
+                  className={inputClass}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                  {loadingWarehouses ? "⏳" : "🔍"}
+                </span>
 
-            {/* ── Tab Content ── */}
-            <div className="px-6 py-5">
-
-              {/* TAB: Pengiriman */}
-              {activeTab === "pengiriman" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField label="No. Sales Order (SO)" icon={<ClipboardList size={14} />}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={form.noSO}
-                          onChange={(e) => set("noSO", e.target.value)}
-                          placeholder="Cari/Pilih SO..."
-                          className={inputClass}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-                      </div>
-                    </FormField>
-
-                    <FormField label="No. PO" icon={<Hash size={14} />}>
-                      <input
-                        type="text"
-                        value={form.noPO}
-                        onChange={(e) => set("noPO", e.target.value)}
-                        placeholder="Nomor Purchase Order"
-                        className={inputClass}
-                      />
-                    </FormField>
-
-                    <FormField label="Ekspedisi / Kurir" icon={<Truck size={14} />}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={form.ekspedisi}
-                          onChange={(e) => set("ekspedisi", e.target.value)}
-                          placeholder="Cari/Pilih Ekspedisi..."
-                          className={inputClass}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-                      </div>
-                    </FormField>
-
-                    <FormField label="No. Resi / AWB" icon={<Hash size={14} />}>
-                      <input
-                        type="text"
-                        value={form.noResi}
-                        onChange={(e) => set("noResi", e.target.value)}
-                        placeholder="Nomor resi pengiriman"
-                        className={inputClass}
-                      />
-                    </FormField>
-
-                    <FormField label="Kota Tujuan" icon={<MapPin size={14} />}>
-                      <input
-                        type="text"
-                        value={form.kotaTujuan}
-                        onChange={(e) => set("kotaTujuan", e.target.value)}
-                        placeholder="Kota/Kabupaten tujuan"
-                        className={inputClass}
-                      />
-                    </FormField>
-                  </div>
-
-                  <FormField label="Alamat Pengiriman" icon={<MapPin size={14} />}>
-                    <textarea
-                      value={form.alamatPengiriman}
-                      onChange={(e) => set("alamatPengiriman", e.target.value)}
-                      rows={3}
-                      placeholder="Masukkan alamat pengiriman lengkap..."
-                      className={inputClass + " resize-y"}
-                    />
-                  </FormField>
-                </div>
-              )}
-
-              {/* TAB: Barang */}
-              {activeTab === "barang" && (
-                <div className="space-y-4">
-                  {/* Summary */}
-                  {form.items.length > 0 && (
-                    <div className="flex gap-6 justify-end text-sm border-b border-slate-100 pb-3">
-                      <div className="text-right">
-                        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Total Dipesan</p>
-                        <p className="text-slate-800 font-bold mt-1">{totalQtyDipesan.toLocaleString("id-ID")}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Total Dikirim</p>
-                        <p className="text-navy-900 font-bold mt-1">{totalQtyDikirim.toLocaleString("id-ID")}</p>
-                      </div>
+                {showWarehouseDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowWarehouseDropdown(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                      {filteredWarehouses.length > 0 ? (
+                        filteredWarehouses.map((wh) => (
+                          <button
+                            key={wh.warehouse_id}
+                            type="button"
+                            onClick={() => handleSelectWarehouse(wh)}
+                            className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
+                          >
+                            {wh.warehouse_name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                          {warehouses.length === 0 ? "Tidak ada data gudang" : "Tidak ada hasil"}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </>
+                )}
+              </div>
+            </FormField>
 
-                  {/* Table */}
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          {["Kode Barang", "Nama Barang", "Satuan", "Qty Dipesan", "Qty Dikirim", "Keterangan", ""].map(
-                            (h) => (
-                              <th
-                                key={h}
-                                className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+            {/* Tipe Pengiriman (search dropdown dari API) */}
+            <FormField label="Tipe Pengiriman" icon={<Truck size={14} />} required>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={showShippingDropdown ? filterShipping : form.shippingType ?? ""}
+                  onChange={(e) => { if (showShippingDropdown) setFilterShipping(e.target.value); }}
+                  onFocus={() => { setShowShippingDropdown(true); setFilterShipping(""); }}
+                  placeholder={loadingShippingTypes ? "Memuat tipe pengiriman..." : "Cari/Pilih Tipe Pengiriman..."}
+                  disabled={loadingShippingTypes}
+                  className={inputClass}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+                  {loadingShippingTypes ? "⏳" : "🔍"}
+                </span>
+
+                {showShippingDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowShippingDropdown(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                      {filteredShippingTypes.length > 0 ? (
+                        filteredShippingTypes.map((st) => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => handleSelectShippingType(st)}
+                            className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
+                          >
+                            {st.nama}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
+                          {shippingTypes.length === 0 ? "Tidak ada data tipe pengiriman" : "Tidak ada hasil"}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </FormField>
+
+            {/* No PO */}
+            <FormField label="No PO" icon={<Hash size={14} />}>
+              <input
+                type="text"
+                value={form.noPO ?? ""}
+                onChange={(e) => set("noPO", e.target.value)}
+                placeholder="Nomor Purchase Order..."
+                className={inputClass}
+              />
+            </FormField>
+
+            {/* Alamat Pengiriman */}
+            <FormField label="Alamat Pengiriman" icon={<MapPin size={14} />}>
+              <textarea
+                value={form.alamatPengiriman}
+                onChange={(e) => set("alamatPengiriman", e.target.value)}
+                rows={2}
+                placeholder="Alamat tujuan pengiriman..."
+                className={cn(inputClass, "resize-y")}
+              />
+            </FormField>
+
+            {/* Keterangan */}
+            <FormField label="Keterangan" icon={<FileText size={14} />}>
+              <textarea
+                value={form.keterangan ?? ""}
+                onChange={(e) => set("keterangan", e.target.value)}
+                rows={2}
+                placeholder="Catatan tambahan..."
+                className={cn(inputClass, "resize-y")}
+              />
+            </FormField>
+
+            {/* Tabel Barang */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                  <Package size={14} className="text-slate-400" /> Barang Dikirim
+                </label>
+                {!form.salesOrderId && (
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-navy-900 text-gold-400 hover:bg-navy-700 transition-colors"
+                  >
+                    <Plus size={12} /> Tambah Baris
+                  </button>
+                )}
+              </div>
+
+              {form.items.length === 0 ? (
+                <div className="border border-dashed border-slate-200 rounded-xl py-8 text-center text-xs text-slate-400">
+                  Belum ada barang. {form.salesOrderId ? "Pilih ulang pesanan untuk memuat barang." : 'Klik "Tambah Baris" atau ambil dari Pesanan Penjualan.'}
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Nama Barang</th>
+                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Satuan</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Qty Dipesan</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Qty Dikirim</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Stok Tersedia</th>
+                        {!form.salesOrderId && <th className="px-3 py-2.5 w-[5%]"></th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {form.items.map((item) => {
+                        const stokKurang =
+                          form.warehouseId &&
+                          item.stokTersedia !== undefined &&
+                          item.qtyDikirim > item.stokTersedia;
+
+                        return (
+                        <tr
+                          key={item.id}
+                          className={cn(
+                            "hover:bg-slate-50/60",
+                            stokKurang && "bg-amber-50/60"
+                          )}
+                        >
+                          <td className="px-3 py-2">
+                            {form.salesOrderId ? (
+                              <span className="font-medium text-slate-700">{item.productName}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={item.productName}
+                                onChange={(e) => updateItem(item.id, { productName: e.target.value })}
+                                placeholder="Nama barang..."
+                                className={cn(inputClass, "py-1.5")}
+                              />
+                            )}
+                            {stokKurang && (
+                              <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600 font-medium">
+                                <AlertTriangle size={11} />
+                                Stok kurang — tersedia {item.stokTersedia}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            {form.salesOrderId ? (
+                              <span className="text-slate-500">{item.satuan}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={item.satuan}
+                                onChange={(e) => updateItem(item.id, { satuan: e.target.value })}
+                                placeholder="PCS"
+                                className={cn(inputClass, "py-1.5")}
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.qtyDipesan}
+                              disabled={!!form.salesOrderId}
+                              onChange={(e) => updateItem(item.id, { qtyDipesan: Number(e.target.value) })}
+                              className={cn(inputClass, "py-1.5 text-right")}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.qtyDipesan || undefined}
+                              value={item.qtyDikirim}
+                              onChange={(e) => updateItem(item.id, { qtyDikirim: Number(e.target.value) })}
+                              className={cn(
+                                inputClass,
+                                "py-1.5 text-right",
+                                stokKurang && "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20"
+                              )}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {!form.warehouseId ? (
+                              <span className="text-slate-300 text-[11px]">Pilih gudang</span>
+                            ) : loadingStocks ? (
+                              <span className="text-slate-400 text-[11px]">Memuat...</span>
+                            ) : item.stokTersedia === undefined ? (
+                              <span className="text-slate-300 text-[11px]">—</span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  stokKurang ? "text-amber-600" : "text-emerald-600"
+                                )}
                               >
-                                {h}
-                              </th>
-                            )
+                                {item.stokTersedia}
+                              </span>
+                            )}
+                          </td>
+                          {!form.salesOrderId && (
+                            <td className="px-2 py-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item.id)}
+                                className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
                           )}
                         </tr>
-                      </thead>
-                      <tbody>
-                        {form.items.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
-                              Belum ada barang. Klik + Tambah Baris untuk menambahkan.
-                            </td>
-                          </tr>
-                        ) : (
-                          form.items.map((item, idx) => (
-                            <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="text"
-                                  value={item.kodeBarang}
-                                  onChange={(e) => updateItem(idx, "kodeBarang", e.target.value)}
-                                  placeholder="Kode"
-                                  className={inputClass + " min-w-[90px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="text"
-                                  value={item.namaBarang}
-                                  onChange={(e) => updateItem(idx, "namaBarang", e.target.value)}
-                                  placeholder="Nama barang"
-                                  className={inputClass + " min-w-[160px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="text"
-                                  value={item.satuan}
-                                  onChange={(e) => updateItem(idx, "satuan", e.target.value)}
-                                  placeholder="PCS"
-                                  className={inputClass + " min-w-[70px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="number"
-                                  value={item.qtyDipesan}
-                                  onChange={(e) => updateItem(idx, "qtyDipesan", Number(e.target.value))}
-                                  className={inputClass + " min-w-[90px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="number"
-                                  value={item.qtyDikirim}
-                                  onChange={(e) => updateItem(idx, "qtyDikirim", Number(e.target.value))}
-                                  className={inputClass + " min-w-[90px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <input
-                                  type="text"
-                                  value={item.keterangan}
-                                  onChange={(e) => updateItem(idx, "keterangan", e.target.value)}
-                                  placeholder="Catatan..."
-                                  className={inputClass + " min-w-[120px]"}
-                                />
-                              </td>
-                              <td className="px-2 py-1.5 text-center">
-                                <button
-                                  onClick={() => removeItem(idx)}
-                                  className="text-red-400 hover:text-red-600 transition-colors p-1 rounded"
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* Total + peringatan stok kurang */}
+                  <div className="px-3 py-2.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
+                    {adaStokKurang ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-[11px] text-amber-600 font-medium">
+                          <AlertTriangle size={12} />
+                          Ada barang dengan stok kurang
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleAdjustToStock}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                        >
+                          Proses sesuai stok yang ada
+                        </button>
+                      </div>
+                    ) : (
+                      <span />
+                    )}
+
+                    <div className="flex gap-6 text-xs">
+                      <div className="text-right">
+                        <span className="text-slate-400">Total Dipesan: </span>
+                        <span className="font-semibold text-slate-700">{totalDipesan}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-slate-400">Total Dikirim: </span>
+                        <span className="font-semibold text-navy-900">{totalDikirim}</span>
+                      </div>
+                    </div>
                   </div>
-
-                  <button
-                    onClick={addItem}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-navy-900 border border-navy-200 bg-navy-50 hover:bg-navy-100 transition-colors"
-                  >
-                    <Package size={13} />
-                    + Tambah Baris
-                  </button>
                 </div>
               )}
-
-              {/* TAB: Info Lainnya */}
-              {activeTab === "info-lainnya" && (
-                <div className="space-y-4">
-                  <FormField label="Keterangan" icon={<Info size={14} />}>
-                    <textarea
-                      value={form.keterangan}
-                      onChange={(e) => set("keterangan", e.target.value)}
-                      rows={4}
-                      placeholder="Catatan tambahan untuk pengiriman ini..."
-                      className={inputClass + " resize-y"}
-                    />
-                  </FormField>
-                </div>
-              )}
-            </div>
-
-            {/* ── Proses Ke Section ── */}
-            <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/60">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-                Proses Ke
-              </p>
-
-              {!saved && (
-                <p className="text-xs text-slate-400 mb-4">
-                  ✓ Simpan Pengiriman terlebih dahulu untuk mengaktifkan proses lanjutan.
-                </p>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {[
-                  {
-                    icon: "🧾",
-                    label: "Faktur Penjualan",
-                    desc: "Buat faktur dari surat jalan ini",
-                    action: handleProses,
-                  },
-                  {
-                    icon: "💳",
-                    label: "Penerimaan Penjualan",
-                    desc: "Catat penerimaan pembayaran",
-                    action: () => {},
-                  },
-                  {
-                    icon: "🔄",
-                    label: "Retur Penjualan",
-                    desc: "Proses retur barang dari pelanggan",
-                    action: () => {},
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    disabled={!saved}
-                    onClick={item.action}
-                    className={`rounded-xl border p-4 text-left transition-all group ${
-                      saved
-                        ? "border-slate-200 bg-white hover:border-navy-400 hover:shadow-md cursor-pointer"
-                        : "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
-                    }`}
-                  >
-                    <span className="text-2xl block mb-2">{item.icon}</span>
-                    <p
-                      className={`text-xs font-bold ${
-                        saved ? "text-navy-900 group-hover:text-navy-600" : "text-slate-400"
-                      }`}
-                    >
-                      {item.label}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">{item.desc}</p>
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
-          {/* ── Footer ── */}
+          {/* Footer */}
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 shrink-0 bg-white">
             <button
               onClick={onClose}
@@ -612,13 +881,50 @@ export function PengirimanModal({
             </button>
             <button
               onClick={handleSubmit}
-              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isEdit ? "Simpan Perubahan" : "Simpan Pengiriman"}
+              {isSubmitting ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Simpan Pengiriman"}
             </button>
           </div>
         </div>
       </div>
+
+      {/* SO Picker Modal */}
+      <PengirimanSOPickerModal
+        open={soPickerOpen}
+        onClose={() => setSoPickerOpen(false)}
+        customerId={form.customerId ?? 0}
+        customerName={form.pelanggan ?? ""}
+        onConfirm={handleSoConfirm}
+      />
     </>
+  );
+}
+
+// ─── FormField ────────────────────────────────────────────────────────────────
+function FormField({
+  label,
+  icon,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+        {icon && <span className="text-slate-400">{icon}</span>}
+        {label}
+        {required && <span className="text-red-400 font-bold">*</span>}
+        {hint && <span className="ml-auto text-[10px] font-normal text-slate-400 normal-case tracking-normal">{hint}</span>}
+      </label>
+      {children}
+    </div>
   );
 }
