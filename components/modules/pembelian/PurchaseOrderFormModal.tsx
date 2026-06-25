@@ -478,8 +478,8 @@ export default function PurchaseOrderFormModal({
     // Map PR detail lines → PO item rows
     if (fullPR.details && fullPR.details.length > 0) {
       const mappedItems: PurchaseOrderItem[] = fullPR.details.map(d => {
+        // Look up in ALL products (not just supplier-filtered) for name/uom/price
         const prod = products.find(p => p.id === String(d.product_id));
-        // PR details don't carry uom — fall back to the product's default uom
         const uomMatch = uoms.find(u =>
           u.id === String(d.uom_id ?? prod?.uom_id ?? "")
         );
@@ -489,7 +489,8 @@ export default function PurchaseOrderFormModal({
         return {
           id: crypto.randomUUID(),
           product_id: String(d.product_id),
-          product_name: d.product_name ?? prod?.nama ?? `Product ${d.product_id}`,
+          product_name: d.product_name || prod?.nama || `Product ${d.product_id}`,
+          isExisting: false,
           quantity: qty,
           uom_id: uomMatch?.id ?? String(prod?.uom_id ?? ""),
           uom_name: uomMatch?.nama ?? "",
@@ -501,10 +502,41 @@ export default function PurchaseOrderFormModal({
       });
       setForm(prev => ({ ...prev, items: mappedItems }));
 
-      // Auto-filter products to the current supplier if one is already set
-      if (form.supplier_id) {
-        setFilteredProducts(products.filter(p => p.supplier_id?.toString() === form.supplier_id));
-      }
+      // Build the product list for the dropdown:
+      // Start from the supplier-filtered list (or all products if no supplier chosen),
+      // then inject any PR products that aren't already present so they appear
+      // as pre-selected options in the dropdown.
+      const baseList = form.supplier_id
+        ? products.filter(p => p.supplier_id?.toString() === form.supplier_id)
+        : [];
+
+      const prProductIds = new Set(fullPR.details.map(d => String(d.product_id)));
+      const missingFromBase = products.filter(
+        p => prProductIds.has(p.id) && !baseList.some(b => b.id === p.id)
+      );
+
+      // If a PR product isn't in the supplier-product list at all, synthesise
+      // a minimal entry from the PR detail so the dropdown still shows the name.
+      const syntheticEntries = fullPR.details
+        .filter(d => !products.some(p => p.id === String(d.product_id)))
+        .map(d => ({
+          id: String(d.product_id),
+          nama: d.product_name || `Product ${d.product_id}`,
+          supplier_price: 0,
+          available_stock: undefined as number | undefined,
+          lead_time_days: undefined as number | undefined,
+          uom_id: d.uom_id,
+        }));
+
+      const combined = [...baseList, ...missingFromBase, ...syntheticEntries];
+
+      // Deduplicate by product id
+      const seen = new Set<string>();
+      setFilteredProducts(combined.filter(p => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      }));
     }
 
     setPrPickerOpen(false);

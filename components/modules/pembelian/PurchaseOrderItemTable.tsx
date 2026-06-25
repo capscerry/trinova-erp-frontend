@@ -22,13 +22,13 @@ export interface PurchaseOrderItem {
 
   price: number;
 
-  /** Tax rate as a percentage, e.g. 11 for 11% */
+  /** Tax rate as a percentage, ex. 11 for 11% */
   tax_percent: number;
 
   /** Computed tax amount = (quantity * price) * (tax_percent / 100) */
   tax_amount: number;
 
-  /** price * quantity + tax_amount */
+  /** price times quantity plus tax_amount */
   subtotal: number;
 
   purchase_order_detail_id?: number;
@@ -219,10 +219,10 @@ export default function PurchaseOrderItemTable({
                         Pilih Product
                       </option>
 
-                      {products.map((product) => (
+                      {products.map((product, productIdx) => (
 
                         <option
-                          key={product.id}
+                          key={`${product.id}-${productIdx}`}
                           value={product.id}
                         >
                           {product.nama}
@@ -286,10 +286,11 @@ export default function PurchaseOrderItemTable({
                         products.find(
                           (p) =>
                             p.id === item.product_id
-                        )?.available_stock || 0;
+                        )?.available_stock;
 
                       if (
                         item.product_id &&
+                        stock !== undefined &&
                         qty > stock
                       ) {
 
