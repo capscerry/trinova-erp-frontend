@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Trophy, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Tag } from "lucide-react";
+import { Trophy, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Tag, ShieldAlert, ShieldCheck, Shield, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui";
 import type { Criterion, TopsisResult } from "@/lib/ahp-topsis";
+import type { RiskResult, RiskLevel } from "@/lib/xgboost-risk";
 
 // ─── Re-export Alternative so page.tsx can import from here ──────────────────
 export interface Alternative {
@@ -22,6 +23,8 @@ export type { TopsisResult };
 interface TopsisResultsPanelProps {
   results: TopsisResult[];
   criteria?: Criterion[];
+  /** XGBoost risk results to co-display alongside TOPSIS scores */
+  riskResults?: RiskResult[];
   isLoading?: boolean;
 }
 
@@ -89,6 +92,25 @@ function ReasonTag({ label }: { label: string }) {
   );
 }
 
+// ─── Inline risk badge for TOPSIS rows ───────────────────────────────────────
+
+const RISK_MINI: Record<RiskLevel, { icon: typeof ShieldCheck; cls: string }> = {
+  Low:      { icon: ShieldCheck, cls: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  Medium:   { icon: Shield,      cls: "text-amber-600  bg-amber-50  border-amber-200"  },
+  High:     { icon: ShieldAlert, cls: "text-orange-600 bg-orange-50 border-orange-200" },
+  Critical: { icon: ShieldX,     cls: "text-rose-600   bg-rose-50   border-rose-200"   },
+};
+
+function RiskMini({ level, score }: { level: RiskLevel; score: number }) {
+  const { icon: Icon, cls } = RISK_MINI[level];
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold", cls)}>
+      <Icon size={9} />
+      {score.toFixed(2)}
+    </span>
+  );
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Skeleton() {
@@ -114,9 +136,11 @@ function Skeleton() {
 function ResultRow({
   result,
   criteria,
+  risk,
 }: {
   result: TopsisResult;
   criteria: Criterion[];
+  risk?: RiskResult;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -126,7 +150,7 @@ function ResultRow({
       <div
         className={cn(
           "grid items-center gap-0 px-5 py-3.5 transition-colors cursor-pointer select-none",
-          "grid-cols-[40px_1fr_170px_56px_110px_32px]",
+          "grid-cols-[40px_1fr_170px_80px_56px_110px_32px]",
           result.rank === 1 ? "bg-gold-300/10 hover:bg-gold-300/20" : "hover:bg-slate-50"
         )}
         onClick={() => setExpanded((v) => !v)}
@@ -149,6 +173,11 @@ function ResultRow({
 
         {/* Score bar */}
         <ScoreBar score={result.score} />
+
+        {/* Risk badge */}
+        <div className="flex justify-center">
+          {risk ? <RiskMini level={risk.risk_level} score={risk.risk_score} /> : <span className="text-slate-200 text-[10px]">—</span>}
+        </div>
 
         {/* Trend */}
         <div className="flex justify-center">
@@ -269,8 +298,11 @@ function TopsisStepSummary() {
 export function TopsisResultsPanel({
   results,
   criteria = [],
+  riskResults = [],
   isLoading = false,
 }: TopsisResultsPanelProps) {
+  // Build supplier_id → RiskResult map for O(1) lookup
+  const riskMap = new Map(riskResults.map(r => [r.supplier_id, r]));
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
@@ -291,21 +323,18 @@ export function TopsisResultsPanel({
 
       {/* Column headers */}
       {!isLoading && results.length > 0 && (
-        <div className="grid grid-cols-[40px_1fr_170px_56px_110px_32px] gap-0 bg-slate-50 border-b border-slate-100 px-5 py-2">
+        <div className="grid grid-cols-[40px_1fr_170px_80px_56px_110px_32px] gap-0 bg-slate-50 border-b border-slate-100 px-5 py-2">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">#</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Tooltip
-              term="Nilai Ci"
-              label="Closeness Coefficient (Ci) — mendekati 1 = paling dekat ke kondisi ideal di semua kriteria."
-            />
+            <Tooltip term="Nilai Ci" label="Closeness Coefficient (Ci) — mendekati 1 = paling dekat ke kondisi ideal di semua kriteria." />
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">
+            <Tooltip term="Risk" label="XGBoost risk score (0=aman, 1=kritis). Dilatih dari 10 fitur ERP + inventaris Excel." />
           </span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">Tren</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">
-            <Tooltip
-              term="D+ / D−"
-              label="D+ = jarak ke solusi ideal terbaik (kecil = baik). D− = jarak ke solusi ideal terburuk (besar = baik)."
-            />
+            <Tooltip term="D+ / D−" label="D+ = jarak ke solusi ideal terbaik (kecil = baik). D− = jarak ke solusi ideal terburuk (besar = baik)." />
           </span>
           <span />
         </div>
@@ -328,7 +357,12 @@ export function TopsisResultsPanel({
       ) : (
         <div className="divide-y divide-slate-100">
           {results.map((r) => (
-            <ResultRow key={r.alternativeId} result={r} criteria={criteria} />
+            <ResultRow
+              key={r.alternativeId}
+              result={r}
+              criteria={criteria}
+              risk={riskMap.get(Number(r.alternativeId))}
+            />
           ))}
         </div>
       )}
