@@ -28,50 +28,8 @@ export const shippingTypeService = {
     // CATATAN: endpoint ini mengembalikan ARRAY LANGSUNG (bukan dibungkus
     // { success, message, data } seperti endpoint lain di project ini),
     // jadi tidak bisa pakai ApiResponse<T> generic seperti biasa.
-    const response = await api.get<ShippingTypeApi[]>("/shipping-type");
-    return (response.data ?? []).map(mapShippingType);
-  },
-};
-
-// ─── Cek Stok Gudang (untuk validasi qty kirim vs stok tersedia) ──────────────
-// CATATAN: struktur response GET /InventoryStock BELUM DIKONFIRMASI dari
-// backend — field di bawah ini ASUMSI SEMENTARA. Begitu struktur asli
-// dikonfirmasi, cukup sesuaikan StockItemApi + mapStockItem, tidak perlu
-// ubah kode lain (PengirimanModal cuma panggil inventoryStockService.getAll()).
-
-export interface StockItemApi {
-  productId: number;
-  warehouseId: number;
-  qtyAvailable: number;
-}
-
-export interface StockItem {
-  productId: number;
-  warehouseId: number;
-  qty: number;
-}
-
-export function mapStockItem(item: StockItemApi): StockItem {
-  return {
-    productId: item.productId,
-    warehouseId: item.warehouseId,
-    qty: item.qtyAvailable,
-  };
-}
-
-export const inventoryStockService = {
-  /** Ambil SEMUA stok (semua produk, semua gudang) — filter per gudang dilakukan di frontend untuk sekarang */
-  async getAll(): Promise<StockItem[]> {
-    const response = await api.get<ApiResponse<StockItemApi[]>>("/InventoryStock");
-    return (response.data.data ?? []).map(mapStockItem);
-  },
-
-  /** Helper: cari qty stok untuk satu productId di satu warehouseId tertentu */
-  findQty(stocks: StockItem[], productId: number, warehouseId: number): number {
-    const found = stocks.find(
-      (s) => s.productId === productId && s.warehouseId === warehouseId
-    );
-    return found?.qty ?? 0;
+    const response = await api.get<ApiResponse<ShippingTypeApi[]>>("/shipping-type");
+    return (response.data.data?? []).map(mapShippingType);
   },
 };
 
@@ -84,14 +42,13 @@ export interface DeliveryOrderHeaderApi {
   doDate: string;
   customerName?: string;
   doNumber?: string;
-  poNumber?: string;
   soNumber?: string;
+  poNumber?: string;
   deliveryCategoryId: number;
   deliveryShippingName?: string;
-  warehouseId?: number;
-  warehouseName?: string;
   address?: string;
   notes?: string;
+  soId?: number;
 }
 
 export interface PengirimanPenjualan {
@@ -101,11 +58,10 @@ export interface PengirimanPenjualan {
   customerId: number;
   pelanggan: string;
   noSo?: string;
+  soId?: number;
   noPO?: string;
   shippingTypeId: number;
   shippingType: string;
-  warehouseId?: number;
-  warehouseName?: string;
   alamatPengiriman: string;
   keterangan: string;
 }
@@ -118,11 +74,10 @@ export function mapPengirimanPenjualan(item: DeliveryOrderHeaderApi): Pengiriman
     customerId: item.customerId,
     pelanggan: item.customerName ?? "",
     noSo: item.soNumber ?? undefined,
+    soId: item.soId ?? undefined,
     noPO: item.poNumber ?? undefined,
     shippingTypeId: item.deliveryCategoryId,
     shippingType: item.deliveryShippingName ?? "",
-    warehouseId: item.warehouseId ?? undefined,
-    warehouseName: item.warehouseName ?? undefined,
     alamatPengiriman: item.address ?? "",
     keterangan: item.notes ?? "",
   };
@@ -131,6 +86,7 @@ export function mapPengirimanPenjualan(item: DeliveryOrderHeaderApi): Pengiriman
 // ─── Detail Item (dari GetDoDetail, di-fetch terpisah saat buka Detail/Edit) ──
 
 export interface DeliveryOrderDetailApi {
+  doId?: number;
   productId: number;
   productCode?: string;
   productName: string;
@@ -162,24 +118,33 @@ export function mapPengirimanDetailItem(item: DeliveryOrderDetailApi): Pengirima
   };
 }
 
-/** Payload untuk POST /api/do-header (create/upsert) — id opsional: kosong = create, terisi = update */
-export interface PengirimanPenjualanPayload {
-  id?: number;
-  doNumber: string;
-  doDate: string;
+// ─── Payload POST /api/delivery-order ─────────────────────────────────────────
+// CATATAN: struktur ini NESTED ({ header, detail }), bukan flat — mengikuti
+// persis bentuk model backend `PengirimanPenjualan` (Header + List<Detail>).
+// Field di header PERSIS sama dengan yang dibaca controller
+// (InsertDeliveryOrderHeader) — jangan tambah field lain selain ini.
+
+export interface DeliveryOrderHeaderPayload {
   customerId: number;
-  soId?: number | null;
+  doDate: string;
+  doNumber?: string;
   poNumber?: string;
   deliveryCategoryId: number;
-  warehouseId?: number | null;
-  address: string;
+  address?: string;
   notes?: string;
-  detail: {
-    productId: number;
-    uomId?: number;
-    qtyDipesan: number;
-    qtyDikirim: number;
-  }[];
+  soId?: number | null;
+}
+
+export interface DeliveryOrderDetailPayload {
+  productId: number;
+  uomId?: number;
+  qtyDipesan: number;
+  qtyDikirim: number;
+}
+
+export interface PengirimanPenjualanPayload {
+  header: DeliveryOrderHeaderPayload;
+  detail: DeliveryOrderDetailPayload[];
 }
 
 export const pengirimanPenjualanService = {
@@ -205,10 +170,10 @@ export const pengirimanPenjualanService = {
     return (response.data.data ?? []).map(mapPengirimanDetailItem);
   },
 
-  /** create() berperan sebagai upsert — kirim payload.id untuk update record yang sudah ada */
+  /** Create Delivery Order baru — backend murni INSERT, tidak ada mode update/upsert untuk saat ini */
   async create(payload: PengirimanPenjualanPayload): Promise<PengirimanPenjualan> {
     const response = await api.post<ApiResponse<DeliveryOrderHeaderApi>>(
-      "/do-header",
+      "/delivery-order",
       payload
     );
     return mapPengirimanPenjualan(response.data.data);

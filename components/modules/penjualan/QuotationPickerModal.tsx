@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   salesQuotationService,
   type SalesQuotation,
-  type QuotationDetailItem,
+  type SalesQuotationDetail,
 } from "@/lib/services/penjualan.service";
 import { type SalesOrderItem } from "./sales_order/SalesOrderType";
 
@@ -39,7 +39,7 @@ export function QuotationPickerModal({
   const [loadingList, setLoadingList]       = useState(false);
 
   const [selectedQId, setSelectedQId]       = useState<string | null>(null);
-  const [detailItems, setDetailItems]       = useState<QuotationDetailItem[]>([]);
+  const [quotationDetail, setQuotationDetail] = useState<SalesQuotationDetail | null>(null);
   const [loadingDetail, setLoadingDetail]   = useState(false);
 
   const [checkedIds, setCheckedIds]         = useState<Set<number>>(new Set());
@@ -51,7 +51,7 @@ export function QuotationPickerModal({
 
     // Reset state saat buka modal
     setSelectedQId(null);
-    setDetailItems([]);
+    setQuotationDetail(null);
     setCheckedIds(new Set());
     setSearchQuotation("");
 
@@ -71,19 +71,23 @@ export function QuotationPickerModal({
   }, [open, customerId]);
 
   // ── Fetch detail when quotation selected ─────────────
+  // Pakai getFullDetailById (bukan getDetailItems) karena endpoint ini
+  // mengembalikan header LENGKAP (termasuk address/alamat) + items sekaligus
+  // — sumber tunggal kebenaran, supaya alamat tidak lagi mengandalkan field
+  // dari list ringkas (getByCustomerId) yang mungkin tidak menyertakannya.
   useEffect(() => {
-    if (!selectedQId) { setDetailItems([]); setCheckedIds(new Set()); return; }
+    if (!selectedQId) { setQuotationDetail(null); setCheckedIds(new Set()); return; }
 
     const load = async () => {
       setLoadingDetail(true);
       try {
-        const items = await salesQuotationService.getDetailItems(selectedQId);
-        setDetailItems(items);
+        const detail = await salesQuotationService.getFullDetailById(selectedQId);
+        setQuotationDetail(detail);
         // Default: semua tercentang
-        setCheckedIds(new Set(items.map((_, i) => i)));
+        setCheckedIds(new Set(detail.items.map((_, i) => i)));
       } catch (err) {
         console.error("Gagal memuat detail penawaran:", err);
-        setDetailItems([]);
+        setQuotationDetail(null);
       } finally {
         setLoadingDetail(false);
       }
@@ -101,6 +105,7 @@ export function QuotationPickerModal({
   }, [quotationList, searchQuotation]);
 
   // ── Checkbox helpers ─────────────────────────────────
+  const detailItems = quotationDetail?.items ?? [];
   const allChecked = detailItems.length > 0 && checkedIds.size === detailItems.length;
   const someChecked = checkedIds.size > 0;
 
@@ -123,9 +128,7 @@ export function QuotationPickerModal({
 
   // ── Confirm ──────────────────────────────────────────
   const handleConfirm = () => {
-    if (detailItems.length === 0) return;
-
-    const selectedQuotationData = quotationList.find((q) => q.id === selectedQId);
+    if (!quotationDetail || detailItems.length === 0) return;
 
     const selectedItems: SalesOrderItem[] = detailItems
       .filter((_, i) => checkedIds.has(i))
@@ -145,9 +148,9 @@ export function QuotationPickerModal({
       }));
 
     onConfirm(selectedItems, {
-      id: Number(selectedQId),
-      nomor: selectedQuotationData?.nomor ?? "",
-      alamat : selectedQuotationData?.alamat ?? "",
+      id: quotationDetail.id,
+      nomor: quotationDetail.nomor,
+      alamat: quotationDetail.alamat ?? "",
     });
   };
 

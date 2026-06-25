@@ -11,8 +11,9 @@ import {
   inputCompact,
 } from "./SalesOrderType";
 import { productDropdownService, type Product } from "@/lib/services/penjualan.service";
+import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
 
-const SATUAN_OPTIONS = [
+const SATUAN_OPTIONS_FALLBACK = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
 ];
 
@@ -30,6 +31,10 @@ export function SalesOrderDetailForm({
   const [produkOptions, setProdukOptions] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
 
+  // ── Gudang (belum ada cek stok — murni pilihan gudang saja) ────
+  const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -43,7 +48,29 @@ export function SalesOrderDetailForm({
       }
     };
     load();
+
+    const loadWarehouses = async () => {
+      try {
+        setLoadingWarehouses(true);
+        const data = await getWarehouses();
+        setWarehouseOptions(data ?? []);
+      } catch (err) {
+        console.error("Gagal memuat data gudang:", err);
+        setWarehouseOptions([]);
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+    loadWarehouses();
   }, []);
+
+  // Derive satuan unik dari produkOptions (data API) — sama pola dengan
+  // SalesQuotationModal. Pakai daftar fallback statis hanya kalau API
+  // belum selesai loading / kosong, supaya dropdown tidak benar-benar
+  // kosong tanpa pilihan apapun.
+  const satuanOptions = produkOptions.length > 0
+    ? [...new Set(produkOptions.map((p) => p.satuan).filter(Boolean))].sort()
+    : SATUAN_OPTIONS_FALLBACK;
 
   const updateItem = (id: string, patch: Partial<SalesOrderItem>) => {
     onChange(items.map((item) => {
@@ -51,6 +78,12 @@ export function SalesOrderDetailForm({
       const u = { ...item, ...patch };
       return { ...u, subtotal: u.harga * u.qty * (1 - u.diskon / 100) };
     }));
+  };
+
+  // Pilih gudang untuk satu baris produk — murni menyimpan pilihan,
+  // tidak ada pengecekan stok.
+  const selectWarehouse = (id: string, warehouseId: number, warehouseName: string) => {
+    updateItem(id, { warehouseId, warehouseName });
   };
 
   // ← fix: simpan productId, productCode, productName sekaligus
@@ -62,6 +95,7 @@ export function SalesOrderDetailForm({
         productCode: found.kode,
         productName: found.nama,
         satuan: found.satuan,
+        uomId: found.uomId,
       });
     } else {
       updateItem(id, { productName: produkNama });
@@ -99,16 +133,17 @@ export function SalesOrderDetailForm({
 
       <div className="border border-slate-200 rounded-xl overflow-visible">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs table-fixed min-w-[900px]">
+          <table className="w-full border-collapse text-xs table-fixed min-w-[1080px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[21%]">Produk</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[17%]">Deskripsi</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Qty</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Harga</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Diskon %</th>
-                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Produk</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Deskripsi</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Qty</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Satuan</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[15%]">Gudang</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Harga</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Diskon %</th>
+                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Subtotal</th>
                 <th className="px-3 py-2.5 w-[4%]"></th>
               </tr>
             </thead>
@@ -147,8 +182,22 @@ export function SalesOrderDetailForm({
                     <SelectField
                       value={item.satuan}
                       placeholder="Pilih..."
-                      options={SATUAN_OPTIONS}
+                      options={satuanOptions}
                       onChange={(v) => updateItem(item.id, { satuan: v })}
+                      compact
+                    />
+                  </td>
+
+                  {/* Gudang */}
+                  <td className="px-3 py-2">
+                    <SelectField
+                      value={item.warehouseName ?? ""}
+                      placeholder={loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
+                      options={warehouseOptions.map((w) => w.warehouse_name)}
+                      onChange={(v) => {
+                        const found = warehouseOptions.find((w) => w.warehouse_name === v);
+                        if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                      }}
                       compact
                     />
                   </td>

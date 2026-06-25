@@ -30,6 +30,8 @@ export interface SalesOrderDetailItem {
   totalPrice: number;
   uomId?: number;
   satuan?: string;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface SalesOrderDetailApi {
@@ -555,9 +557,11 @@ export interface SalesQuotationDetail {
   discountTotal: number;
   taxTotal: number;
   items: {
+    productId: number;
     productCode: string;
     productName: string;
     qty: number;
+    uomId?: number;
     satuan: string;
     harga: number;
     discountPercent: number;
@@ -573,9 +577,11 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     const totalHarga = lineGross * (1 - discountPercent / 100);
 
     return {
+      productId: d.productId,
       productCode: d.productCode ?? "",
       productName: d.productName,
       qty: d.quantity,
+      uomId: d.uomId,
       satuan: d.uomCode ?? "",
       harga: d.price,
       discountPercent,

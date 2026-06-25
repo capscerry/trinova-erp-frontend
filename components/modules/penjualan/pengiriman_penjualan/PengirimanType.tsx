@@ -11,9 +11,6 @@ export interface PengirimanItemForm {
   uomId?: number;
   qtyDipesan: number;
   qtyDikirim: number;
-  /** Stok tersedia di gudang terpilih — diisi dari InventoryStock setelah
-   *  gudang dipilih. undefined = belum dicek / belum ada datanya. */
-  stokTersedia?: number;
 }
 
 export interface PengirimanFormData {
@@ -33,10 +30,6 @@ export interface PengirimanFormData {
 
   shippingTypeId?: number;
   shippingType: string;
-
-  /** Gudang asal pengiriman — dipakai untuk cek stok per item */
-  warehouseId?: number;
-  warehouseName?: string;
 
   alamatPengiriman: string;
   keterangan?: string;
@@ -69,7 +62,6 @@ export function newPengirimanItem(): PengirimanItemForm {
     uomId: undefined,
     qtyDipesan: 0,
     qtyDikirim: 0,
-    stokTersedia: undefined,
   };
 }
 
@@ -83,8 +75,6 @@ export const EMPTY_FORM: PengirimanFormData = {
   noPO: "",
   shippingTypeId: undefined,
   shippingType: "",
-  warehouseId: undefined,
-  warehouseName: "",
   alamatPengiriman: "",
   keterangan: "",
   items: [],
@@ -94,16 +84,16 @@ export function mapFormToApiPayload(
   form: PengirimanFormData
 ): PengirimanPenjualanPayload {
   return {
-    id: form.id,
-    doNumber: form.noSuratJalan,
-    doDate: form.tanggalKirim,
-    customerId: form.customerId ?? 0,
-    soId: form.salesOrderId ?? null,
-    poNumber: form.noPO || undefined,
-    deliveryCategoryId: form.shippingTypeId ?? 0,
-    warehouseId: form.warehouseId ?? null,
-    address: form.alamatPengiriman,
-    notes: form.keterangan || undefined,
+    header: {
+      customerId: form.customerId ?? 0,
+      doDate: form.tanggalKirim,
+      doNumber: form.noSuratJalan,
+      poNumber: form.noPO || undefined,
+      deliveryCategoryId: form.shippingTypeId ?? 0,
+      address: form.alamatPengiriman,
+      notes: form.keterangan || undefined,
+      soId: form.salesOrderId ?? null,
+    },
     detail: form.items.map((item) => ({
       productId: item.productId ?? 0,
       uomId: item.uomId,

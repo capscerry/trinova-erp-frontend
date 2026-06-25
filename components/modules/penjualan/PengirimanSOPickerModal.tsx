@@ -86,6 +86,7 @@ export function PengirimanSOPickerModal({
       setLoadingDetail(true);
       try {
         const items = await salesOrderService.getDetailItems(selectedSoId);
+        console.log("🔍 [SO Picker] Detail items mentah dari API /sales-order/{id}:", items);
         setDetailItems(items);
         setCheckedIds(new Set(items.map((_, i) => i)));
         const initialQty: Record<number, number> = {};
@@ -145,6 +146,8 @@ export function PengirimanSOPickerModal({
         qtyDipesan: it.productQty,
         qtyDikirim: qtyKirim[idx] ?? it.productQty,
       }));
+
+    console.log("🔍 [SO Picker] Items yang dikirim ke onConfirm:", items);
 
     onConfirm(
       {

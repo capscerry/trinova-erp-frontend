@@ -156,9 +156,12 @@ export default function SalesOrderDetailPage() {
       qty: it.productQty,
       qtyTerkirim: 0,
       satuan: it.satuan ?? "",
+      uomId: it.uomId,
       harga: it.productPrice,
       diskon: it.productDiscount,
       subtotal: it.totalPrice,
+      warehouseId: it.warehouseId,
+      warehouseName: it.warehouseName ?? "",
     })),
   });
 
@@ -356,16 +359,19 @@ export default function SalesOrderDetailPage() {
                       <table className="w-full text-xs border-collapse">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[35%]">
+                            <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[27%]">
                               Produk
                             </th>
-                            <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[12%]">
+                            <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[10%]">
                               Qty
                             </th>
-                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[22%]">
+                            <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">
+                              Gudang
+                            </th>
+                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[19%]">
                               Harga Satuan
                             </th>
-                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[16%]">
+                            <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">
                               Diskon
                             </th>
                             <th className="px-5 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">
@@ -383,6 +389,9 @@ export default function SalesOrderDetailPage() {
                               </td>
                               <td className="px-4 py-3 text-center text-slate-600 font-semibold">
                                 {item.productQty}
+                              </td>
+                              <td className="px-4 py-3 text-slate-500">
+                                {item.warehouseName || "—"}
                               </td>
                               <td className="px-4 py-3 text-right text-slate-600">
                                 {formatRupiah(item.productPrice)}

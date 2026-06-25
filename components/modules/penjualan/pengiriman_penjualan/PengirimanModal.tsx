@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
   X, Hash, Calendar, User, MapPin, FileText, Truck,
   RefreshCw, PenLine, FileDown, Package, Trash2, Plus,
-  Warehouse as WarehouseIcon, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,12 +24,9 @@ import {
 import {
   pengirimanPenjualanService,
   shippingTypeService,
-  inventoryStockService,
   type ShippingType,
-  type StockItem,
 } from "@/lib/services/pengiriman-penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
-import { getWarehouses, type Warehouse as WarehouseOption } from "@/lib/services/warehouse.service";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PengirimanModalProps {
@@ -64,16 +60,6 @@ export function PengirimanModal({
   const [showShippingDropdown, setShowShippingDropdown] = useState(false);
   const [filterShipping, setFilterShipping] = useState("");
 
-  // ── Gudang dropdown (hit API) ──────────────────────────
-  const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
-  const [showWarehouseDropdown, setShowWarehouseDropdown] = useState(false);
-  const [filterWarehouse, setFilterWarehouse] = useState("");
-
-  // ── Stok gudang (untuk validasi qty kirim vs stok tersedia) ────
-  const [stocks, setStocks] = useState<StockItem[]>([]);
-  const [loadingStocks, setLoadingStocks] = useState(false);
-
   // ── SO Picker ─────────────────────────────────────────
   const [soPickerOpen, setSoPickerOpen] = useState(false);
 
@@ -106,36 +92,8 @@ export function PengirimanModal({
       }
     };
 
-    const loadWarehouses = async () => {
-      try {
-        setLoadingWarehouses(true);
-        const data = await getWarehouses();
-        setWarehouses(data ?? []);
-      } catch (err) {
-        console.error("Gagal memuat data gudang:", err);
-        setWarehouses([]);
-      } finally {
-        setLoadingWarehouses(false);
-      }
-    };
-
-    const loadStocks = async () => {
-      try {
-        setLoadingStocks(true);
-        const data = await inventoryStockService.getAll();
-        setStocks(data);
-      } catch (err) {
-        console.error("Gagal memuat data stok:", err);
-        setStocks([]);
-      } finally {
-        setLoadingStocks(false);
-      }
-    };
-
     loadCustomers();
     loadShippingTypes();
-    loadWarehouses();
-    loadStocks();
   }, [open]);
 
   // ── Initialize form ───────────────────────────────────
@@ -156,8 +114,6 @@ export function PengirimanModal({
       noPO: data.noPO ?? "",
       shippingTypeId: data.shippingTypeId ?? undefined,
       shippingType: data.shippingType ?? "",
-      warehouseId: data.warehouseId ?? undefined,
-      warehouseName: data.warehouseName ?? "",
       alamatPengiriman: data.alamatPengiriman ?? "",
       keterangan: data.keterangan ?? "",
       items: data.items?.length
@@ -170,7 +126,6 @@ export function PengirimanModal({
             uomId: it.uomId,
             qtyDipesan: it.qtyDipesan ?? 0,
             qtyDikirim: it.qtyDikirim ?? 0,
-            stokTersedia: undefined,
           }))
         : [],
     });
@@ -218,39 +173,6 @@ export function PengirimanModal({
     setFilterShipping("");
   };
 
-  // ── Warehouse selection ────────────────────────────────
-  const filteredWarehouses = warehouses.filter((w) =>
-    w.warehouse_name.toLowerCase().includes(filterWarehouse.toLowerCase())
-  );
-
-  const handleSelectWarehouse = (wh: WarehouseOption) => {
-    setForm((prev) => ({
-      ...prev,
-      warehouseId: wh.warehouse_id,
-      warehouseName: wh.warehouse_name,
-    }));
-    setShowWarehouseDropdown(false);
-    setFilterWarehouse("");
-  };
-
-  // ── Cek stok otomatis setiap kali gudang atau daftar produk berubah ──
-  // Mengisi item.stokTersedia dari data inventoryStockService yang sudah
-  // di-fetch sekali di awal (lihat loadStocks di atas). Tidak fetch ulang
-  // ke server di sini — cukup re-lookup dari cache lokal `stocks`.
-  useEffect(() => {
-    if (!form.warehouseId || form.items.length === 0) return;
-
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item) => {
-        if (!item.productId) return item;
-        const qty = inventoryStockService.findQty(stocks, item.productId, prev.warehouseId!);
-        return { ...item, stokTersedia: qty };
-      }),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.warehouseId, stocks, form.items.length]);
-
   // ── No Surat Jalan mode toggle ─────────────────────────
   const switchNoSuratJalanMode = (mode: "auto" | "manual") => {
     set("noSuratJalanMode", mode);
@@ -262,6 +184,8 @@ export function PengirimanModal({
     so: { id: number; nomor: string; poNumber: string; alamat: string },
     items: PengirimanSOPickerResultItem[]
   ) => {
+    console.log("🔍 [PengirimanModal] Items diterima dari SO Picker (handleSoConfirm):", items);
+
     setForm((prev) => ({
       ...prev,
       salesOrderId: so.id,
@@ -308,30 +232,10 @@ export function PengirimanModal({
     setForm((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== id) }));
   };
 
-  // Sesuai permintaan: "proses saja dahulu barang yang ada stoknya" —
-  // turunkan qtyDikirim ke stokTersedia untuk SEMUA item yang stoknya
-  // kurang dari qty yang mau dikirim. Item dengan stok cukup tidak diubah.
-  const handleAdjustToStock = () => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item) => {
-        if (item.stokTersedia === undefined) return item;
-        if (item.qtyDikirim > item.stokTersedia) {
-          return { ...item, qtyDikirim: item.stokTersedia };
-        }
-        return item;
-      }),
-    }));
-  };
-
   // ── Submit ───────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.customerId) {
       alert("⚠️ Pelanggan wajib dipilih");
-      return;
-    }
-    if (!form.warehouseId) {
-      alert("⚠️ Gudang wajib dipilih");
       return;
     }
     if (!form.shippingTypeId) {
@@ -349,7 +253,11 @@ export function PengirimanModal({
 
     try {
       setIsSubmitting(true);
+      console.log("🔍 [PengirimanModal] form.items sebelum mapping ke payload:", form.items);
+
       const payload = mapFormToApiPayload(form);
+      console.log("🔍 [PengirimanModal] Payload FINAL yang dikirim ke POST /api/delivery-order:", JSON.stringify(payload, null, 2));
+
       await pengirimanPenjualanService.create(payload);
       onSubmit(form);
     } catch (err: any) {
@@ -368,9 +276,6 @@ export function PengirimanModal({
   const hasPelanggan = !!form.customerId;
   const totalDipesan = form.items.reduce((s, i) => s + i.qtyDipesan, 0);
   const totalDikirim = form.items.reduce((s, i) => s + i.qtyDikirim, 0);
-  const adaStokKurang = form.items.some(
-    (i) => i.stokTersedia !== undefined && i.qtyDikirim > i.stokTersedia
-  );
 
   return (
     <>
@@ -578,48 +483,6 @@ export function PengirimanModal({
               </div>
             </div>
 
-            {/* Gudang (search dropdown dari API) — dipilih dulu sebelum cek stok */}
-            <FormField label="Gudang" icon={<WarehouseIcon size={14} />} required>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={showWarehouseDropdown ? filterWarehouse : form.warehouseName ?? ""}
-                  onChange={(e) => { if (showWarehouseDropdown) setFilterWarehouse(e.target.value); }}
-                  onFocus={() => { setShowWarehouseDropdown(true); setFilterWarehouse(""); }}
-                  placeholder={loadingWarehouses ? "Memuat gudang..." : "Cari/Pilih Gudang..."}
-                  disabled={loadingWarehouses}
-                  className={inputClass}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
-                  {loadingWarehouses ? "⏳" : "🔍"}
-                </span>
-
-                {showWarehouseDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowWarehouseDropdown(false)} />
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
-                      {filteredWarehouses.length > 0 ? (
-                        filteredWarehouses.map((wh) => (
-                          <button
-                            key={wh.warehouse_id}
-                            type="button"
-                            onClick={() => handleSelectWarehouse(wh)}
-                            className="w-full px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-navy-50 hover:text-navy-900 transition-colors border-b border-slate-100 last:border-b-0"
-                          >
-                            {wh.warehouse_name}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2.5 text-sm text-slate-500 text-center">
-                          {warehouses.length === 0 ? "Tidak ada data gudang" : "Tidak ada hasil"}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </FormField>
-
             {/* Tipe Pengiriman (search dropdown dari API) */}
             <FormField label="Tipe Pengiriman" icon={<Truck size={14} />} required>
               <div className="relative">
@@ -722,28 +585,15 @@ export function PengirimanModal({
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Nama Barang</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Satuan</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Qty Dipesan</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Qty Dikirim</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Stok Tersedia</th>
+                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Satuan</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[18%]">Qty Dipesan</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[18%]">Qty Dikirim</th>
                         {!form.salesOrderId && <th className="px-3 py-2.5 w-[5%]"></th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {form.items.map((item) => {
-                        const stokKurang =
-                          form.warehouseId &&
-                          item.stokTersedia !== undefined &&
-                          item.qtyDikirim > item.stokTersedia;
-
-                        return (
-                        <tr
-                          key={item.id}
-                          className={cn(
-                            "hover:bg-slate-50/60",
-                            stokKurang && "bg-amber-50/60"
-                          )}
-                        >
+                      {form.items.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/60">
                           <td className="px-3 py-2">
                             {form.salesOrderId ? (
                               <span className="font-medium text-slate-700">{item.productName}</span>
@@ -755,12 +605,6 @@ export function PengirimanModal({
                                 placeholder="Nama barang..."
                                 className={cn(inputClass, "py-1.5")}
                               />
-                            )}
-                            {stokKurang && (
-                              <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600 font-medium">
-                                <AlertTriangle size={11} />
-                                Stok kurang — tersedia {item.stokTersedia}
-                              </div>
                             )}
                           </td>
                           <td className="px-3 py-2">
@@ -793,30 +637,8 @@ export function PengirimanModal({
                               max={item.qtyDipesan || undefined}
                               value={item.qtyDikirim}
                               onChange={(e) => updateItem(item.id, { qtyDikirim: Number(e.target.value) })}
-                              className={cn(
-                                inputClass,
-                                "py-1.5 text-right",
-                                stokKurang && "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20"
-                              )}
+                              className={cn(inputClass, "py-1.5 text-right")}
                             />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {!form.warehouseId ? (
-                              <span className="text-slate-300 text-[11px]">Pilih gudang</span>
-                            ) : loadingStocks ? (
-                              <span className="text-slate-400 text-[11px]">Memuat...</span>
-                            ) : item.stokTersedia === undefined ? (
-                              <span className="text-slate-300 text-[11px]">—</span>
-                            ) : (
-                              <span
-                                className={cn(
-                                  "font-semibold",
-                                  stokKurang ? "text-amber-600" : "text-emerald-600"
-                                )}
-                              >
-                                {item.stokTersedia}
-                              </span>
-                            )}
                           </td>
                           {!form.salesOrderId && (
                             <td className="px-2 py-2 text-center">
@@ -830,40 +652,19 @@ export function PengirimanModal({
                             </td>
                           )}
                         </tr>
-                        );
-                      })}
+                      ))}
                     </tbody>
                   </table>
 
-                  {/* Total + peringatan stok kurang */}
-                  <div className="px-3 py-2.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3">
-                    {adaStokKurang ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-[11px] text-amber-600 font-medium">
-                          <AlertTriangle size={12} />
-                          Ada barang dengan stok kurang
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleAdjustToStock}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                        >
-                          Proses sesuai stok yang ada
-                        </button>
-                      </div>
-                    ) : (
-                      <span />
-                    )}
-
-                    <div className="flex gap-6 text-xs">
-                      <div className="text-right">
-                        <span className="text-slate-400">Total Dipesan: </span>
-                        <span className="font-semibold text-slate-700">{totalDipesan}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-400">Total Dikirim: </span>
-                        <span className="font-semibold text-navy-900">{totalDikirim}</span>
-                      </div>
+                  {/* Total */}
+                  <div className="px-3 py-2.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-6 text-xs">
+                    <div className="text-right">
+                      <span className="text-slate-400">Total Dipesan: </span>
+                      <span className="font-semibold text-slate-700">{totalDipesan}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400">Total Dikirim: </span>
+                      <span className="font-semibold text-navy-900">{totalDikirim}</span>
                     </div>
                   </div>
                 </div>

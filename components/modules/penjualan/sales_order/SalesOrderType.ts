@@ -10,9 +10,13 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     qty: number;
     qtyTerkirim: number;
     satuan: string;
+    uomId?: number;
     harga: number;
     diskon: number;
     subtotal: number;
+    /** Gudang asal barang ini akan diambil saat dikirim nanti */
+    warehouseId?: number;
+    warehouseName?: string;
   }
 
   export interface SalesOrder {
@@ -156,10 +160,14 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     qtyTerkirim: 0,
 
     satuan: "",
+    uomId: undefined,
 
     harga: 0,
     diskon: 0,
     subtotal: 0,
+
+    warehouseId: undefined,
+    warehouseName: "",
   });
 
   export const EMPTY_FORM: SalesOrderFormData = {
@@ -257,6 +265,10 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
         discountPercent: item.diskon,
 
         totalPrice: item.subtotal,
+
+        // FIX: warehouseId per item belum pernah dikirim ke payload,
+        // padahal field dropdown Gudang sudah ada di form sejak sebelumnya.
+        wareHouseId: item.warehouseId ?? null,
       })),
     };
   }
