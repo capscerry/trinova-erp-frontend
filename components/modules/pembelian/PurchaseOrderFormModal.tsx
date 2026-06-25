@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
@@ -299,8 +300,15 @@ export default function PurchaseOrderFormModal({
     setIsSubmitting(true);
     const payload = { ...form, total_amount: grandTotal, deletedItems };
     if (isEdit) {
-      try { await onSubmit(payload); onClose(); }
-      finally { setIsSubmitting(false); }
+      try {
+        await onSubmit(payload);
+        toast.success("Purchase Order berhasil diperbarui");
+        onClose();
+      } catch (err: any) {
+        toast.error(err?.message ?? "Gagal memperbarui Purchase Order");
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       try {
         const result = await onSubmit(payload);
@@ -310,8 +318,12 @@ export default function PurchaseOrderFormModal({
           setForm(prev => ({ ...prev, po_number: saved.po_number }));
         }
         setIsSubmitted(true);
-      } catch { /* parent handles toast */ }
-      finally { setIsSubmitting(false); }
+        toast.success(`Purchase Order ${saved?.po_number ?? form.po_number} berhasil disimpan`);
+      } catch (err: any) {
+        toast.error(err?.message ?? "Gagal menyimpan Purchase Order");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
