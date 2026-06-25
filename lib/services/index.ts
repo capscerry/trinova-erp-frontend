@@ -10,3 +10,4 @@ export * from "./supplier-product.service";
 export * from "./supplierCategory.service";
 export * from "./purchase-invoice.service";
 export * from "./purchase-requisition.service";
+export * from "./purchase-payment.service";

@@ -34,6 +34,21 @@ export const createPurchasePayment =
     return res.data;
 };
 
+// UPDATE PAYMENT
+export const updatePurchasePayment =
+  async (
+    id: number,
+    payload: any
+  ) => {
+
+    const res = await api.put(
+      `/purchase-payment/${id}`,
+      payload
+    );
+
+    return res.data;
+};
+
 // DELETE PAYMENT
 export const deletePurchasePayment =
   async (id: number) => {

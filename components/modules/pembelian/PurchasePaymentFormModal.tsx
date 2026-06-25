@@ -35,6 +35,14 @@ export interface PurchasePaymentFormData {
 interface PurchasePaymentModalProps {
   open: boolean;
 
+  isEdit?: boolean;
+
+  initialData?: PurchasePaymentFormData & {
+    purchase_payment_id?: number;
+    invoice_number?: string;
+    supplier_name?: string;
+  };
+
   onClose: () => void;
 
   onSubmit: (
@@ -44,60 +52,61 @@ interface PurchasePaymentModalProps {
   purchaseInvoices: PurchaseInvoice[];
 }
 
+const EMPTY_FORM: PurchasePaymentFormData = {
+  purchase_invoice_id: 0,
+  payment_date: "",
+  amount: 0,
+  payment_method: "Transfer",
+  notes: "",
+  status: "Paid",
+};
+
 export default function PurchasePaymentFormModal({
   open,
+  isEdit = false,
+  initialData,
   onClose,
   onSubmit,
   purchaseInvoices,
 }: PurchasePaymentModalProps) {
 
   const [form, setForm] =
-    useState<PurchasePaymentFormData>({
-      purchase_invoice_id: 0,
-
-      payment_date: "",
-
-      amount: 0,
-
-      payment_method: "Transfer",
-
-      notes: "",
-
-      status: "Paid",
-    });
+    useState<PurchasePaymentFormData>(EMPTY_FORM);
 
   useEffect(() => {
 
     if (open) {
 
-      setForm({
-        purchase_invoice_id: 0,
+      if (isEdit && initialData) {
 
-        payment_date: "",
+        setForm({
+          purchase_invoice_id: initialData.purchase_invoice_id,
+          payment_date:        initialData.payment_date,
+          amount:              initialData.amount,
+          payment_method:      initialData.payment_method,
+          notes:               initialData.notes,
+          status:              initialData.status,
+        });
 
-        amount: 0,
+      } else {
 
-        payment_method: "Transfer",
+        setForm(EMPTY_FORM);
 
-        notes: "",
-
-        status: "Paid",
-      });
-
+      }
     }
 
-  }, [open]);
+  }, [open, isEdit, initialData]);
 
   if (!open) return null;
 
-  const availableInvoices =
-    purchaseInvoices.filter(
-      (x) =>
-        x.outstanding_amount > 0
-    );
+  // In edit mode, include all invoices so the current one is selectable.
+  // In create mode, only show invoices that still have an outstanding balance.
+  const invoiceOptions = isEdit
+    ? purchaseInvoices
+    : purchaseInvoices.filter((x) => x.outstanding_amount > 0);
 
   const selectedInvoice =
-    availableInvoices.find(
+    purchaseInvoices.find(
       (inv) =>
         inv.purchase_invoice_id ===
         form.purchase_invoice_id
@@ -165,7 +174,9 @@ export default function PurchasePaymentFormModal({
                   text-[15px]
                 "
               >
-                Tambah Purchase Payment
+                {isEdit
+                  ? "Edit Purchase Payment"
+                  : "Tambah Purchase Payment"}
               </h2>
 
               <p
@@ -175,7 +186,9 @@ export default function PurchasePaymentFormModal({
                   mt-0.5
                 "
               >
-                Catat pembayaran invoice supplier
+                {isEdit
+                  ? "Ubah data pembayaran invoice supplier"
+                  : "Catat pembayaran invoice supplier"}
               </p>
 
             </div>
@@ -208,61 +221,46 @@ export default function PurchasePaymentFormModal({
             >
 
               <select
-                value={
-                  form.purchase_invoice_id
-                }
+                value={form.purchase_invoice_id}
+                disabled={isEdit}
                 onChange={(e) => {
 
                   const selected =
-                    availableInvoices.find(
+                    invoiceOptions.find(
                       (inv) =>
                         inv.purchase_invoice_id ===
-                        Number(
-                          e.target.value
-                        )
+                        Number(e.target.value)
                     );
 
                   setForm({
                     ...form,
-
-                    purchase_invoice_id:
-                      Number(
-                        e.target.value
-                      ),
-
-                    amount:
-                      selected
-                        ?.outstanding_amount ?? 0,
+                    purchase_invoice_id: Number(e.target.value),
+                    amount: selected?.outstanding_amount ?? 0,
                   });
 
                 }}
-                className={inputBase}
+                className={cn(
+                  inputBase,
+                  isEdit && "bg-slate-50 cursor-not-allowed"
+                )}
               >
 
                 <option value="">
                   Pilih Invoice
                 </option>
 
-                {availableInvoices.map(
-                  (inv) => (
+                {invoiceOptions.map((inv) => (
 
                   <option
-                    key={
-                      inv.purchase_invoice_id
-                    }
-                    value={
-                      inv.purchase_invoice_id
-                    }
+                    key={inv.purchase_invoice_id}
+                    value={inv.purchase_invoice_id}
                   >
                     {inv.invoice_number}
                     {" | Outstanding: Rp "}
-                    {Number(
-                      inv.outstanding_amount
-                    ).toLocaleString("id-ID")}
+                    {Number(inv.outstanding_amount).toLocaleString("id-ID")}
                   </option>
 
-                  )
-                )}
+                ))}
 
               </select>
 
@@ -272,34 +270,20 @@ export default function PurchasePaymentFormModal({
 
               <input
                 readOnly
-                value={
-                  selectedInvoice
-                    ?.supplier_name ?? ""
-                }
-                className={cn(
-                  inputBase,
-                  "bg-slate-50"
-                )}
+                value={selectedInvoice?.supplier_name ?? ""}
+                className={cn(inputBase, "bg-slate-50")}
               />
 
             </FormField>
 
-            <FormField
-              label="Invoice Amount"
-            >
+            <FormField label="Invoice Amount">
 
               <input
                 readOnly
                 value={`Rp ${Number(
-                  selectedInvoice
-                    ?.total_amount ?? 0
-                ).toLocaleString(
-                  "id-ID"
-                )}`}
-                className={cn(
-                  inputBase,
-                  "bg-slate-50"
-                )}
+                  selectedInvoice?.total_amount ?? 0
+                ).toLocaleString("id-ID")}`}
+                className={cn(inputBase, "bg-slate-50")}
               />
 
             </FormField>
@@ -309,115 +293,63 @@ export default function PurchasePaymentFormModal({
               <input
                 readOnly
                 value={`Rp ${Number(
-                  selectedInvoice
-                    ?.dp_paid ?? 0
-                ).toLocaleString(
-                  "id-ID"
-                )}`}
-                className={cn(
-                  inputBase,
-                  "bg-slate-50"
-                )}
+                  selectedInvoice?.dp_paid ?? 0
+                ).toLocaleString("id-ID")}`}
+                className={cn(inputBase, "bg-slate-50")}
               />
 
             </FormField>
 
-            <FormField
-              label="Outstanding Amount"
-            >
+            <FormField label="Outstanding Amount">
 
               <input
                 readOnly
                 value={`Rp ${Number(
-                  selectedInvoice
-                    ?.outstanding_amount ??
-                    0
-                ).toLocaleString(
-                  "id-ID"
-                )}`}
-                className={cn(
-                  inputBase,
-                  "bg-slate-50"
-                )}
+                  selectedInvoice?.outstanding_amount ?? 0
+                ).toLocaleString("id-ID")}`}
+                className={cn(inputBase, "bg-slate-50")}
               />
 
             </FormField>
 
-            <FormField
-              label="Payment Date"
-            >
+            <FormField label="Payment Date">
 
               <input
                 type="date"
-                value={
-                  form.payment_date
-                }
+                value={form.payment_date}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-
-                    payment_date:
-                      e.target.value,
-                  })
+                  setForm({ ...form, payment_date: e.target.value })
                 }
                 className={inputBase}
               />
 
             </FormField>
 
-            <FormField
-              label="Payment Amount"
-            >
+            <FormField label="Payment Amount">
 
               <input
                 type="number"
                 value={form.amount}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-
-                    amount:
-                      Number(
-                        e.target.value
-                      ),
-                  })
+                  setForm({ ...form, amount: Number(e.target.value) })
                 }
                 className={inputBase}
               />
 
             </FormField>
 
-            <FormField
-              label="Payment Method"
-            >
+            <FormField label="Payment Method">
 
               <select
-                value={
-                  form.payment_method
-                }
+                value={form.payment_method}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-
-                    payment_method:
-                      e.target.value,
-                  })
+                  setForm({ ...form, payment_method: e.target.value })
                 }
                 className={inputBase}
               >
-
-                <option value="Transfer">
-                  Transfer
-                </option>
-
-                <option value="Cash">
-                  Cash
-                </option>
-
-                <option value="Giro">
-                  Giro
-                </option>
-
+                <option value="Transfer">Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Giro">Giro</option>
               </select>
 
             </FormField>
@@ -427,12 +359,7 @@ export default function PurchasePaymentFormModal({
               <textarea
                 value={form.notes}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-
-                    notes:
-                      e.target.value,
-                  })
+                  setForm({ ...form, notes: e.target.value })
                 }
                 className={inputBase}
               />
@@ -478,16 +405,13 @@ export default function PurchasePaymentFormModal({
               onClick={() => {
 
                 if (
+                  !isEdit &&
                   form.amount >
-                  (selectedInvoice
-                    ?.outstanding_amount ??
-                    0)
+                    (selectedInvoice?.outstanding_amount ?? 0)
                 ) {
-
                   alert(
                     "Payment amount cannot exceed outstanding amount"
                   );
-
                   return;
                 }
 
@@ -504,7 +428,7 @@ export default function PurchasePaymentFormModal({
                 rounded-lg
               "
             >
-              Simpan Payment
+              {isEdit ? "Simpan Perubahan" : "Simpan Payment"}
             </button>
 
           </div>
