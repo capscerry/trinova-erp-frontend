@@ -501,9 +501,6 @@ export default function PurchaseOrderPage() {
 
         const headerPayload = {
 
-          po_number:
-            payload.po_number,
-
           supplier_id:
             Number(
               payload.supplier_id
@@ -524,6 +521,11 @@ export default function PurchaseOrderPage() {
             payload.total_amount,
         };
 
+        // Only include po_number on updates (it's backend-generated on create)
+        const updatePayload = editingPO?.purchase_order_id
+          ? { ...headerPayload, po_number: payload.po_number }
+          : headerPayload;
+
         console.log(
           "HEADER PAYLOAD"
         );
@@ -543,7 +545,7 @@ export default function PurchaseOrderPage() {
 
           await updatePurchaseOrder(
             editingPO.purchase_order_id,
-            headerPayload
+            updatePayload
           );
 
           purchaseOrderId =

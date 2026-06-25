@@ -41,6 +41,7 @@ interface GoodsReceipt {
   purchase_order_id: number;
   receipt_number: string;
   receipt_date: string;
+  created_at: string;
   po_number: string;
   received_by: string;
   status: GRStatus;
@@ -204,6 +205,9 @@ export default function GoodsReceiptPage() {
 
           receipt_date:
             item.receipt_date,
+
+          created_at:
+            item.created_at ?? item.receipt_date,
 
           po_number:
             item.purchase_order?.po_number ||
@@ -389,6 +393,7 @@ export default function GoodsReceiptPage() {
         data={goodsReceipts}
         keyField="id"
         dateField="receipt_date"
+        createdAtField="created_at"
         statusOptions={["Received", "Partial", "Cancelled"]}
 
         addLabel="Tambah GR"

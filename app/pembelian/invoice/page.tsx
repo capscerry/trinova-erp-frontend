@@ -39,6 +39,7 @@ type InvoiceStatus =
 
 interface PurchaseInvoice {
   id: string;
+  goods_receipt_id: number;
   invoice_number: string;
   invoice_date: string;
   supplier_id: number;
@@ -271,6 +272,9 @@ export default function PurchaseInvoicePage() {
             id:
               item.purchase_invoice_id.toString(),
 
+            goods_receipt_id:
+              item.goods_receipt_id,
+
             invoice_number:
               item.invoice_number,
 
@@ -441,7 +445,11 @@ useEffect(() => {
   onClose={() =>
     setOpenModal(false)
   }
-  goodsReceipts={goodsReceipts}
+  goodsReceipts={goodsReceipts.filter(
+    (gr) => !invoices.some(
+      (inv: any) => Number(inv.goods_receipt_id) === Number(gr.goods_receipt_id)
+    )
+  )}
   onSubmit={async (data) => {
 
     try {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getNextGRNumber } from "@/lib/services/gr.service";
 
 import {
   X,
@@ -46,10 +47,7 @@ interface GoodsReceiptFormModalProps {
 const todayStr = () =>
   new Date().toISOString().split("T")[0];
 
-const generateReceiptNumber = () =>
-  `GR-${new Date().getFullYear()}-${Math.floor(
-    Math.random() * 9000
-  ) + 1000}`;
+
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -70,8 +68,7 @@ export default function GoodsReceiptFormModal({
   const [form, setForm] =
     useState<GoodsReceiptFormData>({
       purchase_order_id: "",
-      receipt_number:
-        generateReceiptNumber(),
+      receipt_number: "",
       receipt_date: todayStr(),
       received_by: "",
       status: "Received",
@@ -83,14 +80,18 @@ export default function GoodsReceiptFormModal({
 
       setForm({
         purchase_order_id: "",
-        receipt_number:
-          generateReceiptNumber(),
+        receipt_number: "",
         receipt_date: todayStr(),
         received_by: "",
         status: "Received",
       });
 
       setSelectedDetails([]);
+
+      // Fetch the real next GR number from the backend
+      getNextGRNumber()
+        .then(res => setForm(prev => ({ ...prev, receipt_number: res?.receipt_number ?? res?.next_number ?? "" })))
+        .catch(() => { /* leave blank if endpoint not available */ });
     }
 
   }, [open]);
@@ -216,9 +217,10 @@ export default function GoodsReceiptFormModal({
                   <input
                     readOnly
                     value={form.receipt_number}
+                    placeholder="Otomatis"
                     className={cn(
                       inputBase,
-                      "bg-slate-50 text-slate-500"
+                      "bg-slate-50 text-slate-500 placeholder-slate-400"
                     )}
                   />
 

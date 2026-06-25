@@ -10,6 +10,8 @@ import {
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
 import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
+import { getNextPONumber } from "@/lib/services/po.service";
+import { getNextGRNumber } from "@/lib/services/gr.service";
 
 interface Supplier { id: string; nama: string; }
 interface Product {
@@ -85,11 +87,7 @@ const PROSES_LINKS = [
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-const generatePONumber = () =>
-  `PO-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
 
-const generateGRNumber = () =>
-  `GR-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -131,7 +129,7 @@ export default function PurchaseOrderFormModal({
   const [grSaving, setGrSaving] = useState(false);
   const [grSavedId, setGrSavedId] = useState<number | null>(null);
   const [grForm, setGrForm] = useState({
-    receipt_number: generateGRNumber(), receipt_date: todayStr(),
+    receipt_number: "", receipt_date: todayStr(),
     received_by: "", status: "Received",
   });
 
@@ -148,7 +146,7 @@ export default function PurchaseOrderFormModal({
   });
 
   const [form, setForm] = useState<PurchaseOrderFormData>({
-    po_number: generatePONumber(), supplier_id: "", order_date: todayStr(),
+    po_number: "", supplier_id: "", order_date: todayStr(),
     expected_date: "", status: "Draft", total_amount: 0, items: [newItem()],
   });
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -199,7 +197,7 @@ export default function PurchaseOrderFormModal({
       setDpOpen(false); setDpSaving(false);
       setDpForm({ payment_date: todayStr(), amount: 0, payment_type: "Partial", notes: "" });
       setGrOpen(false); setGrSaving(false);
-      setGrForm({ receipt_number: generateGRNumber(), receipt_date: todayStr(), received_by: "", status: "Received" });
+      setGrForm({ receipt_number: "", receipt_date: todayStr(), received_by: "", status: "Received" });
       setInvoiceOpen(false); setInvoiceSaving(false); setSavedInvoice(null);
       setPaymentOpen(false); setPaymentDone(false); setPaymentSaving(false);
       setPaymentForm({ payment_date: todayStr(), amount: 0, payment_method: "Transfer", notes: "" });
@@ -218,8 +216,12 @@ export default function PurchaseOrderFormModal({
       } else {
         setIsApproved(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
-        setForm({ po_number: generatePONumber(), supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()] });
+        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()] });
         setFilteredProducts([]);
+        // Fetch the real next PO number from the backend
+        getNextPONumber()
+          .then(res => setForm(prev => ({ ...prev, po_number: res?.po_number ?? res?.next_number ?? "" })))
+          .catch(() => { /* leave blank if endpoint not available */ });
       }
     } else if (!open) {
       wasOpenRef.current = false;
@@ -232,6 +234,14 @@ export default function PurchaseOrderFormModal({
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose, approvalOpen, dpOpen, grOpen]);
+
+  // Fetch next GR number when the GR sub-form is opened
+  useEffect(() => {
+    if (!grOpen) return;
+    getNextGRNumber()
+      .then(res => setGrForm(prev => ({ ...prev, receipt_number: res?.receipt_number ?? res?.next_number ?? "" })))
+      .catch(() => { /* leave blank if endpoint not available */ });
+  }, [grOpen]);
 
   const setField = <K extends keyof PurchaseOrderFormData>(key: K, val: PurchaseOrderFormData[K]) =>
     setForm(prev => ({ ...prev, [key]: val }));
@@ -627,7 +637,7 @@ export default function PurchaseOrderFormModal({
             <Section title="Informasi Purchase Order">
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="PO Number" icon={<Hash size={13} />}>
-                  <input readOnly value={form.po_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
+                  <input readOnly value={form.po_number} placeholder="Otomatis" className={cn(inputBase, "bg-slate-50 text-slate-500 placeholder-slate-400")} />
                 </FormField>
                 <FormField label="Tanggal" icon={<Calendar size={13} />}>
                   <input readOnly value={form.order_date}
@@ -1075,11 +1085,11 @@ export default function PurchaseOrderFormModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">No Receipt</label>
-                    <input readOnly value={grForm.receipt_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
+                    <input readOnly value={grForm.receipt_number} placeholder="Otomatis" className={cn(inputBase, "bg-slate-50 text-slate-500 placeholder-slate-400")} />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">No PO</label>
-                    <input readOnly value={form.po_number} className={cn(inputBase, "bg-slate-50 text-slate-500")} />
+                    <input readOnly value={form.po_number} placeholder="Otomatis" className={cn(inputBase, "bg-slate-50 text-slate-500 placeholder-slate-400")} />
                   </div>
                 </div>
                 <div className="space-y-1.5">

@@ -6,6 +6,11 @@ export const getPurchaseOrders = async () => {
   return res.data;
 };
 
+export const getNextPONumber = async () => {
+  const res = await api.get("/purchase-order/next-number");
+  return res.data;
+};
+
 export const createPurchaseOrder = async (
   payload: any
 ) => {
