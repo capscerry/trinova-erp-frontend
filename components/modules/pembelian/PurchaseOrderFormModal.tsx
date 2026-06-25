@@ -302,10 +302,22 @@ export default function PurchaseOrderFormModal({
     if (isEdit) {
       try {
         await onSubmit(payload);
-        toast.success("Purchase Order berhasil diperbarui");
+        toast.success(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[14px] text-gold-400">Purchase Order diperbarui</span>
+            <span className="text-[12px] text-slate-300">{form.po_number} berhasil disimpan</span>
+          </div>,
+          { duration: 5000 }
+        );
         onClose();
       } catch (err: any) {
-        toast.error(err?.message ?? "Gagal memperbarui Purchase Order");
+        toast.error(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[14px] text-red-400">Gagal memperbarui PO</span>
+            <span className="text-[12px] text-slate-300">{err?.message ?? "Terjadi kesalahan, coba lagi"}</span>
+          </div>,
+          { duration: 6000 }
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -318,9 +330,21 @@ export default function PurchaseOrderFormModal({
           setForm(prev => ({ ...prev, po_number: saved.po_number }));
         }
         setIsSubmitted(true);
-        toast.success(`Purchase Order ${saved?.po_number ?? form.po_number} berhasil disimpan`);
+        toast.success(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[14px] text-gold-400">Purchase Order tersimpan</span>
+            <span className="text-[12px] text-slate-300">{saved?.po_number ?? form.po_number} berhasil dibuat sebagai Draft</span>
+          </div>,
+          { duration: 5000 }
+        );
       } catch (err: any) {
-        toast.error(err?.message ?? "Gagal menyimpan Purchase Order");
+        toast.error(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[14px] text-red-400">Gagal menyimpan PO</span>
+            <span className="text-[12px] text-slate-300">{err?.message ?? "Terjadi kesalahan, coba lagi"}</span>
+          </div>,
+          { duration: 6000 }
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -514,10 +538,7 @@ export default function PurchaseOrderFormModal({
       });
       setForm(prev => ({ ...prev, items: mappedItems }));
 
-      // Build the product list for the dropdown:
-      // Start from the supplier-filtered list (or all products if no supplier chosen),
-      // then inject any PR products that aren't already present so they appear
-      // as pre-selected options in the dropdown.
+      // Build the product list for the dropdown
       const baseList = form.supplier_id
         ? products.filter(p => p.supplier_id?.toString() === form.supplier_id)
         : [];
@@ -527,8 +548,7 @@ export default function PurchaseOrderFormModal({
         p => prProductIds.has(p.id) && !baseList.some(b => b.id === p.id)
       );
 
-      // If a PR product isn't in the supplier-product list at all, synthesise
-      // a minimal entry from the PR detail so the dropdown still shows the name.
+      // If a PR product isn't in the supplier-product list at all, synthesise a minimal entry 
       const syntheticEntries = fullPR.details
         .filter(d => !products.some(p => p.id === String(d.product_id)))
         .map(d => ({
