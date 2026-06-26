@@ -20,6 +20,16 @@ export interface PurchaseRequisitionDetail {
   remarks?: string;
 }
 
+export async function getPurchaseRequisitionDetail(
+  id: number
+) {
+  const response = await api.get(
+    `/PurchaseRequisition/${id}`
+  );
+
+  return response.data;
+}
+
 export interface CreatePurchaseRequisitionRequest {
   pr_date: string;
   warehouse_id: number;
