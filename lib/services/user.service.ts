@@ -101,9 +101,19 @@ export function mapMasterRole(item: MasterRoleApi): MasterRole {
 }
 
 export function mapAuthUser(item: LoginResponseApi): AuthUser {
+  const name = item.user.username || item.user.email;
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "U";
+
   return {
     id: item.user.id,
     username: item.user.username,
+    name,
+    initials,
     email: item.user.email,
     role: mapBackendRole(item.user.roleName),
     token: item.token,

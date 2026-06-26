@@ -7,7 +7,7 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AuthUser, AuthContextValue } from "@/types/auth";
 import { authService } from "@/lib/services/user.service";
 
@@ -25,10 +25,25 @@ function setSessionCookie(value: "1" | "") {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function getRedirectPath(role: AuthUser["role"]) {
+  switch (role) {
+    case "penjualan":
+      return "/penjualan";
+    case "pembelian":
+      return "/pembelian";
+    case "persediaan":
+      return "/persediaan";
+    case "admin":
+    default:
+      return "/dashboard";
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     try {
@@ -36,17 +51,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const savedToken = sessionStorage.getItem(TOKEN_KEY);
 
       if (savedUser && savedToken) {
-        setUser(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser) as AuthUser;
+        setUser(parsedUser);
         setSessionCookie("1");
+      } else {
+        setSessionCookie("");
+        if (pathname !== "/login") {
+          router.replace("/login");
+        }
       }
     } catch {
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
       setSessionCookie("");
+      if (pathname !== "/login") {
+        router.replace("/login");
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    if (pathname === "/login") {
+      router.replace(getRedirectPath(user.role));
+      return;
+    }
+
+    if (user.role !== "admin" && pathname === "/dashboard") {
+      router.replace(getRedirectPath(user.role));
+    }
+  }, [isLoading, pathname, router, user]);
 
   const login = async (
     email: string,

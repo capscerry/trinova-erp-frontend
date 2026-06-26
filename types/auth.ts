@@ -3,6 +3,8 @@ export type Role = "admin" | "penjualan" | "pembelian" | "persediaan";
 export interface AuthUser {
   id: number;
   username: string;
+  name: string;
+  initials: string;
   email: string;
   role: Role;
   token: string;
