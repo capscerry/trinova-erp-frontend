@@ -18,7 +18,7 @@ interface QuotationPickerModalProps {
   customerName: string;
   onConfirm: (
     items: SalesOrderItem[],
-    quotation: { id: number; nomor: string ,alamat : string}
+    quotation: { id: number; nomor: string ,alamat : string,kenaPajak : boolean}
   ) => void;
 }
 
@@ -141,6 +141,7 @@ export function QuotationPickerModal({
         qty: qi.qty,
         qtyTerkirim: 0,
         satuan: qi.satuan,
+        uomId: qi.uomId,
         harga: qi.harga,
         diskon: qi.discountPercent,
         subtotal: qi.harga * qi.qty * (1 - qi.discountPercent / 100),
@@ -151,6 +152,7 @@ export function QuotationPickerModal({
       id: quotationDetail.id,
       nomor: quotationDetail.nomor,
       alamat: quotationDetail.alamat ?? "",
+      kenaPajak: quotationDetail.kenaPajak,
     });
   };
 

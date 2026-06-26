@@ -73,7 +73,7 @@ export function SalesOrderModal({
 
   const handleQuotationConfirm = (
     items: SalesOrderItem[],
-    quotation: { id: number; nomor: string ,alamat : string}
+    quotation: { id: number; nomor: string ,alamat : string,kenaPajak : boolean}
   ) => {
     // Gabungkan: hapus baris kosong default, lalu tambahkan item dari quotation
     const existingItems = form.items.filter(
@@ -85,6 +85,7 @@ export function SalesOrderModal({
       quotationId: quotation.id,
       quotationNumber: quotation.nomor,
       ...(quotation.alamat ? {alamatPengiriman : quotation.alamat} : {}),
+      kenaPajak: quotation.kenaPajak,
       items: merged.length > 0 ? merged : [newItem()],
     });
     setQuotationPickerOpen(false);
@@ -271,30 +272,6 @@ export function SalesOrderModal({
                 <p className="text-sm font-semibold text-emerald-700">
                   {successMessage}
                 </p>
-              </div>
-            )}
-
-            {isSubmitted && savedSo && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-sm font-semibold text-emerald-700">
-                  {successMessage}
-                </p>
-
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-emerald-700">
-                  <p>
-                    No SO:{" "}
-                    <span className="font-semibold">
-                      {getSavedSoNumber()}
-                    </span>
-                  </p>
-
-                  <p>
-                    Total:{" "}
-                    <span className="font-semibold">
-                      {formatRupiah(getSavedTotal())}
-                    </span>
-                  </p>
-                </div>
               </div>
             )}
 

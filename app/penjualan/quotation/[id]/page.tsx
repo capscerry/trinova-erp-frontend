@@ -121,11 +121,9 @@ export default function SalesQuotationDetailPage() {
   }, [id]);
 
   // Konversi SalesQuotationDetail (hasil GET) → SalesQuotationFormData
-  // (bentuk yang dipakai modal create/edit). API detail TIDAK mengembalikan
-  // productId/uomId per item — field itu dikosongkan (0) karena modal edit
-  // saat ini hanya untuk mengubah data header (nomor & customer readonly,
-  // sisanya bisa diubah). API update belum tersedia, jadi submit belum
-  // benar-benar mengirim perubahan ke backend.
+  // (bentuk yang dipakai modal create/edit). productId/uomId per item
+  // SUDAH tersedia dari API (lihat SalesQuotationDetail.items), jadi
+  // disertakan di sini supaya tidak hilang saat submit ulang.
   const toFormData = (detail: SalesQuotationDetail): SalesQuotationFormData => ({
     id: detail.id,
     nomor: detail.nomor,
@@ -134,9 +132,11 @@ export default function SalesQuotationDetailPage() {
     dipesanOleh: detail.pelanggan,
     address: detail.alamat ?? "",
     keterangan: detail.keterangan ?? "",
-    kenaPajak: detail.taxTotal > 0,
+    kenaPajak: detail.kenaPajak,
     items: (detail.items ?? []).map((it): QuotationItem => ({
       id: crypto.randomUUID(),
+      productId: it.productId,
+      uomId: it.uomId,
       produk: it.productName,
       deskripsi: "",
       qty: it.qty,
@@ -172,10 +172,11 @@ export default function SalesQuotationDetailPage() {
       quotationDate: formData.tanggal,
       address: formData.address || "",
       notes: formData.keterangan || "",
-      isTaxable: formData.kenaPajak,
+      isTaxAble: formData.kenaPajak,
       isTaxIncluded: formData.kenaPajak,
       subtotal,
       discountTotal,
+      taxTotal,
       details: formData.items.map((item) => {
         const lineGross = item.harga * item.qty;
         const discountAmount = lineGross * (item.diskon / 100);
@@ -445,7 +446,7 @@ export default function SalesQuotationDetailPage() {
                               </span>
                             </div>
                           )}
-                          {data.taxTotal > 0 && (
+                          {data.kenaPajak && (
                             <div className="flex justify-between text-xs">
                               <span className="text-slate-500">PPN</span>
                               <span className="font-semibold text-slate-700">

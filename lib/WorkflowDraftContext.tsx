@@ -9,13 +9,14 @@ import {
 } from "react";
 import type { SalesOrderFormData } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaType";
-import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
+import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanType";
+import type { FakturPenjualanFormData } from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanType";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export interface WorkflowDraft {
-  salesOrder?: SalesOrderFormData & { [key: string]: any };
+  salesOrder?: SalesOrderFormData & Record<string, unknown>;
   uangMuka?: UangMukaFormData;
   pengiriman?: PengirimanFormData;
+  faktur?: FakturPenjualanFormData;
 }
 
 export type DraftKey = keyof WorkflowDraft;
@@ -40,7 +41,6 @@ const WorkflowDraftContext = createContext<WorkflowDraftContextValue | undefined
   undefined
 );
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<WorkflowDraft>({});
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
@@ -69,9 +69,9 @@ export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useWorkflowDraft() {
   const ctx = useContext(WorkflowDraftContext);
   if (!ctx) throw new Error("useWorkflowDraft must be used within WorkflowDraftProvider");
   return ctx;
 }
+

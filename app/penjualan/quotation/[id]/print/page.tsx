@@ -88,10 +88,9 @@ export default function SalesQuotationPrintPage() {
   const terbilangText = terbilang(grandTotal);
 
   // Status pajak untuk ditampilkan sebagai keterangan di dokumen cetak.
-  const taxStatusText =
-    data.taxTotal > 0
-      ? "Sudah termasuk PPN"
-      : "Belum termasuk PPN (PPN 0 / tidak dikenakan)";
+  const taxStatusText = data.kenaPajak
+    ? "Sudah termasuk PPN"
+    : "Belum termasuk PPN (Tidak dikenakan)";
 
   return (
     <>
@@ -394,7 +393,7 @@ export default function SalesQuotationPrintPage() {
             <div className="info-cell">
               <div className="cell-label">Status Pajak</div>
               <div className="cell-value">
-                <span className={`tax-status ${data.taxTotal > 0 ? "included" : "excluded"}`}>
+                <span className={`tax-status ${data.kenaPajak ? "included" : "excluded"}`}>
                   {taxStatusText}
                 </span>
               </div>
@@ -470,7 +469,7 @@ export default function SalesQuotationPrintPage() {
                     <td>-{formatRupiah(data.discountTotal)}</td>
                   </tr>
                 )}
-                {data.taxTotal > 0 && (
+                {data.kenaPajak && (
                   <tr>
                     <td>PPN</td>
                     <td>{formatRupiah(data.taxTotal)}</td>
@@ -490,7 +489,7 @@ export default function SalesQuotationPrintPage() {
                 textAlign: "right",
               }}
             >
-              * Total di atas {data.taxTotal > 0 ? "sudah termasuk PPN" : "belum termasuk PPN"}
+              * Total di atas {data.kenaPajak ? "sudah termasuk PPN" : "belum termasuk PPN"}
             </p>
           </div>
         </div>

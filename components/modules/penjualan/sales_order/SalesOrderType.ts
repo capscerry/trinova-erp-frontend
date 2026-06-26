@@ -269,6 +269,11 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
         // FIX: warehouseId per item belum pernah dikirim ke payload,
         // padahal field dropdown Gudang sudah ada di form sejak sebelumnya.
         wareHouseId: item.warehouseId ?? null,
+
+        // FIX: uomId juga belum pernah dikirim — sama pola bug-nya.
+        // Fallback 0 (bukan null) karena UomId di backend bertipe int
+        // non-nullable — mengirim null menyebabkan validation error.
+        uomId: item.uomId ?? 0,
       })),
     };
   }

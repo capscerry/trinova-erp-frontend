@@ -29,8 +29,8 @@ export interface SalesOrderDetailItem {
   productDiscount: number;
   totalPrice: number;
   uomId?: number;
-  satuan?: string;
-  warehouseId?: number;
+  uomCode?: string;
+  wareHouseId?: number;
   warehouseName?: string;
 }
 
@@ -48,6 +48,9 @@ export interface SalesOrderDetailApi {
   total: number;
   discountTotal?: number;
   taxTotal?: number;
+  isTaxAble?: boolean;
+  quotationId?: number;
+  quotationNumber?: string;
   detail: SalesOrderDetailItem[];
 }
 
@@ -108,10 +111,11 @@ export interface SalesQuotationPayload {
   quotationDate: string;
   address: string;
   notes: string;
-  isTaxable: boolean;
+  isTaxAble: boolean;
   isTaxIncluded: boolean;
   subtotal: number;
   discountTotal: number;
+  taxTotal: number;
   details: {
     productId: number;
     quantity: number;
@@ -170,6 +174,9 @@ export interface SalesOrderDetail {
   total: number;
   discountTotal: number;
   taxTotal: number;
+  kenaPajak: boolean;
+  quotationId?: number;
+  quotationNumber?: string;
   items: SalesOrderDetailItem[];
 }
 
@@ -273,6 +280,9 @@ export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail
     total: item.total,
     discountTotal: item.discountTotal ?? 0,
     taxTotal: item.taxTotal ?? 0,
+    kenaPajak: item.isTaxAble ?? false,
+    quotationId: item.quotationId ?? undefined,
+    quotationNumber: item.quotationNumber ?? undefined,
     items: item.detail ?? [],
   };
 }
@@ -531,6 +541,7 @@ export interface SalesQuotationHeaderDetailApi {
     subtotal: number;
     discountTotal?: number;
     taxTotal?: number;
+    isTaxAble?: boolean;
   };
   detail: {
     productId: number;
@@ -556,6 +567,7 @@ export interface SalesQuotationDetail {
   subtotal: number;
   discountTotal: number;
   taxTotal: number;
+  kenaPajak: boolean;
   items: {
     productId: number;
     productCode: string;
@@ -600,6 +612,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     subtotal: item.header.subtotal,
     discountTotal: item.header.discountTotal ?? 0,
     taxTotal: item.header.taxTotal ?? 0,
+    kenaPajak: item.header.isTaxAble ?? false,
     items,
   };
 }
