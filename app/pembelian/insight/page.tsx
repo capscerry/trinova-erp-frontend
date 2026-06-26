@@ -36,6 +36,11 @@ import {
   type ReorderCandidate,
   type ConcentrationResult,
 } from "@/lib/purchasing-insights";
+import {
+  generateDummySupplierFeatures,
+  predictSupplierRisk,
+  type MLPipeline,
+} from "@/lib/xgboost-risk";
 
 // ─── Small reusable UI helpers ────────────────────────────────────────────────
 
@@ -179,6 +184,48 @@ function SpendBarChart({ data }: { data: SpendSummary["spendByMonth"] }) {
 }
 
 // ─── Supplier ranking table ───────────────────────────────────────────────────
+
+function RiskModelMetrics({ pipeline }: { pipeline?: MLPipeline | null }) {
+  if (!pipeline) return null;
+
+  const splits = [
+    { label: "Training", metrics: pipeline.trainMetrics, color: "bg-blue-600" },
+    { label: "Validation", metrics: pipeline.valMetrics, color: "bg-amber-600" },
+    { label: "Test", metrics: pipeline.testMetrics, color: "bg-emerald-600" },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {splits.map((split) => (
+        <Card key={split.label} className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-slate-400 font-semibold">{split.label}</p>
+              <p className="text-lg font-bold text-slate-900 mt-1">Split Metrics</p>
+            </div>
+            <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold text-white", split.color)}>
+              {split.label}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400">R²</p>
+              <p className="text-lg font-bold text-slate-900 mt-1">{split.metrics.r2.toFixed(3)}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400">Accuracy</p>
+              <p className="text-lg font-bold text-slate-900 mt-1">{(split.metrics.accuracy * 100).toFixed(1)}%</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3 text-center">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400">AUC</p>
+              <p className="text-lg font-bold text-slate-900 mt-1">{split.metrics.auc.toFixed(3)}</p>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
   if (scores.length === 0)
@@ -516,6 +563,7 @@ export default function PurchasingInsightPage() {
   const [supplierScores, setSupplierScores] = useState<SupplierScore[]>([]);
   const [reorderList,  setReorderList]  = useState<ReorderCandidate[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationResult | null>(null);
+  const [riskPipeline, setRiskPipeline] = useState<MLPipeline | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -561,6 +609,7 @@ export default function PurchasingInsightPage() {
       setPaymentHealth(calcPaymentHealth(invoices, payments));
       setSupplierScores(calcSupplierScores(normPos, grs, supProducts, invoices, normSuppliers));
       setReorderList(calcReorderCandidates(supProducts, normSuppliers, poDetails));
+      setRiskPipeline(predictSupplierRisk(generateDummySupplierFeatures(normSuppliers)));
       setLastUpdated(new Date());
     } catch (e) {
       console.error("Insight fetch error:", e);
@@ -640,6 +689,17 @@ export default function PurchasingInsightPage() {
               trend="neutral" />
           </>
         ) : null}
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
+        <SectionTitle icon={Brain} label="AI Risk Model Metrics" sub="Evaluasi model XGBoost pada data dummy supplier" />
+        {loading ? (
+          <SkeletonBlock h="h-40" />
+        ) : riskPipeline ? (
+          <RiskModelMetrics pipeline={riskPipeline} />
+        ) : (
+          <p className="text-[12px] text-slate-500">Belum ada hasil model. Segarkan halaman atau buka /rekomendasi untuk melihat prediksi risiko.</p>
+        )}
       </div>
 
       {/* ── Row 1: Spend chart + Concentration + Payment ─────────────────────── */}
