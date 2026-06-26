@@ -1,66 +1,63 @@
 "use client";
 
 import { Column } from "@/components/ui/DataTable";
-import { DemandForecast } from "./types";
+import { Forecast } from "@/types/forecast.type";
 
-export const columns: Column<DemandForecast>[] = [
+function formatForecastMonth(period: string) {
+  if (!period) return "-";
+
+  const [year, month] = period.split("-");
+
+  return new Date(
+    Number(year),
+    Number(month) - 1
+  ).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export const columns: Column<Forecast>[] = [
   {
     key: "product_name",
     label: "Product",
   },
 
   {
-    key: "total_usage",
-    label: "Total Usage",
-    width: "140px",
-  },
-
-  {
     key: "forecast_next_month",
-    label: "Forecast",
+    label: "Forecast Qty",
     width: "140px",
+
+    render: (value) =>
+      Number(value).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
   },
 
   {
-    key: "current_stock",
-    label: "Current Stock",
-    width: "140px",
+    key: "forecast_month",
+    label: "Forecast Month",
+    width: "160px",
+
+    render: (value) =>
+      formatForecastMonth(String(value)),
   },
 
   {
-    key: "recommendation",
-    label: "Recommendation",
+    key: "historical_records",
+    label: "Historical Records",
+    width: "170px",
+    
+    render: (value) => `${value} Months`,
+  },
+
+  {
+    key: "last_training_period",
+    label: "Training Period",
     width: "180px",
 
-    render: (value) => {
-      const recommendation =
-        String(value);
-
-      let className =
-        "rounded-full px-3 py-1 text-xs font-medium";
-
-      switch (recommendation) {
-        case "Stock Aman":
-          className +=
-            " bg-green-100 text-green-700";
-          break;
-
-        case "Perlu Reorder":
-          className +=
-            " bg-yellow-100 text-yellow-700";
-          break;
-
-        case "Segera Restock":
-          className +=
-            " bg-red-100 text-red-700";
-          break;
-      }
-
-      return (
-        <span className={className}>
-          {recommendation}
-        </span>
-      );
-    },
+    render: (value) =>
+      formatForecastMonth(String(value)),
   },
 ];

@@ -17,17 +17,29 @@ import DemandForecastTable
 import ForecastSummary
   from "@/components/modules/persediaan/demand-forecast/ForecastSummary";
 
-import {
-  getDemandForecast,
-} from "@/lib/services/demandForecastService";
+import { Forecast } from "@/types/forecast.type";
 
-import {
-  DemandForecast,
-} from "./types";
+import { getDemandForecast } from "@/lib/services/demandForecastService";
+
+import { Clock3 } from "lucide-react";
+
+
+function formatDate(date: string) {
+  if (!date) return "-";
+
+  return new Date(date).toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
 
 export default function DemandForecastPage() {
   const [data, setData] =
-    useState<DemandForecast[]>([]);
+  useState<Forecast[]>([]);
 
   const [loading, setLoading] =
     useState(false);
@@ -67,26 +79,40 @@ export default function DemandForecastPage() {
       0
     );
 
-  const needReorder =
-    data.filter(
-      (item) =>
-        item.recommendation ===
-        "Perlu Reorder"
-    ).length;
+    const averageForecast =
+    totalProducts === 0
+      ? 0
+      : totalForecast / totalProducts;
 
-  const needRestock =
-    data.filter(
-      (item) =>
-        item.recommendation ===
-        "Segera Restock"
-    ).length;
+    const forecastMonth =
+    data.length > 0
+      ? data[0].forecast_month
+      : "";
+
+    const generatedAt =
+    data.length > 0
+      ? data[0].generated_at
+      : "";
 
   return (
     <AppShell
       title="AI Demand Forecast"
-      subtitle="Prediksi kebutuhan stok bulan berikutnya"
-    >
+      subtitle="Forecast permintaan produk bulan berikutnya"    >
       <div className="space-y-6">
+
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <Clock3 className="h-5 w-5 text-slate-500" />
+
+          <div>
+            <p className="text-xs text-slate-500">
+              Last Forecast Generated
+            </p>
+
+            <p className="font-medium text-slate-800">
+              {formatDate(generatedAt)}
+            </p>
+          </div>
+        </div>
 
         <ForecastSummary
           totalProducts={
@@ -95,11 +121,11 @@ export default function DemandForecastPage() {
           totalForecast={
             totalForecast
           }
-          needReorder={
-            needReorder
+          averageForecast={
+            averageForecast
           }
-          needRestock={
-            needRestock
+          forecastMonth={
+            forecastMonth
           }
         />
 

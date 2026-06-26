@@ -6,11 +6,10 @@ import { DataTable }
 import { columns }
   from "@/app/persediaan/demand-forecast/columns";
 
-import { DemandForecast }
-  from "@/app/persediaan/demand-forecast/types";
+import { Forecast } from "@/types/forecast.type";
 
 interface Props {
-  data: DemandForecast[];
+  data: Forecast[];
   loading: boolean;
 }
 
