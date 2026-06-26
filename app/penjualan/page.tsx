@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout";
 import {
@@ -15,14 +15,11 @@ import {
   Truck,
   Users,
 } from "lucide-react";
-import { customerService, penerimaanPenjualanService, salesOrderService } from "@/lib/services";
-import { salesInvoiceService, type SalesInvoice } from "@/lib/services/sales-invoice.service";
 import {
-  pengirimanPenjualanService,
-  type PengirimanPenjualan,
-} from "@/lib/services/pengiriman-penjualan.service";
-import type { Customer } from "@/lib/services/customer.service";
-import type { PenerimaanPenjualan, SalesOrder } from "@/lib/services/penjualan.service";
+  EMPTY_SALES_DASHBOARD,
+  salesDashboardService,
+  type SalesDashboard,
+} from "@/lib/services/sales-dashboard.service";
 
 type Tone = "blue" | "emerald" | "amber" | "rose" | "violet" | "slate";
 
@@ -80,43 +77,24 @@ const formatDate = (value?: string | null) => {
 };
 
 export default function PenjualanDashboardPage() {
-  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-  const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
-  const [deliveries, setDeliveries] = useState<PengirimanPenjualan[]>([]);
-  const [receipts, setReceipts] = useState<PenerimaanPenjualan[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [dashboard, setDashboard] = useState<SalesDashboard>(EMPTY_SALES_DASHBOARD);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    const [soResult, invoiceResult, deliveryResult, receiptResult, customerResult] =
-      await Promise.allSettled([
-        salesOrderService.getAll(),
-        salesInvoiceService.getAll(),
-        pengirimanPenjualanService.getAll(),
-        penerimaanPenjualanService.getAll(),
-        customerService.getAll(),
-      ]);
-
-    if (soResult.status === "fulfilled") setSalesOrders(soResult.value);
-    if (invoiceResult.status === "fulfilled") setInvoices(invoiceResult.value);
-    if (deliveryResult.status === "fulfilled") setDeliveries(deliveryResult.value);
-    if (receiptResult.status === "fulfilled") setReceipts(receiptResult.value);
-    if (customerResult.status === "fulfilled") setCustomers(customerResult.value);
-
-    const failed = [soResult, invoiceResult, deliveryResult, receiptResult, customerResult]
-      .filter((result) => result.status === "rejected").length;
-
-    if (failed > 0) {
-      setError(`${failed} sumber data belum bisa dimuat. Dashboard tetap menampilkan data yang tersedia.`);
+    try {
+      setLoading(true);
+      setError("");
+      const result = await salesDashboardService.getDashboard();
+      setDashboard(result);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error("Gagal memuat dashboard penjualan:", err);
+      setError("Dashboard penjualan belum bisa dimuat dari API.");
+    } finally {
+      setLoading(false);
     }
-
-    setLastUpdated(new Date());
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -127,37 +105,50 @@ export default function PenjualanDashboardPage() {
     return () => window.clearTimeout(timer);
   }, [fetchData]);
 
-  const totalSalesOrder = useMemo(
-    () => salesOrders.reduce((sum, item) => sum + Number(item.total || 0), 0),
-    [salesOrders]
-  );
-
-  const totalInvoice = useMemo(
-    () => invoices.reduce((sum, item) => sum + Number(item.grandTotal || 0), 0),
-    [invoices]
-  );
-
-  const totalReceipt = useMemo(
-    () => receipts.reduce((sum, item) => sum + Number(item.nilaiPembayaran || 0), 0),
-    [receipts]
-  );
-
-  const outstandingInvoice = useMemo(
-    () => invoices.reduce((sum, item) => sum + Number(item.remainingAmount || 0), 0),
-    [invoices]
-  );
-
   const metrics: MetricCard[] = [
-    { label: "Sales Order", value: formatRupiah(totalSalesOrder), sub: `${salesOrders.length} dokumen pesanan`, icon: ShoppingBag, tone: "blue" },
-    { label: "Faktur Penjualan", value: formatRupiah(totalInvoice), sub: `${invoices.length} faktur dibuat`, icon: Receipt, tone: "emerald" },
-    { label: "Outstanding", value: formatRupiah(outstandingInvoice), sub: "Sisa tagihan pelanggan", icon: CreditCard, tone: "rose" },
-    { label: "Penerimaan", value: formatRupiah(totalReceipt), sub: `${receipts.length} pembayaran masuk`, icon: PackageCheck, tone: "violet" },
-    { label: "Pengiriman", value: String(deliveries.length), sub: "Surat jalan tercatat", icon: Truck, tone: "amber" },
-    { label: "Customer", value: String(customers.length), sub: "Pelanggan terdaftar", icon: Users, tone: "slate" },
+    {
+      label: "Sales Order",
+      value: formatRupiah(dashboard.totalSalesOrder),
+      sub: `${dashboard.salesOrderCount} dokumen pesanan`,
+      icon: ShoppingBag,
+      tone: "blue",
+    },
+    {
+      label: "Faktur Penjualan",
+      value: formatRupiah(dashboard.totalInvoice),
+      sub: `${dashboard.invoiceCount} faktur dibuat`,
+      icon: Receipt,
+      tone: "emerald",
+    },
+    {
+      label: "Outstanding",
+      value: formatRupiah(dashboard.outstandingInvoice),
+      sub: "Sisa tagihan pelanggan",
+      icon: CreditCard,
+      tone: "rose",
+    },
+    {
+      label: "Penerimaan",
+      value: formatRupiah(dashboard.totalReceipt),
+      sub: `${dashboard.receiptCount} pembayaran masuk`,
+      icon: PackageCheck,
+      tone: "violet",
+    },
+    {
+      label: "Pengiriman",
+      value: String(dashboard.deliveryCount),
+      sub: "Surat jalan tercatat",
+      icon: Truck,
+      tone: "amber",
+    },
+    {
+      label: "Customer",
+      value: String(dashboard.customerCount),
+      sub: "Pelanggan terdaftar",
+      icon: Users,
+      tone: "slate",
+    },
   ];
-
-  const recentOrders = salesOrders.slice(0, 5);
-  const recentInvoices = invoices.slice(0, 5);
 
   return (
     <AppShell title="Dashboard Penjualan" subtitle="Ringkasan aktivitas sales dan tagihan pelanggan">
@@ -223,13 +214,13 @@ export default function PenjualanDashboardPage() {
               <Link href="/penjualan/order" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Lihat semua</Link>
             </div>
             <div className="space-y-2">
-              {recentOrders.length === 0 ? (
+              {dashboard.recentSalesOrders.length === 0 ? (
                 <p className="py-8 text-center text-xs text-slate-400">Belum ada sales order.</p>
-              ) : recentOrders.map((item) => (
+              ) : dashboard.recentSalesOrders.map((item) => (
                 <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-50 py-2 last:border-b-0">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-700">{item.nomor}</p>
-                    <p className="truncate text-xs text-slate-400">{item.pelanggan}</p>
+                    <p className="truncate text-sm font-semibold text-slate-700">{item.number}</p>
+                    <p className="truncate text-xs text-slate-400">{item.customerName || "-"}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-bold text-slate-700">{formatRupiah(item.total)}</p>
@@ -249,13 +240,13 @@ export default function PenjualanDashboardPage() {
               <Link href="/penjualan/invoice" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Lihat semua</Link>
             </div>
             <div className="space-y-2">
-              {recentInvoices.length === 0 ? (
+              {dashboard.recentInvoices.length === 0 ? (
                 <p className="py-8 text-center text-xs text-slate-400">Belum ada faktur penjualan.</p>
-              ) : recentInvoices.map((item) => (
+              ) : dashboard.recentInvoices.map((item) => (
                 <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-50 py-2 last:border-b-0">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-700">{item.invoiceNumber}</p>
-                    <p className="truncate text-xs text-slate-400">{item.customerName} - {formatDate(item.invoiceDate)}</p>
+                    <p className="truncate text-sm font-semibold text-slate-700">{item.number}</p>
+                    <p className="truncate text-xs text-slate-400">{item.customerName || "-"} - {formatDate(item.date)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs font-bold text-slate-700">{formatRupiah(item.grandTotal)}</p>
