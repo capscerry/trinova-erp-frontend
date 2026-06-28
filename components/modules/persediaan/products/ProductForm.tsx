@@ -234,6 +234,23 @@ export default function ProductForm({
   ) {
     e.preventDefault();
 
+    console.log(
+      "FORM DATA:",
+      JSON.stringify(formData, null, 2)
+    );
+
+    if (
+      formData.category_id === 0 ||
+      formData.subcategory_id === 0 ||
+      formData.uom_id === 0
+    ) {
+      alert(
+        "Category, Subcategory dan UOM wajib dipilih"
+      );
+
+      return;
+    }
+    
     await onSubmit(formData);
   }
 

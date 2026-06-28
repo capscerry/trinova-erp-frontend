@@ -185,10 +185,8 @@ export default function SubcategoryForm({
         </label>
 
         <input
-          type="text"
-          value={formData.code}
-          readOnly
-          className="w-full rounded-lg border bg-gray-100 px-3 py-2"
+          value="Auto Generate"
+          disabled
         />
       </div>
 
