@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 interface PurchaseOrder {
   purchase_order_id: number;
   po_number: string;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -33,6 +35,8 @@ export interface GoodsReceiptFormData {
   receipt_date: string;
   received_by: string;
   status: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface GoodsReceiptFormModalProps {
@@ -72,6 +76,8 @@ export default function GoodsReceiptFormModal({
       receipt_date: todayStr(),
       received_by: "",
       status: "Received",
+      transaction_name: "",
+      transaction_detail: "",
     });
 
   useEffect(() => {
@@ -84,6 +90,8 @@ export default function GoodsReceiptFormModal({
         receipt_date: todayStr(),
         received_by: "",
         status: "Received",
+        transaction_name: "",
+        transaction_detail: "",
       });
 
       setSelectedDetails([]);
@@ -113,10 +121,16 @@ export default function GoodsReceiptFormModal({
     purchaseOrderId: string
   ) => {
 
-    setField(
-      "purchase_order_id",
-      purchaseOrderId
+    const selectedPO = purchaseOrders.find(
+      (po) => String(po.purchase_order_id) === purchaseOrderId
     );
+
+    setForm((prev) => ({
+      ...prev,
+      purchase_order_id: purchaseOrderId,
+      transaction_name: selectedPO?.transaction_name ?? prev.transaction_name,
+      transaction_detail: selectedPO?.transaction_detail ?? prev.transaction_detail,
+    }));
 
     const filtered =
       purchaseOrderDetails.filter(
@@ -129,6 +143,11 @@ export default function GoodsReceiptFormModal({
   };
 
   if (!open) return null;
+
+  // Sort newest-first by purchase_order_id
+  const sortedPOs = [...purchaseOrders].sort(
+    (a, b) => b.purchase_order_id - a.purchase_order_id
+  );
 
   return (
     <>
@@ -266,13 +285,14 @@ export default function GoodsReceiptFormModal({
                     Pilih Purchase Order
                   </option>
 
-                  {purchaseOrders.map((po) => (
+                  {sortedPOs.map((po) => (
 
                     <option
                       key={po.purchase_order_id}
                       value={po.purchase_order_id}
                     >
                       {po.po_number}
+                      {po.transaction_name ? ` | ${po.transaction_name}` : ""}
                     </option>
 
                   ))}
@@ -353,6 +373,24 @@ export default function GoodsReceiptFormModal({
                 </div>
 
               </FormField>
+
+              {(form.transaction_name || form.transaction_detail) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Transaction Info (dari PO)
+                  </p>
+                  {form.transaction_name && (
+                    <p className="text-sm font-semibold text-slate-700">
+                      {form.transaction_name}
+                    </p>
+                  )}
+                  {form.transaction_detail && (
+                    <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                      {form.transaction_detail}
+                    </p>
+                  )}
+                </div>
+              )}
 
             </Section>
 

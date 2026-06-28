@@ -44,6 +44,10 @@ interface PurchaseOrderDetailData {
   status: string;
 
   items: PurchaseOrderItem[];
+
+  transaction_name?: string;
+
+  transaction_detail?: string;
 }
 
 interface PurchaseOrderDetailModalProps {
@@ -279,6 +283,38 @@ export default function PurchaseOrderDetailModal({
               </div>
 
             </div>
+
+            {/* TRANSACTION INFO */}
+
+            {(data.transaction_name || data.transaction_detail) && (
+              <div className="grid grid-cols-1 gap-4">
+
+                {data.transaction_name && (
+                  <div className="border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+                      <ReceiptText size={14} />
+                      Transaction Name
+                    </div>
+                    <div className="font-semibold text-slate-700 text-sm">
+                      {data.transaction_name}
+                    </div>
+                  </div>
+                )}
+
+                {data.transaction_detail && (
+                  <div className="border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+                      <ReceiptText size={14} />
+                      Transaction Detail
+                    </div>
+                    <div className="text-slate-700 text-sm whitespace-pre-wrap">
+                      {data.transaction_detail}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
 
             {/* ITEM TABLE */}
 

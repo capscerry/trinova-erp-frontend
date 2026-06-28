@@ -164,6 +164,28 @@ export default function GoodsReceiptDetailModal({
 
               </div>
 
+              {data.transaction_name && (
+                <div className="space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                    Transaction Name
+                  </div>
+                  <div className="text-sm font-semibold text-slate-700">
+                    {data.transaction_name}
+                  </div>
+                </div>
+              )}
+
+              {data.transaction_detail && (
+                <div className="col-span-2 space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                    Transaction Detail
+                  </div>
+                  <div className="text-sm text-slate-700 whitespace-pre-wrap">
+                    {data.transaction_detail}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* ITEM TABLE */}

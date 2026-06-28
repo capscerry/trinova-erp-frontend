@@ -301,6 +301,12 @@ export default function PurchaseOrderPage() {
 
         total:
           item.total_amount,
+
+        transaction_name:
+          item.transaction_name ?? "",
+
+        transaction_detail:
+          item.transaction_detail ?? "",
       }));
 
       setPurchaseOrders(mappedData);
@@ -519,6 +525,12 @@ export default function PurchaseOrderPage() {
 
           total_amount:
             payload.total_amount,
+
+          transaction_name:
+            payload.transaction_name ?? "",
+
+          transaction_detail:
+            payload.transaction_detail ?? "",
         };
 
         // Only include po_number on updates (it's backend-generated on create)
@@ -673,11 +685,13 @@ export default function PurchaseOrderPage() {
   // Normalises order_date to YYYY-MM-DD regardless of whether the
   // value came from an input (already trimmed) or the API (ISO datetime).
   const buildPOUpdatePayload = (formData: any, status: string) => ({
-    po_number:    formData.po_number,
-    supplier_id:  Number(formData.supplier_id),
-    order_date:   (formData.order_date ?? "").split("T")[0],
+    po_number:          formData.po_number,
+    supplier_id:        Number(formData.supplier_id),
+    order_date:         (formData.order_date ?? "").split("T")[0],
     status,
-    total_amount: Number(formData.total_amount ?? 0),
+    total_amount:       Number(formData.total_amount ?? 0),
+    transaction_name:   formData.transaction_name ?? "",
+    transaction_detail: formData.transaction_detail ?? "",
   });
 
   // ─────────────────────────────────────────────────────────
@@ -904,6 +918,12 @@ export default function PurchaseOrderPage() {
                   status:
                     row.status,
 
+                  transaction_name:
+                    row.transaction_name ?? "",
+
+                  transaction_detail:
+                    row.transaction_detail ?? "",
+
                   items:
                     detailItems.map(
                       (item: any, idx: number) => {
@@ -1011,6 +1031,12 @@ export default function PurchaseOrderPage() {
 
                   status:
                     row.status,
+
+                  transaction_name:
+                    row.transaction_name ?? "",
+
+                  transaction_detail:
+                    row.transaction_detail ?? "",
 
                   items:
                     detailItems.map(

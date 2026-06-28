@@ -49,6 +49,8 @@ interface PurchaseInvoice {
   age: number;
   dp_paid: number;
   outstanding_amount: number;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -66,6 +68,17 @@ const formatNumber = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     minimumFractionDigits: 0,
   }).format(n);
+
+/**
+ * Normalises any invoice number to INV-0000000000 format.
+ * e.g. "INV000003", "INV-3", "3" → "INV-0000000003"
+ */
+const formatINVNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^INV-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `INV-${digits.padStart(10, "0")}`;
+};
 
 // ─────────────────────────────────────────────────────────────
 // STATUS
@@ -119,7 +132,7 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
 
     render: (val) => (
       <span className="font-mono font-semibold text-[12px] text-navy-700">
-        {String(val)}
+        {formatINVNumber(String(val))}
       </span>
     ),
   },
@@ -310,6 +323,12 @@ export default function PurchaseInvoicePage() {
                   ).getTime()) /
                   (1000 * 60 * 60 * 24)
               ),
+
+            transaction_name:
+              item.transaction_name ?? "",
+
+            transaction_detail:
+              item.transaction_detail ?? "",
           };
         }
       );
@@ -410,7 +429,7 @@ useEffect(() => {
 
           const ok =
             confirm(
-              "Hapus invoice ini?"
+              `Hapus invoice ${formatINVNumber(row.invoice_number)}?`
             );
 
           if (!ok) return;
@@ -463,6 +482,12 @@ useEffect(() => {
 
         total_amount:
           data.total_amount,
+
+        transaction_name:
+          data.transaction_name ?? "",
+
+        transaction_detail:
+          data.transaction_detail ?? "",
       });
 
       // Refresh list BEFORE opening modal so the new row is already visible
@@ -537,7 +562,7 @@ useEffect(() => {
           </p>
 
           <p className="mt-1 font-medium">
-            {selectedInvoice.invoice_number}
+            {formatINVNumber(selectedInvoice.invoice_number)}
           </p>
 
         </div>
@@ -714,7 +739,7 @@ useEffect(() => {
               <p className="text-slate-500 text-sm">
                 Nomor Invoice:{" "}
                 <span className="font-mono font-semibold text-navy-700">
-                  {createdInvoiceNumber}
+                  {formatINVNumber(createdInvoiceNumber)}
                 </span>
               </p>
             )}

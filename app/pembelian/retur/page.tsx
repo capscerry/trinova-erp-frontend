@@ -53,6 +53,8 @@ interface PurchaseReturn {
   total_amount: number;
   closing_condition: string;
   notes: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -199,6 +201,8 @@ export default function PurchaseReturnsPage() {
         total_amount: item.total_amount ?? 0,
         closing_condition: item.closing_condition ?? "",
         notes: item.notes ?? "",
+        transaction_name: item.transaction_name ?? "",
+        transaction_detail: item.transaction_detail ?? "",
       }));
       setReturns(mapped);
     } catch {

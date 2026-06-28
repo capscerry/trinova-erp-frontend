@@ -31,6 +31,8 @@ export interface PurchaseReturnFormData {
   notes: string;
   status: string;
   closing_condition: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface PurchaseReturnFormModalProps {
@@ -80,6 +82,8 @@ function buildEmptyForm(nextNumber = ""): PurchaseReturnFormData {
     notes: "",
     status: getStatus("Replacement"),
     closing_condition: getClosingCondition("Replacement"),
+    transaction_name: "",
+    transaction_detail: "",
   };
 }
 
@@ -140,6 +144,8 @@ export default function PurchaseReturnFormModal({
       total_amount: selectedGR.total_amount,
       status: getStatus(form.settlement_option),
       closing_condition: getClosingCondition(form.settlement_option),
+      transaction_name: form.transaction_name,
+      transaction_detail: form.transaction_detail,
     };
     onSubmit(validated);
   };
@@ -271,6 +277,26 @@ export default function PurchaseReturnFormModal({
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 className={cn(inputBase, "resize-none")}
                 placeholder="Tambahkan alasan retur atau instruksi tambahan"
+              />
+            </FormField>
+
+            <FormField label="Transaction Name">
+              <input
+                type="text"
+                value={form.transaction_name}
+                onChange={(e) => setForm({ ...form, transaction_name: e.target.value })}
+                placeholder="Nama transaksi..."
+                className={inputBase}
+              />
+            </FormField>
+
+            <FormField label="Transaction Detail">
+              <textarea
+                rows={3}
+                value={form.transaction_detail}
+                onChange={(e) => setForm({ ...form, transaction_detail: e.target.value })}
+                placeholder="Detail transaksi..."
+                className={cn(inputBase, "resize-none")}
               />
             </FormField>
 

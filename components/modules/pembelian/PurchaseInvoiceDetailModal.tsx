@@ -27,6 +27,8 @@ interface PurchaseInvoice {
   age: number;
   dp_paid: number;
   outstanding_amount: number;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface Payment {
@@ -62,6 +64,20 @@ const formatRupiah = (n: number) =>
     currency: "IDR",
     minimumFractionDigits: 0,
   }).format(n);
+
+const formatINVNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^INV-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `INV-${digits.padStart(10, "0")}`;
+};
+
+const formatPAYNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^PAY-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `PAY-${digits.padStart(10, "0")}`;
+};
 
 const STATUS_STYLE: Record<string, string> = {
   Paid:      "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -138,7 +154,7 @@ export default function PurchaseInvoiceDetailModal({
                 Detail Purchase Invoice
               </h2>
               <p className="text-slate-400 text-xs mt-0.5">
-                {invoice.invoice_number}
+                {formatINVNumber(invoice.invoice_number)}
               </p>
             </div>
             <button
@@ -157,7 +173,7 @@ export default function PurchaseInvoiceDetailModal({
                 Informasi Invoice
               </p>
               <div className="grid grid-cols-2 gap-3">
-                <InfoCard icon={<ReceiptText size={13} />} label="Invoice Number" value={invoice.invoice_number} />
+                <InfoCard icon={<ReceiptText size={13} />} label="Invoice Number" value={formatINVNumber(invoice.invoice_number)} />
                 <InfoCard icon={<Calendar size={13} />}    label="Invoice Date"   value={formatDate(invoice.invoice_date)} />
                 <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={`Supplier ${invoice.supplier_name}`} />
                 <InfoCard icon={<Hash size={13} />}        label="Umur (Hari)"    value={String(invoice.age)} />
@@ -234,7 +250,7 @@ export default function PurchaseInvoiceDetailModal({
                           className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
                         >
                           <td className="px-4 py-3 font-mono font-semibold text-navy-700">
-                            {p.payment_number ?? "—"}
+                            {p.payment_number ? formatPAYNumber(p.payment_number) : "—"}
                           </td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                             {p.payment_date ? formatDate(p.payment_date) : "—"}
@@ -282,7 +298,7 @@ export default function PurchaseInvoiceDetailModal({
                         .filter(p => p.notes?.trim())
                         .map((p, i) => (
                           <p key={i} className="text-xs text-slate-600">
-                            <span className="font-semibold text-navy-700">{p.payment_number}:</span>{" "}
+                            <span className="font-semibold text-navy-700">{formatPAYNumber(p.payment_number)}:</span>{" "}
                             {p.notes}
                           </p>
                         ))}
@@ -291,6 +307,35 @@ export default function PurchaseInvoiceDetailModal({
                 </div>
               )}
             </div>
+
+            {/* ── TRANSACTION INFO ── */}
+            {(invoice.transaction_name || invoice.transaction_detail) && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+                  Transaction Info
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                  {invoice.transaction_name && (
+                    <InfoCard
+                      icon={<ReceiptText size={13} />}
+                      label="Transaction Name"
+                      value={invoice.transaction_name}
+                    />
+                  )}
+                  {invoice.transaction_detail && (
+                    <div className="border border-slate-200 rounded-xl p-3.5">
+                      <div className="flex items-center gap-1.5 text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-1.5">
+                        <ReceiptText size={13} />
+                        Transaction Detail
+                      </div>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                        {invoice.transaction_detail}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
           </div>
 

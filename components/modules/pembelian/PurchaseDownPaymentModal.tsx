@@ -9,6 +9,8 @@ interface PurchaseOrder {
   po_number: string;
   supplier_id: number;
   total_amount: number;
+  transaction_name?: string;
+  transaction_detail?: string;
 
   supplier?: {
     supplier_id: number;
@@ -24,6 +26,8 @@ export interface PurchaseDownPaymentFormData {
   payment_type: string;
   notes: string;
   status: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface PurchaseDownPaymentModalProps {
@@ -52,6 +56,8 @@ export default function PurchaseDownPaymentModal({
       payment_type: "Partial",
       notes: "",
       status: "Paid",
+      transaction_name: "",
+      transaction_detail: "",
     });
 
   useEffect(() => {
@@ -66,6 +72,8 @@ export default function PurchaseDownPaymentModal({
         payment_type: "Partial",
         notes: "",
         status: "Paid",
+        transaction_name: "",
+        transaction_detail: "",
       });
 
     }
@@ -73,6 +81,11 @@ export default function PurchaseDownPaymentModal({
   }, [open]);
 
   if (!open) return null;
+
+  // Sort newest-first by purchase_order_id
+  const sortedPOs = [...purchaseOrders].sort(
+    (a, b) => b.purchase_order_id - a.purchase_order_id
+  );
 
   const selectedPO =
     purchaseOrders.find(
@@ -174,6 +187,10 @@ export default function PurchaseDownPaymentModal({
                       selected.purchase_order_id,
                     supplier_id:
                       selected.supplier_id,
+                    transaction_name:
+                      selected.transaction_name ?? "",
+                    transaction_detail:
+                      selected.transaction_detail ?? "",
                   });
 
                 }}
@@ -184,13 +201,14 @@ export default function PurchaseDownPaymentModal({
                   Pilih Purchase Order
                 </option>
 
-                {purchaseOrders.map((po) => (
+                {sortedPOs.map((po) => (
 
                   <option
                     key={po.purchase_order_id}
                     value={po.purchase_order_id}
                   >
                     {po.po_number}
+                    {po.transaction_name ? ` | ${po.transaction_name}` : ""}
                   </option>
 
                 ))}
@@ -302,6 +320,24 @@ export default function PurchaseDownPaymentModal({
               />
 
             </FormField>
+
+            {(form.transaction_name || form.transaction_detail) && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Transaction Info (dari PO)
+                </p>
+                {form.transaction_name && (
+                  <p className="text-sm font-semibold text-slate-700">
+                    {form.transaction_name}
+                  </p>
+                )}
+                {form.transaction_detail && (
+                  <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                    {form.transaction_detail}
+                  </p>
+                )}
+              </div>
+            )}
 
           </div>
 

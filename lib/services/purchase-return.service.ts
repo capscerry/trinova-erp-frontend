@@ -12,6 +12,8 @@ export interface PurchaseReturnPayload {
   notes: string;
   status: string;
   closing_condition: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 export const getPurchaseReturns = async () => {

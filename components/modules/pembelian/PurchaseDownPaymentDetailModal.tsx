@@ -37,6 +37,10 @@ interface PurchaseDownPaymentDetailData {
   notes?: string;
 
   created_at?: string;
+
+  transaction_name?: string;
+
+  transaction_detail?: string;
 }
 
 interface PurchaseDownPaymentDetailModalProps {
@@ -245,6 +249,40 @@ export default function PurchaseDownPaymentDetailModal({
               </p>
 
             </div>
+
+            {/* TRANSACTION */}
+
+            {(data.transaction_name || data.transaction_detail) && (
+              <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Transaction Info
+                </p>
+
+                {data.transaction_name && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">
+                      Transaction Name
+                    </p>
+                    <p className="text-sm font-semibold text-slate-700">
+                      {data.transaction_name}
+                    </p>
+                  </div>
+                )}
+
+                {data.transaction_detail && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-0.5">
+                      Transaction Detail
+                    </p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                      {data.transaction_detail}
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            )}
 
             {/* PAYMENT SUMMARY */}
 

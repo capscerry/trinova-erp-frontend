@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const formatINVNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^INV-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `INV-${digits.padStart(10, "0")}`;
+};
+
 interface PurchaseInvoice {
   purchase_invoice_id: number;
   invoice_number: string;
@@ -16,6 +23,10 @@ interface PurchaseInvoice {
   dp_paid: number;
 
   outstanding_amount: number;
+
+  transaction_name?: string;
+
+  transaction_detail?: string;
 }
 
 export interface PurchasePaymentFormData {
@@ -30,6 +41,10 @@ export interface PurchasePaymentFormData {
   notes: string;
 
   status: string;
+
+  transaction_name: string;
+
+  transaction_detail: string;
 }
 
 interface PurchasePaymentModalProps {
@@ -59,6 +74,8 @@ const EMPTY_FORM: PurchasePaymentFormData = {
   payment_method: "Transfer",
   notes: "",
   status: "Paid",
+  transaction_name: "",
+  transaction_detail: "",
 };
 
 export default function PurchasePaymentFormModal({
@@ -86,6 +103,8 @@ export default function PurchasePaymentFormModal({
           payment_method:      initialData.payment_method,
           notes:               initialData.notes,
           status:              initialData.status,
+          transaction_name:    initialData.transaction_name ?? "",
+          transaction_detail:  initialData.transaction_detail ?? "",
         });
 
       } else {
@@ -104,6 +123,11 @@ export default function PurchasePaymentFormModal({
   const invoiceOptions = isEdit
     ? purchaseInvoices
     : purchaseInvoices.filter((x) => x.outstanding_amount > 0);
+
+  // Sort newest-first by purchase_invoice_id
+  const sortedInvoiceOptions = [...invoiceOptions].sort(
+    (a, b) => b.purchase_invoice_id - a.purchase_invoice_id
+  );
 
   const selectedInvoice =
     purchaseInvoices.find(
@@ -236,6 +260,8 @@ export default function PurchasePaymentFormModal({
                     ...form,
                     purchase_invoice_id: Number(e.target.value),
                     amount: selected?.outstanding_amount ?? 0,
+                    transaction_name:   selected?.transaction_name  ?? form.transaction_name,
+                    transaction_detail: selected?.transaction_detail ?? form.transaction_detail,
                   });
 
                 }}
@@ -249,13 +275,14 @@ export default function PurchasePaymentFormModal({
                   Pilih Invoice
                 </option>
 
-                {invoiceOptions.map((inv) => (
+                {sortedInvoiceOptions.map((inv) => (
 
                   <option
                     key={inv.purchase_invoice_id}
                     value={inv.purchase_invoice_id}
                   >
-                    {inv.invoice_number}
+                    {formatINVNumber(inv.invoice_number)}
+                    {inv.transaction_name ? ` | ${inv.transaction_name}` : ""}
                     {" | Outstanding: Rp "}
                     {Number(inv.outstanding_amount).toLocaleString("id-ID")}
                   </option>
@@ -365,6 +392,24 @@ export default function PurchasePaymentFormModal({
               />
 
             </FormField>
+
+            {(form.transaction_name || form.transaction_detail) && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Transaction Info (dari Invoice)
+                </p>
+                {form.transaction_name && (
+                  <p className="text-sm font-semibold text-slate-700">
+                    {form.transaction_name}
+                  </p>
+                )}
+                {form.transaction_detail && (
+                  <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                    {form.transaction_detail}
+                  </p>
+                )}
+              </div>
+            )}
 
           </div>
 

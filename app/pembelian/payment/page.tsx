@@ -23,6 +23,32 @@ import {
 } from "@/lib/services";
 
 // ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+
+/**
+ * Normalises any payment number to PAY-0000000000 format.
+ * e.g. "PAY000003", "PAY-3", "3" → "PAY-0000000003"
+ */
+const formatPAYNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^PAY-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `PAY-${digits.padStart(10, "0")}`;
+};
+
+/**
+ * Normalises any invoice number to INV-0000000000 format.
+ * e.g. "INV000003", "INV-3", "3" → "INV-0000000003"
+ */
+const formatINVNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^INV-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `INV-${digits.padStart(10, "0")}`;
+};
+
+// ─────────────────────────────────────────────
 // COLUMNS
 // ─────────────────────────────────────────────
 
@@ -32,13 +58,18 @@ const COLUMNS: Column<any>[] = [
     label: "Payment Number",
     render: (val) => (
       <span className="font-mono font-semibold text-[12px] text-navy-700">
-        {String(val)}
+        {formatPAYNumber(String(val))}
       </span>
     ),
   },
   {
     key: "invoice_number",
     label: "Invoice Number",
+    render: (val) => (
+      <span className="font-mono text-[12px] text-slate-600">
+        {formatINVNumber(String(val))}
+      </span>
+    ),
   },
   {
     key: "supplier_name",
@@ -154,7 +185,7 @@ export default function PurchasePaymentPage() {
 
   const handleDelete = async (row: any) => {
     const confirmed = confirm(
-      `Yakin ingin menghapus payment ${row.payment_number}?`
+      `Yakin ingin menghapus payment ${formatPAYNumber(row.payment_number)}?`
     );
     if (!confirmed) return;
 
@@ -185,11 +216,13 @@ export default function PurchasePaymentPage() {
 
         // ── UPDATE ──
         const payload = {
-          payment_date:   data.payment_date,
-          amount:         data.amount,
-          payment_method: data.payment_method,
-          notes:          data.notes,
-          status:         data.status,
+          payment_date:        data.payment_date,
+          amount:              data.amount,
+          payment_method:      data.payment_method,
+          notes:               data.notes,
+          status:              data.status,
+          transaction_name:    data.transaction_name ?? "",
+          transaction_detail:  data.transaction_detail ?? "",
         };
 
         await updatePurchasePayment(
@@ -213,6 +246,8 @@ export default function PurchasePaymentPage() {
           payment_method:      data.payment_method,
           notes:               data.notes,
           status:              "Paid",
+          transaction_name:    data.transaction_name ?? "",
+          transaction_detail:  data.transaction_detail ?? "",
         };
 
         await createPurchasePayment(payload);
@@ -374,8 +409,8 @@ export default function PurchasePaymentPage() {
             <div className="p-6 space-y-3">
 
               {[
-                { label: "Payment Number", value: detailData.payment_number },
-                { label: "Invoice Number", value: detailData.invoice_number },
+                { label: "Payment Number", value: formatPAYNumber(detailData.payment_number) },
+                { label: "Invoice Number", value: formatINVNumber(detailData.invoice_number) },
                 { label: "Supplier",       value: detailData.supplier_name },
                 {
                   label: "Amount",
@@ -385,6 +420,12 @@ export default function PurchasePaymentPage() {
                 { label: "Payment Method", value: detailData.payment_method },
                 { label: "Status",         value: detailData.status },
                 { label: "Notes",          value: detailData.notes || "—" },
+                ...(detailData.transaction_name
+                  ? [{ label: "Transaction Name", value: detailData.transaction_name }]
+                  : []),
+                ...(detailData.transaction_detail
+                  ? [{ label: "Transaction Detail", value: detailData.transaction_detail }]
+                  : []),
               ].map(({ label, value }) => (
 
                 <div

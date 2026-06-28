@@ -27,6 +27,8 @@ export interface PurchaseOrderFormData {
   status: string; total_amount: number;
   items: PurchaseOrderItem[]; deletedItems?: number[];
   purchase_order_id?: number;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface PurchaseOrderFormModalProps {
@@ -216,7 +218,7 @@ export default function PurchaseOrderFormModal({
       } else {
         setIsApproved(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
-        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()] });
+        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "" });
         setFilteredProducts([]);
         // Fetch the real next PO number from the backend
         getNextPONumber()
@@ -385,6 +387,8 @@ export default function PurchaseOrderFormModal({
         payment_type: dpForm.payment_type,
         notes: dpForm.notes,
         status: "Paid",
+        transaction_name: form.transaction_name ?? "",
+        transaction_detail: form.transaction_detail ?? "",
       });
       setDpDone(true);
       setDpOpen(false);
@@ -402,6 +406,8 @@ export default function PurchaseOrderFormModal({
         receipt_date: grForm.receipt_date,
         received_by: grForm.received_by,
         status: grForm.status,
+        transaction_name: form.transaction_name ?? "",
+        transaction_detail: form.transaction_detail ?? "",
       }, poLineItems);
       setGrSavedId(result?.goods_receipt_id ?? null);
       setGrDone(true);
@@ -419,6 +425,8 @@ export default function PurchaseOrderFormModal({
           goods_receipt_id: grSavedId ?? 0,
           supplier_id: Number(form.supplier_id) || 0,
           total_amount: grandTotal,
+          transaction_name: form.transaction_name ?? "",
+          transaction_detail: form.transaction_detail ?? "",
         },
         poId,
         { ...form, total_amount: grandTotal }
@@ -449,6 +457,8 @@ export default function PurchaseOrderFormModal({
           notes: paymentForm.notes,
           status: "Paid",
           _outstanding_amount: outstandingAmt,
+          transaction_name: form.transaction_name ?? "",
+          transaction_detail: form.transaction_detail ?? "",
         });
         setPaymentDone(true);
       }
@@ -475,6 +485,8 @@ export default function PurchaseOrderFormModal({
         notes: paymentForm.notes,
         status: "Paid",
         _outstanding_amount: outstandingAmount,
+        transaction_name: form.transaction_name ?? "",
+        transaction_detail: form.transaction_detail ?? "",
       });
       // Only mark done / close sub-modal if not navigating away.
       // If the parent navigates, the whole modal unmounts anyway.
@@ -684,6 +696,26 @@ export default function PurchaseOrderFormModal({
                     </button>
                   ))}
                 </div>
+              </FormField>
+
+              <FormField label="Transaction Name">
+                <input
+                  type="text"
+                  value={form.transaction_name ?? ""}
+                  onChange={e => setField("transaction_name", e.target.value)}
+                  placeholder="Nama transaksi..."
+                  className={inputBase}
+                />
+              </FormField>
+
+              <FormField label="Transaction Detail">
+                <textarea
+                  rows={3}
+                  value={form.transaction_detail ?? ""}
+                  onChange={e => setField("transaction_detail", e.target.value)}
+                  placeholder="Detail transaksi..."
+                  className={cn(inputBase, "resize-none")}
+                />
               </FormField>
             </Section>
 

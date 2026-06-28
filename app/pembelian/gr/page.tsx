@@ -218,6 +218,12 @@ export default function GoodsReceiptPage() {
 
           status:
             item.status as GRStatus,
+
+          transaction_name:
+            item.transaction_name ?? "",
+
+          transaction_detail:
+            item.transaction_detail ?? "",
         })
       );
 
@@ -312,6 +318,12 @@ export default function GoodsReceiptPage() {
 
           status:
             form.status,
+
+          transaction_name:
+            form.transaction_name ?? "",
+
+          transaction_detail:
+            form.transaction_detail ?? "",
         });
 
       console.log(
@@ -439,6 +451,12 @@ export default function GoodsReceiptPage() {
 
                   purchase_order_id:
                     row.purchase_order_id,
+
+                  transaction_name:
+                    row.transaction_name ?? "",
+
+                  transaction_detail:
+                    row.transaction_detail ?? "",
 
                   items:
                     detailItems.map(
