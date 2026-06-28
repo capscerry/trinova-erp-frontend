@@ -50,6 +50,9 @@ interface GoodsReceipt {
 interface PurchaseOrder {
   purchase_order_id: number;
   po_number: string;
+  expected_date?: string | null;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -253,14 +256,17 @@ export default function GoodsReceiptPage() {
         ? res
         : res.data;
 
-      const approvedPOs = list.filter(
-        (po: any) =>
-          po.status === "Approved"
-      );
+      const approvedPOs = list
+        .filter((po: any) => po.status === "Approved")
+        .map((po: any) => ({
+          purchase_order_id: Number(po.purchase_order_id),
+          po_number:         po.po_number ?? "",
+          expected_date:     po.expected_date ?? null,
+          transaction_name:  po.transaction_name ?? "",
+          transaction_detail: po.transaction_detail ?? "",
+        }));
 
-      setPurchaseOrders(
-        approvedPOs
-      );
+      setPurchaseOrders(approvedPOs);
 
     } catch (error) {
 

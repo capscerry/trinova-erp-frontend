@@ -6,6 +6,7 @@ import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
   ShieldCheck, Loader2, Check, ClipboardList, Search,
+  CheckCircle2, AlertCircle, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
@@ -1129,6 +1130,59 @@ export default function PurchaseOrderFormModal({
                   <input type="date" value={grForm.receipt_date}
                     onChange={e => setGrForm(f => ({ ...f, receipt_date: e.target.value }))} className={inputBase} />
                 </div>
+
+                {/* Tanggal Ekspektasi reference — always visible so user can see the PO deadline */}
+                {(() => {
+                  const expDate  = form.expected_date;
+                  const rcptDate = grForm.receipt_date;
+                  const status   = expDate && rcptDate
+                    ? (rcptDate <= expDate ? "on_time" : "late")
+                    : "unknown";
+                  const formatDateId = (d: string) =>
+                    new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d));
+                  return (
+                    <div className={cn(
+                      "rounded-xl border px-4 py-3 flex items-start gap-3",
+                      status === "on_time" ? "bg-emerald-50 border-emerald-200"
+                        : status === "late" ? "bg-rose-50 border-rose-200"
+                        : "bg-slate-50 border-slate-200"
+                    )}>
+                      <div className="mt-0.5 shrink-0">
+                        {status === "on_time" && <CheckCircle2 size={15} className="text-emerald-600" />}
+                        {status === "late"    && <AlertCircle  size={15} className="text-rose-500" />}
+                        {status === "unknown" && <Clock        size={15} className="text-slate-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-xs font-bold uppercase tracking-wide",
+                          status === "on_time" ? "text-emerald-700"
+                            : status === "late" ? "text-rose-600"
+                            : "text-slate-500"
+                        )}>
+                          Tanggal Ekspektasi (dari PO)
+                        </p>
+                        <p className={cn(
+                          "text-sm font-semibold mt-0.5",
+                          status === "on_time" ? "text-emerald-800"
+                            : status === "late" ? "text-rose-700"
+                            : "text-slate-700"
+                        )}>
+                          {expDate ? formatDateId(expDate) : "Tidak diset pada PO ini"}
+                        </p>
+                        {status !== "unknown" && (
+                          <p className={cn(
+                            "text-xs mt-1",
+                            status === "on_time" ? "text-emerald-600" : "text-rose-500"
+                          )}>
+                            {status === "on_time"
+                              ? "Tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                              : "Terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Diterima Oleh</label>
                   <input type="text" value={grForm.received_by} placeholder="Nama penerima..."

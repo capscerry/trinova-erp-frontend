@@ -20,3 +20,12 @@ export const createPurchaseDownPayment =
 
     return res.data;
   };
+
+export const deletePurchaseDownPayment =
+  async (id: number) => {
+    const res = await api.delete(
+      `/purchase-down-payment/${id}`
+    );
+
+    return res.data;
+  };

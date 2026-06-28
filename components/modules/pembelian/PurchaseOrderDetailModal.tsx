@@ -6,6 +6,7 @@ import {
   Building2,
   Package,
   ReceiptText,
+  CalendarClock,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
@@ -40,6 +41,8 @@ interface PurchaseOrderDetailData {
   supplier_name: string;
 
   order_date: string;
+
+  expected_date?: string | null;
 
   status: string;
 
@@ -251,6 +254,32 @@ export default function PurchaseOrderDetailModal({
 
               </div>
 
+              {/* EXPECTED DATE */}
+
+              <div className={`rounded-xl p-4 border ${
+                data.expected_date
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-slate-200"
+              }`}>
+
+                <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+
+                  <CalendarClock size={14} />
+
+                  Tanggal Ekspektasi
+
+                </div>
+
+                <div className={`text-sm font-semibold ${
+                  data.expected_date ? "text-amber-800" : "text-slate-400 font-normal italic"
+                }`}>
+                  {data.expected_date
+                    ? formatDate(data.expected_date)
+                    : "Tidak diset"}
+                </div>
+
+              </div>
+
               {/* STATUS */}
 
               <div className="border border-slate-200 rounded-xl p-4">
@@ -283,8 +312,6 @@ export default function PurchaseOrderDetailModal({
               </div>
 
             </div>
-
-            {/* TRANSACTION INFO */}
 
             {(data.transaction_name || data.transaction_detail) && (
               <div className="grid grid-cols-1 gap-4">

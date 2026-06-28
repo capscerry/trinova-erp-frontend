@@ -11,6 +11,22 @@ export const getSupplierProducts =
     return response.data;
 };
 
+/**
+ * Patch a supplier-product record.
+ * Used to update available_stock after PO approval (deduct)
+ * or after a purchase return is created (restore).
+ *
+ * @param id  - supplier_product_id (the PK of the supplier-product row)
+ * @param payload - fields to update, e.g. { available_stock: 42 }
+ */
+export const updateSupplierProduct = async (
+  id: number,
+  payload: { available_stock?: number; [key: string]: any }
+) => {
+  const response = await api.patch(`/supplier-product/${id}`, payload);
+  return response.data;
+};
+
 export const importSupplierCatalog =
   async (
     supplierId: number,

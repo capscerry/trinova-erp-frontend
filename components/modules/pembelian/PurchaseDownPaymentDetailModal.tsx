@@ -65,6 +65,13 @@ const formatRupiah = (n: number) =>
     minimumFractionDigits: 0,
   }).format(n);
 
+const formatDPNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^DP-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `DP-${digits.padStart(10, "0")}`;
+};
+
 export default function PurchaseDownPaymentDetailModal({
   open,
   onClose,
@@ -175,7 +182,7 @@ export default function PurchaseDownPaymentDetailModal({
               <InfoCard
                 icon={<ReceiptText size={14} />}
                 label="DP Number"
-                value={data.dp_number}
+                value={formatDPNumber(data.dp_number)}
               />
 
               <InfoCard

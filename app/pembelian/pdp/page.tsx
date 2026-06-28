@@ -10,6 +10,7 @@ import {
 import {
   getPurchaseDownPayments,
   createPurchaseDownPayment,
+  deletePurchaseDownPayment,
 } from "@/lib/services/purchase-down-payment.service";
 
 import PurchaseDownPaymentModal
@@ -22,10 +23,30 @@ import { Button } from "@/components/ui/Button";
 
 import { DataTable } from "@/components/ui/DataTable";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Normalises any DP number to the canonical DP-0000000000 format.
+ * e.g. "DP000003", "DP-3", "3" → "DP-0000000003"
+ */
+const formatDPNumber = (raw: string | number): string => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^DP-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `DP-${digits.padStart(10, "0")}`;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const COLUMNS = [
   {
     key: "dp_number",
     label: "DP Number",
+    render: (val: any) => (
+      <span className="font-mono font-semibold text-[12px] text-navy-700">
+        {formatDPNumber(String(val))}
+      </span>
+    ),
   },
 
   {
@@ -174,7 +195,10 @@ export default function PurchaseDownPaymentPage() {
                 size="sm"
                 onClick={() => {
 
-                    setDetailData(row);
+                    setDetailData({
+                    ...row,
+                    dp_number: formatDPNumber(row.dp_number),
+                    });
 
                     setOpenDetail(true);
 
@@ -201,12 +225,30 @@ export default function PurchaseDownPaymentPage() {
                 <Button
                 variant="danger"
                 size="sm"
-                onClick={() => {
+                onClick={async () => {
 
-                    console.log(
-                    "DELETE PDP",
-                    row
+                    const confirmed = confirm(
+                    `Hapus Down Payment ${formatDPNumber(row.dp_number)}?`
                     );
+
+                    if (!confirmed) return;
+
+                    try {
+
+                    await deletePurchaseDownPayment(
+                        Number(row.purchase_down_payment_id)
+                    );
+
+                    await fetchDownPayments();
+
+                    } catch (error) {
+
+                    console.error(
+                        "Gagal menghapus Down Payment",
+                        error
+                    );
+
+                    }
 
                 }}
                 >

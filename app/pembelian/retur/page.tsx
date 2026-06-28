@@ -5,9 +5,13 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+
 import PurchaseReturnFormModal, {
   type PurchaseReturnFormData,
+  type GoodsReceiptOption as FormGROption,
+  type PODetailItem,
 } from "@/components/modules/pembelian/PurchaseReturnFormModal";
+
 import PurchaseReturnSettlementModal, {
   type PurchaseReturnRow,
   type PurchaseOrderOption,
@@ -15,9 +19,18 @@ import PurchaseReturnSettlementModal, {
   type PurchaseInvoiceOption,
   type SettlementPayload,
 } from "@/components/modules/pembelian/PurchaseReturnSettlementModal";
-import { getGoodsReceipts } from "@/lib/services/gr.service";
-import { getPurchaseOrders } from "@/lib/services/po.service";
+
+import GoodsReceiptFormModal, {
+  type GoodsReceiptFormData,
+} from "@/components/modules/pembelian/GoodsReceiptFormModal";
+
+import { getGoodsReceipts, createGoodsReceipt, createGoodsReceiptDetail, getNextGRNumber } from "@/lib/services/gr.service";
+import { getPurchaseOrders, getPurchaseOrderDetails } from "@/lib/services/po.service";
 import { getPurchaseInvoices } from "@/lib/services/purchase-invoice.service";
+import {
+  getSupplierProducts,
+  updateSupplierProduct,
+} from "@/lib/services/supplier-product.service";
 import {
   getPurchaseReturns,
   getNextReturnNumber,
@@ -26,18 +39,12 @@ import {
   resolveReplacement,
   resolveNextPODeduction,
   confirmCashRefund,
-  applyOpenCredit,
 } from "@/lib/services/purchase-return.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface GoodsReceiptOption {
-  goods_receipt_id: number;
-  receipt_number: string;
-  supplier_id: number;
-  supplier_name: string;
-  purchase_order_number: string;
-  total_amount: number;
+interface GoodsReceiptOption extends FormGROption {
+  // FormGROption already has purchase_order_id
 }
 
 interface PurchaseReturn {
@@ -72,7 +79,6 @@ const formatNumber = (n: number) =>
 const SETTLED_STATUSES = new Set([
   "Closed",
   "Deduction Locked",
-  "Credit Applied",
 ]);
 
 function statusStyle(status: string): string {
@@ -80,16 +86,12 @@ function statusStyle(status: string): string {
     return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   if (status === "Deduction Locked")
     return "bg-violet-50 text-violet-700 border border-violet-200";
-  if (status === "Credit Applied")
-    return "bg-teal-50 text-teal-700 border border-teal-200";
   if (status === "Awaiting Replacement")
     return "bg-sky-50 text-sky-700 border border-sky-200";
   if (status === "Pending Deduction")
     return "bg-violet-50 text-violet-600 border border-violet-200";
   if (status === "Refund Pending")
     return "bg-amber-50 text-amber-700 border border-amber-200";
-  if (status === "Open Credit")
-    return "bg-teal-50 text-teal-600 border border-teal-200";
   return "bg-slate-100 text-slate-700 border border-slate-200";
 }
 
@@ -173,11 +175,18 @@ export default function PurchaseReturnsPage() {
   const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptOption[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoiceOption[]>([]);
+  const [poDetails, setPODetails] = useState<PODetailItem[]>([]);
   const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
 
   // Modal state
   const [openFormModal, setOpenFormModal] = useState(false);
   const [settlementTarget, setSettlementTarget] = useState<PurchaseReturn | null>(null);
+
+  // GR form modal — opened from Option A settlement
+  const [openGRModal, setOpenGRModal] = useState(false);
+  const [grPrefillPOId, setGRPrefillPOId] = useState<number | null>(null);
+  const [grModalPOs, setGRModalPOs] = useState<any[]>([]);
+  const [nextGRNumber, setNextGRNumber] = useState<string>("");
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
@@ -226,11 +235,12 @@ export default function PurchaseReturnsPage() {
       const mapped: GoodsReceiptOption[] = list.map((item: any) => ({
         goods_receipt_id: item.goods_receipt_id,
         receipt_number: item.receipt_number,
-        // supplier_id lives on the related PO; fall back to a direct field if backend exposes it
-        supplier_id:
-          item.purchase_order?.supplier_id ??
-          item.supplier_id ??
+        purchase_order_id:
+          item.purchase_order_id ??
+          item.purchase_order?.purchase_order_id ??
           0,
+        supplier_id:
+          item.purchase_order?.supplier_id ?? item.supplier_id ?? 0,
         supplier_name:
           item.purchase_order?.supplier?.supplier_name ??
           item.supplier_name ??
@@ -262,7 +272,7 @@ export default function PurchaseReturnsPage() {
       }));
       setPurchaseOrders(mapped);
     } catch {
-      // Non-fatal — PO list is only needed for Next PO Deduction panel
+      // Non-fatal
     }
   };
 
@@ -276,10 +286,32 @@ export default function PurchaseReturnsPage() {
         goods_receipt_id: item.goods_receipt_id,
         invoice_date: (item.invoice_date ?? "").split("T")[0],
         supplier_name: item.supplier_name ?? "",
+        total_amount: item.total_amount ?? 0,
       }));
       setPurchaseInvoices(mapped);
     } catch {
-      // Non-fatal — invoices are only needed for Cash Refund panel
+      // Non-fatal
+    }
+  };
+
+  const loadPODetails = async () => {
+    try {
+      const res = await getPurchaseOrderDetails();
+      const list = Array.isArray(res) ? res : (res.data ?? []);
+      const mapped: PODetailItem[] = list.map((item: any) => ({
+        purchase_order_id: Number(item.purchase_order_id),
+        product_id: Number(item.product_id),
+        product_name:
+          item.product?.product_name ??
+          item.product_name ??
+          undefined,
+        quantity: Number(item.quantity ?? 0),
+        price: Number(item.price ?? 0),
+        subtotal: Number(item.subtotal ?? 0),
+      }));
+      setPODetails(mapped);
+    } catch {
+      // Non-fatal — product picker falls back to product IDs
     }
   };
 
@@ -289,6 +321,7 @@ export default function PurchaseReturnsPage() {
     loadNextNumber();
     loadPurchaseOrders();
     loadPurchaseInvoices();
+    loadPODetails();
   }, []);
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -302,16 +335,66 @@ export default function PurchaseReturnsPage() {
       await loadNextNumber();
     } catch {
       toast.error("Gagal membuat Purchase Return.");
+      return;
+    }
+
+    // ── Stock restoration (hard-reserve undo) ─────────────────────────────────
+    // Only restore stock for the items actually returned (from return_items)
+    try {
+      const returnedItems = data.return_items ?? [];
+      if (returnedItems.length === 0) return;
+
+      const spRes = await getSupplierProducts();
+      const spList: any[] = Array.isArray(spRes) ? spRes : spRes.data ?? [];
+
+      const supplierId = Number(data.supplier_id ?? 0);
+      const spMap = new Map<number, { spId: number; stock: number }>();
+      for (const sp of spList) {
+        const pid = Number(sp.product_id);
+        const sid = Number(sp.supplier_id);
+        const existing = spMap.get(pid);
+        if (!existing || sid === supplierId) {
+          spMap.set(pid, {
+            spId: Number(sp.supplier_product_id),
+            stock: Number(sp.available_stock ?? 0),
+          });
+        }
+      }
+
+      const restorationErrors: string[] = [];
+      for (const item of returnedItems) {
+        const pid = item.product_id;
+        const qty = item.qty_return;
+        const sp = spMap.get(pid);
+        if (!sp || sp.spId === 0) {
+          restorationErrors.push(`Product ID ${pid}: supplier-product not found`);
+          continue;
+        }
+        try {
+          await updateSupplierProduct(sp.spId, {
+            available_stock: sp.stock + qty,
+          });
+        } catch (err: any) {
+          restorationErrors.push(`Product ID ${pid}: ${err?.message ?? "gagal"}`);
+        }
+      }
+
+      if (restorationErrors.length > 0) {
+        toast.warning(
+          `Return dicatat, tetapi ${restorationErrors.length} item stok gagal dipulihkan.`
+        );
+        console.warn("[retur] stock restoration errors:", restorationErrors);
+      }
+    } catch (err) {
+      console.error("[retur] stock restoration failed:", err);
+      toast.warning("Purchase Return dicatat, tetapi pemulihan stok gagal.");
     }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   const handleDelete = async (row: PurchaseReturn) => {
-    if (
-      !confirm(`Hapus Purchase Return ${row.purchase_return_number}?`)
-    )
-      return;
+    if (!confirm(`Hapus Purchase Return ${row.purchase_return_number}?`)) return;
     try {
       await deletePurchaseReturn(row.purchase_return_id);
       toast.success("Purchase Return berhasil dihapus.");
@@ -329,56 +412,139 @@ export default function PurchaseReturnsPage() {
   ) => {
     try {
       switch (payload.type) {
-        case "Replacement":
-          await resolveReplacement(
-            returnId,
-            payload.data.replacementGRNumber
-          );
-          toast.success("Retur ditutup — barang pengganti dikonfirmasi.");
-          break;
+        case "Replacement": {
+          // 1. Close the return record
+          await resolveReplacement(returnId);
 
-        case "Next PO Deduction":
+          // 2. Close settlement modal first, then open GR form
+          setSettlementTarget(null);
+
+          // Find the PO id for this return's GR so we can pre-select it in the GR form
+          const ret = returns.find((r) => r.purchase_return_id === returnId);
+          let prefillPOId: number | null = null;
+          if (ret) {
+            const gr = goodsReceipts.find(
+              (g) => g.goods_receipt_id === ret.goods_receipt_id
+            );
+            prefillPOId = gr?.purchase_order_id ?? null;
+          }
+
+          // Fetch approved POs for the GR modal
+          const approvedPOs = purchaseOrders
+            .filter((po) => po.status === "Approved")
+            .map((po) => ({
+              purchase_order_id: po.purchase_order_id,
+              po_number: po.po_number,
+              expected_date: null as string | null,
+              transaction_name: "",
+              transaction_detail: "",
+            }));
+
+          try {
+            const grNumRes = await getNextGRNumber();
+            setNextGRNumber(
+              grNumRes?.receipt_number ?? grNumRes?.next_number ?? ""
+            );
+          } catch {
+            setNextGRNumber("");
+          }
+
+          setGRModalPOs(approvedPOs);
+          setGRPrefillPOId(prefillPOId);
+          setOpenGRModal(true);
+
+          toast.success(
+            "Retur ditutup. Silakan isi Goods Receipt pengganti."
+          );
+          await loadReturns();
+          break;
+        }
+
+        case "Next PO Deduction": {
+          const inv = purchaseInvoices.find(
+            (i) => i.invoice_id === payload.data.targetInvoiceId
+          );
           await resolveNextPODeduction(
             returnId,
-            payload.data.targetPOId,
-            payload.data.targetPONumber,
-            payload.data.deductionAmount
+            payload.data.targetInvoiceId,
+            payload.data.targetInvoiceNumber,
+            payload.data.deductionAmount,
+            inv?.total_amount ?? 0
           );
           toast.success(
-            `Potongan Rp ${formatNumber(payload.data.deductionAmount)} dikunci pada PO ${payload.data.targetPONumber}.`
+            `Potongan Rp ${formatNumber(payload.data.deductionAmount)} diterapkan ke invoice ${payload.data.targetInvoiceNumber}.`
           );
+          await loadReturns();
+          await loadPurchaseInvoices();
           break;
+        }
 
-        case "Cash Refund":
+        case "Cash Refund": {
+          const inv = purchaseInvoices.find(
+            (i) => i.invoice_id === payload.data.targetInvoiceId
+          );
           await confirmCashRefund(
             returnId,
-            payload.data.transferRef,
-            payload.data.transferDate
+            payload.data.targetInvoiceId,
+            payload.data.targetInvoiceNumber,
+            payload.data.deductionAmount,
+            inv?.total_amount ?? 0
           );
-          toast.success("Refund dikonfirmasi — retur ditutup.");
+          toast.success("Refund dikonfirmasi — invoice telah disesuaikan.");
+          await loadReturns();
+          await loadPurchaseInvoices();
           break;
-
-        case "Open Credit":
-          await applyOpenCredit(
-            returnId,
-            payload.data.supplierId,
-            payload.data.creditAmount
-          );
-          toast.success(
-            `Kredit Rp ${formatNumber(payload.data.creditAmount)} diposting ke profil vendor.`
-          );
-          break;
+        }
       }
-      await loadReturns();
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message ?? "Gagal menyelesaikan retur.");
-      // Re-throw so the modal's submitting spinner resets correctly
-      throw err;
+      throw err; // let modal's spinner reset
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── GR form submit (from Option A) ─────────────────────────────────────────
+
+  const handleGRSubmit = async (form: GoodsReceiptFormData) => {
+    try {
+      const grRes = await createGoodsReceipt({
+        purchase_order_id: Number(form.purchase_order_id),
+        receipt_number: form.receipt_number,
+        receipt_date: form.receipt_date,
+        received_by: form.received_by,
+        status: form.status,
+        transaction_name: form.transaction_name,
+        transaction_detail: form.transaction_detail,
+      });
+
+      const grId: number =
+        grRes?.goods_receipt_id ?? grRes?.data?.goods_receipt_id;
+
+      // Create GR detail lines for all PO items of the chosen PO
+      if (grId) {
+        const items = poDetails.filter(
+          (d) => Number(d.purchase_order_id) === Number(form.purchase_order_id)
+        );
+        for (const item of items) {
+          await createGoodsReceiptDetail({
+            goods_receipt_id: grId,
+            product_id: item.product_id,
+            quantity_received: item.quantity,
+            unit_price: item.price,
+          });
+        }
+      }
+
+      toast.success("Goods Receipt pengganti berhasil dibuat.");
+      setOpenGRModal(false);
+      await loadGoodsReceipts();
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal membuat Goods Receipt pengganti.");
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <AppShell title="Purchase Returns" subtitle="Kelola pengembalian pembelian">
@@ -397,16 +563,11 @@ export default function PurchaseReturnsPage() {
           const settled = SETTLED_STATUSES.has(row.status);
           return (
             <div className="flex gap-1.5 justify-center">
-              {/* Selesaikan — shown for all rows; shows checkmark badge if already settled */}
               <Button
                 variant={settled ? "secondary" : "primary"}
                 size="sm"
                 onClick={() => setSettlementTarget(row)}
-                title={
-                  settled
-                    ? "Retur sudah selesai"
-                    : "Selesaikan retur ini"
-                }
+                title={settled ? "Retur sudah selesai" : "Selesaikan retur ini"}
               >
                 {settled ? "Lihat" : "Selesaikan"}
               </Button>
@@ -422,29 +583,51 @@ export default function PurchaseReturnsPage() {
         }}
       />
 
-      {/* Create form */}
+      {/* Create return form */}
       <PurchaseReturnFormModal
         open={openFormModal}
         onClose={() => setOpenFormModal(false)}
         onSubmit={handleSubmit}
         goodsReceipts={goodsReceipts}
+        poDetails={poDetails}
         nextNumber={nextReturnNumber}
       />
 
-      {/* Settlement action modal */}
+      {/* Settlement modal */}
       <PurchaseReturnSettlementModal
         open={settlementTarget !== null}
         onClose={() => setSettlementTarget(null)}
         onSettle={handleSettle}
-        purchaseReturn={settlementTarget as PurchaseReturnRow | null}
+        purchaseReturn={
+          settlementTarget
+            ? {
+                ...settlementTarget,
+                // Pass serialised return_items if they were stored in notes
+                return_items: undefined,
+              }
+            : null
+        }
         purchaseOrders={purchaseOrders}
-        goodsReceipts={goodsReceipts.map((gr) => ({
-          goods_receipt_id: gr.goods_receipt_id,
-          receipt_number: gr.receipt_number,
-          supplier_id: gr.supplier_id,
-          supplier_name: gr.supplier_name,
-        } satisfies SettlementGROption))}
+        goodsReceipts={goodsReceipts.map(
+          (gr): SettlementGROption => ({
+            goods_receipt_id: gr.goods_receipt_id,
+            receipt_number: gr.receipt_number,
+            supplier_id: gr.supplier_id,
+            supplier_name: gr.supplier_name,
+          })
+        )}
         purchaseInvoices={purchaseInvoices}
+      />
+
+      {/* GR form — opened from Option A (Replacement) */}
+      <GoodsReceiptFormModal
+        open={openGRModal}
+        onClose={() => setOpenGRModal(false)}
+        onSubmit={handleGRSubmit}
+        purchaseOrders={grModalPOs}
+        purchaseOrderDetails={poDetails}
+        initialPOId={grPrefillPOId ?? undefined}
+        nextGRNumber={nextGRNumber}
       />
     </AppShell>
   );

@@ -10,6 +10,9 @@ import {
   Package,
   User,
   ToggleLeft,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -17,6 +20,7 @@ import { cn } from "@/lib/utils";
 interface PurchaseOrder {
   purchase_order_id: number;
   po_number: string;
+  expected_date?: string | null;
   transaction_name?: string;
   transaction_detail?: string;
 }
@@ -46,6 +50,10 @@ interface GoodsReceiptFormModalProps {
 
   purchaseOrders: PurchaseOrder[];
   purchaseOrderDetails: PurchaseOrderDetail[];
+  /** When set, pre-selects this PO on open (used from Option A replacement flow) */
+  initialPOId?: number;
+  /** Pre-filled receipt number (auto-fetched by parent for Option A) */
+  nextGRNumber?: string;
 }
 
 const todayStr = () =>
@@ -64,10 +72,15 @@ export default function GoodsReceiptFormModal({
   onSubmit,
   purchaseOrders,
   purchaseOrderDetails,
+  initialPOId,
+  nextGRNumber,
 }: GoodsReceiptFormModalProps) {
 
   const [selectedDetails, setSelectedDetails] =
     useState<PurchaseOrderDetail[]>([]);
+
+  const [selectedExpectedDate, setSelectedExpectedDate] =
+    useState<string | null>(null);
 
   const [form, setForm] =
     useState<GoodsReceiptFormData>({
@@ -82,27 +95,50 @@ export default function GoodsReceiptFormModal({
 
   useEffect(() => {
 
-    if (open) {
+    if (!open) return;
 
-      setForm({
-        purchase_order_id: "",
-        receipt_number: "",
-        receipt_date: todayStr(),
-        received_by: "",
-        status: "Received",
-        transaction_name: "",
-        transaction_detail: "",
-      });
+    const prefillPOId = initialPOId ? String(initialPOId) : "";
 
-      setSelectedDetails([]);
+    setForm({
+      purchase_order_id: prefillPOId,
+      receipt_number: "",
+      receipt_date: todayStr(),
+      received_by: "",
+      status: "Received",
+      transaction_name: "",
+      transaction_detail: "",
+    });
 
-      // Fetch the real next GR number from the backend
+    setSelectedDetails([]);
+    setSelectedExpectedDate(null);
+
+    // Use parent-supplied number if provided; otherwise fetch from backend
+    if (nextGRNumber) {
+      setForm(prev => ({ ...prev, receipt_number: nextGRNumber, purchase_order_id: prefillPOId }));
+    } else {
       getNextGRNumber()
-        .then(res => setForm(prev => ({ ...prev, receipt_number: res?.receipt_number ?? res?.next_number ?? "" })))
+        .then(res => setForm(prev => ({
+          ...prev,
+          receipt_number: res?.receipt_number ?? res?.next_number ?? "",
+          purchase_order_id: prefillPOId,
+        })))
         .catch(() => { /* leave blank if endpoint not available */ });
     }
 
-  }, [open]);
+    // Pre-select details if initialPOId was given
+    if (initialPOId) {
+      const filtered = purchaseOrderDetails.filter(
+        (item) => Number(item.purchase_order_id) === initialPOId
+      );
+      setSelectedDetails(filtered);
+
+      const selectedPO = purchaseOrders.find(
+        (po) => po.purchase_order_id === initialPOId
+      );
+      setSelectedExpectedDate(selectedPO?.expected_date ?? null);
+    }
+
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setField = <
     K extends keyof GoodsReceiptFormData
@@ -124,6 +160,8 @@ export default function GoodsReceiptFormModal({
     const selectedPO = purchaseOrders.find(
       (po) => String(po.purchase_order_id) === purchaseOrderId
     );
+
+    setSelectedExpectedDate(selectedPO?.expected_date ?? null);
 
     setForm((prev) => ({
       ...prev,
@@ -148,6 +186,18 @@ export default function GoodsReceiptFormModal({
   const sortedPOs = [...purchaseOrders].sort(
     (a, b) => b.purchase_order_id - a.purchase_order_id
   );
+
+  // ── On-time indicator derived from receipt_date vs expected_date ──
+  type OnTimeStatus = "on_time" | "late" | "unknown";
+  const onTimeStatus: OnTimeStatus = (() => {
+    if (!selectedExpectedDate || !form.receipt_date) return "unknown";
+    return form.receipt_date <= selectedExpectedDate ? "on_time" : "late";
+  })();
+
+  const formatDateId = (d: string) =>
+    new Intl.DateTimeFormat("id-ID", {
+      day: "2-digit", month: "long", year: "numeric",
+    }).format(new Date(d));
 
   return (
     <>
@@ -246,7 +296,7 @@ export default function GoodsReceiptFormModal({
                 </FormField>
 
                 <FormField
-                  label="Tanggal"
+                  label="Tanggal Terima"
                   icon={<Calendar size={13} />}
                 >
 
@@ -265,6 +315,52 @@ export default function GoodsReceiptFormModal({
                 </FormField>
 
               </div>
+
+              {/* Tanggal Ekspektasi reference — shown once a PO is selected */}
+              {selectedExpectedDate && (
+                <div className={cn(
+                  "rounded-xl border px-4 py-3 flex items-start gap-3",
+                  onTimeStatus === "on_time"
+                    ? "bg-emerald-50 border-emerald-200"
+                    : onTimeStatus === "late"
+                    ? "bg-rose-50 border-rose-200"
+                    : "bg-slate-50 border-slate-200"
+                )}>
+                  <div className="mt-0.5 shrink-0">
+                    {onTimeStatus === "on_time" && <CheckCircle2 size={15} className="text-emerald-600" />}
+                    {onTimeStatus === "late"    && <AlertCircle  size={15} className="text-rose-500" />}
+                    {onTimeStatus === "unknown" && <Clock        size={15} className="text-slate-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-xs font-bold uppercase tracking-wide",
+                      onTimeStatus === "on_time" ? "text-emerald-700"
+                        : onTimeStatus === "late" ? "text-rose-600"
+                        : "text-slate-500"
+                    )}>
+                      Tanggal Ekspektasi (dari PO)
+                    </p>
+                    <p className={cn(
+                      "text-sm font-semibold mt-0.5",
+                      onTimeStatus === "on_time" ? "text-emerald-800"
+                        : onTimeStatus === "late" ? "text-rose-700"
+                        : "text-slate-700"
+                    )}>
+                      {formatDateId(selectedExpectedDate)}
+                    </p>
+                    {onTimeStatus !== "unknown" && (
+                      <p className={cn(
+                        "text-xs mt-1",
+                        onTimeStatus === "on_time" ? "text-emerald-600" : "text-rose-500"
+                      )}>
+                        {onTimeStatus === "on_time"
+                          ? "Penerimaan tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                          : "Penerimaan terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <FormField
                 label="Purchase Order"
