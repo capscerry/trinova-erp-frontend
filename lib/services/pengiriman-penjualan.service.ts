@@ -106,6 +106,10 @@ export interface PengirimanDetailItem {
   qtyDikirim: number;
 }
 
+export interface PengirimanPenjualanFullDetail extends PengirimanPenjualan {
+  items: PengirimanDetailItem[];
+}
+
 export function mapPengirimanDetailItem(item: DeliveryOrderDetailApi): PengirimanDetailItem {
   return {
     productId: item.productId,
@@ -156,10 +160,18 @@ export const pengirimanPenjualanService = {
   },
 
   async getById(id: number | string): Promise<PengirimanPenjualan> {
-    const response = await api.get<ApiResponse<DeliveryOrderHeaderApi>>(
-      `/do-header/${id}`
-    );
-    return mapPengirimanPenjualan(response.data.data);
+    const list = await this.getAll();
+    const found = list.find((item) => Number(item.id) === Number(id));
+    if (!found) throw new Error("Pengiriman penjualan tidak ditemukan");
+    return found;
+  },
+
+  async getFullDetailById(id: number | string): Promise<PengirimanPenjualanFullDetail> {
+    const [header, items] = await Promise.all([
+      this.getById(id),
+      this.getDetailItems(id),
+    ]);
+    return { ...header, items };
   },
 
   /** Detail item — dipanggil terpisah saat buka halaman Detail/Edit (GetDoDetail di backend) */

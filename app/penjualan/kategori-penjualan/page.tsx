@@ -1,80 +1,84 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import { KategoriPenjualanModal, type KategoriPenjualanFormData } from "@/components/modules/penjualan/CategorySalesModal";
 import type { Column } from "@/components/ui";
-import axios from "axios";
+import {
+  categorySalesService,
+  type KategoriPenjualan,
+} from "@/lib/services/category-sales.service";
 
-// ─── Type ─────────────────────────────────────────────────────────────────────
-interface KategoriPenjualan {
-  no: string;
-  id: number;
-  nama: string;
-  keterangan: string;
-}
-
-type SalesCategoryResponse = {
-  id: number;
-  namaKategori: string;
-  keterangan: string;
-};
-
-// ─── Columns ──────────────────────────────────────────────────────────────────
 const COLUMNS: Column<KategoriPenjualan>[] = [
-  {
-    key: "no",
-    label: "No",
-    width: "140px",
-  },
-  {
-    key: "nama",
-    label: "Nama Kategori",
-    width: "220px",
-  },
+  { key: "no", label: "No", width: "100px" },
+  { key: "nama", label: "Nama Kategori", width: "220px" },
   {
     key: "keterangan",
     label: "Keterangan",
     render: (val) => (
-      <span className="text-slate-500 text-xs">
-        {String(val) || <span className="italic text-slate-300">—</span>}
+      <span className="text-xs text-slate-500">
+        {String(val) || <span className="italic text-slate-300">-</span>}
+      </span>
+    ),
+  },
+  {
+    key: "isActive",
+    label: "Status",
+    width: "150px",
+    render: (_value: unknown, row: KategoriPenjualan) => (
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+          row.isActive
+            ? "bg-green-100 text-green-800"
+            : "bg-red-100 text-red-800"
+        }`}
+      >
+        {row.isActive ? "Aktif" : "Tidak Aktif"}
       </span>
     ),
   },
 ];
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function KategoriPenjualanPage() {
-  const [data, setData]           = useState<KategoriPenjualan[]>([]);
+  const [data, setData] = useState<KategoriPenjualan[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editData, setEditData]   = useState<KategoriPenjualanFormData | undefined>();
-  const [message, setMessage]     = useState("");
+  const [editData, setEditData] = useState<KategoriPenjualanFormData | undefined>();
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchSalesCategory = async () => {
-    try {
-      const response = await axios.get("https://localhost:7283/api/sales-category");
-      const result = response.data.data;
-
-      const mapped = result.map((item: SalesCategoryResponse, index: number) => ({
-        no: (index + 1).toString(),
-        id: item.id,
-        nama: item.namaKategori,
-        keterangan: item.keterangan ?? "",
-      }));
-
-      setData(mapped);
-    } catch (error) {
-      console.error("Error fetching sales category data:", error);
-    }
-  };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchSalesCategory();
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
+    setMessage(msg);
+    setMessageType(type);
   }, []);
 
-  // ── Handlers ────────────────────────────────────────
+  const fetchSalesCategory = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const result = await categorySalesService.getAll();
+      setData(result);
+    } catch {
+      showMessage("Gagal memuat kategori penjualan", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showMessage]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchSalesCategory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [fetchSalesCategory]);
+
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   const handleTambah = () => {
     setEditData(undefined);
     setModalOpen(true);
@@ -91,26 +95,39 @@ export default function KategoriPenjualanPage() {
 
   const handleSubmit = async (formData: KategoriPenjualanFormData) => {
     try {
-      if (formData.id) {
-        const response = await axios.put(`https://localhost:7283/api/sales-category/${formData.id}`, {
-          NamaKategori: formData.nama,
-          Keterangan: formData.keterangan,
-        });
-        if (response != null) {
-          setMessage(response.data.message);
-        }
-      } else {
-        const response = await axios.post("https://localhost:7283/api/sales-category", {
-          NamaKategori: formData.nama,
-          Keterangan: formData.keterangan,
-        });
-        if (response != null) {
-          setMessage(response.data);
-        }
-      }
+      setIsLoading(true);
+      const payload = {
+        NamaKategori: formData.nama,
+        Keterangan: formData.keterangan,
+      };
+
+      const msg = formData.id
+        ? await categorySalesService.update(formData.id, payload)
+        : await categorySalesService.create(payload);
+
+      showMessage(msg, "success");
+      setModalOpen(false);
       await fetchSalesCategory();
-    } catch (error) {
-      console.error("Gagal menambahkan kategori:", error);
+    } catch {
+      showMessage("Gagal menyimpan kategori penjualan", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (row: KategoriPenjualan) => {
+    try {
+      setIsLoading(true);
+      const msg = await categorySalesService.toggleStatus(row.id, {
+        isActive: !row.isActive,
+      });
+
+      showMessage(msg, "success");
+      await fetchSalesCategory();
+    } catch {
+      showMessage("Gagal mengubah status kategori penjualan", "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -118,10 +135,10 @@ export default function KategoriPenjualanPage() {
     <AppShell title="Kategori Penjualan" subtitle="Master data kategori penjualan">
       {message && (
         <div
-          className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
-            message.toLowerCase().includes("failed")
-              ? "bg-red-100 text-red-700 border border-red-300"
-              : "bg-green-100 text-green-700 border border-green-300"
+          className={`mb-4 rounded-lg px-4 py-3 text-sm font-semibold ${
+            messageType === "error"
+              ? "border border-red-300 bg-red-100 text-red-700"
+              : "border border-green-300 bg-green-100 text-green-700"
           }`}
         >
           {message}
@@ -135,22 +152,26 @@ export default function KategoriPenjualanPage() {
         keyField="no"
         addLabel="Tambah Kategori"
         onAdd={handleTambah}
+        loading={isLoading}
         renderActions={(row) => (
-          <div className="flex items-center gap-1.5 justify-center">
+          <div className="flex items-center justify-center gap-1.5">
             <button
               onClick={() => handleEdit(row)}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                        bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+              disabled={isLoading}
+              className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Edit
             </button>
-
-            {/* Hapus */}
             <button
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                        bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+              onClick={() => handleToggleStatus(row)}
+              disabled={isLoading}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                row.isActive
+                  ? "bg-green-50 text-green-700 hover:bg-green-100"
+                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+              }`}
             >
-              Hapus
+              {row.isActive ? "Aktif" : "Nonaktif"}
             </button>
           </div>
         )}
@@ -162,7 +183,6 @@ export default function KategoriPenjualanPage() {
         onSubmit={handleSubmit}
         initialData={editData}
       />
-
     </AppShell>
   );
 }

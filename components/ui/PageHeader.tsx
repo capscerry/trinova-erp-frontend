@@ -19,11 +19,11 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className={cn("flex items-start justify-between mb-6", className)}>
+    <div className={cn("mb-6 flex items-start justify-between", className)}>
       <div>
-        <h1 className="text-xl font-bold font-serif text-navy-900 leading-tight">{title}</h1>
+        <h1 className="text-xl font-bold leading-tight text-navy-900">{title}</h1>
         {subtitle && (
-          <p className="text-sm text-slate-400 mt-0.5 font-serif">{subtitle}</p>
+          <p className="mt-0.5 text-sm text-slate-400">{subtitle}</p>
         )}
       </div>
       <div className="flex items-center gap-3">

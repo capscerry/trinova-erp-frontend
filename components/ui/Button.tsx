@@ -36,7 +36,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg font-semibold font-serif",
+        "inline-flex items-center gap-1.5 rounded-lg font-semibold",
         "transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
         variantStyles[variant],
         sizeStyles[size],

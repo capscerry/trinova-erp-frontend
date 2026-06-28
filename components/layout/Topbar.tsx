@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { Bell, Search, LogOut } from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 
 interface TopbarProps {
@@ -12,25 +12,25 @@ export function Topbar({ title, subtitle }: TopbarProps) {
   const { user, logout } = useAuth();
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+    <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-8 backdrop-blur">
       <div>
-        <h1 className="text-lg font-bold font-serif text-navy-900 leading-tight">{title}</h1>
-        {subtitle && <p className="text-xs text-slate-400 mt-0.5 font-serif">{subtitle}</p>}
+        <h1 className="text-lg font-bold leading-tight text-navy-900">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-xs font-medium text-slate-400">{subtitle}</p>}
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-56">
+        <div className="hidden w-64 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
           <Search size={14} className="text-slate-400" />
-          <span className="text-sm text-slate-400 font-serif">Cari transaksi...</span>
+          <span className="text-sm text-slate-400">Cari transaksi...</span>
         </div>
-        <div className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-colors">
+        <div className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-slate-50 transition-colors hover:bg-slate-100">
           <Bell size={16} className="text-slate-500" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
         </div>
         {user && (
           <button
             onClick={logout}
-            className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
             title="Keluar"
           >
             <LogOut size={15} />

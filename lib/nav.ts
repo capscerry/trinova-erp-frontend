@@ -10,6 +10,19 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
     allowedRoles: ["admin", "penjualan", "pembelian", "persediaan"],
   },
   {
+    id: "user",
+    label: "User",
+    allowedRoles: ["admin"],
+    children: [
+      {
+        group: "Access Control",
+        items: [
+          { id: "user.master", label: "Master User", href: "/user" },
+        ],
+      },
+    ],
+  },
+  {
     id: "penjualan",
     label: "Penjualan",
     allowedRoles: ["admin", "penjualan"],

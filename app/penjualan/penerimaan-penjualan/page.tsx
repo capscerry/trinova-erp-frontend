@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import type { Column } from "@/components/ui";
@@ -65,12 +65,12 @@ export default function PenerimaanPenjualanPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [initialFormData, setInitialFormData] = useState<Partial<PenerimaanFormData> | undefined>(undefined);
 
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await penerimaanPenjualanService.getAll();
@@ -81,11 +81,11 @@ export default function PenerimaanPenjualanPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showMessage]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!message) return;
@@ -137,13 +137,12 @@ export default function PenerimaanPenjualanPage() {
   };
 
   const handleDetail = (row: PenerimaanPenjualan) => {
-    // TODO: arahkan ke halaman detail saat sudah dibuat
-    console.log("Lihat detail:", row);
+    router.push(`/penjualan/penerimaan-penjualan/${row.id}`);
   };
 
   // Dipanggil modal SETELAH create API berhasil. Di sini kita tutup modal
   // dan refresh data dari server agar tabel selalu sinkron.
-  const handleModalSubmit = (formData: PenerimaanFormData) => {
+  const handleModalSubmit = () => {
     setModalOpen(false);
     setInitialFormData(undefined);
     showMessage("Penerimaan penjualan berhasil disimpan");

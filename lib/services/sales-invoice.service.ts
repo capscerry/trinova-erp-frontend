@@ -88,6 +88,49 @@ export interface SalesInvoicePayload {
   }[];
 }
 
+export interface SalesInvoiceDetailApi {
+  id: number;
+  salesInvoiceId: number;
+  productId: number;
+  productCode?: string;
+  productName?: string;
+  description?: string;
+  quantity: number;
+  uomId?: number;
+  uomName?: string;
+  price: number;
+  discount: number;
+  discountAmount?: number;
+  tax: number;
+  taxAmount?: number;
+  subtotal: number;
+}
+
+export interface SalesInvoiceDetailItem {
+  id: number;
+  salesInvoiceId: number;
+  productId: number;
+  productCode: string;
+  productName: string;
+  description: string;
+  quantity: number;
+  uomId?: number;
+  uomName: string;
+  price: number;
+  discount: number;
+  tax: number;
+  subtotal: number;
+}
+
+export interface SalesInvoiceDetailResponseApi {
+  header: SalesInvoiceApi;
+  detail: SalesInvoiceDetailApi[];
+}
+
+export interface SalesInvoiceFullDetail extends SalesInvoice {
+  items: SalesInvoiceDetailItem[];
+}
+
 export function mapSalesInvoice(item: SalesInvoiceApi): SalesInvoice {
   return {
     id: item.id,
@@ -113,6 +156,33 @@ export function mapSalesInvoice(item: SalesInvoiceApi): SalesInvoice {
   };
 }
 
+export function mapSalesInvoiceDetailItem(item: SalesInvoiceDetailApi): SalesInvoiceDetailItem {
+  return {
+    id: item.id,
+    salesInvoiceId: item.salesInvoiceId,
+    productId: item.productId,
+    productCode: item.productCode ?? "",
+    productName: item.productName ?? item.description ?? "",
+    description: item.description ?? item.productName ?? "",
+    quantity: item.quantity ?? 0,
+    uomId: item.uomId ?? undefined,
+    uomName: item.uomName ?? "",
+    price: item.price ?? 0,
+    discount: item.discountAmount ?? item.discount ?? 0,
+    tax: item.taxAmount ?? item.tax ?? 0,
+    subtotal: item.subtotal ?? 0,
+  };
+}
+
+export function mapSalesInvoiceFullDetail(
+  item: SalesInvoiceDetailResponseApi
+): SalesInvoiceFullDetail {
+  return {
+    ...mapSalesInvoice(item.header),
+    items: (item.detail ?? []).map(mapSalesInvoiceDetailItem),
+  };
+}
+
 export const salesInvoiceService = {
   async getAll(): Promise<SalesInvoice[]> {
     const response = await api.get<ApiResponse<SalesInvoiceApi[]>>("/sales-invoice");
@@ -121,7 +191,14 @@ export const salesInvoiceService = {
 
   async getById(id: number | string): Promise<SalesInvoice> {
     const response = await api.get<ApiResponse<SalesInvoiceApi>>(`/sales-invoice/${id}`);
-    return mapSalesInvoice(response.data.data);
+    const data = response.data.data as SalesInvoiceApi | SalesInvoiceDetailResponseApi;
+    if ("header" in data) return mapSalesInvoice(data.header);
+    return mapSalesInvoice(data);
+  },
+
+  async getFullDetailById(id: number | string): Promise<SalesInvoiceFullDetail> {
+    const response = await api.get<ApiResponse<SalesInvoiceDetailResponseApi>>(`/sales-invoice/${id}`);
+    return mapSalesInvoiceFullDetail(response.data.data);
   },
 
   async create(payload: SalesInvoicePayload): Promise<SalesInvoice> {

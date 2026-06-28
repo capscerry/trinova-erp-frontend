@@ -1,28 +1,25 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import { KategoriCustomerModal, type KategoriFormData } from "@/components/modules/penjualan/CategoryCustomerModal";
 import type { Column } from "@/components/ui";
-
 import {
   categoryCustomerService,
   type KategoriCustomer,
 } from "@/lib/services/category-customer.service";
 
-// ─── Columns ──────────────────────────────────────────────────────────────────
-
 const COLUMNS: Column<KategoriCustomer>[] = [
-  { key: "no",   label: "No",            width: "100px" },
-  { key: "nama", label: "Nama Kategori", width: "200px" },
+  { key: "no", label: "No", width: "100px" },
+  { key: "nama", label: "Nama Kategori", width: "220px" },
   {
     key: "isActive",
     label: "Status",
     width: "150px",
     render: (_value: unknown, row: KategoriCustomer) => (
       <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
           row.isActive
             ? "bg-green-100 text-green-800"
             : "bg-red-100 text-red-800"
@@ -34,44 +31,45 @@ const COLUMNS: Column<KategoriCustomer>[] = [
   },
 ];
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function KategoriCustomerPage() {
-  const [data, setData]           = useState<KategoriCustomer[]>([]);
+  const [data, setData] = useState<KategoriCustomer[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editData, setEditData]   = useState<KategoriFormData | undefined>();
-  const [message, setMessage]     = useState("");
+  const [editData, setEditData] = useState<KategoriFormData | undefined>();
+  const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
-  // ── Fetch ────────────────────────────────────────────
-  const fetchData = async () => {
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
+    setMessage(msg);
+    setMessageType(type);
+  }, []);
+
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await categoryCustomerService.getAll(); // ✅
+      const result = await categoryCustomerService.getAll();
       setData(result);
-    } catch (error) {
+    } catch {
       showMessage("Gagal memuat data kategori", "error");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showMessage]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchData();
+    }, 0);
 
-  // ── Helper toast ─────────────────────────────────────
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
-    setMessage(msg);
-    setMessageType(type);
-  };
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!message) return;
-    const timer = setTimeout(() => setMessage(""), 3000);
-    return () => clearTimeout(timer);
+    const timer = window.setTimeout(() => setMessage(""), 3000);
+    return () => window.clearTimeout(timer);
   }, [message]);
 
-  // ── Handlers ─────────────────────────────────────────
   const handleTambah = () => {
     setEditData(undefined);
     setModalOpen(true);
@@ -86,15 +84,14 @@ export default function KategoriCustomerPage() {
     try {
       setIsLoading(true);
       const payload = { NamaKategori: formData.nama };
-
       const msg = formData.id
-        ? await categoryCustomerService.update(formData.id, payload) // ✅ update
-        : await categoryCustomerService.create(payload);             // ✅ create
+        ? await categoryCustomerService.update(formData.id, payload)
+        : await categoryCustomerService.create(payload);
 
       showMessage(msg, "success");
       setModalOpen(false);
       await fetchData();
-    } catch (error) {
+    } catch {
       showMessage("Gagal menyimpan kategori", "error");
     } finally {
       setIsLoading(false);
@@ -104,28 +101,26 @@ export default function KategoriCustomerPage() {
   const handleToggleStatus = async (row: KategoriCustomer) => {
     try {
       setIsLoading(true);
-      const newStatus = !row.isActive;
-      const msg = await categoryCustomerService.toggleStatus(row.id, { // ✅
-        isActive: newStatus,
+      const msg = await categoryCustomerService.toggleStatus(row.id, {
+        isActive: !row.isActive,
       });
       showMessage(msg, "success");
       await fetchData();
-    } catch (error) {
+    } catch {
       showMessage("Gagal mengubah status kategori", "error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ── Render ───────────────────────────────────────────
   return (
     <AppShell title="Kategori Customer" subtitle="Master data kategori pelanggan">
       {message && (
         <div
-          className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
+          className={`mb-4 rounded-lg px-4 py-3 text-sm font-semibold ${
             messageType === "error"
-              ? "bg-red-100 text-red-700 border border-red-300"
-              : "bg-green-100 text-green-700 border border-green-300"
+              ? "border border-red-300 bg-red-100 text-red-700"
+              : "border border-green-300 bg-green-100 text-green-700"
           }`}
         >
           {message}
@@ -141,25 +136,22 @@ export default function KategoriCustomerPage() {
         onAdd={handleTambah}
         loading={isLoading}
         renderActions={(row) => (
-          <div className="flex items-center gap-1.5 justify-center">
+          <div className="flex items-center justify-center gap-1.5">
             <button
               onClick={() => handleEdit(row)}
               disabled={isLoading}
-              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                         bg-amber-50 text-amber-700 hover:bg-amber-100
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Edit
             </button>
             <button
               onClick={() => handleToggleStatus(row)}
               disabled={isLoading}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
-                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                         ${row.isActive
-                           ? "bg-green-50 text-green-700 hover:bg-green-100"
-                           : "bg-gray-50  text-gray-700  hover:bg-gray-100"
-                         }`}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                row.isActive
+                  ? "bg-green-50 text-green-700 hover:bg-green-100"
+                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+              }`}
             >
               {row.isActive ? "Aktif" : "Nonaktif"}
             </button>

@@ -1,9 +1,8 @@
-/* app/globals.css — Tailwind v4 */
+﻿/* app/globals.css - Tailwind v4 */
 @import "tailwindcss";
 
 @theme {
-  --font-serif: Georgia, Cambria, "Times New Roman", serif;
-
+  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
   --color-navy-900: #0d1b2a;
   --color-navy-800: #122336;
   --color-navy-700: #163052;
@@ -27,11 +26,12 @@
   --color-slate-900: #1a2c3e;
 }
 
-/* Base styles */
 body {
   background-color: #f0f4f8;
   color: #2d3f52;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -39,14 +39,11 @@ body {
 ::-webkit-scrollbar-thumb { background: #2a4a6a; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
 
-/* ─── Print / Export PDF ─────────────────────────────────────────────────── */
 @media print {
-  /* Sembunyikan semua elemen kecuali yang di-print */
   body.printing > * {
     display: none !important;
   }
 
-  /* Tampilkan hanya elemen dengan class print-target */
   body.printing .print-target {
     display: block !important;
     position: fixed !important;
@@ -57,12 +54,10 @@ body {
     overflow: visible !important;
   }
 
-  /* Sembunyikan tombol aksi saat print */
   .no-print {
     display: none !important;
   }
 
-  /* Styling tabel agar rapi di PDF */
   table {
     border-collapse: collapse !important;
     width: 100% !important;
@@ -74,7 +69,6 @@ body {
     font-size: 11px !important;
   }
 
-  /* Page break */
   .page-break {
     page-break-before: always;
   }

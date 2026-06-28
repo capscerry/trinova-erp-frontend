@@ -142,12 +142,7 @@ export default function UangMukaPrintPage() {
         .header-logo {
           width: 60px;
           height: 60px;
-          border: 1px solid #ccc;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 8px;
-          color: #999;
+          object-fit: contain;
           margin-right: 12px;
           flex-shrink: 0;
         }
@@ -298,7 +293,8 @@ export default function UangMukaPrintPage() {
 
         {/* Kop Surat */}
         <div className="header">
-          <div className="header-logo">LOGO</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/trinova-logo.png" alt="Trinova" className="header-logo" />
           <div className="header-company">
             <h1>PT Hang Song Machinery Indonesia</h1>
             <p>Kab. Bekasi Jawa Barat, Indonesia</p>

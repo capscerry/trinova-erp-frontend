@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,44 +12,36 @@ import type { NavModule } from "@/types";
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-
   const navConfig = user ? getNavForRole(user.role) : [];
-
   const activeModule = navConfig.find(
     (n) => n.id !== "dashboard" && pathname.startsWith("/" + n.id)
   )?.id ?? null;
-
   const [openModule, setOpenModule] = useState<string | null>(activeModule);
+
   const toggleModule = (id: string) =>
     setOpenModule((prev) => (prev === id ? null : id));
 
   return (
-    <aside className="w-[248px] h-screen bg-navy-900 fixed left-0 top-0 flex flex-col z-50 font-serif">
-      {/* ── Logo ─────────────────────────────────────────── */}
-      <div className="px-5 py-6 border-b border-navy-700">
+    <aside className="fixed left-0 top-0 z-50 flex h-screen w-[264px] flex-col bg-navy-900 text-slate-300 shadow-xl">
+      <div className="border-b border-white/10 px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-gold-500 to-gold-300 flex items-center justify-center text-navy-900 font-extrabold text-lg select-none">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-400 text-lg font-extrabold text-navy-900 shadow-sm">
             T
           </div>
           <div>
-            <p className="text-gold-400 font-bold tracking-widest text-[15px] uppercase">
-              Trinova
-            </p>
-            <p className="text-slate-600 text-[10px] tracking-[3px] uppercase">
-              Business Suite
-            </p>
+            <p className="text-[15px] font-extrabold uppercase tracking-widest text-white">Trinova</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[2px] text-gold-400">Business Suite</p>
           </div>
         </div>
       </div>
 
-      {/* ── Nav ──────────────────────────────────────────── */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navConfig.map((module: NavModule) => {
           const isDashboard = module.id === "dashboard";
-          const isActive    = isDashboard
+          const isActive = isDashboard
             ? pathname === "/dashboard"
             : pathname.startsWith("/" + module.id);
-          const isOpen      = openModule === module.id;
+          const isOpen = openModule === module.id;
 
           if (isDashboard) {
             return (
@@ -57,44 +49,44 @@ export function Sidebar() {
                 key={module.id}
                 href={module.href!}
                 className={cn(
-                  "flex items-center gap-2.5 px-5 py-[11px] text-sm border-l-[3px] transition-all duration-150",
+                  "mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
-                    ? "border-gold-500 bg-gradient-to-r from-navy-600 to-navy-700 text-gold-400"
-                    : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-navy-800"
+                    ? "bg-white/10 text-gold-400"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <span className="text-[7px] opacity-60">●</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                 {module.label}
               </Link>
             );
           }
 
           return (
-            <div key={module.id}>
+            <div key={module.id} className="mb-1">
               <button
                 onClick={() => toggleModule(module.id)}
                 className={cn(
-                  "w-full flex items-center justify-between px-5 py-[11px] text-sm border-l-[3px] transition-all duration-150",
+                  "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
-                    ? "border-gold-500 text-gold-400"
-                    : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-navy-800"
+                    ? "bg-white/10 text-gold-400"
+                    : "text-slate-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <span className="flex items-center gap-2.5">
-                  <span className="text-[7px] opacity-60">●</span>
+                <span className="flex items-center gap-3">
+                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                   {module.label}
                 </span>
                 <ChevronRight
-                  size={13}
-                  className={cn("opacity-50 transition-transform duration-200", isOpen && "rotate-90")}
+                  size={14}
+                  className={cn("opacity-60 transition-transform", isOpen && "rotate-90")}
                 />
               </button>
 
               {isOpen && (
-                <div className="bg-navy-800/60 pb-1">
+                <div className="mt-1 rounded-lg bg-black/10 py-2">
                   {module.children?.map((group) => (
-                    <div key={group.group}>
-                      <p className="px-9 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[2px] text-slate-600">
+                    <div key={group.group} className="py-1">
+                      <p className="px-7 pb-1 pt-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                         {group.group}
                       </p>
                       {group.items.map((item) => {
@@ -104,10 +96,10 @@ export function Sidebar() {
                             key={item.id}
                             href={item.href}
                             className={cn(
-                              "block px-9 py-2 text-[13px] border-l-2 transition-all duration-150",
+                              "mx-2 block rounded-md px-5 py-2 text-[13px] font-medium transition-colors",
                               itemActive
-                                ? "border-gold-500 text-gold-400 bg-navy-700/60"
-                                : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-navy-700/40"
+                                ? "bg-gold-400/10 text-gold-400"
+                                : "text-slate-400 hover:bg-white/5 hover:text-white"
                             )}
                           >
                             {item.label}
@@ -123,21 +115,20 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* ── User ─────────────────────────────────────────── */}
-      <div className="px-5 py-4 border-t border-navy-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-navy-600 flex items-center justify-center text-gold-500 text-xs font-bold select-none">
+      <div className="border-t border-white/10 p-4">
+        <div className="flex items-center justify-between rounded-xl bg-white/5 p-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy-600 text-xs font-bold text-gold-400">
               {user?.initials ?? "??"}
             </div>
-            <div>
-              <p className="text-slate-300 text-[13px]">{user?.name}</p>
-              <p className="text-slate-600 text-[11px] capitalize">{user?.role}</p>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-white">{user?.name}</p>
+              <p className="text-[11px] capitalize text-slate-500">{user?.role}</p>
             </div>
           </div>
           <button
             onClick={logout}
-            className="text-slate-600 hover:text-red-400 transition-colors p-1"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-300"
             title="Keluar"
           >
             <LogOut size={15} />

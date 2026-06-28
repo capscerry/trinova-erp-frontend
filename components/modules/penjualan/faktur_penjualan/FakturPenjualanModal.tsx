@@ -22,6 +22,7 @@ import {
   salesOrderService,
   type SalesOrder,
   type SalesOrderDetailItem,
+  uangMukaService,
 } from "@/lib/services/penjualan.service";
 import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
 import {
@@ -74,6 +75,7 @@ export function FakturPenjualanModal({
   const [deliveryList, setDeliveryList] = useState<PengirimanPenjualan[]>([]);
   const [showDeliveryPicker, setShowDeliveryPicker] = useState(false);
   const [loadingDelivery, setLoadingDelivery] = useState(false);
+  const [uangMukaNote, setUangMukaNote] = useState("Belum ada SO yang dipilih");
 
   const totals = useMemo(() => calculateFakturTotals(form), [form]);
 
@@ -127,10 +129,36 @@ export function FakturPenjualanModal({
       deliveryOrderId: undefined,
       noPengiriman: "",
       noPO: "",
+      uangMuka: 0,
       items: [],
     });
+    setUangMukaNote("Belum ada SO yang dipilih");
     setShowCustomerDropdown(false);
     setFilterCustomer("");
+  };
+
+  const getUangMukaBySalesOrder = async (noSo?: string, customerId?: number) => {
+    if (!noSo || !customerId) return { amount: 0, count: 0 };
+
+    try {
+      const list = await uangMukaService.getAll();
+      const matched = list.filter(
+        (item) =>
+          Number(item.customerId) === Number(customerId) &&
+          item.nomorSo?.trim().toLowerCase() === noSo.trim().toLowerCase()
+      );
+
+      return {
+        amount: matched.reduce(
+          (sum, item) => sum + Number(item.nominalUangMuka || item.totalAmount || 0),
+          0
+        ),
+        count: matched.length,
+      };
+    } catch (err) {
+      console.error("Gagal memuat uang muka terkait SO:", err);
+      return { amount: 0, count: 0 };
+    }
   };
 
   const openSoPicker = async () => {
@@ -152,6 +180,7 @@ export function FakturPenjualanModal({
     try {
       setLoadingSo(true);
       const detail = await salesOrderService.getDetailItems(so.id);
+      const uangMuka = await getUangMukaBySalesOrder(so.nomor, form.customerId);
       const soRecord = so as unknown as Record<string, unknown>;
       const items: FakturPenjualanItem[] = detail.map((item: SalesOrderDetailItem) => ({
         id: crypto.randomUUID(),
@@ -172,8 +201,14 @@ export function FakturPenjualanModal({
         noPO: so.poNumber ?? "",
         alamat: typeof soRecord.alamat === "string" ? soRecord.alamat : form.alamat,
         kenaPajak: typeof soRecord.kenaPajak === "boolean" ? soRecord.kenaPajak : form.kenaPajak,
+        uangMuka: uangMuka.amount,
         items,
       });
+      setUangMukaNote(
+        uangMuka.count > 0
+          ? `${uangMuka.count} uang muka terpakai dari SO ini`
+          : "Tidak ada uang muka untuk SO ini"
+      );
       setShowSoPicker(false);
     } catch (err) {
       console.error("Gagal memuat detail SO:", err);
@@ -225,6 +260,7 @@ export function FakturPenjualanModal({
         pengirimanPenjualanService.getDetailItems(delivery.id),
         getSalesOrderPriceMap(delivery.soId),
       ]);
+      const uangMuka = await getUangMukaBySalesOrder(delivery.noSo, delivery.customerId);
 
       const items: FakturPenjualanItem[] = detail.map((item: PengirimanDetailItem) => {
         const price = item.productId ? priceMap.get(item.productId) : undefined;
@@ -249,8 +285,14 @@ export function FakturPenjualanModal({
         noPO: delivery.noPO ?? "",
         alamat: delivery.alamatPengiriman || form.alamat,
         keterangan: delivery.keterangan || form.keterangan,
+        uangMuka: uangMuka.amount,
         items,
       });
+      setUangMukaNote(
+        uangMuka.count > 0
+          ? `${uangMuka.count} uang muka terpakai dari SO pengiriman ini`
+          : "Tidak ada uang muka untuk SO pengiriman ini"
+      );
       setShowDeliveryPicker(false);
     } catch (err) {
       console.error("Gagal memuat detail pengiriman:", err);
@@ -461,7 +503,15 @@ export function FakturPenjualanModal({
                 <SummaryRow label="Subtotal" value={formatRupiah(totals.subtotal)} />
                 <SummaryRow label="Diskon" value={formatRupiah(totals.discountTotal)} />
                 <SummaryRow label="PPN" value={formatRupiah(totals.taxTotal)} />
-                <div className="grid grid-cols-2 items-center gap-2"><span className="text-slate-500">Uang Muka</span><input type="number" min={0} value={form.uangMuka} onChange={(e) => patchForm({ uangMuka: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></div>
+                <div className="grid grid-cols-2 items-start gap-2">
+                  <div>
+                    <span className="text-slate-500">Uang Muka Terpakai</span>
+                    <p className="mt-0.5 text-[10px] leading-4 text-slate-400">{uangMukaNote}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-right font-semibold text-slate-700">
+                    {formatRupiah(form.uangMuka)}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 items-center gap-2"><span className="text-slate-500">Biaya Kirim</span><input type="number" min={0} value={form.biayaKirim} onChange={(e) => patchForm({ biayaKirim: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-base font-bold text-navy-900"><span>Total Faktur</span><span>{formatRupiah(totals.grandTotal)}</span></div>
               </div>

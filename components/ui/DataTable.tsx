@@ -1,9 +1,8 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-// ─── Column Type ───────────────────────────────────────────────────────────────
 export interface Column<T> {
   key: keyof T;
   label: string;
@@ -11,31 +10,33 @@ export interface Column<T> {
   render?: (value: T[keyof T], row: T) => React.ReactNode;
 }
 
-// ─── Props ─────────────────────────────────────────────────────────────────────
 interface DataTableProps<T> {
   title: string;
   columns: Column<T>[];
   data: T[];
-
   loading?: boolean;
-
   addLabel?: string;
   onAdd?: () => void;
-
   renderActions?: (row: T) => React.ReactNode;
-
   keyField?: keyof T;
   className?: string;
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+function extractValues(obj: unknown): string[] {
+  if (!obj || typeof obj !== "object") return [String(obj ?? "")];
+
+  return Object.values(obj).flatMap((value) => {
+    if (value === null || value === undefined) return [];
+    if (typeof value === "object") return extractValues(value);
+    return [String(value)];
+  });
+}
+
 export function DataTable<T extends object>({
   title,
   columns,
   data,
-
   loading = false,
-
   addLabel = "Tambah",
   onAdd,
   renderActions,
@@ -44,112 +45,38 @@ export function DataTable<T extends object>({
 }: DataTableProps<T>) {
   const [search, setSearch] = React.useState("");
 
-  // ─── Recursive Search Helper ────────────────────────────────────────────────
-  function flattenValues(obj: any): string[] {
-    const values: string[] = [];
-
-    Object.values(obj).forEach((value) => {
-      if (
-        value !== null &&
-        typeof value === "object"
-      ) {
-        values.push(
-          ...flattenValues(value)
-        );
-      } else {
-        values.push(String(value));
-      }
-    });
-
-    return values;
-  }
-
-  // ─── Filter ────────────────────────────────────────────────────────────────
   const filtered = React.useMemo(() => {
     if (!search) return data;
-
-    const keyword =
-      search.toLowerCase();
-
-    function extractValues(
-      obj: any
-    ): string[] {
-      const values: string[] = [];
-
-      Object.values(obj).forEach(
-        (value) => {
-          if (
-            value === null ||
-            value === undefined
-          )
-            return;
-
-          if (
-            typeof value === "object"
-          ) {
-            values.push(
-              ...extractValues(value)
-            );
-          } else {
-            values.push(
-              String(value)
-            );
-          }
-        }
-      );
-
-      return values;
-    }
-
+    const keyword = search.toLowerCase();
     return data.filter((row) =>
-      extractValues(row).some(
-        (value) =>
-          value
-            .toLowerCase()
-            .includes(keyword)
-      )
+      extractValues(row).some((value) => value.toLowerCase().includes(keyword))
     );
   }, [data, search]);
 
-  // ─── Loading State ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm font-medium text-slate-500 shadow-sm">
         Loading data...
       </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-slate-200 bg-white shadow-sm",
-        className
-      )}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 p-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-800">
-            {title}
-          </h2>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Search */}
+    <div className={cn("overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm", className)}>
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+        <h2 className="text-base font-bold text-slate-800">{title}</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             type="text"
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-navy-500"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition-colors focus:border-navy-500 focus:bg-white sm:w-64"
           />
-
-          {/* Add Button */}
           {onAdd && (
             <button
               onClick={onAdd}
-              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-medium text-white hover:bg-navy-800"
+              className="rounded-lg bg-navy-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-navy-800"
             >
               {addLabel}
             </button>
@@ -157,7 +84,6 @@ export function DataTable<T extends object>({
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse">
           <thead>
@@ -166,27 +92,23 @@ export function DataTable<T extends object>({
                 <th
                   key={String(column.key)}
                   style={{ width: column.width }}
-                  className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  className="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500"
                 >
                   {column.label}
                 </th>
               ))}
-
               {renderActions && (
-                <th className="border-b border-slate-200 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <th className="border-b border-slate-200 px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
               )}
             </tr>
           </thead>
-
           <tbody>
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={
-                    columns.length + (renderActions ? 1 : 0)
-                  }
+                  colSpan={columns.length + (renderActions ? 1 : 0)}
                   className="px-4 py-10 text-center text-sm text-slate-400"
                 >
                   No data available
@@ -194,25 +116,15 @@ export function DataTable<T extends object>({
               </tr>
             ) : (
               filtered.map((row) => (
-                <tr
-                  key={String(row[keyField])}
-                  className="hover:bg-slate-50"
-                >
+                <tr key={String(row[keyField])} className="transition-colors hover:bg-slate-50">
                   {columns.map((column) => {
                     const value = row[column.key];
-
                     return (
-                      <td
-                        key={String(column.key)}
-                        className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700"
-                      >
-                        {column.render
-                          ? column.render(value, row)
-                          : String(value)}
+                      <td key={String(column.key)} className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                        {column.render ? column.render(value, row) : String(value)}
                       </td>
                     );
                   })}
-
                   {renderActions && (
                     <td className="border-b border-slate-100 px-4 py-3 text-right">
                       {renderActions(row)}

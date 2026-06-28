@@ -153,12 +153,7 @@ export default function SalesOrderPrintPage() {
         .header-logo {
           width: 60px;
           height: 60px;
-          border: 1px solid #ccc;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 8px;
-          color: #999;
+          object-fit: contain;
           margin-right: 12px;
           flex-shrink: 0;
         }
@@ -373,7 +368,8 @@ export default function SalesOrderPrintPage() {
 
         {/* Kop Surat */}
         <div className="header">
-          <div className="header-logo">LOGO</div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/trinova-logo.png" alt="Trinova" className="header-logo" />
           <div className="header-company">
             <h1>PT Hang Song Machinery Indonesia</h1>
             <p>Kab. Bekasi Jawa Barat, Indonesia</p>
@@ -447,7 +443,7 @@ export default function SalesOrderPrintPage() {
           <tbody>
             {(data.items ?? []).map((item: SalesOrderDetailItem, idx: number) => (
               <tr key={idx}>
-                <td className="center">{(item as any).productCode || (idx + 1).toString().padStart(6, "0")}</td>
+                <td className="center">{item.productCode || (idx + 1).toString().padStart(6, "0")}</td>
                 <td>{item.productName}</td>
                 <td className="center">{item.productQty}</td>
                 <td className="right">{formatRupiah(item.productPrice)}</td>

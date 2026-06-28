@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
@@ -66,6 +67,7 @@ const COLUMNS: Column<SalesInvoice>[] = [
 ];
 
 export default function SalesInvoicePage() {
+  const router = useRouter();
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -130,11 +132,12 @@ export default function SalesInvoicePage() {
         onAdd={() => setModalOpen(true)}
         loading={isLoading}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
-        renderActions={() => (
+        renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               type="button"
               title="Lihat Detail"
+              onClick={() => router.push(`/penjualan/invoice/${row.id}`)}
               className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-navy-700"
             >
               <Eye size={15} />

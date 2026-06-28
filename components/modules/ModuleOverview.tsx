@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { StatCard } from "@/components/ui";
 import type { StatCardData, NavModule } from "@/types";
 
@@ -9,35 +9,32 @@ interface ModuleOverviewProps {
 
 export function ModuleOverview({ module, stats }: ModuleOverviewProps) {
   return (
-    <div>
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+    <div className="space-y-7">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
       </div>
 
-      {/* Quick access */}
       {module.children?.map((group) => (
-        <div key={group.group} className="mb-6">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 font-serif">
+        <div key={group.group}>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
             {group.group}
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {group.items.map((item) => (
               <Link
                 key={item.id}
                 href={item.href}
-                className="group bg-white rounded-xl border border-slate-200 p-5 shadow-sm
-                           hover:border-gold-500 hover:shadow-md transition-all duration-200"
+                className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:border-gold-500 hover:shadow-md"
               >
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gold-500 mb-1.5">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-gold-500">
                   {group.group}
                 </p>
-                <p className="text-[14px] font-bold text-navy-900 font-serif group-hover:text-navy-600 transition-colors">
+                <p className="text-[14px] font-bold text-navy-900 transition-colors group-hover:text-navy-600">
                   {item.label}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">Kelola data →</p>
+                <p className="mt-1 text-xs text-slate-400">Kelola data</p>
               </Link>
             ))}
           </div>
