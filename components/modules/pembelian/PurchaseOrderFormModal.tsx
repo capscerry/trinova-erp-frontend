@@ -207,7 +207,7 @@ export default function PurchaseOrderFormModal({
         // Normalize items to ensure tax fields exist (older records won't have them)
         const normalizedItems = (initialData.items ?? []).map(item => ({
           ...item,
-          tax_percent: item.tax_percent ?? 0,
+          tax_percent: item.tax_percent ?? item.tax_percentage ?? 0,
           tax_amount: item.tax_amount ?? 0,
         }));
         setForm({ ...initialData, items: normalizedItems });

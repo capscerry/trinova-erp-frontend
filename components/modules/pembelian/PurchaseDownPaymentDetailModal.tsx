@@ -7,14 +7,22 @@ import {
   Calendar,
   Wallet,
   BadgeCheck,
+  Hash,
+  Clock,
 } from "lucide-react";
 
 interface PurchaseDownPaymentDetailData {
+  purchase_down_payment_id?: number;
+
   dp_number: string;
 
   po_number: string;
 
   supplier_name: string;
+
+  supplier_id?: number;
+
+  purchase_order_id?: number;
 
   payment_date: string;
 
@@ -27,6 +35,8 @@ interface PurchaseDownPaymentDetailData {
   status: string;
 
   notes?: string;
+
+  created_at?: string;
 }
 
 interface PurchaseDownPaymentDetailModalProps {
@@ -150,6 +160,14 @@ export default function PurchaseDownPaymentDetailModal({
 
             <div className="grid grid-cols-2 gap-4">
 
+              {data.purchase_down_payment_id != null && (
+                <InfoCard
+                  icon={<Hash size={14} />}
+                  label="DP ID"
+                  value={String(data.purchase_down_payment_id)}
+                />
+              )}
+
               <InfoCard
                 icon={<ReceiptText size={14} />}
                 label="DP Number"
@@ -162,17 +180,41 @@ export default function PurchaseDownPaymentDetailModal({
                 value={data.po_number}
               />
 
+              {data.purchase_order_id != null && (
+                <InfoCard
+                  icon={<Hash size={14} />}
+                  label="PO ID"
+                  value={String(data.purchase_order_id)}
+                />
+              )}
+
               <InfoCard
                 icon={<Building2 size={14} />}
                 label="Supplier"
                 value={data.supplier_name}
               />
 
+              {data.supplier_id != null && (
+                <InfoCard
+                  icon={<Building2 size={14} />}
+                  label="Supplier ID"
+                  value={String(data.supplier_id)}
+                />
+              )}
+
               <InfoCard
                 icon={<Calendar size={14} />}
                 label="Payment Date"
                 value={formatDate(data.payment_date)}
               />
+
+              {data.created_at && (
+                <InfoCard
+                  icon={<Clock size={14} />}
+                  label="Created At"
+                  value={formatDate(data.created_at)}
+                />
+              )}
 
               <InfoCard
                 icon={<Wallet size={14} />}

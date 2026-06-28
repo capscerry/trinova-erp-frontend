@@ -598,7 +598,7 @@ export default function PurchaseOrderPage() {
             price:
               Number(item.price),
 
-            tax_percent:
+            tax_percentage:
               Number(item.tax_percent ?? 0),
 
             tax_amount:
@@ -906,41 +906,66 @@ export default function PurchaseOrderPage() {
 
                   items:
                     detailItems.map(
-                      (item: any, idx: number) => ({
-                        id:
-                          item.purchase_order_detail_id != null
-                            ? `${item.purchase_order_detail_id}-${idx}`
-                            : crypto.randomUUID(),
+                      (item: any, idx: number) => {
+                        console.log("[PO Detail] raw item:", JSON.stringify(item));
+                        const product = products.find(
+                          (p) => p.id === item.product_id?.toString()
+                        );
+                        return {
+                          id:
+                            item.purchase_order_detail_id != null
+                              ? `${item.purchase_order_detail_id}-${idx}`
+                              : crypto.randomUUID(),
 
                           product_id:
                             item.product_id?.toString(),
 
                           product_name:
-                            products.find(
-                              (p) =>
-                                p.id ===
-                                item.product_id?.toString()
-                            )?.nama ||
+                            product?.nama ||
                             `Product ${item.product_id}`,
 
                           isExisting: true,
 
-                        quantity:
-                          item.quantity,
+                          quantity:
+                            item.quantity,
 
-                        uom_id:
-                          item.uom_id?.toString(),
+                          uom_id:
+                            item.uom_id?.toString(),
 
-                        uom_name:
-                          item.uom?.uom_name ||
-                          "-",
+                          uom_name:
+                            item.uom?.uom_name ||
+                            uoms.find(
+                              (u) => u.id === item.uom_id?.toString()
+                            )?.nama ||
+                            "-",
 
-                        price:
-                          item.price,
+                          price:
+                            item.price,
 
-                        subtotal:
-                          item.subtotal,
-                      })
+                          tax_percent:
+                            Number(item.tax_percentage ?? item.tax_percent ?? 0),
+
+                          tax_amount: (() => {
+                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                            const stored = Number(item.tax_amount ?? 0);
+                            // Recompute if the stored value is missing/zero but tax % is set
+                            if (taxPct > 0 && stored === 0) {
+                              const base = Number(item.quantity) * Number(item.price);
+                              return base * (taxPct / 100);
+                            }
+                            return stored;
+                          })(),
+
+                          subtotal:
+                            Number(item.subtotal),
+
+                          available_stock:
+                            product?.available_stock,
+
+                          lead_time_days:
+                            product?.lead_time_days,
+                        };
+                      }
                     ),
                 });
 
@@ -1023,6 +1048,19 @@ export default function PurchaseOrderPage() {
 
                         price:
                           item.price,
+
+                        tax_percent:
+                          Number(item.tax_percentage ?? item.tax_percent ?? 0),
+
+                        tax_amount: (() => {
+                          const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                          const stored = Number(item.tax_amount ?? 0);
+                          if (taxPct > 0 && stored === 0) {
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base * (taxPct / 100);
+                          }
+                          return stored;
+                        })(),
 
                         subtotal:
                           item.subtotal,

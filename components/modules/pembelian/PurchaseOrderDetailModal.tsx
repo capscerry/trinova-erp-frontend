@@ -23,7 +23,15 @@ interface PurchaseOrderItem {
 
   price: number;
 
+  tax_percent: number;
+
+  tax_amount: number;
+
   subtotal: number;
+
+  available_stock?: number;
+
+  lead_time_days?: number;
 }
 
 interface PurchaseOrderDetailData {
@@ -292,9 +300,13 @@ export default function PurchaseOrderDetailModal({
 
                         {[
                           "Product",
+                          "Stock",
+                          "Lead Time",
                           "Qty",
                           "UOM",
                           "Price",
+                          "Tax %",
+                          "Tax Amount",
                           "Subtotal",
                         ].map((header) => (
 
@@ -333,15 +345,37 @@ export default function PurchaseOrderDetailModal({
                           </td>
 
                           <td className="px-4 py-3 text-slate-600">
+                            {item.available_stock ?? "-"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {item.lead_time_days != null
+                              ? `${item.lead_time_days} Hari`
+                              : "-"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600">
                             {item.quantity}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600">
-                            {item.uom_name}
+                            {item.uom_name || "-"}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                             {formatRupiah(item.price)}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {item.tax_percent > 0
+                              ? `${item.tax_percent}%`
+                              : "0%"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
+                            {item.tax_percent > 0
+                              ? `+${formatRupiah(item.tax_amount)}`
+                              : "-"}
                           </td>
 
                           <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
