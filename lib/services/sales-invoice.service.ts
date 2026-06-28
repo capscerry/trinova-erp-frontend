@@ -1,11 +1,13 @@
 import { api, type ApiResponse } from "@/lib/api";
+import { normalizeSalesStatus } from "@/lib/sales-status";
 
 export type SalesInvoiceStatus =
   | "Draft"
-  | "Belum Dibayar"
-  | "Dibayar Sebagian"
-  | "Lunas"
-  | "Dibatalkan";
+  | "Issued"
+  | "Partially Paid"
+  | "Paid"
+  | "Overdue"
+  | "Cancelled";
 
 export interface SalesInvoiceApi {
   id: number;
@@ -151,7 +153,7 @@ export function mapSalesInvoice(item: SalesInvoiceApi): SalesInvoice {
     grandTotal: item.grandTotal ?? 0,
     paidAmount: item.paidAmount ?? 0,
     remainingAmount: item.remainingAmount ?? item.grandTotal ?? 0,
-    status: item.status ?? "Draft",
+    status: normalizeSalesStatus("sales-invoice", item.status),
     notes: item.notes ?? "",
   };
 }

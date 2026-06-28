@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import {
@@ -11,6 +11,8 @@ import type { Column } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
 import { uangMukaService } from "@/lib/services/penjualan.service";
 import { Eye } from "lucide-react";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 export interface UangMuka {
   no: number;
@@ -28,7 +30,7 @@ export interface UangMuka {
   fakturType: string;
   noPesanan: string;
   totalHargaPesanan: number;
-  isActive: boolean;
+  status?: string;
 }
 
 const today = new Date().toLocaleDateString("id-ID", {
@@ -37,14 +39,30 @@ const today = new Date().toLocaleDateString("id-ID", {
   year: "numeric",
 });
 
+const formatDate = (d?: string | null) => {
+  if (!d) return "-";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+};
+
 const COLUMNS: Column<UangMuka>[] = [
-  { key: "noFaktur", label: "No Faktur", width: "160px" },
-  { key: "tanggal", label: "Tanggal", width: "120px" },
-  { key: "pelanggan", label: "Pelanggan" },
+  { key: "noFaktur", label: "Invoice No.", width: "160px" },
+  {
+    key: "tanggal",
+    label: "Date",
+    width: "120px",
+    render: (_value, row) => formatDate(row.tanggal),
+  },
+  { key: "pelanggan", label: "Customer" },
   { key: "noPesanan", label: "No SO", width: "140px" },
   {
     key: "uangMuka",
-    label: "Uang Muka",
+    label: "Down Payment",
     width: "150px",
     render: (value: unknown) =>
       Number(value || 0).toLocaleString("id-ID", {
@@ -54,19 +72,11 @@ const COLUMNS: Column<UangMuka>[] = [
       }),
   },
   {
-    key: "isActive",
+    key: "status",
     label: "Status",
-    width: "100px",
+    width: "150px",
     render: (_: unknown, row: UangMuka) => (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-          row.isActive
-            ? "bg-green-100 text-green-800"
-            : "bg-red-100 text-red-800"
-        }`}
-      >
-        {row.isActive ? "Aktif" : "Tidak Aktif"}
-      </span>
+      <SalesStatusSelect module="down-payment" id={row.id} value={row.status} />
     ),
   },
 ];
@@ -82,7 +92,12 @@ export default function UangMukaPage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchData = async () => {
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
+    setMessage(msg);
+    setMessageType(type);
+  }, []);
+
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await uangMukaService.getAll();
@@ -91,7 +106,7 @@ export default function UangMukaPage() {
           no: index + 1,
           id: item.id ?? index + 1,
           noFaktur: item.noFaktur,
-          tanggal: new Date(item.tanggal).toLocaleDateString("id-ID"),
+          tanggal: item.tanggal,
           pelanggan: item.customerName ?? "",
           uangMuka: item.nominalUangMuka,
           kenaPajak: false,
@@ -103,20 +118,20 @@ export default function UangMukaPage() {
           fakturType: "Faktur Penjualan",
           noPesanan: item.nomorSo ?? "",
           totalHargaPesanan: item.totalAmount ?? 0,
-          isActive: true,
+          status: item.status,
         }))
       );
     } catch (error) {
       console.error(error);
-      showMessage("Gagal memuat data uang muka", "error");
+      showMessage("Failed to load down payments", "error");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showMessage]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     const fromSalesOrder = searchParams.get("fromSalesOrder");
@@ -149,11 +164,6 @@ export default function UangMukaPage() {
     setModalOpen(true);
   }, [searchParams]);
 
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
-    setMessage(msg);
-    setMessageType(type);
-  };
-
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(""), 3000);
@@ -176,7 +186,7 @@ export default function UangMukaPage() {
   // benar-benar ditutup lewat handleModalClose di bawah.
   const handleSubmit = (formData: UangMukaFormData) => {
     showMessage(
-      formData.id ? "Uang muka berhasil diperbarui" : "Uang muka berhasil ditambahkan",
+      formData.id ? "Down payment updated successfully" : "Down payment added successfully",
       "success"
     );
   };
@@ -190,7 +200,7 @@ export default function UangMukaPage() {
   };
 
   return (
-    <AppShell title="Uang Muka" subtitle="Manajemen uang muka penjualan">
+    <AppShell title="Sales Down Payment" subtitle="Manage customer down payments">
       {message && (
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
@@ -204,19 +214,24 @@ export default function UangMukaPage() {
       )}
 
       <DataTable
-        title="Daftar Uang Muka"
+        title="Down Payment List"
         columns={COLUMNS}
         data={data}
         keyField="id"
-        addLabel="Tambah Uang Muka"
+        addLabel="Add Down Payment"
         onAdd={handleTambah}
+        filters={{
+          dateKey: "tanggal",
+          statusKey: "status",
+          statusOptions: SALES_STATUS_OPTIONS["down-payment"],
+        }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
-              title="Lihat Detail"
+              title="View detail"
               className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

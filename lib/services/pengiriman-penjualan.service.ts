@@ -1,4 +1,5 @@
 import { api, type ApiResponse } from "@/lib/api";
+import { normalizeSalesStatus } from "@/lib/sales-status";
 
 // ─── Tipe Pengiriman (Shipping Type) ──────────────────────────────────────────
 // CATATAN: endpoint "/shipping-type" adalah ASUMSI SEMENTARA. Ganti URL ini
@@ -49,6 +50,7 @@ export interface DeliveryOrderHeaderApi {
   address?: string;
   notes?: string;
   soId?: number;
+  status?: string;
 }
 
 export interface PengirimanPenjualan {
@@ -64,6 +66,7 @@ export interface PengirimanPenjualan {
   shippingType: string;
   alamatPengiriman: string;
   keterangan: string;
+  status?: string;
 }
 
 export function mapPengirimanPenjualan(item: DeliveryOrderHeaderApi): PengirimanPenjualan {
@@ -80,6 +83,7 @@ export function mapPengirimanPenjualan(item: DeliveryOrderHeaderApi): Pengiriman
     shippingType: item.deliveryShippingName ?? "",
     alamatPengiriman: item.address ?? "",
     keterangan: item.notes ?? "",
+    status: normalizeSalesStatus("delivery-order", item.status),
   };
 }
 

@@ -24,27 +24,27 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
   },
   {
     id: "penjualan",
-    label: "Penjualan",
+    label: "Sales",
     allowedRoles: ["admin", "penjualan"],
     children: [
       {
         group: "Master Data",
         items: [
-          { id: "penjualan.pelanggan",         label: "Pelanggan",          href: "/penjualan/pelanggan" },
-          { id: "penjualan.kategori_pelanggan", label: "Kategori Pelanggan", href: "/penjualan/kategori-pelanggan" },
-          { id: "penjualan.kategori_penjualan", label: "Kategori Penjualan",    href: "/penjualan/kategori-penjualan" },
+          { id: "penjualan.pelanggan",         label: "Customers",          href: "/penjualan/pelanggan" },
+          { id: "penjualan.kategori_pelanggan", label: "Customer Categories", href: "/penjualan/kategori-pelanggan" },
+          { id: "penjualan.kategori_penjualan", label: "Sales Categories",    href: "/penjualan/kategori-penjualan" },
         ],
       },
       {
         group: "Operasional",
         items: [
-          { id: "penjualan.order",      label: "Penawaran Penjualan", href: "/penjualan/quotation" },
-          { id: "penjualan.order_list", label: "Pesanan Penjualan",     href: "/penjualan/order" },
-          { id: "penjualan.invoice",    label: "Faktur Penjualan",         href: "/penjualan/invoice" },
-          { id: "penjualan.retur",      label: "Retur Penjualan",   href: "/penjualan/retur" },
-          { id: "penjualn.uang_muka", label  : "Uang Muka Penjualan" , href : "/penjualan/uang-muka"},
-          { id: "penjualan.pengiriman_penjualan", label : "Pengiriman Pesanan", href : "/penjualan/pengiriman-penjualan"},
-          {id : "penjualan.penerimaan_penjualan", label : "Penerimaan Penjualan", href : "/penjualan/penerimaan-penjualan"}
+          { id: "penjualan.order",      label: "Sales Quotations", href: "/penjualan/quotation" },
+          { id: "penjualan.order_list", label: "Sales Orders",     href: "/penjualan/order" },
+          { id: "penjualan.invoice",    label: "Sales Invoices",         href: "/penjualan/invoice" },
+          { id: "penjualan.retur",      label: "Sales Returns",   href: "/penjualan/retur" },
+          { id: "penjualn.uang_muka", label  : "Sales Down Payments" , href : "/penjualan/uang-muka"},
+          { id: "penjualan.pengiriman_penjualan", label : "Delivery Orders", href : "/penjualan/pengiriman-penjualan"},
+          {id : "penjualan.penerimaan_penjualan", label : "Sales Receipts", href : "/penjualan/penerimaan-penjualan"}
         ],
       },
     ],

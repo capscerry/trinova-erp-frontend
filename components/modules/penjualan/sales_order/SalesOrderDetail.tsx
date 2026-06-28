@@ -12,6 +12,7 @@ import {
 } from "./SalesOrderType";
 import { productDropdownService, type Product } from "@/lib/services/penjualan.service";
 import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
+import { ProductStockInfo } from "@/components/modules/penjualan/ProductStockInfo";
 
 const SATUAN_OPTIONS_FALLBACK = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
@@ -160,6 +161,15 @@ export function SalesOrderDetailForm({
                       disabled={loadingProduk}
                       onChange={(v) => selectProduk(item.id, v)}
                     />
+                    <div className="mt-2">
+                      <ProductStockInfo
+                        productId={item.productId}
+                        warehouseId={item.warehouseId}
+                        warehouseName={item.warehouseName}
+                        compact
+                        requireWarehouse
+                      />
+                    </div>
                   </td>
 
                   {/* Deskripsi */}

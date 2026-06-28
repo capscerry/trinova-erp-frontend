@@ -27,13 +27,14 @@ import {
   type ShippingType,
 } from "@/lib/services/pengiriman-penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
+import { ProductStockInfo } from "@/components/modules/penjualan/ProductStockInfo";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PengirimanModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PengirimanFormData) => void;
-  initialData?: Partial<PengirimanFormData> | any;
+  initialData?: Partial<PengirimanFormData>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -117,7 +118,7 @@ export function PengirimanModal({
       alamatPengiriman: data.alamatPengiriman ?? "",
       keterangan: data.keterangan ?? "",
       items: data.items?.length
-        ? data.items.map((it: any) => ({
+        ? data.items.map((it: Partial<PengirimanItemForm>) => ({
             id: it.id ?? crypto.randomUUID(),
             productId: it.productId,
             productCode: it.productCode ?? "",
@@ -260,12 +261,9 @@ export function PengirimanModal({
 
       await pengirimanPenjualanService.create(payload);
       onSubmit(form);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("❌ Gagal menyimpan pengiriman:", err);
-      alert(
-        "Gagal menyimpan data: " +
-          (err?.response?.data?.message || err?.message || "Terjadi kesalahan")
-      );
+      alert("Gagal menyimpan data: " + getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -606,6 +604,9 @@ export function PengirimanModal({
                                 className={cn(inputClass, "py-1.5")}
                               />
                             )}
+                            <div className="mt-2">
+                              <ProductStockInfo productId={item.productId} compact />
+                            </div>
                           </td>
                           <td className="px-3 py-2">
                             {form.salesOrderId ? (
@@ -704,6 +705,12 @@ export function PengirimanModal({
 }
 
 // ─── FormField ────────────────────────────────────────────────────────────────
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Terjadi kesalahan";
+}
+
 function FormField({
   label,
   icon,

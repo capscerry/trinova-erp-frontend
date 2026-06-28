@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { X, Search, FileDown, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
   salesOrderService,
   type SalesOrder,
@@ -109,12 +108,13 @@ export function SalesOrderPickerModal({
   // ── Confirm ──────────────────────────────────────────
   const handleConfirm = () => {
     if (!selectedSo) return;
+    const selectedSoRecord = selectedSo as SalesOrder & { alamat?: string };
 
     onConfirm({
       id: Number(selectedSo.id),
       nomor: selectedSo.nomor,
       poNumber: selectedSo.poNumber ?? "",
-      alamat: (selectedSo as any).alamat ?? "",
+      alamat: selectedSoRecord.alamat ?? "",
       keterangan: selectedSo.keterangan ?? "",
       total: selectedSo.total ?? 0,
     });

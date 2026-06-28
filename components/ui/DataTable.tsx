@@ -10,6 +10,12 @@ export interface Column<T> {
   render?: (value: T[keyof T], row: T) => React.ReactNode;
 }
 
+interface DataTableFilters<T> {
+  dateKey?: keyof T;
+  statusKey?: keyof T;
+  statusOptions?: string[];
+}
+
 interface DataTableProps<T> {
   title: string;
   columns: Column<T>[];
@@ -20,6 +26,7 @@ interface DataTableProps<T> {
   renderActions?: (row: T) => React.ReactNode;
   keyField?: keyof T;
   className?: string;
+  filters?: DataTableFilters<T>;
 }
 
 function extractValues(obj: unknown): string[] {
@@ -42,16 +49,46 @@ export function DataTable<T extends object>({
   renderActions,
   keyField = "id" as keyof T,
   className,
+  filters,
 }: DataTableProps<T>) {
   const [search, setSearch] = React.useState("");
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
+  const [status, setStatus] = React.useState("All");
+  const dateKey = filters?.dateKey;
+  const statusKey = filters?.statusKey;
+  const statusOptions = filters?.statusOptions ?? [];
 
   const filtered = React.useMemo(() => {
-    if (!search) return data;
     const keyword = search.toLowerCase();
-    return data.filter((row) =>
-      extractValues(row).some((value) => value.toLowerCase().includes(keyword))
-    );
-  }, [data, search]);
+    return data.filter((row) => {
+      const matchSearch =
+        !search ||
+        extractValues(row).some((value) => value.toLowerCase().includes(keyword));
+
+      const rawStatus = statusKey ? String(row[statusKey] ?? "") : "";
+      const matchStatus =
+        !statusKey ||
+        status === "All" ||
+        rawStatus.toLowerCase() === status.toLowerCase();
+
+      const rawDate = dateKey ? row[dateKey] : undefined;
+      const rowDate = toDateOnly(rawDate);
+      const matchDateFrom = !dateKey || !dateFrom || (rowDate !== "" && rowDate >= dateFrom);
+      const matchDateTo = !dateKey || !dateTo || (rowDate !== "" && rowDate <= dateTo);
+
+      return matchSearch && matchStatus && matchDateFrom && matchDateTo;
+    });
+  }, [data, dateFrom, dateTo, dateKey, search, status, statusKey]);
+
+  const hasAdvancedFilter = Boolean(dateKey || statusKey);
+  const hasActiveAdvancedFilter = Boolean(dateFrom || dateTo || status !== "All");
+
+  const resetAdvancedFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setStatus("All");
+  };
 
   if (loading) {
     return (
@@ -63,7 +100,8 @@ export function DataTable<T extends object>({
 
   return (
     <div className={cn("overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm", className)}>
-      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-base font-bold text-slate-800">{title}</h2>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
@@ -82,6 +120,56 @@ export function DataTable<T extends object>({
             </button>
           )}
         </div>
+        </div>
+
+        {hasAdvancedFilter && (
+          <div className="flex flex-wrap items-center gap-2">
+            {dateKey && (
+              <>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(event) => setDateFrom(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 outline-none transition-colors focus:border-navy-500"
+                  aria-label="Date from"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(event) => setDateTo(event.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 outline-none transition-colors focus:border-navy-500"
+                  aria-label="Date to"
+                />
+              </>
+            )}
+
+            {statusKey && (
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 outline-none transition-colors focus:border-navy-500"
+                aria-label="Status"
+              >
+                <option value="All">All Status</option>
+                {statusOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {hasActiveAdvancedFilter && (
+              <button
+                type="button"
+                onClick={resetAdvancedFilters}
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -138,4 +226,18 @@ export function DataTable<T extends object>({
       </div>
     </div>
   );
+}
+
+function toDateOnly(value: unknown) {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }

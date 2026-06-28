@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isApprovedForPicker } from "@/lib/sales-status";
 import { customerService } from "@/lib/services/customer.service";
 import {
   salesOrderService,
@@ -41,6 +42,7 @@ import {
   type FakturPenjualanFormData,
   type FakturPenjualanItem,
 } from "./FakturPenjualanType";
+import { ProductStockInfo } from "@/components/modules/penjualan/ProductStockInfo";
 
 export type { FakturPenjualanFormData } from "./FakturPenjualanType";
 
@@ -224,7 +226,13 @@ export function FakturPenjualanModal({
     setLoadingDelivery(true);
     try {
       const result = await pengirimanPenjualanService.getAll();
-      setDeliveryList(result.filter((item) => item.customerId === form.customerId));
+      setDeliveryList(
+        result.filter(
+          (item) =>
+            item.customerId === form.customerId &&
+            isApprovedForPicker("delivery-order", item.status)
+        )
+      );
     } catch (err) {
       console.error("Gagal memuat pengiriman:", err);
       setDeliveryList([]);
@@ -478,7 +486,12 @@ export function FakturPenjualanModal({
                         const lineTotal = gross - gross * (Number(item.diskon || 0) / 100);
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-2"><input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
+                            <td className="px-3 py-2">
+                              <input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} />
+                              <div className="mt-2">
+                                <ProductStockInfo productId={item.productId} compact />
+                              </div>
+                            </td>
                             <td className="px-3 py-2"><input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
                             <td className="px-3 py-2"><input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
                             <td className="px-3 py-2"><input type="number" min={0} value={item.harga} onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>

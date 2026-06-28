@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import type { Column } from "@/components/ui";
@@ -15,6 +15,8 @@ import {
   salesOrderService,
   type SalesOrder,
 } from "@/lib/services/penjualan.service";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -35,25 +37,40 @@ const formatDate = (d?: string | null) => {
 };
 
 const COLUMNS: Column<SalesOrder>[] = [
-  { key: "nomor", label: "Nomor SO", width: "18%" },
+  { key: "nomor", label: "SO Number", width: "16%" },
   {
     key: "tanggal",
-    label: "Tanggal",
+    label: "Date",
     width: "14%",
     render: (_value, row) => formatDate(row.tanggal),
   },
-  { key: "pelanggan", label: "Pelanggan", width: "30%" },
+  { key: "pelanggan", label: "Customer", width: "24%" },
   {
     key: "tanggalKirim",
-    label: "Tanggal Kirim",
-    width: "16%",
+    label: "Delivery Date",
+    width: "14%",
     render: (_value, row) => formatDate(row.tanggalKirim),
   },
   {
     key: "total",
     label: "Total",
-    width: "16%",
+    width: "14%",
     render: (_value, row) => formatRupiah(row.total ?? 0),
+  },
+  {
+    key: "status",
+    label: "Status",
+    width: "16%",
+    render: (_value, row) => (
+      <SalesStatusSelect
+        module="sales-order"
+        id={row.id}
+        value={row.status}
+        onUpdated={(status) => {
+          row.status = status as SalesOrder["status"];
+        }}
+      />
+    ),
   },
 ];
 export default function SalesOrderPage() {
@@ -74,27 +91,27 @@ function SalesOrderPageInner() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await salesOrderService.getAll();
       setData(result);
     } catch (error) {
       console.error(error);
-      showMessage("Gagal memuat data sales order", "error");
+      showMessage("Failed to load sales orders", "error");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showMessage]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!message) return;
@@ -109,7 +126,7 @@ function SalesOrderPageInner() {
   };
 
   return (
-    <AppShell title="Sales Order" subtitle="Kelola pesanan penjualan">
+    <AppShell title="Sales Order" subtitle="Manage customer sales orders">
       {message && (
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
@@ -123,12 +140,17 @@ function SalesOrderPageInner() {
       )}
 
       <DataTable
-        title="Daftar Sales Order"
+        title="Sales Order List"
         columns={COLUMNS}
         data={data}
         keyField="id"
-        addLabel="Tambah Sales Order"
+        addLabel="Add Sales Order"
         onAdd={handleTambah}
+        filters={{
+          dateKey: "tanggal",
+          statusKey: "status",
+          statusOptions: SALES_STATUS_OPTIONS["sales-order"],
+        }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         // isLoading={isLoading}
         renderActions={(row) => (
@@ -136,7 +158,7 @@ function SalesOrderPageInner() {
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
-              title="Lihat Detail"
+              title="View detail"
               className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

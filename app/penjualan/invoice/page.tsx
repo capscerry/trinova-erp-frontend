@@ -14,6 +14,8 @@ import {
   salesInvoiceService,
   type SalesInvoice,
 } from "@/lib/services/sales-invoice.service";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -34,34 +36,32 @@ const formatDate = (d?: string | null) => {
 };
 
 const COLUMNS: Column<SalesInvoice>[] = [
-  { key: "invoiceNumber", label: "No Faktur", width: "17%" },
+  { key: "invoiceNumber", label: "Invoice No.", width: "16%" },
   {
     key: "invoiceDate",
-    label: "Tanggal",
+    label: "Date",
     width: "14%",
     render: (_v, row) => formatDate(row.invoiceDate),
   },
-  { key: "customerName", label: "Pelanggan", width: "25%" },
+  { key: "customerName", label: "Customer", width: "22%" },
   {
     key: "salesOrderNumber",
     label: "No SO",
-    width: "16%",
+    width: "14%",
     render: (_v, row) => row.salesOrderNumber || "-",
   },
   {
     key: "grandTotal",
     label: "Total",
-    width: "16%",
+    width: "14%",
     render: (_v, row) => formatRupiah(row.grandTotal),
   },
   {
     key: "status",
     label: "Status",
-    width: "12%",
+    width: "16%",
     render: (_v, row) => (
-      <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-        {row.status || "Draft"}
-      </span>
+      <SalesStatusSelect module="sales-invoice" id={row.id} value={row.status} />
     ),
   },
 ];
@@ -86,7 +86,7 @@ export default function SalesInvoicePage() {
       setData(result);
     } catch (err) {
       console.error(err);
-      showMessage("Gagal memuat data faktur penjualan", "error");
+      showMessage("Failed to load sales invoices", "error");
     } finally {
       setIsLoading(false);
     }
@@ -105,12 +105,12 @@ export default function SalesInvoicePage() {
   const handleSubmit = (form: FakturPenjualanFormData) => {
     void form;
     setModalOpen(false);
-    showMessage("Faktur penjualan berhasil disimpan");
+    showMessage("Sales invoice saved successfully");
     fetchData();
   };
 
   return (
-    <AppShell title="Faktur Penjualan" subtitle="Kelola tagihan penjualan pelanggan">
+    <AppShell title="Sales Invoice" subtitle="Manage customer billing documents">
       {message && (
         <div
           className={`mb-4 rounded-lg border px-4 py-3 text-sm font-semibold ${
@@ -124,19 +124,24 @@ export default function SalesInvoicePage() {
       )}
 
       <DataTable
-        title="Daftar Faktur Penjualan"
+        title="Sales Invoice List"
         columns={COLUMNS}
         data={data}
         keyField="id"
-        addLabel="Tambah Faktur"
+        addLabel="Add Invoice"
         onAdd={() => setModalOpen(true)}
         loading={isLoading}
+        filters={{
+          dateKey: "invoiceDate",
+          statusKey: "status",
+          statusOptions: SALES_STATUS_OPTIONS["sales-invoice"],
+        }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               type="button"
-              title="Lihat Detail"
+              title="View detail"
               onClick={() => router.push(`/penjualan/invoice/${row.id}`)}
               className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-navy-700"
             >

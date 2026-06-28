@@ -133,6 +133,7 @@ export function PengirimanSOPickerModal({
 
   const handleConfirm = () => {
     if (!selectedSo) return;
+    const selectedSoRecord = selectedSo as SalesOrder & { alamat?: string };
 
     const items: PengirimanSOPickerResultItem[] = detailItems
       .map((it, idx) => ({ it, idx }))
@@ -154,7 +155,7 @@ export function PengirimanSOPickerModal({
         id: Number(selectedSo.id),
         nomor: selectedSo.nomor,
         poNumber: selectedSo.poNumber ?? "",
-        alamat: (selectedSo as any).alamat ?? "",
+        alamat: selectedSoRecord.alamat ?? "",
       },
       items
     );

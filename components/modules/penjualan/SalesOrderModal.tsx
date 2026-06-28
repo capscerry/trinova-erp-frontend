@@ -14,11 +14,32 @@ import {
   newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
+import { salesStockService } from "@/lib/services/sales-stock.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
 
 export type { SalesOrderItem, SalesOrderFormData } from "./sales_order/SalesOrderType";
+
+type SavedSalesOrderResponse = {
+  header?: {
+    orderId?: number;
+    soNumber?: string;
+    orderNumber?: string;
+    customerId?: number;
+    address?: string;
+    notes?: string;
+    subTotal?: number;
+    subtotal?: number;
+    total?: number;
+  };
+  orderId?: number;
+  soNumber?: string;
+  orderNumber?: string;
+  subTotal?: number;
+  subtotal?: number;
+  total?: number;
+};
 
 export function SalesOrderModal({
   open,
@@ -38,7 +59,7 @@ export function SalesOrderModal({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [savedSo, setSavedSo] = useState<any>(null);
+  const [savedSo, setSavedSo] = useState<SavedSalesOrderResponse | null>(null);
   const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
 
@@ -91,48 +112,13 @@ export function SalesOrderModal({
     setQuotationPickerOpen(false);
   };
 
-  const formatRupiah = (value: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value || 0);
-
-  const getSavedHeader = () => savedSo?.header ?? null;
-
-  const getSavedSoNumber = () => {
-    const header = getSavedHeader();
-
-    return (
-      header?.soNumber ??
-      header?.orderNumber ??
-      savedSo?.soNumber ??
-      savedSo?.orderNumber ??
-      form.nomor ??
-      ""
-    );
-  };
-
-  const getSavedTotal = () => {
-    const header = getSavedHeader();
-
-    return Number(
-      header?.subTotal ??
-        header?.subtotal ??
-        header?.total ??
-        savedSo?.subTotal ??
-        savedSo?.subtotal ??
-        savedSo?.total ??
-        0
-    );
-  };
-
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setSuccessMessage("");
 
     try {
+      await validateStockBeforeSubmit(form.items);
+
       const payload = mapFormToApiPayload(form);
       console.log("Mapped payload:", payload);
 
@@ -144,7 +130,7 @@ export function SalesOrderModal({
 
       const header = response?.header;
 
-      setSavedSo(response);
+      setSavedSo(response as unknown as SavedSalesOrderResponse);
       setForm((prev) => ({
         ...prev,
         nomor: header?.soNumber ?? header?.orderNumber ?? prev.nomor,
@@ -169,7 +155,12 @@ export function SalesOrderModal({
       }
     } catch (error) {
       console.error("Gagal menyimpan SO:", error);
-      alert(isEdit ? "Gagal menyimpan perubahan Sales Order" : "Gagal menyimpan Sales Order");
+      alert(error instanceof Error
+        ? error.message
+        : isEdit
+          ? "Gagal menyimpan perubahan Sales Order"
+          : "Gagal menyimpan Sales Order"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -441,4 +432,40 @@ export function SalesOrderModal({
       />
     </>
   );
+}
+
+async function validateStockBeforeSubmit(items: SalesOrderItem[]) {
+  const validItems = items.filter((item) => item.productId && item.productId > 0);
+
+  for (const item of validItems) {
+    if (!item.warehouseId || item.warehouseId <= 0) {
+      throw new Error(`Please select a warehouse for ${item.productName || "the selected product"}.`);
+    }
+
+    if (Number(item.qty || 0) <= 0) {
+      throw new Error(`Qty for ${item.productName || "the selected product"} must be greater than 0.`);
+    }
+  }
+
+  const stockChecks = await Promise.all(
+    validItems.map(async (item) => {
+      const summary = await salesStockService.getByProduct(Number(item.productId));
+      const warehouseStock = summary.warehouses.find(
+        (stock) => Number(stock.warehouseId) === Number(item.warehouseId)
+      );
+
+      return {
+        item,
+        available: warehouseStock?.qtyAvailable ?? 0,
+      };
+    })
+  );
+
+  const invalid = stockChecks.find(({ item, available }) => Number(item.qty || 0) > available);
+
+  if (invalid) {
+    throw new Error(
+      `Stock is not enough for ${invalid.item.productName || "the selected product"} in ${invalid.item.warehouseName || "the selected warehouse"}. Requested: ${invalid.item.qty}, available: ${invalid.available}.`
+    );
+  }
 }

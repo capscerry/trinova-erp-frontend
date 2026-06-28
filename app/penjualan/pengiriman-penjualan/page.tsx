@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import type { Column } from "@/components/ui";
@@ -16,6 +16,8 @@ import {
   pengirimanPenjualanService,
   type PengirimanPenjualan,
 } from "@/lib/services/pengiriman-penjualan.service";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const formatDate = (d?: string | null) => {
   if (!d) return "-";
@@ -29,17 +31,25 @@ const formatDate = (d?: string | null) => {
 };
 
 const COLUMNS: Column<PengirimanPenjualan>[] = [
-  { key: "noSuratJalan", label: "No Surat Jalan", width: "18%" },
+  { key: "noSuratJalan", label: "Delivery No.", width: "16%" },
   {
     key: "tanggalKirim",
-    label: "Tanggal Kirim",
-    width: "16%",
+    label: "Delivery Date",
+    width: "14%",
     render: (_v, row) => formatDate(row.tanggalKirim),
   },
-  { key: "pelanggan", label: "Pelanggan", width: "26%" },
-  { key: "noSo", label: "No. SO", width: "18%",
+  { key: "pelanggan", label: "Customer", width: "22%" },
+  { key: "noSo", label: "SO No.", width: "14%",
     render: (_v, row) => row.noSo || "—" },
-  { key: "shippingType", label: "Tipe Pengiriman", width: "22%" },
+  { key: "shippingType", label: "Shipping Type", width: "18%" },
+  {
+    key: "status",
+    label: "Status",
+    width: "16%",
+    render: (_v, row) => (
+      <SalesStatusSelect module="delivery-order" id={row.id} value={row.status} />
+    ),
+  },
 ];
 
 export default function PengirimanPenjualanPage() {
@@ -54,27 +64,27 @@ export default function PengirimanPenjualanPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [initialFormData, setInitialFormData] = useState<Partial<PengirimanFormData> | undefined>(undefined);
 
-  const showMessage = (msg: string, type: "success" | "error" = "success") => {
+  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
     setMessageType(type);
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await pengirimanPenjualanService.getAll();
       setData(result);
     } catch (err) {
       console.error(err);
-      showMessage("Gagal memuat data pengiriman penjualan", "error");
+      showMessage("Failed to load delivery orders", "error");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showMessage]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (!message) return;
@@ -121,10 +131,10 @@ export default function PengirimanPenjualanPage() {
     router.push(`/penjualan/pengiriman-penjualan/${row.id}`);
   };
 
-  const handleModalSubmit = (formData: PengirimanFormData) => {
+  const handleModalSubmit = () => {
     setModalOpen(false);
     setInitialFormData(undefined);
-    showMessage("Pengiriman penjualan berhasil disimpan");
+    showMessage("Delivery order saved successfully");
     fetchData();
   };
 
@@ -134,7 +144,7 @@ export default function PengirimanPenjualanPage() {
   };
 
   return (
-    <AppShell title="Pengiriman Penjualan" subtitle="Kelola surat jalan & pengiriman barang ke pelanggan">
+    <AppShell title="Delivery Order" subtitle="Manage customer shipment documents">
       {message && (
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
@@ -148,20 +158,25 @@ export default function PengirimanPenjualanPage() {
       )}
 
       <DataTable
-        title="Daftar Pengiriman Penjualan"
+        title="Delivery Order List"
         columns={COLUMNS}
         data={data}
         keyField="id"
-        addLabel="Tambah Pengiriman"
+        addLabel="Add Delivery"
         onAdd={handleTambah}
         loading={isLoading}
+        filters={{
+          dateKey: "tanggalKirim",
+          statusKey: "status",
+          statusOptions: SALES_STATUS_OPTIONS["delivery-order"],
+        }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
-              title="Lihat Detail"
+              title="View detail"
               className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >

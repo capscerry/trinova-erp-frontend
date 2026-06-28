@@ -22,6 +22,8 @@ import {
   salesQuotationService,
 } from "@/lib/services/penjualan.service";
 import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const PAGE_SIZE = 10;
 
@@ -53,7 +55,7 @@ function FilterDropdown({
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const display = value === "Semua" ? label : `${label}: ${value}`;
+  const display = value === "All" ? label : `${label}: ${value}`;
 
   return (
     <div className="relative">
@@ -61,7 +63,7 @@ function FilterDropdown({
         onClick={() => setOpen((p) => !p)}
         className={cn(
           "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all",
-          value !== "Semua"
+          value !== "All"
             ? "bg-navy-900 text-gold-400 border-navy-700"
             : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
         )}
@@ -112,7 +114,9 @@ export default function SalesQuotationPage() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [filterTanggal, setFilterTanggal] = useState("Semua");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -124,7 +128,7 @@ export default function SalesQuotationPage() {
       const rows = await salesQuotationService.getAll();
       setData(rows);
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Gagal memuat data");
+      setFetchError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -137,6 +141,7 @@ export default function SalesQuotationPage() {
   const filtered = useMemo(() => {
     return data.filter((row) => {
       const keyword = search.toLowerCase();
+      const rowDate = toDateOnly(row.tanggal);
 
       const matchSearch =
         search === "" ||
@@ -144,9 +149,15 @@ export default function SalesQuotationPage() {
           (v ?? "").toLowerCase().includes(keyword)
         );
 
-      return matchSearch;
+      const matchDateFrom = !dateFrom || (rowDate !== "" && rowDate >= dateFrom);
+      const matchDateTo = !dateTo || (rowDate !== "" && rowDate <= dateTo);
+      const matchStatus =
+        statusFilter === "All" ||
+        (row.status ?? "").toLowerCase() === statusFilter.toLowerCase();
+
+      return matchSearch && matchDateFrom && matchDateTo && matchStatus;
     });
-  }, [data, search]);
+  }, [data, dateFrom, dateTo, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -154,12 +165,14 @@ export default function SalesQuotationPage() {
   const to = Math.min(page * PAGE_SIZE, filtered.length);
 
   const resetFilters = () => {
-    setFilterTanggal("Semua");
+    setDateFrom("");
+    setDateTo("");
+    setStatusFilter("All");
     setSearch("");
     setPage(1);
   };
 
-  const hasActiveFilter = filterTanggal !== "Semua" || search !== "";
+  const hasActiveFilter = dateFrom !== "" || dateTo !== "" || statusFilter !== "All" || search !== "";
 
   const pageNumbers = () => {
     if (totalPages <= 5) {
@@ -247,7 +260,7 @@ export default function SalesQuotationPage() {
       alert(
         err instanceof Error
           ? err.message
-          : "Terjadi kesalahan saat menyimpan"
+          : "Failed to save data"
       );
     } finally {
       setSubmitting(false);
@@ -255,12 +268,13 @@ export default function SalesQuotationPage() {
   };
 
   const TABLE_COLS = [
-    { label: "Nomor #", w: "150px" },
-    { label: "Tanggal", w: "120px" },
-    { label: "Pelanggan", w: "" },
-    { label: "Keterangan", w: "" },
+    { label: "Number #", w: "150px" },
+    { label: "Date", w: "120px" },
+    { label: "Customer", w: "" },
+    { label: "Notes", w: "" },
     { label: "Total", w: "150px" },
-    { label: "Aksi", w: "90px" },
+    { label: "Status", w: "150px" },
+    { label: "Actions", w: "90px" },
   ];
 
   const handleDetail = (row: SalesQuotation) => {
@@ -268,15 +282,37 @@ export default function SalesQuotationPage() {
   };
 
   return (
-    <AppShell title="Sales Quotation" subtitle="Kelola penawaran penjualan">
+    <AppShell title="Sales Quotation" subtitle="Manage customer sales quotations">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex-wrap">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(event) => {
+              setDateFrom(event.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 outline-none transition-colors focus:border-navy-500"
+            aria-label="Date from"
+          />
+
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(event) => {
+              setDateTo(event.target.value);
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 outline-none transition-colors focus:border-navy-500"
+            aria-label="Date to"
+          />
+
           <FilterDropdown
-            label="Tanggal"
-            value={filterTanggal}
-            options={["Semua", "Hari ini", "Minggu ini", "Bulan ini"]}
+            label="Status"
+            value={statusFilter}
+            options={["All", ...SALES_STATUS_OPTIONS.quotation]}
             onChange={(v) => {
-              setFilterTanggal(v);
+              setStatusFilter(v);
               setPage(1);
             }}
           />
@@ -299,7 +335,7 @@ export default function SalesQuotationPage() {
               className="inline-flex items-center gap-1.5 bg-navy-900 hover:bg-navy-700
                          text-gold-400 text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow-sm"
             >
-              <Plus size={13} strokeWidth={2.5} /> Tambah
+              <Plus size={13} strokeWidth={2.5} /> Add
             </button>
 
             <button
@@ -337,7 +373,7 @@ export default function SalesQuotationPage() {
               />
               <input
                 type="text"
-                placeholder="Cari..."
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -365,7 +401,7 @@ export default function SalesQuotationPage() {
           >
             <span>⚠️ {fetchError}</span>
             <button onClick={loadData} className="underline hover:no-underline">
-              Coba lagi
+              Try again
             </button>
           </div>
         )}
@@ -409,7 +445,7 @@ export default function SalesQuotationPage() {
                   >
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <Search size={28} className="text-slate-300" />
-                      <span className="text-sm">Belum ada data</span>
+                      <span className="text-sm">No data yet</span>
                     </div>
                   </td>
                 </tr>
@@ -440,10 +476,25 @@ export default function SalesQuotationPage() {
                     </td>
 
                     <td className="px-5 py-3">
+                      <SalesStatusSelect
+                        module="quotation"
+                        id={row.id}
+                        value={row.status}
+                        onUpdated={(status) =>
+                          setData((current) =>
+                            current.map((item) =>
+                              item.id === row.id ? { ...item, status } : item
+                            )
+                          )
+                        }
+                      />
+                    </td>
+
+                    <td className="px-5 py-3">
                       <div className="flex items-center justify-center">
                         <button
                           onClick={() => handleDetail(row)}
-                          title="Lihat Detail"
+                          title="View detail"
                           className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                                      transition-colors"
                         >
@@ -510,4 +561,13 @@ export default function SalesQuotationPage() {
       </div>
     </AppShell>
   );
+}
+
+function toDateOnly(value?: string | null) {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }

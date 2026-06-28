@@ -1,14 +1,17 @@
 ﻿import { api, type ApiResponse } from "@/lib/api";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
+
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type SalesOrderStatus =
   | "Draft"
-  | "Dikonfirmasi"
-  | "Diproses"
-  | "Dikirim"
-  | "Selesai"
-  | "Dibatalkan";
+  | "Approved"
+  | "Confirmed"
+  | "Processing"
+  | "Shipped"
+  | "Completed"
+  | "Cancelled";
 
 export interface SalesOrderItemApi {
   productId: string;
@@ -49,6 +52,7 @@ export interface SalesOrderDetailApi {
   discountTotal?: number;
   taxTotal?: number;
   isTaxAble?: boolean;
+  status?: SalesOrderStatus;
   quotationId?: number;
   quotationNumber?: string;
   detail: SalesOrderDetailItem[];
@@ -239,6 +243,7 @@ export interface UangMukaPayload {
 export interface UangMukaApi extends UangMukaPayload {
   customerName?: string;
   soNumber ? : string;
+  status?: string;
 }
 
 export interface UangMuka {
@@ -257,6 +262,7 @@ export interface UangMuka {
   syaratPembayaran: string;
   alamat: string;
   keterangan: string;
+  status?: string;
 }
 
 // â”€â”€â”€ Mappers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -270,7 +276,7 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
     poNumber: item.poNumber,
     pelanggan: item.customerName,
     keterangan: item.notes,
-    status: item.status,
+    status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
     total: item.subTotal,
     items: [],
   };
@@ -291,6 +297,7 @@ export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail
     discountTotal: item.discountTotal ?? 0,
     taxTotal: item.taxTotal ?? 0,
     kenaPajak: item.isTaxAble ?? false,
+    status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
     quotationId: item.quotationId ?? undefined,
     quotationNumber: item.quotationNumber ?? undefined,
     items: item.detail ?? [],
@@ -326,6 +333,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
     syaratPembayaran: item.syaratPembayaran,
     alamat: item.alamat,
     keterangan: item.keterangan,
+    status: normalizeSalesStatus("down-payment", item.status),
   };
 }
 
@@ -375,18 +383,20 @@ export const salesOrderService = {
       `/sales-order/by-customer/${customerId}`
     );
 
-    return (response.data.data ?? []).map((item) => ({
-      id: item.orderId ?? item.id,
-      nomor: item.soNumber ?? item.nomor,
-      tanggal: item.soDate ?? item.tanggal,
-      tanggalKirim: item.tanggalKirim ?? "",
-      poNumber: item.poNumber ?? "",
-      pelanggan: item.customerName ?? item.pelanggan ?? "",
-      keterangan: item.notes ?? item.keterangan ?? "",
-      status: item.status ?? "Draft",
-      total: item.subTotal ?? item.total ?? 0,
-      items: [],
-    }));
+    return (response.data.data ?? [])
+      .map((item) => ({
+        id: item.orderId ?? item.id,
+        nomor: item.soNumber ?? item.nomor,
+        tanggal: item.soDate ?? item.tanggal,
+        tanggalKirim: item.tanggalKirim ?? "",
+        poNumber: item.poNumber ?? "",
+        pelanggan: item.customerName ?? item.pelanggan ?? "",
+        keterangan: item.notes ?? item.keterangan ?? "",
+        status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+        total: item.subTotal ?? item.total ?? 0,
+        items: [],
+      }))
+      .filter((item) => isApprovedForPicker("sales-order", item.status));
   },
 
   /** Detail items SO (kode produk, qty, harga) â€” untuk isi referensi di form Uang Muka */
@@ -450,10 +460,10 @@ export const productDropdownService = {
 
 export type QuotationStatus =
   | "Draft"
-  | "Dikirim"
-  | "Disetujui"
-  | "Ditolak"
-  | "Kedaluwarsa";
+  | "Sent"
+  | "Approved"
+  | "Rejected"
+  | "Cancelled";
 
 export interface SalesQuotationApi {
   id: string;
@@ -501,7 +511,7 @@ export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
     pelanggan: item.customerName,
     alamat : item.address ?? "",
     keterangan: item.notes,
-    status: item.status,
+    status: normalizeSalesStatus("quotation", item.status) as QuotationStatus,
     total: item.totalAmount,
     items: item.items ?? [],
   };
@@ -563,6 +573,7 @@ export interface SalesQuotationHeaderDetailApi {
     discountTotal?: number;
     taxTotal?: number;
     isTaxAble?: boolean;
+    status?: QuotationStatus;
   };
   detail: {
     productId: number;
@@ -589,6 +600,7 @@ export interface SalesQuotationDetail {
   discountTotal: number;
   taxTotal: number;
   kenaPajak: boolean;
+  status?: QuotationStatus;
   items: {
     productId: number;
     productCode: string;
@@ -634,6 +646,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     discountTotal: item.header.discountTotal ?? 0,
     taxTotal: item.header.taxTotal ?? 0,
     kenaPajak: item.header.isTaxAble ?? false,
+    status: normalizeSalesStatus("quotation", item.header.status) as QuotationStatus,
     items,
   };
 }
@@ -652,7 +665,7 @@ export const salesQuotationService = {
     pelanggan: item.customerName,
     alamat : item.address ?? "",
     keterangan: item.notes ?? "",
-    status: "Draft",
+    status: normalizeSalesStatus("quotation", item.status) as QuotationStatus,
     total: item.subtotal ?? 0,
     items: [],
   }));
@@ -690,18 +703,20 @@ export const salesQuotationService = {
       `/SalesQuotation/${customerId}`
     );
 
-    return (response.data.data ?? []).map((item) => ({
-      id: String(item.id),
-      nomor: item.quotationNumber,
-      tanggal: item.quotationDate,
-      berlakuHingga: "",
-      pelanggan: item.customerName,
-      alamat : item.address ?? "",
-      keterangan: item.notes ?? "",
-      status: item.status ?? "Draft",
-      total: item.subtotal ?? 0,
-      items: [],
-    }));
+    return (response.data.data ?? [])
+      .map((item) => ({
+        id: String(item.id),
+        nomor: item.quotationNumber,
+        tanggal: item.quotationDate,
+        berlakuHingga: "",
+        pelanggan: item.customerName,
+        alamat : item.address ?? "",
+        keterangan: item.notes ?? "",
+        status: normalizeSalesStatus("quotation", item.status) as QuotationStatus,
+        total: item.subtotal ?? 0,
+        items: [],
+      }))
+      .filter((item) => isApprovedForPicker("quotation", item.status));
   },
 
   async create(payload: SalesQuotationPayload): Promise<SalesQuotation> {
@@ -766,6 +781,7 @@ export interface PenerimaanPenjualanApi {
   tanggalBayar: string;
   uangMukaId?: number | null;
   salesOrderId?: number | null;
+  status?: string;
 }
 
 export interface PenerimaanPenjualan {
@@ -779,6 +795,7 @@ export interface PenerimaanPenjualan {
   tanggalBayar: string;
   uangMukaId?: number;
   salesOrderId?: number;
+  status?: string;
 }
 
 /** Payload untuk POST /api/sales-receipt â€” id TIDAK dikirim (auto dari backend) */
@@ -804,6 +821,7 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
     tanggalBayar: item.tanggalBayar,
     uangMukaId: item.uangMukaId ?? undefined,
     salesOrderId: item.salesOrderId ?? undefined,
+    status: normalizeSalesStatus("sales-receipt", item.status),
   };
 }
 

@@ -16,6 +16,8 @@ import {
   penerimaanPenjualanService,
   type PenerimaanPenjualan,
 } from "@/lib/services/penjualan.service";
+import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -36,20 +38,28 @@ const formatDate = (d?: string | null) => {
 };
 
 const COLUMNS: Column<PenerimaanPenjualan>[] = [
-  { key: "noBukti", label: "No Bukti", width: "16%" },
+  { key: "noBukti", label: "Receipt No.", width: "16%" },
   {
     key: "tanggalBayar",
-    label: "Tanggal Bayar",
+    label: "Payment Date",
     width: "14%",
     render: (_v, row) => formatDate(row.tanggalBayar),
   },
-  { key: "pelanggan", label: "Terima dari", width: "26%" },
-  { key: "bank", label: "Bank", width: "26%" },
+  { key: "pelanggan", label: "Received From", width: "22%" },
+  { key: "bank", label: "Bank", width: "20%" },
   {
     key: "nilaiPembayaran",
-    label: "Nilai Pembayaran",
+    label: "Payment Amount",
     width: "18%",
     render: (_v, row) => formatRupiah(row.nilaiPembayaran),
+  },
+  {
+    key: "status",
+    label: "Status",
+    width: "16%",
+    render: (_v, row) => (
+      <SalesStatusSelect module="sales-receipt" id={row.id} value={row.status} />
+    ),
   },
 ];
 
@@ -77,7 +87,7 @@ export default function PenerimaanPenjualanPage() {
       setData(result);
     } catch (err) {
       console.error(err);
-      showMessage("Gagal memuat data penerimaan penjualan", "error");
+      showMessage("Failed to load sales receipts", "error");
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +155,7 @@ export default function PenerimaanPenjualanPage() {
   const handleModalSubmit = () => {
     setModalOpen(false);
     setInitialFormData(undefined);
-    showMessage("Penerimaan penjualan berhasil disimpan");
+    showMessage("Sales receipt saved successfully");
     fetchData();
   };
 
@@ -157,7 +167,7 @@ export default function PenerimaanPenjualanPage() {
   };
 
   return (
-    <AppShell title="Penerimaan Penjualan" subtitle="Kelola pembayaran yang diterima dari pelanggan">
+    <AppShell title="Sales Receipt" subtitle="Manage payments received from customers">
       {message && (
         <div
           className={`mb-4 px-4 py-3 rounded-lg text-sm font-semibold ${
@@ -171,19 +181,24 @@ export default function PenerimaanPenjualanPage() {
       )}
 
       <DataTable
-        title="Daftar Penerimaan Penjualan"
+        title="Sales Receipt List"
         columns={COLUMNS}
         data={data}
         keyField="id"
-        addLabel="Tambah Penerimaan"
+        addLabel="Add Receipt"
         onAdd={handleTambah}
+        filters={{
+          dateKey: "tanggalBayar",
+          statusKey: "status",
+          statusOptions: SALES_STATUS_OPTIONS["sales-receipt"],
+        }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
-              title="Lihat Detail"
+              title="View detail"
               className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
