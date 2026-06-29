@@ -44,6 +44,44 @@ const formatDate = (d?: string | null) => {
   }).format(date);
 };
 
+function calculateIncludedTax(amount: number) {
+  if (amount <= 0) return 0;
+  return Math.round(amount - amount / 1.11);
+}
+
+function getDownPaymentTaxView(data: UangMuka) {
+  const nominal = Number(data.nominalUangMuka ?? 0);
+  const storedTotal = Number(data.totalAmount ?? nominal);
+  const storedTax = Number(data.taxAmount ?? 0);
+  const isTaxable = Boolean(data.isTaxable);
+  const isIncluded =
+    Boolean(data.isTaxIncluded) ||
+    (isTaxable && storedTax === 0 && storedTotal === nominal);
+  const taxAmount = isTaxable
+    ? storedTax > 0
+      ? storedTax
+      : isIncluded
+        ? calculateIncludedTax(storedTotal)
+        : 0
+    : 0;
+  const taxableBase = isIncluded ? storedTotal - taxAmount : nominal;
+  const total = isIncluded ? storedTotal : nominal + taxAmount;
+
+  return {
+    nominal,
+    total,
+    taxableBase,
+    taxAmount,
+    isTaxable,
+    isIncluded,
+    note: isIncluded
+      ? "Nominal uang muka sudah termasuk PPN 11%"
+      : isTaxable
+        ? "Nominal uang muka belum termasuk PPN"
+        : "Uang muka tidak dikenakan PPN",
+  };
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function InfoRow({
@@ -101,6 +139,17 @@ export default function UangMukaDetailPage() {
   const [data, setData] = useState<UangMuka | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const taxSummary = data
+    ? getDownPaymentTaxView(data)
+    : {
+        nominal: 0,
+        total: 0,
+        taxableBase: 0,
+        taxAmount: 0,
+        isTaxable: false,
+        isIncluded: false,
+        note: "",
+      };
 
   useEffect(() => {
     if (!id) return;
@@ -190,21 +239,23 @@ export default function UangMukaDetailPage() {
             {[
               {
                 label: "Uang Muka",
-                value: formatRupiah(data.nominalUangMuka ?? 0),
-                sub: "Nominal yang dibayar",
+                value: formatRupiah(taxSummary.nominal),
+                sub: taxSummary.isIncluded
+                  ? "Nominal dibayar, include PPN"
+                  : "Nominal yang dibayar",
                 icon: CreditCard,
                 highlight: true,
               },
               {
                 label: "Total Tagihan",
-                value: formatRupiah(data.totalAmount ?? 0),
-                sub: "Termasuk pajak",
+                value: formatRupiah(taxSummary.total),
+                sub: taxSummary.note,
                 icon: TrendingUp,
               },
               {
                 label: "Pajak (PPN)",
-                value: formatRupiah(data.taxAmount ?? 0),
-                sub: data.isTaxable ? "Kena pajak" : "Tidak kena pajak",
+                value: formatRupiah(taxSummary.taxAmount),
+                sub: taxSummary.isTaxable ? "PPN 11%" : "Tidak kena pajak",
                 icon: BadgePercent,
               },
             ].map(({ label, value, sub, icon: Icon, highlight }) => (
@@ -286,18 +337,29 @@ export default function UangMukaDetailPage() {
                 <div className="p-5 space-y-0">
                   {[
                     {
-                      label: "Nominal Uang Muka",
-                      value: formatRupiah(data.nominalUangMuka ?? 0),
+                      label: taxSummary.isIncluded
+                        ? "Nominal Uang Muka Dibayar"
+                        : "Nominal Uang Muka",
+                      value: formatRupiah(taxSummary.nominal),
                       bold: false,
                     },
                     {
-                      label: "Pajak (PPN)",
-                      value: formatRupiah(data.taxAmount ?? 0),
+                      label: "DPP Uang Muka",
+                      value: formatRupiah(taxSummary.taxableBase),
                       bold: false,
                     },
                     {
-                      label: "Total Tagihan",
-                      value: formatRupiah(data.totalAmount ?? 0),
+                      label: taxSummary.isIncluded
+                        ? "PPN 11% Termasuk"
+                        : "PPN 11%",
+                      value: formatRupiah(taxSummary.taxAmount),
+                      bold: false,
+                    },
+                    {
+                      label: taxSummary.isIncluded
+                        ? "Total Dibayar"
+                        : "Total Tagihan",
+                      value: formatRupiah(taxSummary.total),
                       bold: true,
                     },
                   ].map(({ label, value, bold }) => (
@@ -328,28 +390,53 @@ export default function UangMukaDetailPage() {
                   ))}
                 </div>
 
+                <div
+                  className={cn(
+                    "mx-5 mb-4 rounded-xl border px-4 py-3",
+                    taxSummary.isIncluded
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-200 bg-slate-50"
+                  )}
+                >
+                  <p
+                    className={cn(
+                      "text-xs font-semibold",
+                      taxSummary.isIncluded ? "text-emerald-700" : "text-slate-600"
+                    )}
+                  >
+                    {taxSummary.note}
+                  </p>
+                  {taxSummary.isIncluded && (
+                    <p className="mt-1 text-[11px] text-emerald-600">
+                      Breakdown: DPP {formatRupiah(taxSummary.taxableBase)} + PPN 11%{" "}
+                      {formatRupiah(taxSummary.taxAmount)} ={" "}
+                      {formatRupiah(taxSummary.total)}
+                    </p>
+                  )}
+                </div>
+
                 {/* Flag pajak */}
                 <div className="px-5 pb-4 flex items-center gap-4">
                   <span
                     className={cn(
                       "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold",
-                      data.isTaxable
+                      taxSummary.isTaxable
                         ? "bg-blue-50 text-blue-700"
                         : "bg-slate-100 text-slate-500"
                     )}
                   >
                     <BadgePercent size={11} />
-                    {data.isTaxable ? "Kena Pajak" : "Tidak Kena Pajak"}
+                    {taxSummary.isTaxable ? "Kena Pajak" : "Tidak Kena Pajak"}
                   </span>
                   <span
                     className={cn(
                       "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold",
-                      data.isTaxIncluded
+                      taxSummary.isIncluded
                         ? "bg-emerald-50 text-emerald-700"
                         : "bg-slate-100 text-slate-500"
                     )}
                   >
-                    {data.isTaxIncluded ? "Harga Termasuk Pajak" : "Harga Belum Termasuk Pajak"}
+                    {taxSummary.isIncluded ? "Harga Termasuk Pajak" : "Harga Belum Termasuk Pajak"}
                   </span>
                 </div>
               </div>

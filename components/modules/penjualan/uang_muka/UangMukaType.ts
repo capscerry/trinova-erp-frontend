@@ -16,6 +16,9 @@ export interface UangMukaFormData {
   fakturType: string;
   noPesanan: string;
   totalHargaPesanan: number;
+  isTaxable: boolean;
+  isTaxIncluded: boolean;
+  taxAmount: number;
 }
 
 export interface UangMukaPayload {
@@ -26,6 +29,9 @@ export interface UangMukaPayload {
   noPO: string;
   noSo: string;
   nominalUangMuka: number;
+  isTaxable: boolean;
+  isTaxIncluded: boolean;
+  taxAmount: number;
   totalAmount: number;
   syaratPembayaran: string;
   alamat: string;
@@ -69,6 +75,9 @@ export const EMPTY_FORM: UangMukaFormData = {
   fakturType: "Faktur Penjualan",
   noPesanan: "",
   totalHargaPesanan: 0,
+  isTaxable: false,
+  isTaxIncluded: false,
+  taxAmount: 0,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -78,8 +87,9 @@ export const EMPTY_FORM: UangMukaFormData = {
 export function mapFormToApiPayload(
   form: UangMukaFormData
 ): UangMukaPayload {
-  // Sesuai keputusan: Uang Muka tidak lagi punya konsep pajak terpisah.
-  // nominalUangMuka adalah nilai final yang dibayar, totalAmount = sama.
+  // Nominal uang muka adalah nilai final yang dibayar.
+  // Jika sumber SO kena PPN dan include tax, taxAmount hanya menjadi
+  // breakdown informatif dari nominal tersebut, bukan tambahan nominal.
   return {
     id: form.id || undefined,
     noFaktur: form.noFaktur,
@@ -88,6 +98,9 @@ export function mapFormToApiPayload(
     noPO: form.noPO,
     noSo: form.noSo || "",
     nominalUangMuka: Number(form.uangMuka),
+    isTaxable: form.isTaxable,
+    isTaxIncluded: form.isTaxIncluded,
+    taxAmount: Number(form.taxAmount || 0),
     totalAmount: Number(form.uangMuka),
     syaratPembayaran: form.syaratPembayaran,
     alamat: form.alamat,

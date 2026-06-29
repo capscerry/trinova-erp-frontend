@@ -21,6 +21,9 @@ interface SalesOrderPickerModalProps {
     alamat: string;
     keterangan: string;
     total: number;
+    kenaPajak?: boolean;
+    isTaxIncluded?: boolean;
+    taxTotal?: number;
   }) => void;
 }
 
@@ -117,6 +120,9 @@ export function SalesOrderPickerModal({
       alamat: selectedSoRecord.alamat ?? "",
       keterangan: selectedSo.keterangan ?? "",
       total: selectedSo.total ?? 0,
+      kenaPajak: selectedSo.kenaPajak ?? false,
+      isTaxIncluded: selectedSo.isTaxIncluded ?? selectedSo.kenaPajak ?? false,
+      taxTotal: selectedSo.taxTotal ?? 0,
     });
   };
 

@@ -28,6 +28,38 @@ import {
 } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import { SalesOrderPickerModal } from "@/components/modules/penjualan/SalesOrderPickerModal";
 
+type UangMukaInitialData = Partial<UangMukaFormData> & {
+  orderId?: number;
+  customer_id?: number;
+  customerName?: string;
+  poNumber?: string;
+  alamatPengiriman?: string;
+  address?: string;
+  notes?: string;
+  nomor?: string;
+  soNumber?: string;
+  orderNumber?: string;
+  subTotal?: number;
+  subtotal?: number;
+  total?: number;
+  isTaxAble?: boolean;
+  kenaPajak?: boolean;
+  savedSo?: {
+    soNumber?: string;
+    orderNumber?: string;
+    subTotal?: number;
+    subtotal?: number;
+    total?: number;
+    isTaxable?: boolean;
+    isTaxAble?: boolean;
+    isTaxIncluded?: boolean;
+    header?: {
+      isTaxAble?: boolean;
+      isTaxIncluded?: boolean;
+    };
+  };
+};
+
 interface UangMukaModalProps {
   open: boolean;
   onClose: () => void;
@@ -45,7 +77,7 @@ interface UangMukaModalProps {
    * langsung ke halaman /penjualan/penerimaan-penjualan.
    */
   onProses?: (data: UangMukaFormData) => void;
-  initialData?: Partial<UangMukaFormData> | any;
+  initialData?: UangMukaInitialData;
   isSaved?: boolean;
 }
 
@@ -59,7 +91,6 @@ export function UangMukaModal({
   onSubmit,
   onProses,
   initialData,
-  isSaved = false,
 }: UangMukaModalProps) {
   const isEdit = !!initialData;
   const router = useRouter();
@@ -127,6 +158,9 @@ export function UangMukaModal({
       noPO: "",
       totalHargaPesanan: 0,
       uangMuka: 0,
+      isTaxable: false,
+      isTaxIncluded: false,
+      taxAmount: 0,
     }));
     setShowCustomerDropdown(false);
     setFilterCustomer("");
@@ -143,7 +177,14 @@ export function UangMukaModal({
     alamat: string;
     keterangan: string;
     total: number;
+    kenaPajak?: boolean;
+    isTaxIncluded?: boolean;
+    taxTotal?: number;
   }) => {
+    const isTaxable = Boolean(so.kenaPajak);
+    const isTaxIncluded = Boolean(so.isTaxIncluded ?? so.kenaPajak);
+    const taxAmount = calculateIncludedTax(so.total, isTaxable && isTaxIncluded);
+
     setForm((prev) => ({
       ...prev,
       noPesanan: so.nomor,
@@ -154,6 +195,9 @@ export function UangMukaModal({
       keterangan: so.keterangan || prev.keterangan,
       totalHargaPesanan: so.total,
       uangMuka: so.total,
+      isTaxable,
+      isTaxIncluded,
+      taxAmount,
     }));
     setSoPickerOpen(false);
   };
@@ -200,6 +244,25 @@ export function UangMukaModal({
           data.savedSo?.total ??
           0
       ),
+      isTaxable: Boolean(
+        data.isTaxable ??
+          data.isTaxAble ??
+          data.kenaPajak ??
+          data.savedSo?.isTaxable ??
+          data.savedSo?.isTaxAble ??
+          data.savedSo?.header?.isTaxAble ??
+          false
+      ),
+      isTaxIncluded: Boolean(
+        data.isTaxIncluded ??
+          data.savedSo?.isTaxIncluded ??
+          data.savedSo?.header?.isTaxIncluded ??
+          data.isTaxable ??
+          data.isTaxAble ??
+          data.kenaPajak ??
+          false
+      ),
+      taxAmount: Number(data.taxAmount ?? 0),
     });
 
     setSaved(false);
@@ -260,11 +323,11 @@ export function UangMukaModal({
       // simpan dan memilih "Proses ke Penerimaan" atau menutup manual.
       onSubmit({ ...form, id: response.id ?? form.id });
       setSaved(true);
-    } catch (error: any) {
-      console.error("❌ BACKEND ERROR:", error?.response?.data || error);
+    } catch (error: unknown) {
+      console.error("Gagal menyimpan Uang Muka:", error);
       alert(
         "Gagal menyimpan data: " +
-          (error?.response?.data?.message || error?.message)
+          (error instanceof Error ? error.message : "Terjadi kesalahan")
       );
     } finally {
       setIsSubmitting(false);
@@ -320,12 +383,34 @@ export function UangMukaModal({
     onClose();
   };
 
+  useEffect(() => {
+    if (!open) return;
+    setForm((prev) => {
+      const nextTaxAmount = calculateIncludedTax(
+        prev.uangMuka,
+        prev.isTaxable && prev.isTaxIncluded
+      );
+      if (prev.taxAmount === nextTaxAmount) return prev;
+      return { ...prev, taxAmount: nextTaxAmount };
+    });
+  }, [form.uangMuka, form.isTaxable, form.isTaxIncluded, open]);
+
   if (!open) return null;
 
   const hasPelanggan = form.pelanggan.trim().length > 0;
   // Formula sama persis dengan mapFormToApiPayload — supaya yang
   // ditampilkan ke user identik dengan yang benar-benar dikirim ke backend.
   const subTotal = form.uangMuka;
+  const downPaymentTaxAmount = calculateIncludedTax(
+    form.uangMuka,
+    form.isTaxable && form.isTaxIncluded
+  );
+  const downPaymentTaxBase = form.uangMuka - downPaymentTaxAmount;
+  const taxNote = form.isTaxable && form.isTaxIncluded
+    ? "Uang muka termasuk PPN 11%"
+    : form.isTaxable
+      ? "Uang muka kena PPN 11%"
+      : "Uang muka tidak dikenakan PPN";
 
   return (
     <>
@@ -578,6 +663,9 @@ export function UangMukaModal({
                                       salesOrderId: undefined,
                                       totalHargaPesanan: 0,
                                       uangMuka: 0,
+                                      isTaxable: false,
+                                      isTaxIncluded: false,
+                                      taxAmount: 0,
                                     }))
                                   }
                                   className="hover:text-violet-900 transition-colors disabled:opacity-50"
@@ -691,6 +779,27 @@ export function UangMukaModal({
                         ⊞
                       </span>
                     </div>
+                    <div
+                      className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
+                        form.isTaxable && form.isTaxIncluded
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold">{taxNote}</span>
+                        {form.isTaxable && form.isTaxIncluded && (
+                          <span className="shrink-0 font-mono">
+                            PPN {formatCurrency(downPaymentTaxAmount)}
+                          </span>
+                        )}
+                      </div>
+                      {form.isTaxable && form.isTaxIncluded && (
+                        <p className="mt-1 text-[11px] text-emerald-600">
+                          DPP {formatCurrency(downPaymentTaxBase)} + PPN 11% {formatCurrency(downPaymentTaxAmount)}
+                        </p>
+                      )}
+                    </div>
                   </FormField>
 
                   {/* No. PO */}
@@ -717,6 +826,9 @@ export function UangMukaModal({
                           currency: "IDR",
                           maximumFractionDigits: 0,
                         })}
+                      </p>
+                      <p className="mt-1 text-[11px] font-medium text-slate-400">
+                        {taxNote}
                       </p>
                     </div>
                   </div>
@@ -878,6 +990,19 @@ function FormField({
       {children}
     </div>
   );
+}
+
+function calculateIncludedTax(amount: number, included: boolean) {
+  if (!included || amount <= 0) return 0;
+  return Math.round(amount - amount / 1.11);
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 }
 
 const inputClass = `

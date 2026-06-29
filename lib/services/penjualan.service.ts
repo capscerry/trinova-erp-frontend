@@ -156,6 +156,10 @@ interface SalesOrderByCustomerApi {
   notes?: string;
   keterangan?: string;
   status?: SalesOrderStatus;
+  isTaxAble?: boolean;
+  isTaxable?: boolean;
+  isTaxIncluded?: boolean;
+  taxTotal?: number;
   subTotal?: number;
   total?: number;
 }
@@ -169,6 +173,9 @@ export interface SalesOrder {
   poNumber: string;
   keterangan: string;
   status: SalesOrderStatus;
+  kenaPajak?: boolean;
+  isTaxIncluded?: boolean;
+  taxTotal?: number;
   total: number;
   items: SalesOrderItemApi[];
 }
@@ -393,6 +400,9 @@ export const salesOrderService = {
         pelanggan: item.customerName ?? item.pelanggan ?? "",
         keterangan: item.notes ?? item.keterangan ?? "",
         status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+        kenaPajak: Boolean(item.isTaxAble ?? item.isTaxable ?? false),
+        isTaxIncluded: Boolean(item.isTaxIncluded ?? item.isTaxAble ?? item.isTaxable ?? false),
+        taxTotal: Number(item.taxTotal ?? 0),
         total: item.subTotal ?? item.total ?? 0,
         items: [],
       }))
