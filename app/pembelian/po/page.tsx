@@ -17,6 +17,7 @@ import {
   deletePurchaseOrderDetail,
 
   updatePurchaseOrder,
+  approvePurchaseOrder,
 
   deletePurchaseOrder,
 
@@ -30,10 +31,6 @@ import {
   getPurchaseDownPayments,
 } from "@/lib/services/purchase-down-payment.service";
 
-import {
-  getSupplierProducts as fetchAllSupplierProducts,
-  updateSupplierProduct,
-} from "@/lib/services/supplier-product.service";
 
 import {
   createGoodsReceipt,
@@ -708,105 +705,19 @@ export default function PurchaseOrderPage() {
   // ─────────────────────────────────────────────────────────
 
   const handleApprovePO = async (poId: number, formData?: any) => {
-    // Prefer the live form data passed from the modal (covers newly-created POs
-    // that aren't in the purchaseOrders list yet). Fall back to the table row.
-    let data: any;
+    // Delegate approval + stock deduction entirely to the backend.
+    // PATCH /api/purchase-order/{id}/approve atomically:
+    //   1. Validates PO exists and is in Draft status
+    //   2. Deducts available_stock for every detail line via DeductStock()
+    //   3. Rolls back all deductions if any line fails, returning a clear error
+    //   4. Transitions status Draft → Approved only when all lines succeed
+    const result = await approvePurchaseOrder(poId);
 
-    if (formData) {
-      data = formData;
-    } else {
-      const po = purchaseOrders.find(p => Number(p.id) === poId);
-      const supplier = suppliers.find(s => s.nama === po?.supplier);
-      data = {
-        po_number:    po?.nomor ?? "",
-        supplier_id:  supplier?.id ?? "0",
-        order_date:   po?.tanggal ?? "",
-        total_amount: po?.total ?? 0,
-      };
+    if (!result?.status) {
+      throw new Error(result?.message ?? "Persetujuan gagal");
     }
 
-    await updatePurchaseOrder(poId, buildPOUpdatePayload(data, "Approved"));
-
-    // ── Stock deduction (hard reserve) ───────────────────────────────────────
-    // After the PO is approved, reduce available_stock on each supplier-product
-    // record by the ordered quantity. We fetch fresh supplier-product data so
-    // we get current stock levels and supplier_product_id values.
-    try {
-      // Get the PO line items for this PO — try local state first, fall back to API
-      let poItems: any[] = purchaseOrderDetails.filter(
-        (d: any) => Number(d.purchase_order_id) === Number(poId)
-      );
-
-      // If not in local state yet (e.g. newly-created PO), fetch from API
-      if (poItems.length === 0) {
-        const detailRes = await getPurchaseOrderDetails();
-        const detailList = Array.isArray(detailRes) ? detailRes : detailRes.data ?? [];
-        poItems = detailList.filter(
-          (d: any) => Number(d.purchase_order_id) === Number(poId)
-        );
-      }
-
-      if (poItems.length > 0) {
-        // Fetch fresh supplier-product catalog to get current stock + PKs
-        const spRes = await fetchAllSupplierProducts();
-        const spList: any[] = Array.isArray(spRes) ? spRes : spRes.data ?? [];
-
-        // Build lookup: product_id → { supplier_product_id, available_stock }
-        // If the supplier has multiple entries for the same product, prefer the
-        // one matching the PO's supplier_id.
-        const supplierId = Number(data.supplier_id ?? formData?.supplier_id ?? 0);
-        const spMap = new Map<number, { spId: number; stock: number }>();
-        for (const sp of spList) {
-          const pid = Number(sp.product_id);
-          const sid = Number(sp.supplier_id);
-          const existing = spMap.get(pid);
-          // Prefer supplier match; accept any entry as fallback
-          if (!existing || sid === supplierId) {
-            spMap.set(pid, {
-              spId: Number(sp.supplier_product_id),
-              stock: Number(sp.available_stock ?? 0),
-            });
-          }
-        }
-
-        // Deduct per line item
-        const deductionErrors: string[] = [];
-        for (const item of poItems) {
-          const pid = Number(item.product_id);
-          const qty = Number(item.quantity ?? 0);
-          const sp  = spMap.get(pid);
-
-          if (!sp || sp.spId === 0) {
-            deductionErrors.push(`Product ID ${pid}: supplier-product record not found`);
-            continue;
-          }
-
-          const newStock = Math.max(0, sp.stock - qty);
-          try {
-            await updateSupplierProduct(sp.spId, { available_stock: newStock });
-          } catch (err: any) {
-            deductionErrors.push(`Product ID ${pid}: ${err?.message ?? "gagal update stok"}`);
-          }
-        }
-
-        if (deductionErrors.length > 0) {
-          // Non-fatal: PO is approved but warn about partial stock failures
-          toast.warning(
-            `PO disetujui, tetapi ${deductionErrors.length} item stok gagal dikurangi. Cek konsol.`
-          );
-          console.warn("[handleApprovePO] stock deduction errors:", deductionErrors);
-        } else {
-          // Refresh products list so available_stock displays are up-to-date
-          await fetchProducts();
-        }
-      }
-    } catch (stockErr: any) {
-      // Stock deduction failure is non-fatal — PO approval already succeeded
-      console.error("[handleApprovePO] stock deduction failed:", stockErr);
-      toast.warning("PO disetujui, tetapi pengurangan stok gagal. Cek konsol.");
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
+    await fetchProducts();
     await fetchPurchaseOrders();
     toast.success("Purchase Order berhasil disetujui");
   };

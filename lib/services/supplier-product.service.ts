@@ -23,7 +23,7 @@ export const updateSupplierProduct = async (
   id: number,
   payload: { available_stock?: number; [key: string]: any }
 ) => {
-  const response = await api.patch(`/supplier-product/${id}`, payload);
+  const response = await api.put(`/supplier-product/${id}`, payload);
   return response.data;
 };
 

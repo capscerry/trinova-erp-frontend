@@ -372,8 +372,9 @@ export default function PurchaseOrderFormModal({
       setIsApproved(true);
       setForm(prev => ({ ...prev, status: "Approved" }));
       setApprovalOpen(false);
-    } catch { /* parent handles */ }
-    finally { setIsApproving(false); }
+    } catch (err: any) {
+      toast.error(err?.message ?? "Persetujuan gagal");
+    } finally { setIsApproving(false); }
   };
 
   const handleSaveDP = async () => {

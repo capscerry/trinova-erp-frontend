@@ -36,11 +36,7 @@ import {
   type ReorderCandidate,
   type ConcentrationResult,
 } from "@/lib/purchasing-insights";
-import {
-  generateDummySupplierFeatures,
-  predictSupplierRisk,
-  type MLPipeline,
-} from "@/lib/xgboost-risk";
+
 
 // ─── Small reusable UI helpers ────────────────────────────────────────────────
 
@@ -185,48 +181,6 @@ function SpendBarChart({ data }: { data: SpendSummary["spendByMonth"] }) {
 
 // ─── Supplier ranking table ───────────────────────────────────────────────────
 
-function RiskModelMetrics({ pipeline }: { pipeline?: MLPipeline | null }) {
-  if (!pipeline) return null;
-
-  const splits = [
-    { label: "Training", metrics: pipeline.trainMetrics, color: "bg-blue-600" },
-    { label: "Validation", metrics: pipeline.valMetrics, color: "bg-amber-600" },
-    { label: "Test", metrics: pipeline.testMetrics, color: "bg-emerald-600" },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      {splits.map((split) => (
-        <Card key={split.label} className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-[11px] uppercase tracking-widest text-slate-400 font-semibold">{split.label}</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">Split Metrics</p>
-            </div>
-            <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold text-white", split.color)}>
-              {split.label}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div className="rounded-xl bg-slate-50 p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400">R²</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">{split.metrics.r2.toFixed(3)}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400">Accuracy</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">{(split.metrics.accuracy * 100).toFixed(1)}%</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400">AUC</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">{split.metrics.auc.toFixed(3)}</p>
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
 function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
   if (scores.length === 0)
     return <p className="text-[12px] text-slate-400 text-center py-8">Belum ada data supplier</p>;
@@ -305,7 +259,8 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
                     <Tooltip term="katalog" label="Target Lead Time dari data katalog supplier (hari)." />: {s.catalogLeadTime}h
                   </p>
                 )}
-              </td>              <td className="px-3 py-3">
+              </td>
+              <td className="px-3 py-3">
                 <span className={cn(
                   "font-semibold",
                   s.onTimeRate >= 0.8 ? "text-green-600" : s.onTimeRate >= 0.5 ? "text-amber-600" : "text-rose-500"
@@ -430,7 +385,8 @@ function ReorderTable({ data }: { data: ReorderCandidate[] }) {
               </td>
               <td className="px-3 py-3 tabular-nums text-slate-600">
                 {r.catalogLeadTime != null ? `${r.catalogLeadTime} hari` : "—"}
-              </td>              <td className="px-3 py-3 tabular-nums text-slate-700">
+              </td>
+              <td className="px-3 py-3 tabular-nums text-slate-700">
                 {r.lastPrice != null ? `Rp ${fmtRp(r.lastPrice)}` : "—"}
               </td>
               <td className="px-3 py-3">
@@ -563,7 +519,6 @@ export default function PurchasingInsightPage() {
   const [supplierScores, setSupplierScores] = useState<SupplierScore[]>([]);
   const [reorderList,  setReorderList]  = useState<ReorderCandidate[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationResult | null>(null);
-  const [riskPipeline, setRiskPipeline] = useState<MLPipeline | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -609,7 +564,6 @@ export default function PurchasingInsightPage() {
       setPaymentHealth(calcPaymentHealth(invoices, payments));
       setSupplierScores(calcSupplierScores(normPos, grs, supProducts, invoices, normSuppliers));
       setReorderList(calcReorderCandidates(supProducts, normSuppliers, poDetails));
-      setRiskPipeline(predictSupplierRisk(generateDummySupplierFeatures(normSuppliers)));
       setLastUpdated(new Date());
     } catch (e) {
       console.error("Insight fetch error:", e);
@@ -692,14 +646,17 @@ export default function PurchasingInsightPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
-        <SectionTitle icon={Brain} label="AI Risk Model Metrics" sub="Evaluasi model XGBoost pada data dummy supplier" />
-        {loading ? (
-          <SkeletonBlock h="h-40" />
-        ) : riskPipeline ? (
-          <RiskModelMetrics pipeline={riskPipeline} />
-        ) : (
-          <p className="text-[12px] text-slate-500">Belum ada hasil model. Segarkan halaman atau buka /rekomendasi untuk melihat prediksi risiko.</p>
-        )}
+        <SectionTitle icon={Brain} label="AI Risk Model Metrics" sub="Prediksi risiko supplier berbasis XGBoost" />
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-[12px] text-blue-700">
+          <Info size={13} className="text-blue-400 shrink-0" />
+          <span>
+            Prediksi risiko dan metrik model tersedia di halaman{" "}
+            <Link href="/rekomendasi" className="font-bold underline underline-offset-2 hover:text-blue-900 inline-flex items-center gap-1">
+              Rekomendasi Supplier <ArrowRight size={11} />
+            </Link>
+            {" "}— tab <strong>XGBoost Risk</strong>.
+          </span>
+        </div>
       </div>
 
       {/* ── Row 1: Spend chart + Concentration + Payment ─────────────────────── */}
