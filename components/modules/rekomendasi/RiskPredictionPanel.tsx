@@ -1,22 +1,36 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import {
   ShieldAlert, ShieldCheck, ShieldX, Shield,
   ChevronDown, ChevronUp, Info, Zap,
   FlaskConical, TrendingDown, BarChart3,
+  RefreshCw, UploadCloud, Database, Server, CheckCircle2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { RiskResult, RiskLevel, MLPipeline, SplitMetrics, RoundMetrics, FoldResult } from "@/lib/xgboost-risk";
-import { FEATURE_NAMES, FEATURE_RISK_DIR } from "@/lib/xgboost-risk";
+import type { RiskResult, RiskLevel } from "@/lib/xgboost-risk";
+import { FEATURE_RISK_DIR } from "@/lib/xgboost-risk";
+import type {
+  BackendModelMetrics,
+  BackendSplitMetrics,
+  BackendRoundMetrics,
+  BackendFoldResult,
+} from "@/lib/services/supplier-risk.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RiskPredictionPanelProps {
-  results:    RiskResult[];
-  pipeline?:  MLPipeline | null;
-  isLoading?: boolean;
+  results:         RiskResult[];
+  backendMetrics?: BackendModelMetrics | null;
+  isLoading?:      boolean;
+  riskSource?:     "backend" | "client";
+  isTraining?:     boolean;
+  trainMessage?:   string | null;
+  trainError?:     string | null;
+  onTrainFromErp?:       () => void;
+  onTrainFromServerCsv?: () => void;
+  onTrainFromCsvUpload?: (file: File) => void;
 }
 
 // ─── Inline term tooltip ──────────────────────────────────────────────────────
@@ -139,7 +153,8 @@ const RISK_CONFIG: Record<RiskLevel, {
 
 function RiskScoreBar({ score, level }: { score: number; level: RiskLevel }) {
   const cfg = RISK_CONFIG[level];
-  const pct = Math.round(score * 100);
+  const s = Number(score ?? 0);
+  const pct = Math.round(s * 100);
   return (
     <div className="flex items-center gap-2 min-w-0 pr-2">
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
@@ -149,7 +164,7 @@ function RiskScoreBar({ score, level }: { score: number; level: RiskLevel }) {
         />
       </div>
       <span className="text-[12px] font-bold tabular-nums text-slate-700 w-12 text-right shrink-0">
-        {score.toFixed(3)}
+        {s.toFixed(3)}
       </span>
     </div>
   );
@@ -158,7 +173,7 @@ function RiskScoreBar({ score, level }: { score: number; level: RiskLevel }) {
 // ─── Risk level badge ─────────────────────────────────────────────────────────
 
 function RiskBadge({ level }: { level: RiskLevel }) {
-  const cfg = RISK_CONFIG[level];
+  const cfg = RISK_CONFIG[level] ?? RISK_CONFIG["Low"];
   const Icon = cfg.icon;
   return (
     <span className={cn(
@@ -234,7 +249,18 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 6);
 
-  const f = result.features;
+  const f = result.features ?? {} as any;
+  // Safely coerce all feature values — backend may omit some fields
+  const onTimeRate     = Number(f.on_time_rate    ?? 0);
+  const avgLeadTime    = Number(f.avg_lead_time   ?? 0);
+  const orderCount     = Number(f.order_count     ?? 0);
+  const leadTimeCv     = Number(f.lead_time_cv    ?? 0);
+  const deliveryMargin = Number(f.delivery_margin ?? 0);
+  const lowStockRatio  = Number(f.low_stock_ratio ?? 0);
+  const avgStockLevel  = Number(f.avg_stock_level ?? 0);
+  const daysSinceGr    = Number(f.days_since_last_gr ?? 0);
+  const catalogSku     = Number(f.catalog_sku_count  ?? 0);
+  const avgPrice       = Number(f.avg_price       ?? 0);
 
   return (
     <>
@@ -266,13 +292,13 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
         <div className="flex gap-1.5 justify-end">
           <FeatureChip
             label="On-Time"
-            value={`${(f.on_time_rate * 100).toFixed(0)}%`}
-            warn={f.on_time_rate < 0.7}
+            value={`${(onTimeRate * 100).toFixed(0)}%`}
+            warn={onTimeRate < 0.7}
           />
           <FeatureChip
             label="Lead (d)"
-            value={String(Math.round(f.avg_lead_time))}
-            warn={f.avg_lead_time > 21}
+            value={String(Math.round(avgLeadTime))}
+            warn={avgLeadTime > 21}
           />
         </div>
 
@@ -292,16 +318,16 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
               Nilai Fitur
             </p>
             <div className="flex flex-wrap gap-2">
-              <FeatureChip label="Order Count" value={String(f.order_count)} warn={f.order_count < 3} tip="Order Count" />
-              <FeatureChip label="LT CV" value={f.lead_time_cv.toFixed(2)} warn={f.lead_time_cv > 0.5} tip="Lead Time CV" />
-              <FeatureChip label="Margin" value={`${(f.delivery_margin * 100).toFixed(1)}%`} warn={f.delivery_margin < -0.1} tip="Delivery Margin" />
-              <FeatureChip label="Low Stock" value={`${(f.low_stock_ratio * 100).toFixed(0)}%`} warn={f.low_stock_ratio > 0.4} tip="Low Stock Ratio" />
-              <FeatureChip label="Avg Stok" value={f.avg_stock_level.toFixed(1)} warn={f.avg_stock_level < 3} tip="Avg Stok" />
-              <FeatureChip label="Hari Inaktif" value={String(Math.round(f.days_since_last_gr))} warn={f.days_since_last_gr > 90} tip="Hari Inaktif" />
-              <FeatureChip label="SKU Katalog" value={String(f.catalog_sku_count)} tip="SKU Katalog" />
+              <FeatureChip label="Order Count" value={String(orderCount)}             warn={orderCount < 3}          tip="Order Count"      />
+              <FeatureChip label="LT CV"       value={leadTimeCv.toFixed(2)}          warn={leadTimeCv > 0.5}        tip="Lead Time CV"     />
+              <FeatureChip label="Margin"      value={`${(deliveryMargin * 100).toFixed(1)}%`} warn={deliveryMargin < -0.1} tip="Delivery Margin"  />
+              <FeatureChip label="Low Stock"   value={`${(lowStockRatio * 100).toFixed(0)}%`}  warn={lowStockRatio > 0.4}   tip="Low Stock Ratio"  />
+              <FeatureChip label="Avg Stok"    value={avgStockLevel.toFixed(1)}        warn={avgStockLevel < 3}       tip="Avg Stok"         />
+              <FeatureChip label="Hari Inaktif" value={String(Math.round(daysSinceGr))} warn={daysSinceGr > 90}       tip="Hari Inaktif"     />
+              <FeatureChip label="SKU Katalog" value={String(catalogSku)}                                             tip="SKU Katalog"      />
               <FeatureChip
                 label="Harga Avg"
-                value={f.avg_price > 0 ? `${(f.avg_price / 1000).toFixed(0)}k` : "—"}
+                value={avgPrice > 0 ? `${(avgPrice / 1000).toFixed(0)}k` : "—"}
               />
             </div>
           </div>
@@ -325,7 +351,7 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
           <div className="flex gap-3">
             <div className={cn("flex-1 rounded-xl border p-3 text-center", cfg.border, cfg.bg)}>
               <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mb-1">Risk Score</p>
-              <p className={cn("text-xl font-bold font-mono", cfg.text)}>{result.risk_score.toFixed(3)}</p>
+              <p className={cn("text-xl font-bold font-mono", cfg.text)}>{Number(result.risk_score ?? 0).toFixed(3)}</p>
               <p className="text-[9px] text-slate-400 mt-0.5">0 = aman · 1 = kritis</p>
             </div>
             <div className="flex-1 rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
@@ -418,7 +444,9 @@ function RiskDistribution({ results }: { results: RiskResult[] }) {
 
 // ─── ML Metrics card ─────────────────────────────────────────────────────────
 
-function MetricCell({ label, value, good, bad, tip }: {
+function MetricCell({
+  label, value, good, bad, tip,
+}: {
   label: string; value: string | number;
   good?: boolean; bad?: boolean; tip?: string;
 }) {
@@ -437,16 +465,16 @@ function MetricCell({ label, value, good, bad, tip }: {
   );
 }
 
-function SplitMetricsRow({ label, m, color }: {
-  label: string; m: SplitMetrics;
-  color: "blue" | "amber" | "emerald";
+function SplitMetricsRow({
+  label, m, color,
+}: {
+  label: string; m: BackendSplitMetrics; color: "blue" | "amber" | "emerald";
 }) {
   const cls = {
     blue:    "bg-blue-50 border-blue-200 text-blue-700",
     amber:   "bg-amber-50 border-amber-200 text-amber-700",
     emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
   }[color];
-
   return (
     <div className="space-y-1.5">
       <div className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold", cls)}>
@@ -454,20 +482,20 @@ function SplitMetricsRow({ label, m, color }: {
         <span className="font-normal opacity-70">n={m.n}</span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <MetricCell label="Log-Loss" value={m.logloss} bad={m.logloss > 0.5} good={m.logloss < 0.2} tip="Log-Loss" />
-        <MetricCell label="MSE"      value={m.mse}     bad={m.mse > 0.05}    good={m.mse < 0.01}    tip="MSE"      />
-        <MetricCell label="MAE"      value={m.mae}     bad={m.mae > 0.15}    good={m.mae < 0.08}    tip="MAE"      />
-        <MetricCell label="R²"       value={m.r2}      good={m.r2 > 0.85}    bad={m.r2 < 0.5}       tip="R²"       />
+        <MetricCell label="Log-Loss" value={m.logloss}  bad={m.logloss > 0.5}  good={m.logloss < 0.2}  tip="Log-Loss" />
+        <MetricCell label="MSE"      value={m.mse}      bad={m.mse > 0.05}     good={m.mse < 0.01}     tip="MSE"      />
+        <MetricCell label="MAE"      value={m.mae}      bad={m.mae > 0.15}     good={m.mae < 0.08}     tip="MAE"      />
+        <MetricCell label="R²"       value={m.r2}       good={m.r2 > 0.85}     bad={m.r2 < 0.5}        tip="R²"       />
         <MetricCell label="Accuracy" value={`${(m.accuracy * 100).toFixed(1)}%`} good={m.accuracy > 0.85} bad={m.accuracy < 0.65} tip="Accuracy" />
-        <MetricCell label="AUC-ROC"  value={m.auc}     good={m.auc > 0.85}   bad={m.auc < 0.65}     tip="AUC-ROC"  />
+        <MetricCell label="AUC-ROC"  value={m.auc}      good={m.auc > 0.85}    bad={m.auc < 0.65}      tip="AUC-ROC"  />
       </div>
     </div>
   );
 }
 
 // Micro SVG learning curve — no external chart lib needed
-function LearningCurveChart({ curve }: { curve: RoundMetrics[] }) {
-  if (curve.length === 0) return null;
+function LearningCurveChart({ curve }: { curve: BackendRoundMetrics[] }) {
+  if (curve.length < 2) return null;
 
   const W = 400, H = 100, PAD = { t: 8, r: 8, b: 20, l: 36 };
   const innerW = W - PAD.l - PAD.r;
@@ -518,9 +546,9 @@ function LearningCurveChart({ curve }: { curve: RoundMetrics[] }) {
 }
 
 function CVFoldsTable({ folds, mean, std }: {
-  folds: FoldResult[]; mean: SplitMetrics; std: SplitMetrics;
+  folds: BackendFoldResult[]; mean: BackendSplitMetrics; std: BackendSplitMetrics;
 }) {
-  const metrics: { key: keyof SplitMetrics; label: string; tip: string }[] = [
+  const metrics: { key: keyof BackendSplitMetrics; label: string; tip: string }[] = [
     { key: "logloss",  label: "Log-Loss",  tip: "Log-Loss"  },
     { key: "mse",      label: "MSE",       tip: "MSE"       },
     { key: "mae",      label: "MAE",       tip: "MAE"       },
@@ -577,34 +605,49 @@ function CVFoldsTable({ folds, mean, std }: {
   );
 }
 
-function MLMetricsCard({ pipeline }: { pipeline: MLPipeline }) {
+function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
   const [open, setOpen] = useState(true);
-  const [tab, setTab]   = useState<"split" | "curve" | "cv">("split");
+  const hasCurve = m.learningCurve.length >= 2;
+  const hasCv    = m.cvFolds.length > 0;
+  const hasSplit = m.testMetrics.n > 0 || m.trainMetrics.n > 0;
+
+  // Decide which tabs to show based on available data
+  const tabs = [
+    hasSplit || (m.accuracy != null)
+      ? { key: "summary" as const, label: "Ringkasan",      icon: BarChart3    }
+      : null,
+    hasCurve
+      ? { key: "curve"   as const, label: "Learning Curve", icon: TrendingDown }
+      : null,
+    hasCv
+      ? { key: "cv"      as const, label: `${m.cvFolds.length}-Fold CV`, icon: FlaskConical }
+      : null,
+  ].filter(Boolean) as { key: "summary" | "curve" | "cv"; label: string; icon: any }[];
+
+  const [tab, setTab] = useState<"summary" | "curve" | "cv">(tabs[0]?.key ?? "summary");
 
   return (
     <div className="border-t border-slate-100">
-      {/* Toggle header */}
       <button
         onClick={() => setOpen(v => !v)}
         className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
       >
         <div className="flex items-center gap-2 flex-wrap">
           <FlaskConical size={13} className="text-blue-500" />
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-            Metrik Model ML
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200">
-            <TermTip term="Stratified Split">Train / Val / Test</TermTip>
-            {" · "}{pipeline.splitSizes.train}+{pipeline.splitSizes.val}+{pipeline.splitSizes.test} samples
-          </span>
-          {pipeline.bestRound < pipeline.totalRounds && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold border border-amber-200">
-              <TermTip term="Early Stopping">Early Stop</TermTip> @ round {pipeline.bestRound}
+          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Metrik Model ML</span>
+          {m.samples_trained != null && m.samples_trained > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200">
+              {m.samples_trained} sampel latih · {m.samples_tested ?? 0} sampel uji
             </span>
           )}
-          {pipeline.isOverfit && (
-            <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[9px] font-bold border border-rose-200">
-              ⚠ Overfitting terdeteksi
+          {m.data_source && (
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[9px] border border-slate-200">
+              {m.data_source}
+            </span>
+          )}
+          {m.trainedAt && (
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[9px] border border-slate-200">
+              {new Date(m.trainedAt).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}
             </span>
           )}
         </div>
@@ -614,58 +657,71 @@ function MLMetricsCard({ pipeline }: { pipeline: MLPipeline }) {
       {open && (
         <div className="px-5 py-4 space-y-4 bg-slate-50/30">
 
-          {/* Overfit warning banner */}
-          {pipeline.isOverfit && (
-            <div className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-              <ShieldAlert size={14} className="text-rose-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[11px] font-bold text-rose-700">
-                  Tanda Overfitting Terdeteksi
-                </p>
-                <p className="text-[10px] text-rose-600 mt-0.5">
-                  Val loss lebih tinggi dari train loss sebesar{" "}
-                  <strong>{pipeline.trainValGap.toFixed(4)}</strong> di round terbaik.
-                  Regularisasi (L2={" "}λ, depth, min_child_weight) sudah diperketat otomatis.
-                  Pertimbangkan menambah lebih banyak data transaksi PO/GR.
-                </p>
-              </div>
+          {/* Tab switcher — only shown when multiple tabs exist */}
+          {tabs.length > 1 && (
+            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg w-fit">
+              {tabs.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all",
+                    tab === key ? "bg-white text-navy-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                  )}
+                >
+                  <Icon size={11} />
+                  {key === "curve" ? <TermTip term="Learning Curve">{label}</TermTip>
+                    : key === "cv"  ? <TermTip term="5-Fold CV">{label}</TermTip>
+                    : label}
+                </button>
+              ))}
             </div>
           )}
 
-          {/* Sub-tabs */}
-          <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg self-start w-fit">
-            {([
-              { key: "split", label: "Split Metrics",   icon: BarChart3    },
-              { key: "curve", label: "Learning Curve",  icon: TrendingDown },
-              { key: "cv",    label: `${pipeline.cvFolds.length}-Fold CV`, icon: FlaskConical },
-            ] as const).map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all",
-                  tab === key ? "bg-white text-navy-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+          {/* Summary — accuracy, ROC-AUC, sample counts */}
+          {(tab === "summary" || tabs.length === 1) && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {m.accuracy != null && (
+                  <MetricCell
+                    label="Accuracy"
+                    value={`${(m.accuracy * 100).toFixed(1)}%`}
+                    good={m.accuracy > 0.85}
+                    bad={m.accuracy < 0.65}
+                    tip="Accuracy"
+                  />
                 )}
-              >
-                <Icon size={11} />
-                {key === "curve" ? <TermTip term="Learning Curve">{label}</TermTip>
-                  : key === "cv" ? <TermTip term="5-Fold CV">{label}</TermTip>
-                  : label}
-              </button>
-            ))}
-          </div>
-
-          {/* Split metrics */}
-          {tab === "split" && (
-            <div className="space-y-4">
-              <SplitMetricsRow label="Training Set"   m={pipeline.trainMetrics} color="blue"    />
-              <SplitMetricsRow label="Validation Set" m={pipeline.valMetrics}   color="amber"   />
-              <SplitMetricsRow label="Test Set"       m={pipeline.testMetrics}  color="emerald" />
+                {m.roc_auc != null && (
+                  <MetricCell
+                    label="AUC-ROC"
+                    value={m.roc_auc}
+                    good={m.roc_auc > 0.85}
+                    bad={m.roc_auc < 0.65}
+                    tip="AUC-ROC"
+                  />
+                )}
+                {m.samples_trained != null && (
+                  <MetricCell label="Sampel Latih" value={m.samples_trained} />
+                )}
+                {m.samples_tested != null && (
+                  <MetricCell label="Sampel Uji"   value={m.samples_tested}  />
+                )}
+              </div>
+              {/* Full split rows — only if the backend returns them */}
+              {m.trainMetrics.n > 0 && (
+                <SplitMetricsRow label="Training Set"   m={m.trainMetrics} color="blue"    />
+              )}
+              {m.valMetrics.n > 0 && (
+                <SplitMetricsRow label="Validation Set" m={m.valMetrics}   color="amber"   />
+              )}
+              {m.testMetrics.n > 0 && (
+                <SplitMetricsRow label="Test Set"       m={m.testMetrics}  color="emerald" />
+              )}
             </div>
           )}
 
           {/* Learning curve */}
-          {tab === "curve" && (
+          {tab === "curve" && hasCurve && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] text-slate-500">
@@ -673,48 +729,23 @@ function MLMetricsCard({ pipeline }: { pipeline: MLPipeline }) {
                   kurva <TermTip term="Early Stopping">val naik</TermTip> = mulai overfitting
                 </p>
                 <span className="text-[10px] font-mono text-slate-400">
-                  {pipeline.learningCurve.length} rounds · best @ {pipeline.bestRound}
+                  {m.learningCurve.length} rounds{m.bestRound > 0 ? ` · best @ ${m.bestRound}` : ""}
                 </span>
               </div>
               <div className="bg-white rounded-xl border border-slate-100 p-3">
-                <LearningCurveChart curve={pipeline.learningCurve} />
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 text-center">
-                  <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Best Round</p>
-                  <p className="text-lg font-bold font-mono text-navy-900">{pipeline.bestRound}</p>
-                  <p className="text-[9px] text-slate-400">/ {pipeline.totalRounds} max</p>
-                </div>
-                <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 text-center">
-                  <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Train Loss</p>
-                  <p className="text-lg font-bold font-mono text-blue-600">
-                    {pipeline.learningCurve[pipeline.bestRound - 1]?.trainLoss.toFixed(4) ?? "—"}
-                  </p>
-                </div>
-                <div className="flex-1 bg-white border border-slate-100 rounded-xl p-3 text-center">
-                  <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold mb-1">Val Loss</p>
-                  <p className="text-lg font-bold font-mono text-amber-600">
-                    {pipeline.learningCurve[pipeline.bestRound - 1]?.valLoss.toFixed(4) ?? "—"}
-                  </p>
-                </div>
+                <LearningCurveChart curve={m.learningCurve} />
               </div>
             </div>
           )}
 
           {/* Cross-validation */}
-          {tab === "cv" && (
+          {tab === "cv" && hasCv && (
             <div className="space-y-2">
               <p className="text-[10px] text-slate-500">
-                <TermTip term="Stratified Split">Stratified</TermTip>{" "}
-                <TermTip term="5-Fold CV">{pipeline.cvFolds.length}-fold CV</TermTip>
-                {" "}— setiap fold melatih model independen dengan scaler tersendiri (no{" "}
-                <TermTip term="Data Leakage">data leakage</TermTip>)
+                <TermTip term="5-Fold CV">{m.cvFolds.length}-fold CV</TermTip>
+                {" "}— setiap fold melatih model independen
               </p>
-              <CVFoldsTable
-                folds={pipeline.cvFolds}
-                mean={pipeline.cvMean}
-                std={pipeline.cvStd}
-              />
+              <CVFoldsTable folds={m.cvFolds} mean={m.cvMean} std={m.cvStd} />
             </div>
           )}
         </div>
@@ -723,25 +754,161 @@ function MLMetricsCard({ pipeline }: { pipeline: MLPipeline }) {
   );
 }
 
-// ─── Method footer ────────────────────────────────────────────────────────────
+function NoMetricsPrompt() {
+  return (
+    <div className="border-t border-slate-100 px-5 py-8 flex flex-col items-center gap-3 text-center bg-slate-50/40">
+      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+        <FlaskConical size={17} className="text-slate-300" />
+      </div>
+      <p className="text-[13px] font-semibold text-slate-500 font-serif">Metrik model belum tersedia</p>
+      <p className="text-[11px] text-slate-400 max-w-xs leading-relaxed">
+        Model belum pernah dilatih. Gunakan tombol di bawah untuk melatih model XGBoost —
+        metrik Train / Val / Test, Learning Curve, dan CV Folds akan tampil di sini setelah selesai.
+      </p>
+    </div>
+  );
+}
 
-function MethodFooter({ pipeline }: { pipeline?: MLPipeline | null }) {
-  const earlyStop = pipeline && pipeline.bestRound < pipeline.totalRounds;
+// ─── Train Controls ───────────────────────────────────────────────────────────
+
+function TrainControls({
+  isTraining,
+  trainMessage,
+  trainError,
+  onTrainFromErp,
+  onTrainFromServerCsv,
+  onTrainFromCsvUpload,
+}: {
+  isTraining: boolean;
+  trainMessage: string | null;
+  trainError: string | null;
+  onTrainFromErp?: () => void;
+  onTrainFromServerCsv?: () => void;
+  onTrainFromCsvUpload?: (file: File) => void;
+}) {
+  const fileInputId = useId();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file && onTrainFromCsvUpload) {
+      onTrainFromCsvUpload(file);
+    }
+    // Reset so the same file can be re-uploaded if needed
+    e.target.value = "";
+  }
+
+  const btnBase =
+    "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all border disabled:opacity-50 disabled:cursor-not-allowed";
+
+  return (
+    <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40 space-y-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        Latih Ulang Model — Backend XGBoost
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {/* Train from live ERP */}
+        <button
+          disabled={isTraining}
+          onClick={onTrainFromErp}
+          className={cn(
+            btnBase,
+            "bg-navy-900 text-white border-navy-800 hover:bg-navy-800 active:scale-95",
+          )}
+        >
+          {isTraining
+            ? <RefreshCw size={11} className="animate-spin" />
+            : <Database size={11} />}
+          Latih dari ERP
+        </button>
+
+        {/* Train from server-bundled CSV */}
+        <button
+          disabled={isTraining}
+          onClick={onTrainFromServerCsv}
+          className={cn(
+            btnBase,
+            "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 active:scale-95",
+          )}
+        >
+          {isTraining
+            ? <RefreshCw size={11} className="animate-spin text-slate-400" />
+            : <Server size={11} className="text-slate-500" />}
+          Latih dari CSV Server
+        </button>
+
+        {/* Train from CSV upload */}
+        <button
+          disabled={isTraining}
+          onClick={() => fileRef.current?.click()}
+          className={cn(
+            btnBase,
+            "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 active:scale-95",
+          )}
+        >
+          {isTraining
+            ? <RefreshCw size={11} className="animate-spin text-slate-400" />
+            : <UploadCloud size={11} className="text-slate-500" />}
+          Upload CSV
+        </button>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileRef}
+          id={fileInputId}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      {/* Feedback */}
+      {isTraining && (
+        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+          <RefreshCw size={11} className="animate-spin text-navy-400 shrink-0" />
+          Melatih model, mohon tunggu…
+        </div>
+      )}
+      {!isTraining && trainMessage && (
+        <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-[11px] text-emerald-700">
+          <CheckCircle2 size={12} className="shrink-0 mt-0.5 text-emerald-500" />
+          {trainMessage}
+        </div>
+      )}
+      {!isTraining && trainError && (
+        <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-[11px] text-rose-700">
+          <XCircle size={12} className="shrink-0 mt-0.5 text-rose-500" />
+          {trainError}
+        </div>
+      )}
+
+      <p className="text-[10px] text-slate-400 leading-relaxed">
+        <strong>Latih dari ERP</strong> — server membaca data live dan menghasilkan label otomatis.{" "}
+        <strong>CSV Server</strong> — menggunakan file CSV yang sudah dibundel di server.{" "}
+        <strong>Upload CSV</strong> — kirim file CSV berlabel dari komputer lokal.
+        Setelah melatih, klik <em>Jalankan Analisis</em> untuk memperbarui prediksi.
+      </p>
+    </div>
+  );
+}
+
+// ─── Method footer (backend-aware) ───────────────────────────────────────────
+
+function MethodFooter({ m }: { m?: BackendModelMetrics | null }) {
+  const earlyStop = m && m.bestRound < m.totalRounds;
   const chips: { label: string; sub: string; tip?: string }[] = [
-    { label: `${pipeline?.bestRound ?? 150} Rounds`, sub: earlyStop ? "early stopped" : "boosting rounds", tip: "Early Stopping" },
-    { label: "Depth 2",         sub: "CART trees — shallower = less overfit"   },
-    { label: "LR 0.08",         sub: "learning rate — slower = more stable"    },
-    { label: "L2 λ = 3.0",      sub: "regularization — higher = less overfit", tip: "Gradient Boosting" },
-    { label: "γ = 0.10",        sub: "min split gain — prunes trivial splits"   },
-    { label: "60/20/20 Split",  sub: "train/val/test", tip: "Stratified Split"  },
-    { label: "5-Fold CV",       sub: "cross-validation", tip: "5-Fold CV"       },
-    { label: "SHAP",            sub: "attribution", tip: "SHAP"                 },
-    { label: "10 Features",     sub: "ERP + Excel"                              },
+    { label: m ? `${m.bestRound} Rounds` : "—", sub: earlyStop ? "early stopped" : "boosting rounds", tip: "Early Stopping" },
+    { label: "60/20/20 Split", sub: "train/val/test", tip: "Stratified Split" },
+    { label: m ? `${m.cvFolds.length}-Fold CV` : "5-Fold CV", sub: "cross-validation", tip: "5-Fold CV" },
+    { label: "SHAP",           sub: "feature attribution", tip: "SHAP"          },
+    { label: "10 Features",    sub: "dari data ERP"                             },
   ];
   return (
     <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-        Konfigurasi <TermTip term="XGBoost">XGBoost</TermTip> Pipeline
+        Konfigurasi <TermTip term="XGBoost">XGBoost</TermTip> Pipeline — Backend FastAPI
       </p>
       <div className="flex flex-wrap gap-2">
         {chips.map(({ label, sub, tip }) => (
@@ -762,7 +929,18 @@ function MethodFooter({ pipeline }: { pipeline?: MLPipeline | null }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function RiskPredictionPanel({ results, pipeline, isLoading = false }: RiskPredictionPanelProps) {
+export function RiskPredictionPanel({
+  results,
+  backendMetrics,
+  isLoading = false,
+  riskSource = "backend",
+  isTraining = false,
+  trainMessage = null,
+  trainError = null,
+  onTrainFromErp,
+  onTrainFromServerCsv,
+  onTrainFromCsvUpload,
+}: RiskPredictionPanelProps) {
   const [showInfo, setShowInfo] = useState(false);
 
   return (
@@ -785,6 +963,15 @@ export function RiskPredictionPanel({ results, pipeline, isLoading = false }: Ri
               {" · "}
               <TermTip term="SHAP">SHAP</TermTip>
               {" Attribution"}
+              {" · "}
+              <span className={cn(
+                "px-1.5 py-0.5 rounded text-[9px] font-bold border",
+                riskSource === "backend"
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                  : "bg-amber-500/20 text-amber-300 border-amber-500/30",
+              )}>
+                {riskSource === "backend" ? "Backend API" : "Client-side"}
+              </span>
             </p>
           </div>
         </div>
@@ -801,7 +988,8 @@ export function RiskPredictionPanel({ results, pipeline, isLoading = false }: Ri
       {showInfo && (
         <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 text-[12px] text-blue-700 leading-relaxed space-y-1">
           <p>
-            <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih {pipeline?.totalRounds ?? 150} pohon{" "}
+            <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih{" "}
+            {backendMetrics ? backendMetrics.totalRounds : "N"} pohon{" "}
             <TermTip term="Gradient Boosting">CART secara berurutan</TermTip>.
             Split <TermTip term="Stratified Split"><strong>60/20/20</strong></TermTip> (train/val/test) —
             scaler difit hanya pada train set untuk menghindari{" "}
@@ -856,16 +1044,30 @@ export function RiskPredictionPanel({ results, pipeline, isLoading = false }: Ri
       ) : (
         <div className="divide-y divide-slate-100">
           {results.map((r, i) => (
-            <RiskRow key={r.supplier_id} result={r} rank={i + 1} />
+            <RiskRow key={r.supplier_id || i} result={r} rank={i + 1} />
           ))}
         </div>
       )}
 
-      {/* ML Metrics card — shown below the supplier list */}
-      {results.length > 0 && !isLoading && pipeline && <MLMetricsCard pipeline={pipeline} />}
+      {/* ML Metrics card — backend data or empty prompt */}
+      {!isLoading && (
+        backendMetrics
+          ? <BackendMetricsCard m={backendMetrics} />
+          : <NoMetricsPrompt />
+      )}
+
+      {/* Train controls */}
+      <TrainControls
+        isTraining={isTraining}
+        trainMessage={trainMessage}
+        trainError={trainError}
+        onTrainFromErp={onTrainFromErp}
+        onTrainFromServerCsv={onTrainFromServerCsv}
+        onTrainFromCsvUpload={onTrainFromCsvUpload}
+      />
 
       {/* Footer */}
-      {results.length > 0 && !isLoading && <MethodFooter pipeline={pipeline} />}
+      {results.length > 0 && !isLoading && <MethodFooter m={backendMetrics} />}
     </div>
   );
 }

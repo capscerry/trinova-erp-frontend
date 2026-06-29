@@ -10,32 +10,24 @@ import { RiskPredictionPanel } from "@/components/modules/rekomendasi/RiskPredic
 import { topsis, calcOnTimeRates } from "@/lib/ahp-topsis";
 import { cn } from "@/lib/utils";
 import type { Criterion, Alternative, TopsisResult } from "@/lib/ahp-topsis";
-import {
-  engineerFeatures, predictSupplierRisk, parseExcelInventory,
-  type RiskResult, type ExcelStockItem, type MLPipeline,
-} from "@/lib/xgboost-risk";
+import type { RiskResult } from "@/lib/xgboost-risk";
 
 import { getPurchaseOrders } from "@/lib/services/po.service";
 import { getGoodsReceipts } from "@/lib/services/gr.service";
 import { getPurchaseInvoices } from "@/lib/services/purchase-invoice.service";
 import { getSupplierProducts } from "@/lib/services/supplier-product.service";
 import { getSuppliers } from "@/lib/services/supplier.service";
-
-async function loadExcelInventory(): Promise<ExcelStockItem[]> {
-  try {
-    const XLSX = await import("xlsx");
-    const res  = await fetch("/SISTEM (1) (3) (1).xlsx");
-    if (!res.ok) return [];
-    const buf   = await res.arrayBuffer();
-    const wb    = XLSX.read(buf, { type: "array" });
-    const ws    = wb.Sheets["STOK"];
-    if (!ws) return [];
-    const rows  = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-    return parseExcelInventory(rows);
-  } catch {
-    return [];
-  }
-}
+import {
+  predictSupplierRiskRaw,
+  trainFromServerCsv,
+  trainFromErp,
+  trainFromCsvUpload,
+  getModelMetrics,
+  normalizeRiskLevel,
+  buildMetricsFromTrainResponse,
+  type SupplierRiskPredictResponse,
+  type BackendModelMetrics,
+} from "@/lib/services/supplier-risk.service";
 
 // ─── AHP-TOPSIS criteria ──────────────────────────────────────────────────────
 
@@ -130,24 +122,6 @@ function buildAlternatives(
   return alternatives;
 }
 
-// ─── Dummy-data patch (keeps demo non-empty) ─────────────────────────────────
-
-function patchWithDummy(alts: Alternative[]): Alternative[] {
-  const rng = (seed: number, min: number, max: number, dec = 0) => {
-    const x = Math.sin(seed) * 10000; const r = x - Math.floor(x);
-    return Math.round((min + r * (max - min)) * 10 ** dec) / 10 ** dec;
-  };
-  return alts.map((alt, idx) => {
-    const seed = parseInt(alt.id, 10) || idx + 1;
-    const v = { ...alt.values };
-    if (!v.harga || v.harga === 0)            v.harga           = rng(seed * 3, 150_000, 950_000, 2);
-    if (!v.lead_time || v.lead_time === 0)    v.lead_time       = rng(seed * 7, 2, 30, 1);
-    if (!v.on_time_rate || v.on_time_rate === 0) v.on_time_rate = rng(seed * 11, 0.55, 1.0, 3);
-    if (v.delivery_margin === 0 || v.delivery_margin == null) v.delivery_margin = rng(seed * 13, -0.15, 0.5, 3);
-    return { ...alt, values: v };
-  });
-}
-
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function RekomendasiPage() {
@@ -155,37 +129,51 @@ export default function RekomendasiPage() {
   const [alternatives, setAlternatives] = useState<Alternative[]>([]);
   const [results, setResults]           = useState<TopsisResult[]>([]);
   const [riskResults, setRiskResults]   = useState<RiskResult[]>([]);
-  const [pipeline, setPipeline]         = useState<MLPipeline | null>(null);
+  const [backendMetrics, setBackendMetrics] = useState<BackendModelMetrics | null>(null);
   const [isRunning, setIsRunning]       = useState(false);
   const [isFetching, setIsFetching]     = useState(true);
   const [fetchError, setFetchError]     = useState<string | null>(null);
   const [hasRun, setHasRun]             = useState(false);
   const [activeTab, setActiveTab]       = useState<"topsis" | "risk">("topsis");
-  const [dataInfo, setDataInfo]         = useState<{ suppliers: number; pos: number; grs: number; skus: number } | null>(null);
+  const [dataInfo, setDataInfo]         = useState<{ suppliers: number; pos: number; grs: number } | null>(null);
 
-  // Raw ERP data kept for XGBoost feature engineering
-  const [erpData, setErpData] = useState<{
-    suppliers: any[]; pos: any[]; grs: any[]; sps: any[]; excelInventory: ExcelStockItem[];
-  } | null>(null);
+  // ── Backend ML train state ────────────────────────────────────────────
+  const [isTraining, setIsTraining]     = useState(false);
+  const [trainMessage, setTrainMessage] = useState<string | null>(null);
+  const [trainError, setTrainError]     = useState<string | null>(null);
+  const [riskSource, setRiskSource]     = useState<"backend" | "client">("backend");
 
-  // ── Fetch ERP + Excel data on mount ──────────────────────────────────
+  // Raw ERP supplier IDs kept for predict-all call
+  const [supplierIds, setSupplierIds] = useState<number[]>([]);
+  // Map from supplier_id → supplier_name for enriching predict responses
+  const [supplierNameMap, setSupplierNameMap] = useState<Map<number, string>>(new Map());
+
+  // ── Fetch ERP data + initial metrics on mount ────────────────────────
   useEffect(() => {
     async function load() {
       setIsFetching(true); setFetchError(null);
       try {
-        const [suppRes, poRes, grRes, invRes, spRes, xlsxItems] = await Promise.all([
+        const [suppRes, poRes, grRes, invRes, spRes, metrics] = await Promise.all([
           getSuppliers(), getPurchaseOrders(), getGoodsReceipts(),
-          getPurchaseInvoices(), getSupplierProducts(), loadExcelInventory(),
+          getPurchaseInvoices(), getSupplierProducts(),
+          getModelMetrics(),
         ]);
         const norm = (r: any) => Array.isArray(r) ? r : r?.data ?? [];
         const suppliers = norm(suppRes), pos = norm(poRes), grs = norm(grRes);
         const invoices  = norm(invRes),  sps = norm(spRes);
 
-        setDataInfo({ suppliers: suppliers.length, pos: pos.length, grs: grs.length, skus: xlsxItems.length });
-        setErpData({ suppliers, pos, grs, sps, excelInventory: xlsxItems });
+        setDataInfo({ suppliers: suppliers.length, pos: pos.length, grs: grs.length });
+        setSupplierIds(suppliers.map((s: any) => Number(s.supplier_id ?? s.id)));
+        setSupplierNameMap(new Map(
+          suppliers.map((s: any) => [
+            Number(s.supplier_id ?? s.id),
+            String(s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`),
+          ])
+        ));
+        if (metrics) setBackendMetrics(metrics);
 
         const alts = buildAlternatives(suppliers, pos, grs, invoices, sps);
-        setAlternatives(patchWithDummy(alts));
+        setAlternatives(alts);
       } catch (e: any) {
         setFetchError(e?.message ?? "Gagal memuat data ERP.");
       } finally {
@@ -195,10 +183,10 @@ export default function RekomendasiPage() {
     load();
   }, []);
 
-  // ── Run AHP-TOPSIS + XGBoost together ────────────────────────────────
+  // ── Run AHP-TOPSIS + backend predict ─────────────────────────────────
   const handleRun = useCallback(async () => {
-    if (alternatives.length === 0 || !erpData) return;
-    setIsRunning(true); setResults([]); setRiskResults([]); setPipeline(null);
+    if (alternatives.length === 0) return;
+    setIsRunning(true); setResults([]); setRiskResults([]);
     await new Promise(r => setTimeout(r, 300));
 
     // 1. TOPSIS
@@ -206,23 +194,104 @@ export default function RekomendasiPage() {
     ranked.sort((a, b) => a.rank - b.rank);
     setResults(ranked);
 
-    // 2. XGBoost full ML pipeline — train/val/test split + 5-fold CV + early stopping
+    // 2. Backend risk prediction — one request per supplier, all in parallel
     await new Promise(r => setTimeout(r, 50)); // yield so React paints TOPSIS first
-    const features = engineerFeatures({
-      suppliers:        erpData.suppliers,
-      purchaseOrders:   erpData.pos,
-      goodsReceipts:    erpData.grs,
-      supplierProducts: erpData.sps,
-      excelInventory:   erpData.excelInventory,
-    });
-    const mlPipeline = predictSupplierRisk(features);
-    setRiskResults(mlPipeline.predictions);
-    setPipeline(mlPipeline);
+
+    if (supplierIds.length > 0) {
+      try {
+        const settled = await Promise.allSettled(
+          supplierIds.map((id) => predictSupplierRiskRaw(id))
+        );
+
+        // Build a quick lookup from the alternatives array so we can populate
+        // on_time_rate, avg_lead_time, order_count etc. from real ERP data.
+        const altMap = new Map(
+          alternatives.map((a) => [Number(a.id), a.values])
+        );
+
+        const backendResults: RiskResult[] = settled
+          .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+          .map((r) => {
+            const v = r.value;
+            const supplier_id = Number(v.supplier_id ?? 0);
+            const altValues   = altMap.get(supplier_id) ?? {};
+            return {
+              supplier_id,
+              supplier_name: supplierNameMap.get(supplier_id) ?? `Supplier ${supplier_id}`,
+              risk_score:    Number(v.delay_probability ?? 0),
+              risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
+              contributions: {},
+              features:      {
+                // Required identity fields from SupplierFeatures
+                supplier_id:        supplier_id,
+                supplier_name:      supplierNameMap.get(supplier_id) ?? `Supplier ${supplier_id}`,
+                // Populate from the TOPSIS alternative values computed from ERP data
+                on_time_rate:       Number(altValues.on_time_rate    ?? 0),
+                avg_lead_time:      Number(altValues.lead_time        ?? 0),
+                order_count:        Number(altValues.order_count      ?? 0),
+                delivery_margin:    Number(altValues.delivery_margin  ?? 0),
+                // Fields not in TOPSIS alternatives — not available from predict endpoint
+                lead_time_cv:       0,
+                low_stock_ratio:    0,
+                avg_stock_level:    0,
+                days_since_last_gr: 0,
+                catalog_sku_count:  0,
+                avg_price:          Number(altValues.harga            ?? 0),
+              },
+            };
+          });
+
+        backendResults.sort((a, b) => b.risk_score - a.risk_score);
+        setRiskResults(backendResults);
+        setRiskSource("backend");
+      } catch {
+        setRiskSource("backend");
+      }
+    }
 
     setHasRun(true); setIsRunning(false);
-  }, [alternatives, criteria, erpData]);
+  }, [alternatives, criteria, supplierIds]);
 
-  // ── Export CSV (includes risk score) ─────────────────────────────────
+  // ── Train handlers ────────────────────────────────────────────────────
+
+  const handleTrainFromErp = useCallback(async () => {
+    setIsTraining(true); setTrainMessage(null); setTrainError(null);
+    try {
+      const res = await trainFromErp();
+      setTrainMessage(res.message ?? "Model berhasil dilatih dari data ERP.");
+      setBackendMetrics(buildMetricsFromTrainResponse(res));
+    } catch (e: any) {
+      setTrainError(e?.message ?? "Gagal melatih model dari ERP.");
+    } finally {
+      setIsTraining(false);
+    }
+  }, []);
+
+  const handleTrainFromServerCsv = useCallback(async () => {
+    setIsTraining(true); setTrainMessage(null); setTrainError(null);
+    try {
+      const res = await trainFromServerCsv();
+      setTrainMessage(res.message ?? "Model berhasil dilatih dari CSV server.");
+      setBackendMetrics(buildMetricsFromTrainResponse(res));
+    } catch (e: any) {
+      setTrainError(e?.message ?? "Gagal melatih model dari CSV server.");
+    } finally {
+      setIsTraining(false);
+    }
+  }, []);
+
+  const handleTrainFromCsvUpload = useCallback(async (file: File) => {
+    setIsTraining(true); setTrainMessage(null); setTrainError(null);
+    try {
+      const res = await trainFromCsvUpload(file);
+      setTrainMessage(res.message ?? "Model berhasil dilatih dari file CSV.");
+      setBackendMetrics(buildMetricsFromTrainResponse(res));
+    } catch (e: any) {
+      setTrainError(e?.message ?? "Gagal melatih model dari file CSV.");
+    } finally {
+      setIsTraining(false);
+    }
+  }, []);
   function exportCsv() {
     if (results.length === 0) return;
     const riskMap = new Map(riskResults.map(r => [r.supplier_id, r]));
@@ -282,7 +351,7 @@ export default function RekomendasiPage() {
       {isFetching && (
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 mb-5 text-[12px] text-slate-500">
           <RefreshCw size={13} className="animate-spin text-slate-400" />
-          Memuat data supplier dari ERP dan inventaris Excel…
+          Memuat data supplier dari ERP…
         </div>
       )}
       {fetchError && (
@@ -294,11 +363,10 @@ export default function RekomendasiPage() {
       {!isFetching && !fetchError && dataInfo && (
         <div className="flex flex-wrap gap-3 mb-5">
           {[
-            { label: "Supplier",          value: dataInfo.suppliers },
-            { label: "Purchase Order",    value: dataInfo.pos       },
-            { label: "Goods Receipt",     value: dataInfo.grs       },
-            { label: "Alternatif",        value: alternatives.length },
-            { label: "SKU Excel (Stok)",  value: dataInfo.skus      },
+            { label: "Supplier",       value: dataInfo.suppliers  },
+            { label: "Purchase Order", value: dataInfo.pos        },
+            { label: "Goods Receipt",  value: dataInfo.grs        },
+            { label: "Alternatif",     value: alternatives.length },
           ].map(({ label, value }) => (
             <div key={label} className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-center min-w-[110px]">
               <p className="text-[11px] uppercase tracking-widest text-slate-400">{label}</p>
@@ -548,14 +616,14 @@ export default function RekomendasiPage() {
                     </div>
 
                     {/* XGBoost highest-risk warning */}
-                    {riskResults.length > 0 && riskResults[0].risk_level !== "Low" && (
+                    {riskResults.length > 0 && riskResults[0].risk_level !== "Low" && riskResults[0].risk_score != null && (
                       <div className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
                         <ShieldAlert size={14} className="text-rose-500 mt-0.5 shrink-0" />
                         <div>
                           <p className="text-[12px] font-bold text-rose-700">Perhatian Risiko Tertinggi</p>
                           <p className="text-[11px] text-rose-600 mt-0.5">
                             <strong>{riskResults[0].supplier_name}</strong> memiliki skor risiko{" "}
-                            <strong>{riskResults[0].risk_score.toFixed(3)}</strong> ({riskResults[0].risk_level}).
+                            <strong>{Number(riskResults[0].risk_score).toFixed(3)}</strong> ({riskResults[0].risk_level}).
                             Lihat tab <em>XGBoost Risk</em> untuk detail SHAP.
                           </p>
                         </div>
@@ -569,7 +637,18 @@ export default function RekomendasiPage() {
 
           {/* XGBoost Risk panel */}
           <div className={activeTab === "risk" ? "flex flex-col gap-6" : "hidden"}>
-            <RiskPredictionPanel results={riskResults} pipeline={pipeline} isLoading={isRunning} />
+            <RiskPredictionPanel
+              results={riskResults}
+              backendMetrics={backendMetrics}
+              isLoading={isRunning}
+              riskSource={riskSource}
+              isTraining={isTraining}
+              trainMessage={trainMessage}
+              trainError={trainError}
+              onTrainFromErp={handleTrainFromErp}
+              onTrainFromServerCsv={handleTrainFromServerCsv}
+              onTrainFromCsvUpload={handleTrainFromCsvUpload}
+            />
           </div>
 
         </div>
