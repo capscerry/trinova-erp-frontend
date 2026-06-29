@@ -862,6 +862,49 @@ function TrainControls({
           className="hidden"
           onChange={handleFileChange}
         />
+
+        {/* Template CSV download */}
+        <a
+          href={(() => {
+            const header = "supplier_price,lead_time_days,claim_rate,on_time_rate,order_frequency,late_delivery";
+            const rows = [
+              "320000,5,0.05,0.88,12,1",
+              "150000,2,0.01,0.98,30,0",
+              "500000,3,0.02,0.95,24,0",
+              "610000,6,0.07,0.80,10,1",
+            ].join("\n");
+            const blob = new Blob([header + "\n" + rows], { type: "text/csv;charset=utf-8;" });
+            return URL.createObjectURL(blob);
+          })()}
+          download="supplier_risk_template.csv"
+          className={cn(
+            btnBase,
+            "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 active:scale-95 text-[10px]",
+          )}
+          title="Download template CSV dengan kolom yang benar"
+        >
+          ↓ Template CSV
+        </a>
+      </div>
+
+      {/* Required columns hint */}
+      <div className="flex flex-wrap gap-1 items-center">
+        <span className="text-[10px] text-slate-400 font-semibold shrink-0">Kolom wajib CSV:</span>
+        {[
+          "supplier_price",
+          "lead_time_days",
+          "claim_rate",
+          "on_time_rate",
+          "order_frequency",
+          "late_delivery",
+        ].map((col) => (
+          <code
+            key={col}
+            className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono text-slate-600"
+          >
+            {col}
+          </code>
+        ))}
       </div>
 
       {/* Feedback */}
