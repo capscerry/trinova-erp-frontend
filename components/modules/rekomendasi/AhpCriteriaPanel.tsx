@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, RefreshCw, ChevronDown, ChevronUp, CheckCircle, AlertTriangle } from "lucide-react";
+import { Info, RefreshCw, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, Tooltip } from "@/components/ui";
 import {
@@ -425,14 +425,14 @@ export function AhpCriteriaPanel({
         <p className="text-[11px] text-slate-400">
           {ahpResult
             ? ahpResult.isConsistent
-              ? "Bobot siap digunakan. Klik Jalankan Analisis untuk lanjut ke TOPSIS."
+              ? "Bobot siap digunakan. Klik Jalankan Analisis untuk memulai pipeline 3 langkah."
               : "Perbaiki matriks atau pilih preset lain agar CR < 10%."
             : "Pilih preset di atas atau klik Hitung Bobot AHP untuk memulai."}
         </p>
         <Button variant="primary" size="md" onClick={onRun} disabled={!canRun}>
           {isLoading
-            ? <><RefreshCw size={13} className="animate-spin" /> Menghitung…</>
-            : "Jalankan Analisis →"}
+            ? <><RefreshCw size={13} className="animate-spin" /> Menjalankan Pipeline…</>
+            : <><Zap size={13} /> Jalankan Analisis →</>}
         </Button>
       </div>
     </div>

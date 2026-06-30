@@ -166,6 +166,63 @@ export const trainFromCsvUpload = async (file: File): Promise<TrainResponse> => 
   return unwrap<TrainResponse>(res);
 };
 
+// ─── Batch predict all suppliers ─────────────────────────────────────────────
+// GET /api/supplier-risk/predict/all
+// Returns ML scores for every supplier the backend knows about.
+
+export interface BatchPredictItem {
+  supplier_id:       number;
+  supplier_name?:    string;
+  risk_level:        string;        // "LOW" | "MEDIUM" | "HIGH"
+  delay_probability: number;        // 0–1
+  late_probability:  number;        // 0–100 (backend field)
+}
+
+export interface BatchPredictResponse {
+  results: BatchPredictItem[];
+  total:   number;
+}
+
+export const predictAllSuppliers = async (): Promise<BatchPredictResponse> => {
+  const res = await api.get("/supplier-risk/predict/all");
+  const data = unwrap<any>(res);
+  // Backend may return { results: [...], total: N } or just an array
+  if (Array.isArray(data)) return { results: data, total: data.length };
+  return { results: data?.results ?? [], total: data?.total ?? 0 };
+};
+
+// ─── Full pipeline: train-from-ERP → predict-all → AHP-TOPSIS rank ───────────
+// POST /api/supplier-risk/evaluate/all
+// One-shot endpoint that runs the complete pipeline server-side.
+
+export interface RankedSupplierResult {
+  supplier_id:       number;
+  supplier_name?:    string;
+  risk_level:        string;
+  delay_probability: number;
+  topsis_score?:     number;
+  topsis_rank?:      number;
+}
+
+export interface FullEvaluationResponse {
+  message?:        string;
+  train_metrics?:  TrainSplitMetrics;
+  test_metrics?:   TrainSplitMetrics;
+  samples_trained?: number;
+  samples_tested?:  number;
+  data_source?:    string;
+  results:         RankedSupplierResult[];
+}
+
+export const evaluateAll = async (
+  appendToExisting = true,
+): Promise<FullEvaluationResponse> => {
+  const res = await api.post("/supplier-risk/evaluate/all", {
+    append_to_existing: appendToExisting,
+  });
+  return unwrap<FullEvaluationResponse>(res);
+};
+
 // ─── Model metrics — built from last train response ───────────────────────────
 // There is no dedicated /metrics endpoint. Metrics are derived from the train
 // response and stored in state by the page after each training run.
