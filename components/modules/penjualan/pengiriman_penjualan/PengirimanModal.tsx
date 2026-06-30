@@ -27,7 +27,6 @@ import {
   type ShippingType,
 } from "@/lib/services/pengiriman-penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
-import { ProductStockInfo } from "@/components/modules/penjualan/ProductStockInfo";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PengirimanModalProps {
@@ -604,9 +603,6 @@ export function PengirimanModal({
                                 className={cn(inputClass, "py-1.5")}
                               />
                             )}
-                            <div className="mt-2">
-                              <ProductStockInfo productId={item.productId} compact />
-                            </div>
                           </td>
                           <td className="px-3 py-2">
                             {form.salesOrderId ? (

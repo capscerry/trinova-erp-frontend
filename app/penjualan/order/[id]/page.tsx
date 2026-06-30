@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { printAsPdf } from "@/lib/userPrintPdf";
 import { AppShell } from "@/components/layout";
 import {
   ArrowLeft,
@@ -17,18 +16,17 @@ import {
   Hash,
   User,
   FileText,
-  CheckCircle2,
-  Clock,
   AlertCircle,
   TrendingUp,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-    SalesOrderDetail,
+  SalesOrderDetail,
   salesOrderService,
-  type SalesOrder,
+  uangMukaService,
   type SalesOrderDetailItem,
+  type UangMuka,
 } from "@/lib/services/penjualan.service";
 import { SalesOrderModal } from "@/components/modules/penjualan/SalesOrderModal";
 import type { SalesOrderFormData, SalesOrderItem } from "@/components/modules/penjualan/sales_order/SalesOrderType";
@@ -109,6 +107,8 @@ export default function SalesOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"items" | "order" | "downPayment">("items");
+  const [downPayments, setDownPayments] = useState<UangMuka[]>([]);
 
   const fetchData = async () => {
     if (!id) return;
@@ -117,6 +117,20 @@ export default function SalesOrderDetailPage() {
       const result = await salesOrderService.getById(id);
       console.log("Loaded Sales Order Detail:", result);
       setData(result);
+
+      try {
+        const allDownPayments = await uangMukaService.getAll();
+        setDownPayments(
+          allDownPayments.filter(
+            (item) =>
+              item.nomorSo?.trim().toLowerCase() ===
+              result.nomor?.trim().toLowerCase()
+          )
+        );
+      } catch (downPaymentErr) {
+        console.error("Gagal memuat riwayat uang muka SO:", downPaymentErr);
+        setDownPayments([]);
+      }
     } catch (err) {
       console.error(err);
       setError("Gagal memuat data Sales Order");
@@ -184,6 +198,15 @@ export default function SalesOrderDetailPage() {
     ? data.total + data.discountTotal - data.taxTotal
     : 0;
   const totalQty   = data?.items?.reduce((s, i) => s + i.productQty, 0) ?? 0;
+  const totalDownPayment = downPayments.reduce(
+    (sum, item) => sum + Number(item.nominalUangMuka ?? 0),
+    0
+  );
+  const usedDownPayment = downPayments
+    .filter((item) => item.status === "Used")
+    .reduce((sum, item) => sum + Number(item.nominalUangMuka ?? 0), 0);
+  const remainingDownPayment = Math.max(totalDownPayment - usedDownPayment, 0);
+  const orderStatus = data?.status ?? "Draft";
 
   return (
     <AppShell
@@ -250,9 +273,9 @@ export default function SalesOrderDetailPage() {
                   Tanggal Order: {formatDate(data.tanggal)}
                 </p>
               </div>
-              <div className="text-[10px] text-slate-400 italic">
-                Status belum tersedia dari API
-              </div>
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                {orderStatus}
+              </span>
             </div>
           </div>
 
@@ -345,8 +368,33 @@ export default function SalesOrderDetailPage() {
 
             {/* Right side */}
             <div className="col-span-2 space-y-4">
+              <div className="no-print flex w-full rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                {[
+                  { id: "items", label: "Detail Produk", icon: Package },
+                  { id: "order", label: "Informasi Pesanan", icon: ReceiptText },
+                  { id: "downPayment", label: "Riwayat Uang Muka", icon: CreditCard },
+                ].map(({ id: tabId, label, icon: Icon }) => (
+                  <button
+                    key={tabId}
+                    type="button"
+                    onClick={() =>
+                      setActiveTab(tabId as "items" | "order" | "downPayment")
+                    }
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-colors",
+                      activeTab === tabId
+                        ? "bg-navy-900 text-white shadow-sm"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-navy-900"
+                    )}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                ))}
+              </div>
 
               {/* Detail Items Table */}
+              {activeTab === "items" && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
                   <Package size={14} className="text-slate-400" />
@@ -458,6 +506,174 @@ export default function SalesOrderDetailPage() {
                   </div>
                 )}
               </div>
+              )}
+
+              {activeTab === "order" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+                      <ReceiptText size={14} className="text-slate-400" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Informasi Pesanan
+                      </h3>
+                    </div>
+                    <div className="divide-y divide-slate-100 px-5 py-2">
+                      {[
+                        { label: "Total", value: formatRupiah(grandTotal), strong: true },
+                        { label: "Uang Muka", value: formatRupiah(totalDownPayment), strong: true },
+                        {
+                          label: "Uang Muka Terpakai/Retur",
+                          value: formatRupiah(usedDownPayment),
+                        },
+                        {
+                          label: "Sisa Uang Muka",
+                          value: formatRupiah(remainingDownPayment),
+                          strong: true,
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="flex items-center justify-between py-3 text-sm"
+                        >
+                          <span className="text-slate-500">{item.label}</span>
+                          <span
+                            className={cn(
+                              "font-semibold text-slate-700",
+                              item.strong && "font-bold text-navy-900"
+                            )}
+                          >
+                            {item.value}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between py-3 text-sm">
+                        <span className="text-slate-500">Status</span>
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                          {orderStatus}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+                      <CreditCard size={14} className="text-slate-400" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Riwayat Uang Muka
+                      </h3>
+                    </div>
+                    {downPayments.length === 0 ? (
+                      <div className="flex min-h-44 flex-col items-center justify-center px-5 text-center">
+                        <CreditCard size={30} className="mb-2 text-slate-300" />
+                        <p className="text-sm font-semibold text-slate-500">
+                          Belum ada uang muka
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Riwayat akan muncul setelah faktur uang muka dibuat dari SO ini.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {downPayments.map((item) => (
+                          <button
+                            key={item.id ?? item.noFaktur}
+                            type="button"
+                            onClick={() =>
+                              item.id && router.push(`/penjualan/uang-muka/${item.id}`)
+                            }
+                            className="flex w-full items-start justify-between gap-4 px-5 py-3 text-left transition-colors hover:bg-slate-50"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-navy-900">
+                                {item.noFaktur}
+                              </p>
+                              <p className="mt-0.5 text-[11px] text-slate-400">
+                                {formatDate(item.tanggal)}
+                              </p>
+                              <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                                {item.status ?? "Draft"}
+                              </span>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-sm font-bold text-navy-900">
+                                {formatRupiah(item.nominalUangMuka ?? 0)}
+                              </p>
+                              <ChevronRight size={14} className="ml-auto mt-2 text-slate-300" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "downPayment" && (
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <CreditCard size={14} className="text-slate-400" />
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Riwayat Uang Muka
+                      </h3>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-400">
+                      {downPayments.length} dokumen
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 border-b border-slate-100 bg-slate-50/50 p-5">
+                    {[
+                      { label: "Total Uang Muka", value: totalDownPayment },
+                      { label: "Terpakai/Retur", value: usedDownPayment },
+                      { label: "Sisa Uang Muka", value: remainingDownPayment },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                          {item.label}
+                        </p>
+                        <p className="mt-1 text-base font-bold text-navy-900">
+                          {formatRupiah(item.value)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {downPayments.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-slate-400">
+                      Belum ada faktur uang muka untuk sales order ini.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {downPayments.map((item) => (
+                        <button
+                          key={item.id ?? item.noFaktur}
+                          type="button"
+                          onClick={() =>
+                            item.id && router.push(`/penjualan/uang-muka/${item.id}`)
+                          }
+                          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-slate-50"
+                        >
+                          <div>
+                            <p className="font-bold text-navy-900">{item.noFaktur}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {formatDate(item.tanggal)} • {item.customerName ?? data.pelanggan}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-navy-900">
+                              {formatRupiah(item.nominalUangMuka ?? 0)}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-400">
+                              {item.status ?? "Draft"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </div>
           </div>

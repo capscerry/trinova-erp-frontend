@@ -119,8 +119,10 @@ export default function PenerimaanPenjualanPage() {
 
     const uangMukaIdParam = searchParams.get("uangMukaId");
     const salesOrderIdParam = searchParams.get("salesOrderId");
+    const salesInvoiceIdParam = searchParams.get("salesInvoiceId");
     const uangMukaId = uangMukaIdParam ? Number(uangMukaIdParam) : undefined;
     const salesOrderId = salesOrderIdParam ? Number(salesOrderIdParam) : undefined;
+    const salesInvoiceId = salesInvoiceIdParam ? Number(salesInvoiceIdParam) : undefined;
 
     setInitialFormData({
       customerId,
@@ -131,6 +133,7 @@ export default function PenerimaanPenjualanPage() {
       noBuktiMode: "auto",
       uangMukaId: uangMukaId && uangMukaId > 0 ? uangMukaId : undefined,
       salesOrderId: salesOrderId && salesOrderId > 0 ? salesOrderId : undefined,
+      salesInvoiceId: salesInvoiceId && salesInvoiceId > 0 ? salesInvoiceId : undefined,
     });
 
     setModalOpen(true);

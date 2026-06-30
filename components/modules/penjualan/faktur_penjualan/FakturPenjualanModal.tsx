@@ -42,7 +42,6 @@ import {
   type FakturPenjualanFormData,
   type FakturPenjualanItem,
 } from "./FakturPenjualanType";
-import { ProductStockInfo } from "@/components/modules/penjualan/ProductStockInfo";
 
 export type { FakturPenjualanFormData } from "./FakturPenjualanType";
 
@@ -488,9 +487,6 @@ export function FakturPenjualanModal({
                           <tr key={item.id} className="hover:bg-slate-50/60">
                             <td className="px-3 py-2">
                               <input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} />
-                              <div className="mt-2">
-                                <ProductStockInfo productId={item.productId} compact />
-                              </div>
                             </td>
                             <td className="px-3 py-2"><input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
                             <td className="px-3 py-2"><input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>

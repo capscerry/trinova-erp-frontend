@@ -14,7 +14,6 @@ import {
   newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
-import { salesStockService } from "@/lib/services/sales-stock.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
@@ -117,8 +116,6 @@ export function SalesOrderModal({
     setSuccessMessage("");
 
     try {
-      await validateStockBeforeSubmit(form.items);
-
       const payload = mapFormToApiPayload(form);
       console.log("Mapped payload:", payload);
 
@@ -432,40 +429,4 @@ export function SalesOrderModal({
       />
     </>
   );
-}
-
-async function validateStockBeforeSubmit(items: SalesOrderItem[]) {
-  const validItems = items.filter((item) => item.productId && item.productId > 0);
-
-  for (const item of validItems) {
-    if (!item.warehouseId || item.warehouseId <= 0) {
-      throw new Error(`Please select a warehouse for ${item.productName || "the selected product"}.`);
-    }
-
-    if (Number(item.qty || 0) <= 0) {
-      throw new Error(`Qty for ${item.productName || "the selected product"} must be greater than 0.`);
-    }
-  }
-
-  const stockChecks = await Promise.all(
-    validItems.map(async (item) => {
-      const summary = await salesStockService.getByProduct(Number(item.productId));
-      const warehouseStock = summary.warehouses.find(
-        (stock) => Number(stock.warehouseId) === Number(item.warehouseId)
-      );
-
-      return {
-        item,
-        available: warehouseStock?.qtyAvailable ?? 0,
-      };
-    })
-  );
-
-  const invalid = stockChecks.find(({ item, available }) => Number(item.qty || 0) > available);
-
-  if (invalid) {
-    throw new Error(
-      `Stock is not enough for ${invalid.item.productName || "the selected product"} in ${invalid.item.warehouseName || "the selected warehouse"}. Requested: ${invalid.item.qty}, available: ${invalid.available}.`
-    );
-  }
 }

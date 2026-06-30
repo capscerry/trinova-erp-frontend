@@ -61,7 +61,18 @@ export function isApprovedForPicker(
   module: SalesStatusModule,
   status?: string | null
 ) {
-  return normalizeSalesStatus(module, status) === "Approved";
+  const normalized = normalizeSalesStatus(module, status);
+
+  const selectableStatuses: Record<SalesStatusModule, string[]> = {
+    quotation: ["Draft", "Sent"],
+    "sales-order": ["Draft", "Approved", "Confirmed", "Processing"],
+    "down-payment": ["Received"],
+    "delivery-order": ["Draft", "Approved", "Shipped", "Received"],
+    "sales-invoice": ["Issued", "Partially Paid", "Overdue"],
+    "sales-receipt": ["Draft"],
+  };
+
+  return selectableStatuses[module].includes(normalized);
 }
 
 export function getStatusTone(status?: string | null) {

@@ -21,6 +21,7 @@ export interface PenerimaanFormData {
   /** Referensi opsional — terisi otomatis kalau dibuat dari "Proses ke Penerimaan" di modal Uang Muka */
   uangMukaId?: number;
   salesOrderId?: number;
+  salesInvoiceId?: number;
 }
 
 // Catatan: Bank dan Pelanggan diambil langsung dari API
@@ -53,6 +54,7 @@ export const EMPTY_FORM: PenerimaanFormData = {
   keterangan: "",
   uangMukaId: undefined,
   salesOrderId: undefined,
+  salesInvoiceId: undefined,
 };
 
 /** Mapper form → payload API. id TIDAK disertakan — backend auto-generate. */
@@ -67,6 +69,7 @@ export function mapFormToApiPayload(
     tanggalBayar: form.tanggalBayar,
     uangMukaId: form.uangMukaId ?? null,
     salesOrderId: form.salesOrderId ?? null,
+    salesInvoiceId: form.salesInvoiceId ?? null,
   };
 }
 

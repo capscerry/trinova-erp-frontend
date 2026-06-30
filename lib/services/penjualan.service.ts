@@ -153,6 +153,8 @@ interface SalesOrderByCustomerApi {
   poNumber?: string;
   customerName?: string;
   pelanggan?: string;
+  address?: string;
+  alamat?: string;
   notes?: string;
   keterangan?: string;
   status?: SalesOrderStatus;
@@ -171,6 +173,7 @@ export interface SalesOrder {
   tanggalKirim: string;
   pelanggan: string;
   poNumber: string;
+  alamat?: string;
   keterangan: string;
   status: SalesOrderStatus;
   kenaPajak?: boolean;
@@ -398,6 +401,7 @@ export const salesOrderService = {
         tanggalKirim: item.tanggalKirim ?? "",
         poNumber: item.poNumber ?? "",
         pelanggan: item.customerName ?? item.pelanggan ?? "",
+        alamat: item.address ?? item.alamat ?? "",
         keterangan: item.notes ?? item.keterangan ?? "",
         status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
         kenaPajak: Boolean(item.isTaxAble ?? item.isTaxable ?? false),
@@ -791,6 +795,7 @@ export interface PenerimaanPenjualanApi {
   tanggalBayar: string;
   uangMukaId?: number | null;
   salesOrderId?: number | null;
+  salesInvoiceId?: number | null;
   status?: string;
 }
 
@@ -805,6 +810,7 @@ export interface PenerimaanPenjualan {
   tanggalBayar: string;
   uangMukaId?: number;
   salesOrderId?: number;
+  salesInvoiceId?: number;
   status?: string;
 }
 
@@ -817,6 +823,7 @@ export interface PenerimaanPenjualanPayload {
   tanggalBayar: string;
   uangMukaId?: number | null;
   salesOrderId?: number | null;
+  salesInvoiceId?: number | null;
 }
 
 export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): PenerimaanPenjualan {
@@ -831,6 +838,7 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
     tanggalBayar: item.tanggalBayar,
     uangMukaId: item.uangMukaId ?? undefined,
     salesOrderId: item.salesOrderId ?? undefined,
+    salesInvoiceId: item.salesInvoiceId ?? undefined,
     status: normalizeSalesStatus("sales-receipt", item.status),
   };
 }

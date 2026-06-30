@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, CreditCard, Printer } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import {
   salesInvoiceService,
@@ -61,6 +61,23 @@ export default function SalesInvoiceDetailPage() {
     [data]
   );
 
+  const handleRecordPayment = () => {
+    if (!data) return;
+
+    const params = new URLSearchParams({
+      customerId: String(data.customerId),
+      pelanggan: data.customerName ?? "",
+      nilaiPembayaran: String(data.remainingAmount || data.grandTotal || 0),
+      salesInvoiceId: String(data.id),
+    });
+
+    if (data.salesOrderId) {
+      params.set("salesOrderId", String(data.salesOrderId));
+    }
+
+    router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
+  };
+
   return (
     <AppShell title="Detail Faktur Penjualan" subtitle="Rincian tagihan pelanggan">
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -73,14 +90,26 @@ export default function SalesInvoiceDetailPage() {
           Kembali
         </button>
         {data && (
-          <button
-            type="button"
-            onClick={() => window.open(`/penjualan/invoice/${id}/print`, "_blank")}
-            className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 transition-colors hover:bg-navy-700"
-          >
-            <Printer size={15} />
-            Print PDF
-          </button>
+          <div className="flex items-center gap-2">
+            {data.remainingAmount > 0 && (
+              <button
+                type="button"
+                onClick={handleRecordPayment}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+              >
+                <CreditCard size={15} />
+                Record Payment
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => window.open(`/penjualan/invoice/${id}/print`, "_blank")}
+              className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 transition-colors hover:bg-navy-700"
+            >
+              <Printer size={15} />
+              Print PDF
+            </button>
+          </div>
         )}
       </div>
 

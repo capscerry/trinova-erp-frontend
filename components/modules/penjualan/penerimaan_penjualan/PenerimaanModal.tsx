@@ -24,7 +24,7 @@ export interface PenerimaanModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PenerimaanFormData) => void;
-  initialData?: Partial<PenerimaanFormData> | any;
+  initialData?: Partial<PenerimaanFormData>;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -108,6 +108,7 @@ export function PenerimaanModal({
       keterangan: data.keterangan ?? "",
       uangMukaId: data.uangMukaId ?? undefined,
       salesOrderId: data.salesOrderId ?? undefined,
+      salesInvoiceId: data.salesInvoiceId ?? undefined,
     });
   }, [initialData, open]);
 
@@ -176,11 +177,24 @@ export function PenerimaanModal({
       const payload = mapFormToApiPayload(form);
       await penerimaanPenjualanService.create(payload);
       onSubmit(form);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("❌ Gagal menyimpan penerimaan penjualan:", err);
+      const message =
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object" &&
+        "message" in err.response.data
+          ? String(err.response.data.message)
+          : err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan";
       alert(
-        "Gagal menyimpan data: " +
-          (err?.response?.data?.message || err?.message || "Terjadi kesalahan")
+        "Gagal menyimpan data: " + message
       );
     } finally {
       setIsSubmitting(false);
