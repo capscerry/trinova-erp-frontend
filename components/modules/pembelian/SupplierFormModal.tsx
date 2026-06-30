@@ -533,7 +533,7 @@ export default function SupplierFormModal({
 
                   <p className="text-slate-500">
                     product_id, supplier_price,
-                    available_stock, lead_time_days
+                    available_, lead_time_days
                   </p>
 
                   <p className="text-xs text-slate-400">

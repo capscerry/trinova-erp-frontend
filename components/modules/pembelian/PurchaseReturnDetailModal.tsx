@@ -1,6 +1,6 @@
 "use client";
 
-import { X, PackageCheck, Scissors, Banknote } from "lucide-react";
+import { X, RefreshCcw, Scissors, Banknote } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ function statusStyle(status: string): string {
 }
 
 function settlementIcon(option: string) {
-  if (option === "Replacement")      return <PackageCheck size={14} className="text-sky-600" />;
+  if (option === "Accept Loss")       return <RefreshCcw size={14} className="text-sky-600" />;
   if (option === "Next PO Deduction") return <Scissors size={14} className="text-violet-600" />;
   if (option === "Cash Refund")       return <Banknote size={14} className="text-amber-600" />;
   return null;

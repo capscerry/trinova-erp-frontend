@@ -1,6 +1,8 @@
 import { api } from "@/lib/api";
 import { getPurchaseOrders, updatePurchaseOrder } from "./po.service";
+import { restoreStock } from "./supplier-product.service";
 import { createPurchasePayment } from "./purchase-payment.service";
+import type { ReturnLineItem } from "@/components/modules/pembelian/PurchaseReturnFormModal";
 
 export interface PurchaseReturnPayload {
   goods_receipt_id: number;
@@ -16,6 +18,7 @@ export interface PurchaseReturnPayload {
   closing_condition: string;
   transaction_name: string;
   transaction_detail: string;
+  target_invoice_id?: number;
 }
 
 export const getPurchaseReturns = async () => {
@@ -46,54 +49,54 @@ export const deletePurchaseReturn = async (id: number) => {
   return response.data;
 };
 
-// ─── Internal helper: fetch the full PO record and patch total_amount ─────────
-// The backend PUT /purchase-order/:id requires the full header body,
-// so we fetch the current record first and merge only total_amount.
+// ─── Settlement helpers ───────────────────────────────────────────────────────
 
+/**
+ * Option A — Accept Loss.
+ * The supplier ships back fixed goods of the exact same product and quantity.
+ * Stock is restored for every returned line item, then the return is closed.
+ */
+export const resolveAcceptLoss = async (
+  returnId: number,
+  returnItems: ReturnLineItem[],
+  supplierId: number,
+  returnAmount: number
+) => {
+  // Restore stock for each returned line item
+  for (const item of returnItems) {
+    if (item.product_id && item.qty_return > 0) {
+      await restoreStock(item.product_id, supplierId, item.qty_return);
+    }
+  }
+
+  const itemSummary = returnItems
+    .map((i) => `${i.product_name} x${i.qty_return}`)
+    .join(", ");
+
+  return updatePurchaseReturn(returnId, {
+    status: "Closed",
+    notes: `Accept Loss settled. Supplier returned fixed goods: ${itemSummary}. Total value: Rp ${returnAmount}. Stock restored.`,
+  });
+};
+
+// Fetches the full PO record and patches only total_amount.
+// Required because PUT /purchase-order/:id expects the complete body.
 async function patchPOTotal(poId: number, newTotal: number): Promise<void> {
   const res = await getPurchaseOrders();
   const list: any[] = Array.isArray(res) ? res : (res.data ?? []);
   const po = list.find((p: any) => Number(p.purchase_order_id) === poId);
-
   if (!po) throw new Error(`PO id ${poId} not found`);
-
-  const fullPayload = {
-    po_number:         po.po_number,
-    supplier_id:       Number(po.supplier_id),
-    order_date:        (po.order_date ?? "").split("T")[0],
-    expected_date:     po.expected_date
-                         ? (po.expected_date ?? "").split("T")[0]
-                         : null,
-    status:            po.status,
-    total_amount:      newTotal,
-    transaction_name:  po.transaction_name  ?? "",
+  await updatePurchaseOrder(poId, {
+    po_number:          po.po_number,
+    supplier_id:        Number(po.supplier_id),
+    order_date:         (po.order_date ?? "").split("T")[0],
+    expected_date:      po.expected_date ? (po.expected_date ?? "").split("T")[0] : null,
+    status:             po.status,
+    total_amount:       newTotal,
+    transaction_name:   po.transaction_name  ?? "",
     transaction_detail: po.transaction_detail ?? "",
-  };
-
-  await updatePurchaseOrder(poId, fullPayload);
-}
-
-// ─── Settlement helpers ───────────────────────────────────────────────────────
-
-/**
- * Option A — Replacement.
- * Deducts the return amount from the chosen PO's total as a discount,
- * then closes the return with status "Closed".
- */
-export const resolveReplacement = async (
-  returnId: number,
-  targetPOId: number,
-  targetPONumber: string,
-  newPOTotal: number,
-  returnAmount: number
-) => {
-  await patchPOTotal(targetPOId, newPOTotal);
-
-  return updatePurchaseReturn(returnId, {
-    status: "Closed",
-    notes: `Replacement settled. Return amount Rp ${returnAmount} applied as discount to PO ${targetPONumber}. PO new total: Rp ${newPOTotal}.`,
   });
-};
+}
 
 /**
  * Option B — Next PO Deduction.
@@ -141,9 +144,10 @@ export const confirmCashRefund = async (
     transaction_detail:  `Return deduction of Rp ${deductionAmount} from invoice ${targetInvoiceNumber}.`,
   });
 
-  // Close the return
+  // Close the return, recording the linked invoice id
   return updatePurchaseReturn(returnId, {
-    status: "Closed",
-    notes: `Cash refund confirmed. Rp ${deductionAmount} credited against invoice ${targetInvoiceNumber}.`,
+    status:            "Closed",
+    target_invoice_id: targetInvoiceId,
+    notes:             `Cash refund confirmed. Rp ${deductionAmount} credited against invoice ${targetInvoiceNumber}.`,
   });
 };

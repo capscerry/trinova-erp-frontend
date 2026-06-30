@@ -38,6 +38,10 @@ interface PurchaseDownPaymentModalProps {
   ) => void;
 
   purchaseOrders: PurchaseOrder[];
+
+  /** When provided the modal operates in edit mode */
+  editId?: number | null;
+  initialData?: Partial<PurchaseDownPaymentFormData> | null;
 }
 
 export default function PurchaseDownPaymentModal({
@@ -45,40 +49,45 @@ export default function PurchaseDownPaymentModal({
   onClose,
   onSubmit,
   purchaseOrders,
+  editId,
+  initialData,
 }: PurchaseDownPaymentModalProps) {
 
+  const isEdit = Boolean(editId);
+
+  const emptyForm: PurchaseDownPaymentFormData = {
+    purchase_order_id: 0,
+    supplier_id: 0,
+    payment_date: "",
+    amount: 0,
+    payment_type: "Partial",
+    notes: "",
+    status: "Paid",
+    transaction_name: "",
+    transaction_detail: "",
+  };
+
   const [form, setForm] =
-    useState<PurchaseDownPaymentFormData>({
-      purchase_order_id: 0,
-      supplier_id: 0,
-      payment_date: "",
-      amount: 0,
-      payment_type: "Partial",
-      notes: "",
-      status: "Paid",
-      transaction_name: "",
-      transaction_detail: "",
-    });
+    useState<PurchaseDownPaymentFormData>(emptyForm);
+
+  const [amountError, setAmountError] =
+    useState<string | null>(null);
 
   useEffect(() => {
 
     if (open) {
 
-      setForm({
-        purchase_order_id: 0,
-        supplier_id: 0,
-        payment_date: "",
-        amount: 0,
-        payment_type: "Partial",
-        notes: "",
-        status: "Paid",
-        transaction_name: "",
-        transaction_detail: "",
-      });
+      setForm(
+        initialData
+          ? { ...emptyForm, ...initialData }
+          : emptyForm
+      );
+
+      setAmountError(null);
 
     }
 
-  }, [open]);
+  }, [open, editId, initialData]);
 
   if (!open) return null;
 
@@ -134,11 +143,11 @@ export default function PurchaseDownPaymentModal({
             <div>
 
               <h2 className="text-white font-semibold text-[15px]">
-                Tambah Purchase Down Payment
+                {isEdit ? "Edit Purchase Down Payment" : "Tambah Purchase Down Payment"}
               </h2>
 
               <p className="text-slate-400 text-xs mt-0.5">
-                Catat pembayaran uang muka supplier
+                {isEdit ? "Perbarui data uang muka supplier" : "Catat pembayaran uang muka supplier"}
               </p>
 
             </div>
@@ -181,17 +190,33 @@ export default function PurchaseDownPaymentModal({
 
                   if (!selected) return;
 
+                  const resolvedSupplierId =
+                    Number(
+                      selected.supplier?.supplier_id ??
+                      selected.supplier_id ??
+                      0
+                    );
+
                   setForm({
                     ...form,
                     purchase_order_id:
                       selected.purchase_order_id,
-                    supplier_id:
-                      selected.supplier_id,
+                    supplier_id: resolvedSupplierId,
                     transaction_name:
                       selected.transaction_name ?? "",
                     transaction_detail:
                       selected.transaction_detail ?? "",
                   });
+
+                  // Re-evaluate amount against the new PO total
+                  const newMax = selected.total_amount ?? 0;
+                  if (newMax > 0 && form.amount > newMax) {
+                    setAmountError(
+                      `Melebihi total PO (Rp ${newMax.toLocaleString("id-ID")})`
+                    );
+                  } else {
+                    setAmountError(null);
+                  }
 
                 }}
                 className={inputBase}
@@ -270,14 +295,31 @@ export default function PurchaseDownPaymentModal({
                 type="number"
                 step="0.01"
                 value={form.amount}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    amount: Math.round(parseFloat(e.target.value || "0") * 100) / 100,
-                  })
-                }
-                className={inputBase}
+                onChange={(e) => {
+                  const value = Math.round(parseFloat(e.target.value || "0") * 100) / 100;
+                  const max = selectedPO?.total_amount ?? 0;
+
+                  if (max > 0 && value > max) {
+                    setAmountError(
+                      `Melebihi total PO (Rp ${max.toLocaleString("id-ID")})`
+                    );
+                  } else {
+                    setAmountError(null);
+                  }
+
+                  setForm({ ...form, amount: value });
+                }}
+                className={cn(
+                  inputBase,
+                  amountError && "border-red-400 focus:ring-red-300"
+                )}
               />
+
+              {amountError && (
+                <p className="text-xs text-red-500 font-medium mt-1">
+                  {amountError}
+                </p>
+              )}
 
             </FormField>
 
@@ -377,9 +419,25 @@ export default function PurchaseDownPaymentModal({
             <button
               onClick={() => {
 
-                onSubmit(form);
+                // Resolve supplier_id from the selected PO at submit time
+                // in case it wasn't set via initialData (nested API shape)
+                const resolvedSupplierId =
+                  form.supplier_id ||
+                  Number(selectedPO?.supplier?.supplier_id ?? selectedPO?.supplier_id ?? 0);
+
+                // Guard: amount must not exceed PO total
+                const max = selectedPO?.total_amount ?? 0;
+                if (max > 0 && form.amount > max) {
+                  setAmountError(
+                    `Melebihi total PO (Rp ${max.toLocaleString("id-ID")})`
+                  );
+                  return;
+                }
+
+                onSubmit({ ...form, supplier_id: resolvedSupplierId });
 
               }}
+              disabled={!!amountError}
               className="
                 px-5
                 py-2
@@ -388,9 +446,11 @@ export default function PurchaseDownPaymentModal({
                 text-gold-400
                 bg-navy-900
                 rounded-lg
+                disabled:opacity-50
+                disabled:cursor-not-allowed
               "
             >
-              Simpan DP
+              {isEdit ? "Simpan Perubahan" : "Simpan DP"}
             </button>
 
           </div>

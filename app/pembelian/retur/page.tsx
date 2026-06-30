@@ -17,7 +17,6 @@ import PurchaseReturnSettlementModal, {
   type PurchaseOrderOption,
   type GoodsReceiptOption as SettlementGROption,
   type PurchaseInvoiceOption,
-  type SupplierProductOption,
   type SettlementPayload,
 } from "@/components/modules/pembelian/PurchaseReturnSettlementModal";
 
@@ -25,17 +24,14 @@ import PurchaseReturnDetailModal from "@/components/modules/pembelian/PurchaseRe
 
 import { getGoodsReceipts } from "@/lib/services/gr.service";
 import { getPurchaseOrders, getPurchaseOrderDetails } from "@/lib/services/po.service";
-import { getPurchaseInvoices } from "@/lib/services/purchase-invoice.service";
-import {
-  getSupplierProducts,
-  updateSupplierProduct,
-} from "@/lib/services/supplier-product.service";
+import { getPurchaseInvoices, getUnpaidInvoicesBySupplier } from "@/lib/services/purchase-invoice.service";
+import { restoreStock } from "@/lib/services/supplier-product.service";
 import {
   getPurchaseReturns,
   getNextReturnNumber,
   createPurchaseReturn,
   deletePurchaseReturn,
-  resolveReplacement,
+  resolveAcceptLoss,
   resolveNextPODeduction,
   confirmCashRefund,
 } from "@/lib/services/purchase-return.service";
@@ -74,11 +70,11 @@ const formatNumber = (n: number) =>
 const SETTLED_STATUSES = new Set(["Closed", "Deduction Locked"]);
 
 function statusStyle(status: string): string {
-  if (status === "Closed")           return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (status === "Deduction Locked") return "bg-violet-50 text-violet-700 border border-violet-200";
-  if (status === "Awaiting Replacement") return "bg-sky-50 text-sky-700 border border-sky-200";
-  if (status === "Pending Deduction")    return "bg-violet-50 text-violet-600 border border-violet-200";
-  if (status === "Refund Pending")       return "bg-amber-50 text-amber-700 border border-amber-200";
+  if (status === "Closed")                  return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+  if (status === "Deduction Locked")        return "bg-violet-50 text-violet-700 border border-violet-200";
+  if (status === "Awaiting Replacement")    return "bg-sky-50 text-sky-700 border border-sky-200";
+  if (status === "Pending Deduction")       return "bg-violet-50 text-violet-600 border border-violet-200";
+  if (status === "Refund Pending")          return "bg-amber-50 text-amber-700 border border-amber-200";
   return "bg-slate-100 text-slate-700 border border-slate-200";
 }
 
@@ -134,7 +130,7 @@ export default function PurchaseReturnsPage() {
   const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptOption[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
   const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoiceOption[]>([]);
-  const [supplierProducts, setSupplierProducts] = useState<SupplierProductOption[]>([]);
+  const [settlementInvoices, setSettlementInvoices] = useState<PurchaseInvoiceOption[]>([]);
   const [poDetails, setPODetails] = useState<PODetailItem[]>([]);
   const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
 
@@ -212,14 +208,33 @@ export default function PurchaseReturnsPage() {
       const res = await getPurchaseInvoices();
       const list = Array.isArray(res) ? res : (res.data ?? []);
       setPurchaseInvoices(list.map((item: any) => ({
-        invoice_id:       item.purchase_invoice_id ?? item.id,
-        invoice_number:   item.invoice_number,
-        goods_receipt_id: item.goods_receipt_id,
-        invoice_date:     (item.invoice_date ?? "").split("T")[0],
-        supplier_name:    item.supplier_name ?? "",
-        total_amount:     item.total_amount ?? 0,
+        invoice_id:        item.purchase_invoice_id ?? item.id,
+        invoice_number:    item.invoice_number,
+        goods_receipt_id:  item.goods_receipt_id,
+        invoice_date:      (item.invoice_date ?? "").split("T")[0],
+        supplier_name:     item.supplier_name ?? "",
+        total_amount:      item.total_amount ?? 0,
+        outstanding_amount: item.outstanding_amount ?? 0,
       })));
     } catch { /* non-fatal */ }
+  };
+
+  const loadUnpaidInvoices = async (supplierId: number) => {
+    try {
+      const res = await getUnpaidInvoicesBySupplier(supplierId);
+      const list = Array.isArray(res) ? res : (res.data ?? []);
+      setSettlementInvoices(list.map((item: any) => ({
+        invoice_id:         item.purchase_invoice_id ?? item.id,
+        invoice_number:     item.invoice_number,
+        goods_receipt_id:   item.goods_receipt_id,
+        invoice_date:       (item.invoice_date ?? "").split("T")[0],
+        supplier_name:      item.supplier_name ?? "",
+        total_amount:       item.total_amount ?? 0,
+        outstanding_amount: item.outstanding_amount ?? 0,
+      })));
+    } catch {
+      setSettlementInvoices([]);
+    }
   };
 
   const loadPODetails = async () => {
@@ -237,20 +252,6 @@ export default function PurchaseReturnsPage() {
     } catch { /* non-fatal */ }
   };
 
-  const loadSupplierProducts = async () => {
-    try {
-      const res = await getSupplierProducts();
-      const list = Array.isArray(res) ? res : (res.data ?? []);
-      setSupplierProducts(list.map((item: any) => ({
-        supplier_product_id: Number(item.supplier_product_id),
-        product_id:          Number(item.product_id),
-        product_name:        item.product?.product_name ?? item.product_name ?? `Produk #${item.product_id}`,
-        supplier_id:         Number(item.supplier_id ?? 0),
-        unit_price:          Number(item.price ?? item.unit_price ?? 0),
-      })));
-    } catch { /* non-fatal */ }
-  };
-
   useEffect(() => {
     loadReturns();
     loadGoodsReceipts();
@@ -258,7 +259,6 @@ export default function PurchaseReturnsPage() {
     loadPurchaseOrders();
     loadPurchaseInvoices();
     loadPODetails();
-    loadSupplierProducts();
   }, []);
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -280,34 +280,18 @@ export default function PurchaseReturnsPage() {
       const returnedItems = data.return_items ?? [];
       if (returnedItems.length === 0) return;
 
-      const spRes = await getSupplierProducts();
-      const spList: any[] = Array.isArray(spRes) ? spRes : spRes.data ?? [];
       const supplierId = Number(data.supplier_id ?? 0);
-
-      const spMap = new Map<number, { spId: number; stock: number }>();
-      for (const sp of spList) {
-        const pid = Number(sp.product_id);
-        const sid = Number(sp.supplier_id);
-        const existing = spMap.get(pid);
-        if (!existing || sid === supplierId) {
-          spMap.set(pid, {
-            spId: Number(sp.supplier_product_id),
-            stock: Number(sp.available_stock ?? 0),
-          });
-        }
-      }
 
       const errors: string[] = [];
       for (const item of returnedItems) {
-        const sp = spMap.get(item.product_id);
-        if (!sp || sp.spId === 0) {
-          errors.push(`Product ID ${item.product_id}: not found`);
+        if (!item.product_id) {
+          errors.push(`Skipped item with missing product ID`);
           continue;
         }
         try {
-          await updateSupplierProduct(sp.spId, { available_stock: sp.stock + item.qty_return });
+          await restoreStock(item.product_id, supplierId, item.qty_return);
         } catch (e: any) {
-          errors.push(`Product ID ${item.product_id}: ${e?.message ?? "gagal"}`);
+          errors.push(`Product ID ${item.product_id}: ${e?.response?.data?.message ?? e?.message ?? "gagal"}`);
         }
       }
 
@@ -340,14 +324,15 @@ export default function PurchaseReturnsPage() {
     try {
       switch (payload.type) {
 
-        case "Replacement": {
-          const { targetPOId, targetPONumber, newPOTotal, returnAmount } = payload.data;
-          await resolveReplacement(returnId, targetPOId, targetPONumber, newPOTotal, returnAmount);
+        case "Accept Loss": {
+          const { returnItems, returnAmount } = payload.data;
+          const pr = returns.find((r) => r.purchase_return_id === returnId);
+          const supplierId = pr?.supplier_id ?? 0;
+          await resolveAcceptLoss(returnId, returnItems, supplierId, returnAmount);
           toast.success(
-            `Retur ditutup — diskon Rp ${formatNumber(returnAmount)} diterapkan ke PO ${targetPONumber}.`
+            `Retur ditutup — barang pengganti diterima, stok dipulihkan (Rp ${formatNumber(returnAmount)}).`
           );
           await loadReturns();
-          await loadPurchaseOrders(); // refresh PO totals
           break;
         }
 
@@ -409,7 +394,10 @@ export default function PurchaseReturnsPage() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => setSettlementTarget(row)}
+                  onClick={() => {
+                    setSettlementTarget(row);
+                    if (row.supplier_id) loadUnpaidInvoices(row.supplier_id);
+                  }}
                   title="Selesaikan retur ini"
                 >
                   Selesaikan
@@ -452,8 +440,25 @@ export default function PurchaseReturnsPage() {
             supplier_name:    gr.supplier_name,
           })
         )}
-        purchaseInvoices={purchaseInvoices}
-        supplierProducts={supplierProducts}
+        purchaseInvoices={settlementInvoices}
+        returnItems={(() => {
+          // Derive return line items from the PO details matching the selected return's GR
+          if (!settlementTarget) return [];
+          const gr = goodsReceipts.find(
+            (g) => g.goods_receipt_id === settlementTarget.goods_receipt_id
+          );
+          if (!gr) return [];
+          return poDetails
+            .filter((d) => Number(d.purchase_order_id) === Number(gr.purchase_order_id))
+            .map((d) => ({
+              product_id:    d.product_id,
+              product_name:  d.product_name ?? `Produk #${d.product_id}`,
+              qty_available: d.quantity,
+              qty_return:    d.quantity, // all items returned
+              unit_price:    d.price,
+              subtotal:      d.quantity * d.price,
+            }));
+        })()}
       />
       {/* Detail modal — for settled returns */}
       <PurchaseReturnDetailModal

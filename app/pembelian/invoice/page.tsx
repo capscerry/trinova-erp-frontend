@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { CheckCircle2, FileText, X } from "lucide-react";
 
@@ -220,6 +221,8 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
 
 export default function PurchaseInvoicePage() {
 
+  const searchParams = useSearchParams();
+
   const [invoices, setInvoices] =
     useState<PurchaseInvoice[]>([]);
 
@@ -367,6 +370,21 @@ useEffect(() => {
 
 }, []);
 
+  // Auto-open create modal when navigated from PO page with ?po_id=
+  // The GR list is pre-filtered to only GRs from that PO.
+  useEffect(() => {
+    const poId = searchParams.get("po_id");
+    if (!poId || goodsReceipts.length === 0) return;
+    const numericPoId = Number(poId);
+    const hasGRForPO = goodsReceipts.some(
+      (gr: any) =>
+        Number(gr.purchase_order_id ?? gr.purchase_order?.purchase_order_id) === numericPoId
+    );
+    if (!hasGRForPO) return;
+    setOpenModal(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goodsReceipts]);
+
   return (
     <AppShell
       title="Purchase Invoice"
@@ -464,11 +482,23 @@ useEffect(() => {
   onClose={() =>
     setOpenModal(false)
   }
-  goodsReceipts={goodsReceipts.filter(
-    (gr) => !invoices.some(
-      (inv: any) => Number(inv.goods_receipt_id) === Number(gr.goods_receipt_id)
-    )
-  )}
+  goodsReceipts={(() => {
+    // When navigated from PO page, pre-filter to GRs for that PO
+    const poIdParam = searchParams.get("po_id");
+    const available = goodsReceipts.filter(
+      (gr) => !invoices.some(
+        (inv: any) => Number(inv.goods_receipt_id) === Number(gr.goods_receipt_id)
+      )
+    );
+    if (!poIdParam) return available;
+    const numericPoId = Number(poIdParam);
+    const filtered = available.filter(
+      (gr: any) =>
+        Number(gr.purchase_order_id ?? gr.purchase_order?.purchase_order_id) === numericPoId
+    );
+    // Fall back to all available GRs if no GR matched the PO filter
+    return filtered.length > 0 ? filtered : available;
+  })()}
   onSubmit={async (data) => {
 
     try {

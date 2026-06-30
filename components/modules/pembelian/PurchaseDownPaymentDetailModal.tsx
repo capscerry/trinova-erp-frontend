@@ -9,6 +9,8 @@ import {
   BadgeCheck,
   Hash,
   Clock,
+  Package,
+  ArrowRight,
 } from "lucide-react";
 
 interface PurchaseDownPaymentDetailData {
@@ -49,6 +51,9 @@ interface PurchaseDownPaymentDetailModalProps {
   onClose: () => void;
 
   data: PurchaseDownPaymentDetailData | null;
+
+  /** Navigate to GR page pre-seeded with this DP's PO */
+  onNavigateToGR?: (poId: number, poNumber: string) => void;
 }
 
 const formatDate = (d: string) =>
@@ -76,6 +81,7 @@ export default function PurchaseDownPaymentDetailModal({
   open,
   onClose,
   data,
+  onNavigateToGR,
 }: PurchaseDownPaymentDetailModalProps) {
   if (!open || !data) {
     return null;
@@ -111,6 +117,9 @@ export default function PurchaseDownPaymentDetailModal({
             shadow-2xl
             w-full
             max-w-3xl
+            max-h-[92vh]
+            flex
+            flex-col
             border
             border-slate-200
             overflow-hidden
@@ -165,7 +174,7 @@ export default function PurchaseDownPaymentDetailModal({
 
           {/* BODY */}
 
-          <div className="p-6 space-y-5">
+          <div className="overflow-y-auto flex-1 p-6 space-y-5">
 
             {/* INFO CARD */}
 
@@ -324,6 +333,45 @@ export default function PurchaseDownPaymentDetailModal({
 
               </div>
 
+            </div>
+
+          </div>
+
+          {/* FOOTER */}
+
+          <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+
+            {onNavigateToGR && data?.purchase_order_id != null && (
+              <>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Lanjutkan Ke
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToGR(data.purchase_order_id!, data.po_number ?? "");
+                  }}
+                  className="flex items-center gap-4 w-full p-3.5 rounded-xl border text-left transition-all bg-violet-50 hover:bg-violet-100 border-violet-200 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/70 shrink-0">
+                    <Package size={15} className="text-violet-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-800">Goods Receipt</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">Terima barang dari supplier</p>
+                  </div>
+                  <ArrowRight size={13} className="text-violet-600 shrink-0" />
+                </button>
+              </>
+            )}
+
+            <div className="flex justify-start">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Tutup
+              </button>
             </div>
 
           </div>

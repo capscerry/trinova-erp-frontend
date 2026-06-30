@@ -81,6 +81,8 @@ interface PurchaseOrder {
   status: POStatus;
   total: number;
   items?: any[];
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface Supplier {
@@ -179,6 +181,18 @@ const COLUMNS: Column<PurchaseOrder>[] = [
     render: (val) => (
       <span className="font-mono font-semibold text-[12px] text-navy-700">
         {String(val)}
+      </span>
+    ),
+  },
+
+  {
+    key: "transaction_name",
+    label: "Transaction Name",
+    width: "180px",
+
+    render: (val) => (
+      <span className="text-slate-600 text-xs">
+        {String(val || "—")}
       </span>
     ),
   },
@@ -828,6 +842,22 @@ export default function PurchaseOrderPage() {
   };
 
   // ─────────────────────────────────────────────────────────
+  // QUICK NAV: DP / GR / INVOICE PAGE
+  // ─────────────────────────────────────────────────────────
+
+  const handleNavigateToDP = (poId: number, poNumber: string) => {
+    router.push(`/pembelian/pdp?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`);
+  };
+
+  const handleNavigateToGR = (poId: number, poNumber: string) => {
+    router.push(`/pembelian/gr?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`);
+  };
+
+  const handleNavigateToInvoice = (poId: number, poNumber: string) => {
+    router.push(`/pembelian/invoice?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`);
+  };
+
+  // ─────────────────────────────────────────────────────────
   // FETCH PR LIST
   // ─────────────────────────────────────────────────────────
 
@@ -927,6 +957,9 @@ export default function PurchaseOrderPage() {
 
                   transaction_detail:
                     row.transaction_detail ?? "",
+
+                  total_amount:
+                    row.total,
 
                   items:
                     detailItems.map(
@@ -1162,6 +1195,9 @@ export default function PurchaseOrderPage() {
         onCreateInvoice={handleCreateInvoice}
         onCreatePayment={handleCreatePayment}
         onNavigateToInvoicePage={handleNavigateToInvoicePage}
+        onNavigateToDP={handleNavigateToDP}
+        onNavigateToGR={handleNavigateToGR}
+        onNavigateToInvoice={handleNavigateToInvoice}
         suppliers={suppliers}
         products={products}
         uoms={uoms}

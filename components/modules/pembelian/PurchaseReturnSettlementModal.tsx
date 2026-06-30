@@ -3,13 +3,11 @@
 import { useState } from "react";
 import {
   X,
-  PackageCheck,
+  RefreshCcw,
   Scissors,
   Banknote,
   AlertTriangle,
   CheckCircle2,
-  Plus,
-  Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReturnLineItem } from "./PurchaseReturnFormModal";
@@ -17,7 +15,7 @@ import type { ReturnLineItem } from "./PurchaseReturnFormModal";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SettlementOption =
-  | "Replacement"
+  | "Accept Loss"
   | "Next PO Deduction"
   | "Cash Refund";
 
@@ -58,6 +56,7 @@ export interface PurchaseInvoiceOption {
   invoice_date: string;
   supplier_name: string;
   total_amount?: number;
+  outstanding_amount?: number;
 }
 
 /** A product the supplier sells — used in Option A picker */
@@ -71,12 +70,10 @@ export interface SupplierProductOption {
 
 // ─── Panel payloads ───────────────────────────────────────────────────────────
 
-/** Option A — user picks replacement products to PO; return amount is applied as a discount */
-export interface ReplacementPayload {
-  targetPOId: number;
-  targetPONumber: string;
-  /** New PO total after applying the return-amount discount */
-  newPOTotal: number;
+/** Option A — supplier ships back fixed goods of the exact same product & quantity */
+export interface AcceptLossPayload {
+  /** Return line items that the supplier will replace 1-for-1 */
+  returnItems: ReturnLineItem[];
   returnAmount: number;
 }
 
@@ -99,7 +96,7 @@ export interface CashRefundPayload {
 }
 
 export type SettlementPayload =
-  | { type: "Replacement";       data: ReplacementPayload }
+  | { type: "Accept Loss";        data: AcceptLossPayload }
   | { type: "Next PO Deduction"; data: NextPODeductionPayload }
   | { type: "Cash Refund";       data: CashRefundPayload };
 
@@ -111,8 +108,8 @@ interface PurchaseReturnSettlementModalProps {
   purchaseOrders: PurchaseOrderOption[];
   goodsReceipts: GoodsReceiptOption[];
   purchaseInvoices: PurchaseInvoiceOption[];
-  /** All supplier-products — Option A filters to same supplier */
-  supplierProducts: SupplierProductOption[];
+  /** Return line items loaded from the originating GR/PO — used in Option A */
+  returnItems?: ReturnLineItem[];
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -163,211 +160,105 @@ function SettledBadge({ status }: { status: string }) {
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 
-// ─── Panel A: Replacement — pick supplier products + select a PO to discount ──
+// ─── Panel A: Accept Loss — supplier ships back the exact same defective items ─
 
-interface PickedProduct {
-  supplier_product_id: number;
-  product_id: number;
-  product_name: string;
-  unit_price: number;
-  qty: number;
-}
-
-function ReplacementPanel({
-  pr, purchaseOrders, supplierProducts, submitting, onConfirm,
+function AcceptLossPanel({
+  pr,
+  returnItems,
+  submitting,
+  onConfirm,
 }: {
   pr: PurchaseReturnRow;
-  purchaseOrders: PurchaseOrderOption[];
-  supplierProducts: SupplierProductOption[];
+  returnItems: ReturnLineItem[];
   submitting: boolean;
-  onConfirm: (data: ReplacementPayload) => void;
+  onConfirm: (data: AcceptLossPayload) => void;
 }) {
-  // Products from the same supplier
-  const availableProducts = supplierProducts.filter((sp) => {
-    if (pr.supplier_id > 0 && sp.supplier_id > 0)
-      return sp.supplier_id === pr.supplier_id;
-    return true; // no supplier_id to filter by
-  });
-
-  // Active POs from same supplier (any non-Cancelled/Completed/Closed)
-  const eligiblePOs = purchaseOrders.filter((po) => {
-    const sameSupplier =
-      (pr.supplier_id > 0 && po.supplier_id === pr.supplier_id) ||
-      po.supplier_name?.toLowerCase() === pr.supplier_name.toLowerCase();
-    const isActive = !["Cancelled", "Completed", "Closed"].includes(po.status);
-    return sameSupplier && isActive;
-  });
-
-  const [picked, setPicked] = useState<PickedProduct[]>([]);
-  const [selectedPOId, setSelectedPOId] = useState<number>(
-    eligiblePOs[0]?.purchase_order_id ?? 0
-  );
-
-  const selectedPO = eligiblePOs.find((p) => p.purchase_order_id === selectedPOId);
-  const pickedTotal = picked.reduce((s, p) => s + p.unit_price * p.qty, 0);
-  const discount = pr.total_amount;
-  const newPOTotal = Math.max(0, (selectedPO?.total_amount ?? 0) - discount);
-
-  const handleAddProduct = (spId: number) => {
-    const sp = availableProducts.find((p) => p.supplier_product_id === spId);
-    if (!sp) return;
-    setPicked((prev) => {
-      if (prev.find((p) => p.supplier_product_id === spId)) return prev;
-      return [...prev, { ...sp, qty: 1 }];
-    });
-  };
-
-  const handleQty = (spId: number, delta: number) => {
-    setPicked((prev) =>
-      prev
-        .map((p) => p.supplier_product_id === spId ? { ...p, qty: Math.max(1, p.qty + delta) } : p)
-        .filter((p) => p.qty > 0)
-    );
-  };
-
-  const handleRemove = (spId: number) => {
-    setPicked((prev) => prev.filter((p) => p.supplier_product_id !== spId));
-  };
-
-  const canConfirm = picked.length > 0 && selectedPO != null && !submitting;
+  const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
+  const activeItems = returnItems.filter((i) => i.qty_return > 0);
 
   return (
     <div className="space-y-5">
+      {/* Description banner */}
       <div className="rounded-xl bg-sky-50 border border-sky-200 p-4 space-y-1.5 text-sm text-sky-800">
         <div className="flex items-center gap-2 font-semibold">
-          <PackageCheck size={16} />
-          Opsi A — Tukar Barang (Replacement)
+          <RefreshCcw size={16} />
+          Opsi A — Terima Barang Pengganti (Accept Loss)
         </div>
         <p className="text-xs leading-relaxed text-sky-700">
-          Pilih produk pengganti dari katalog supplier ini. Total retur (Rp {fmt(discount)}) akan
-          dipotong langsung dari total PO yang dipilih sebagai diskon.
+          Supplier akan mengirimkan kembali barang yang sudah diperbaiki dengan
+          produk dan jumlah yang <span className="font-semibold">sama persis</span>.
+          Stok akan dipulihkan secara otomatis setelah dikonfirmasi.
         </p>
       </div>
 
+      {/* Return summary */}
       <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-1">
         <InfoRow label="No. Retur"   value={pr.purchase_return_number} />
         <InfoRow label="Supplier"    value={pr.supplier_name} />
-        <InfoRow label="Nilai Retur (Diskon)" value={`Rp ${fmt(discount)}`} />
+        <InfoRow label="Nilai Retur" value={`Rp ${fmt(pr.total_amount)}`} />
       </div>
 
-      {/* Product picker */}
-      <FormField label="Tambah Produk Pengganti" hint="Produk dari katalog supplier yang sama">
-        {availableProducts.length === 0 ? (
+      {/* Items that will be returned by supplier */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+          Barang yang Akan Dikirim Kembali oleh Supplier
+        </p>
+
+        {activeItems.length === 0 ? (
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs">
             <AlertTriangle size={14} />
-            Tidak ada produk dari supplier ini di katalog.
+            Tidak ada item retur yang tercatat. Buat ulang retur dengan memilih produk yang dikembalikan.
           </div>
         ) : (
-          <select
-            title="Pilih produk"
-            defaultValue=""
-            onChange={(e) => { if (e.target.value) handleAddProduct(Number(e.target.value)); e.target.value = ""; }}
-            className={inputBase}
-          >
-            <option value="">— Pilih produk untuk ditambahkan —</option>
-            {availableProducts
-              .filter((sp) => !picked.find((p) => p.supplier_product_id === sp.supplier_product_id))
-              .map((sp) => (
-                <option key={sp.supplier_product_id} value={sp.supplier_product_id}>
-                  {sp.product_name} — Rp {fmt(sp.unit_price)}
-                </option>
-              ))}
-          </select>
-        )}
-      </FormField>
-
-      {/* Picked products table */}
-      {picked.length > 0 && (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-400">Produk</th>
-                <th className="px-3 py-2 text-center font-bold uppercase tracking-wider text-slate-400 w-28">Qty</th>
-                <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-400 w-28">Subtotal</th>
-                <th className="px-3 py-2 w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {picked.map((p) => (
-                <tr key={p.supplier_product_id} className="hover:bg-slate-50/60">
-                  <td className="px-3 py-2 font-medium text-slate-700">{p.product_name}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-center gap-1">
-                      <button type="button" onClick={() => handleQty(p.supplier_product_id, -1)}
-                        className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100">
-                        <Minus size={11} />
-                      </button>
-                      <span className="w-8 text-center font-semibold">{p.qty}</span>
-                      <button type="button" onClick={() => handleQty(p.supplier_product_id, 1)}
-                        className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100">
-                        <Plus size={11} />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-700">Rp {fmt(p.unit_price * p.qty)}</td>
-                  <td className="px-3 py-2 text-center">
-                    <button type="button" onClick={() => handleRemove(p.supplier_product_id)}
-                      className="text-rose-400 hover:text-rose-600 text-xs font-bold">✕</button>
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-400">Produk</th>
+                  <th className="px-3 py-2 text-center font-bold uppercase tracking-wider text-slate-400 w-24">Qty</th>
+                  <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-400 w-28">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {activeItems.map((item) => (
+                  <tr key={item.product_id} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-medium text-slate-700">{item.product_name}</td>
+                    <td className="px-3 py-2 text-center font-semibold text-sky-700">{item.qty_return}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">Rp {fmt(item.subtotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200 bg-slate-50">
+                  <td colSpan={2} className="px-3 py-2 text-right text-xs font-bold uppercase text-slate-500">Total</td>
+                  <td className="px-3 py-2 text-right font-bold text-slate-800">
+                    Rp {fmt(activeItems.reduce((s, i) => s + i.subtotal, 0))}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-slate-200 bg-slate-50">
-                <td colSpan={2} className="px-3 py-2 text-right text-xs font-bold uppercase text-slate-500">Total Produk</td>
-                <td className="px-3 py-2 text-right font-bold text-slate-800">Rp {fmt(pickedTotal)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      {/* PO picker */}
-      <FormField
-        label="PO yang Mendapat Diskon Retur"
-        hint={eligiblePOs.length === 0 ? "Belum ada PO aktif dari supplier ini." : "Total PO akan dikurangi sebesar nilai retur."}
-      >
-        {eligiblePOs.length === 0 ? (
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs">
-            <AlertTriangle size={14} />
-            Tidak ada PO aktif dari supplier ini.
+              </tfoot>
+            </table>
           </div>
-        ) : (
-          <select title="Pilih PO" value={selectedPOId}
-            onChange={(e) => setSelectedPOId(Number(e.target.value))}
-            className={inputBase}>
-            {eligiblePOs.map((po) => (
-              <option key={po.purchase_order_id} value={po.purchase_order_id}>
-                {po.po_number} — Rp {fmt(po.total_amount)} ({po.status})
-              </option>
-            ))}
-          </select>
         )}
-      </FormField>
+      </div>
 
-      {/* Preview */}
-      {selectedPO && (
-        <div className="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-xs text-sky-700 space-y-1">
-          <p className="font-semibold text-sky-800">Preview potongan PO</p>
+      {/* Stock restore notice */}
+      {activeItems.length > 0 && (
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700 space-y-1">
+          <p className="font-semibold text-emerald-800">Efek ke stok</p>
           <p>
-            PO <span className="font-mono font-semibold">{selectedPO.po_number}</span>{" "}
-            berkurang dari <span className="font-semibold">Rp {fmt(selectedPO.total_amount)}</span>{" "}
-            menjadi <span className="font-semibold text-emerald-700">Rp {fmt(newPOTotal)}</span>.
+            Stok untuk {activeItems.length} produk di atas akan dipulihkan
+            sesuai jumlah aslinya setelah konfirmasi.
           </p>
         </div>
       )}
 
-      <button type="button" disabled={!canConfirm}
-        onClick={() => selectedPO && onConfirm({
-          targetPOId: selectedPO.purchase_order_id,
-          targetPONumber: selectedPO.po_number,
-          newPOTotal,
-          returnAmount: discount,
-        })}
-        className="w-full py-2.5 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors">
-        {submitting ? "Menyimpan…" : "Konfirmasi Penggantian & Potong PO"}
+      <button
+        type="button"
+        disabled={activeItems.length === 0 || submitting}
+        onClick={() => onConfirm({ returnItems: activeItems, returnAmount: pr.total_amount })}
+        className="w-full py-2.5 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+      >
+        {submitting ? "Menyimpan…" : "Konfirmasi Penerimaan Barang Pengganti"}
       </button>
     </div>
   );
@@ -478,18 +369,8 @@ function CashRefundPanel({
   submitting: boolean;
   onConfirm: (data: CashRefundPayload) => void;
 }) {
-  // Primary filter: invoices whose GR matches this return's GR
-  let eligible = purchaseInvoices.filter(
-    (inv) => inv.goods_receipt_id === pr.goods_receipt_id && pr.goods_receipt_id > 0
-  );
-  // Fallback: same supplier when GR id is 0 or unmatched
-  if (eligible.length === 0) {
-    eligible = purchaseInvoices.filter(
-      (inv) =>
-        inv.supplier_name.toLowerCase().trim() ===
-        pr.supplier_name.toLowerCase().trim()
-    );
-  }
+  // purchaseInvoices is already pre-filtered to unpaid invoices for this supplier
+  const eligible = purchaseInvoices;
 
   const [selectedInvId, setSelectedInvId] = useState<number>(
     eligible[0]?.invoice_id ?? 0
@@ -500,6 +381,11 @@ function CashRefundPanel({
 
   const selectedInv = eligible.find((inv) => inv.invoice_id === selectedInvId);
   const deduction = pr.total_amount;
+
+  // Validation: deduction must not exceed the invoice's outstanding balance
+  const invoiceOutstanding = selectedInv?.outstanding_amount ?? selectedInv?.total_amount ?? 0;
+  const exceedsOutstanding = selectedInv != null && deduction > invoiceOutstanding;
+  const canConfirm = !!selectedInv && eligible.length > 0 && !!returnDate && !submitting && !exceedsOutstanding;
 
   return (
     <div className="space-y-5">
@@ -541,7 +427,11 @@ function CashRefundPanel({
             {eligible.map((inv) => (
               <option key={inv.invoice_id} value={inv.invoice_id}>
                 {inv.invoice_number}
-                {inv.total_amount != null ? ` — Rp ${fmt(inv.total_amount)}` : ""}
+                {inv.outstanding_amount != null
+                  ? ` — Outstanding: Rp ${fmt(inv.outstanding_amount)}`
+                  : inv.total_amount != null
+                    ? ` — Rp ${fmt(inv.total_amount)}`
+                    : ""}
               </option>
             ))}
           </select>
@@ -558,21 +448,37 @@ function CashRefundPanel({
         />
       </FormField>
 
-      {selectedInv && (
+      {/* Validation error — deduction exceeds outstanding */}
+      {exceedsOutstanding && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>
+            Kredit retur{" "}
+            <span className="font-semibold">Rp {fmt(deduction)}</span> melebihi
+            outstanding invoice{" "}
+            <span className="font-semibold">Rp {fmt(invoiceOutstanding)}</span>.
+            Pilih invoice lain atau sesuaikan nilai retur sebelum melanjutkan.
+          </span>
+        </div>
+      )}
+
+      {selectedInv && !exceedsOutstanding && (
         <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-700 space-y-1">
           <p className="font-semibold text-amber-800">Efek ke invoice</p>
           <p>
             Kredit <span className="font-semibold">Rp {fmt(deduction)}</span> akan
             dicatat sebagai pembayaran (Return Credit) pada invoice{" "}
             <span className="font-mono font-semibold">{selectedInv.invoice_number}</span>,
-            mengurangi outstanding balance-nya.
+            mengurangi outstanding dari{" "}
+            <span className="font-semibold">Rp {fmt(invoiceOutstanding)}</span> menjadi{" "}
+            <span className="font-semibold text-emerald-700">Rp {fmt(Math.max(0, invoiceOutstanding - deduction))}</span>.
           </p>
           <p className="text-amber-600">Pastikan transfer dari supplier telah diterima sebelum konfirmasi.</p>
         </div>
       )}
 
       <button type="button"
-        disabled={!selectedInv || eligible.length === 0 || !returnDate || submitting}
+        disabled={!canConfirm}
         onClick={() =>
           selectedInv &&
           onConfirm({
@@ -592,8 +498,8 @@ function CashRefundPanel({
 // ─── Option meta ──────────────────────────────────────────────────────────────
 
 const OPTION_META: Record<SettlementOption, { label: string; color: string }> = {
-  Replacement: {
-    label: "Tukar Barang",
+  "Accept Loss": {
+    label: "Terima Barang Pengganti",
     color: "bg-sky-100 text-sky-700 border-sky-200",
   },
   "Next PO Deduction": {
@@ -611,7 +517,7 @@ const OPTION_META: Record<SettlementOption, { label: string; color: string }> = 
 export default function PurchaseReturnSettlementModal({
   open, onClose, onSettle,
   purchaseReturn: pr,
-  purchaseOrders, goodsReceipts, purchaseInvoices, supplierProducts,
+  purchaseOrders, goodsReceipts, purchaseInvoices, returnItems = [],
 }: PurchaseReturnSettlementModalProps) {
   const [submitting, setSubmitting] = useState(false);
 
@@ -663,13 +569,12 @@ export default function PurchaseReturnSettlementModal({
           <div className="overflow-y-auto flex-1 px-6 py-5">
             {alreadySettled ? (
               <SettledBadge status={pr.status} />
-            ) : option === "Replacement" ? (
-              <ReplacementPanel
+            ) : option === "Accept Loss" ? (
+              <AcceptLossPanel
                 pr={pr}
-                purchaseOrders={purchaseOrders}
-                supplierProducts={supplierProducts}
+                returnItems={returnItems}
                 submitting={submitting}
-                onConfirm={(data) => handleSettle({ type: "Replacement", data })}
+                onConfirm={(data) => handleSettle({ type: "Accept Loss", data })}
               />
             ) : option === "Next PO Deduction" ? (
               <NextPODeductionPanel

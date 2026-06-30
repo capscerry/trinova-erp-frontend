@@ -42,6 +42,12 @@ interface PurchaseOrderFormModalProps {
   onCreateInvoice?: (data: any, poId: number, formData: any) => Promise<any>;
   onCreatePayment?: (data: any) => Promise<any>;
   onNavigateToInvoicePage?: () => void;
+  /** Called when the user clicks "Down Payment" — navigate to the DP page pre-selecting this PO */
+  onNavigateToDP?: (poId: number, poNumber: string) => void;
+  /** Called when the user clicks "Goods Receipt" — navigate to the GR page pre-selecting this PO */
+  onNavigateToGR?: (poId: number, poNumber: string) => void;
+  /** Called when the user clicks "Purchase Invoice" — navigate to the Invoice/Payment page */
+  onNavigateToInvoice?: (poId: number, poNumber: string) => void;
   suppliers: Supplier[];
   products: Product[];
   uoms: Uom[];
@@ -64,7 +70,7 @@ const PROSES_LINKS = [
   },
   {
     key: "uang-muka" as const,
-    label: "Uang Muka",
+    label: "Down Payment",
     desc: "Buat pembayaran uang muka supplier",
     icon: CreditCard,
     color: "text-violet-600",
@@ -97,6 +103,12 @@ const formatRupiah = (n: number) =>
     style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(n);
 
+/** Format a number as Rp 1.501.778,00 — thousands dots, comma decimals, always 2dp */
+const formatAmount = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(n);
+
 const newItem = (): PurchaseOrderItem => ({
   id: crypto.randomUUID(), product_id: "", product_name: "",
   quantity: 1, uom_id: "", uom_name: "", price: 0,
@@ -105,7 +117,7 @@ const newItem = (): PurchaseOrderItem => ({
 
 export default function PurchaseOrderFormModal({
   open, onClose, onSubmit, onApprove, onCreateDP, onCreateGR, onCreateInvoice,
-  onCreatePayment, onNavigateToInvoicePage,
+  onCreatePayment, onNavigateToInvoicePage, onNavigateToDP, onNavigateToGR, onNavigateToInvoice,
   suppliers, products, uoms, purchaseOrderDetails = [],
   existingDownPayments = [], existingGoodsReceipts = [], existingInvoices = [],
   initialData, prList = [],
@@ -151,6 +163,7 @@ export default function PurchaseOrderFormModal({
   const [form, setForm] = useState<PurchaseOrderFormData>({
     po_number: "", supplier_id: "", order_date: todayStr(),
     expected_date: "", status: "Draft", total_amount: 0, items: [newItem()],
+    transaction_name: "", transaction_detail: "",
   });
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [deletedItems, setDeletedItems] = useState<number[]>([]);
@@ -210,7 +223,7 @@ export default function PurchaseOrderFormModal({
         // Normalize items to ensure tax fields exist (older records won't have them)
         const normalizedItems = (initialData.items ?? []).map(item => ({
           ...item,
-          tax_percent: item.tax_percent ?? item.tax_percentage ?? 0,
+          tax_percent: item.tax_percent ?? (item as any).tax_percentage ?? 0,
           tax_amount: item.tax_amount ?? 0,
         }));
         setForm({ ...initialData, items: normalizedItems });
@@ -600,9 +613,16 @@ export default function PurchaseOrderFormModal({
 
   const handleNavigate = (key: typeof PROSES_LINKS[number]["key"]) => {
     if (key === "persetujuan") { setApprovalOpen(true); return; }
-    if (key === "uang-muka") { setDpOpen(true); return; }
-    if (key === "goods-receipt") { setGrOpen(true); return; }
+    if (key === "uang-muka") {
+      if (onNavigateToDP) { onClose(); onNavigateToDP(poId, form.po_number); return; }
+      setDpOpen(true); return;
+    }
+    if (key === "goods-receipt") {
+      if (onNavigateToGR) { onClose(); onNavigateToGR(poId, form.po_number); return; }
+      setGrOpen(true); return;
+    }
     if (key === "purchase-invoice") {
+      if (onNavigateToInvoice) { onClose(); onNavigateToInvoice(poId, form.po_number); return; }
       // Pre-seed payment amount with effective outstanding balance
       if (effectiveOutstanding > 0) {
         setPaymentForm(f => ({ ...f, amount: effectiveOutstanding }));
@@ -777,10 +797,10 @@ export default function PurchaseOrderFormModal({
                   : "Simpan Purchase Order terlebih dahulu untuk mengaktifkan proses lanjutan."}
               </p>
 
-              <div className="grid grid-cols-4 gap-3">
-                {PROSES_LINKS.map(({ key, label, desc, icon: Icon, color, bg }) => {
+              <div className="grid grid-cols-2 gap-3">
+                {PROSES_LINKS.filter(l => l.key === "persetujuan" || l.key === "uang-muka").map(({ key, label, desc, icon: Icon, color, bg }) => {
                   // Persetujuan: active as soon as PO is saved/editing but not if Completed
-                  // Uang Muka, GR, Invoice: only active after Approved but not if Completed
+                  // Uang Muka: only active after Approved but not if Completed
                   const isActive = !isCompleted && (
                     key === "persetujuan"
                       ? prosesActive && !effectivelyApproved
@@ -1064,9 +1084,24 @@ export default function PurchaseOrderFormModal({
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-600">Amount</label>
-                  <input type="number" step="0.01" value={dpForm.amount}
-                    onChange={e => setDpForm(f => ({ ...f, amount: Math.round(parseFloat(e.target.value || "0") * 100) / 100 }))}
-                    max={grandTotal} className={inputBase} />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={formatAmount(dpForm.amount)}
+                    onFocus={e => { e.target.value = dpForm.amount > 0 ? String(dpForm.amount) : ""; e.target.select(); }}
+                    onBlur={e => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      const parsed = parseFloat(raw);
+                      setDpForm(f => ({ ...f, amount: isNaN(parsed) ? 0 : parsed }));
+                      e.target.value = formatAmount(isNaN(parsed) ? 0 : parsed);
+                    }}
+                    onChange={e => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return;
+                      setDpForm(f => ({ ...f, amount: raw === "" || raw === "." ? 0 : parseFloat(raw) }));
+                    }}
+                    className={inputBase}
+                  />
                   {dpForm.payment_type === "Partial" && dpForm.amount > grandTotal && (
                     <p className="text-xs text-red-500 mt-1">Amount tidak boleh melebihi total PO.</p>
                   )}
@@ -1327,12 +1362,25 @@ export default function PurchaseOrderFormModal({
                     effectiveOutstanding > 0 ? "text-slate-500" : "text-slate-300")}>
                     Payment Amount
                   </label>
-                  <input type="number"
+                  <input
+                    type="text"
+                    inputMode="decimal"
                     disabled={effectiveOutstanding === 0}
-                    value={paymentForm.amount}
-                    onChange={e => setPaymentForm(f => ({ ...f, amount: Number(e.target.value) }))}
-                    max={effectiveOutstanding}
-                    className={cn(inputBase, effectiveOutstanding === 0 && "bg-slate-50 text-slate-300 cursor-not-allowed")} />
+                    value={effectiveOutstanding === 0 ? "" : formatAmount(paymentForm.amount)}
+                    onFocus={e => { e.target.value = paymentForm.amount > 0 ? String(paymentForm.amount) : ""; e.target.select(); }}
+                    onBlur={e => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      const parsed = parseFloat(raw);
+                      setPaymentForm(f => ({ ...f, amount: isNaN(parsed) ? 0 : parsed }));
+                      e.target.value = formatAmount(isNaN(parsed) ? 0 : parsed);
+                    }}
+                    onChange={e => {
+                      const raw = e.target.value.replace(/[^0-9.]/g, "");
+                      if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return;
+                      setPaymentForm(f => ({ ...f, amount: raw === "" || raw === "." ? 0 : parseFloat(raw) }));
+                    }}
+                    className={cn(inputBase, effectiveOutstanding === 0 && "bg-slate-50 text-slate-300 cursor-not-allowed")}
+                  />
                   {effectiveOutstanding > 0 && paymentForm.amount > effectiveOutstanding && (
                     <p className="text-xs text-red-500 mt-1">Nominal tidak boleh melebihi outstanding amount.</p>
                   )}

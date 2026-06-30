@@ -48,3 +48,14 @@ export const deletePurchaseInvoice =
 
     return res.data;
 };
+
+// GET UNPAID INVOICES BY SUPPLIER
+export const getUnpaidInvoicesBySupplier =
+  async (supplierId: number) => {
+
+    const res = await api.get(
+      `/purchase-invoice/unpaid/${supplierId}`
+    );
+
+    return res.data;
+};

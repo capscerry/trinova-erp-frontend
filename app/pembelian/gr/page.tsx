@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/Button";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { toast } from "sonner";
 
@@ -45,6 +46,8 @@ interface GoodsReceipt {
   po_number: string;
   received_by: string;
   status: GRStatus;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface PurchaseOrder {
@@ -53,6 +56,7 @@ interface PurchaseOrder {
   expected_date?: string | null;
   transaction_name?: string;
   transaction_detail?: string;
+  status?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -162,10 +166,17 @@ const COLUMNS: Column<GoodsReceipt>[] = [
 
 export default function GoodsReceiptPage() {
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [goodsReceipts, setGoodsReceipts] =
     useState<GoodsReceipt[]>([]);
 
   const [purchaseOrders, setPurchaseOrders] =
+    useState<PurchaseOrder[]>([]);
+
+  // Full PO list (all statuses) used for detail lookups
+  const [allPurchaseOrders, setAllPurchaseOrders] =
     useState<PurchaseOrder[]>([]);
 
   const [purchaseOrderDetails, setPurchaseOrderDetails] =
@@ -179,6 +190,10 @@ export default function GoodsReceiptPage() {
 
   const [selectedGR, setSelectedGR] =
     useState<any>(null);
+
+  // Pre-selected PO id when navigated from PO page
+  const [preSelectedPOId, setPreSelectedPOId] =
+    useState<number | undefined>(undefined);
 
   // ─────────────────────────────────────────────────────────
   // FETCH GR
@@ -256,17 +271,21 @@ export default function GoodsReceiptPage() {
         ? res
         : res.data;
 
-      const approvedPOs = list
-        .filter((po: any) => po.status === "Approved")
-        .map((po: any) => ({
-          purchase_order_id: Number(po.purchase_order_id),
-          po_number:         po.po_number ?? "",
-          expected_date:     po.expected_date ?? null,
-          transaction_name:  po.transaction_name ?? "",
-          transaction_detail: po.transaction_detail ?? "",
-        }));
+      const mappedPOs = list.map((po: any) => ({
+        purchase_order_id: Number(po.purchase_order_id),
+        po_number:         po.po_number ?? "",
+        expected_date:     po.expected_date ?? null,
+        transaction_name:  po.transaction_name ?? "",
+        transaction_detail: po.transaction_detail ?? "",
+        status:            po.status ?? "",
+      }));
+
+      // Approved POs for the create form dropdown
+      const approvedPOs = mappedPOs.filter((po: any) => po.status === "Approved");
 
       setPurchaseOrders(approvedPOs);
+      // Keep the full list for detail lookups regardless of status
+      setAllPurchaseOrders(mappedPOs);
 
     } catch (error) {
 
@@ -395,6 +414,18 @@ export default function GoodsReceiptPage() {
 
   }, []);
 
+  // Auto-open create modal when navigated from PO page with ?po_id=
+  useEffect(() => {
+    const poId = searchParams.get("po_id");
+    if (!poId || purchaseOrders.length === 0) return;
+    const numericId = Number(poId);
+    const po = purchaseOrders.find(p => p.purchase_order_id === numericId);
+    if (!po) return;
+    setPreSelectedPOId(numericId);
+    setOpenModal(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchaseOrders]);
+
   // ─────────────────────────────────────────────────────────
   // RETURN
   // ─────────────────────────────────────────────────────────
@@ -438,6 +469,42 @@ export default function GoodsReceiptPage() {
                       )
                   );
 
+                // Look up the PO to get authoritative po_number and transaction_name
+                const matchedPO = allPurchaseOrders.find(
+                  (po) => po.purchase_order_id === Number(row.purchase_order_id)
+                );
+
+                const resolvedPoNumber =
+                  matchedPO?.po_number || row.po_number || "-";
+
+                const resolvedTransactionName =
+                  matchedPO?.transaction_name || row.transaction_name || "";
+
+                const resolvedTransactionDetail =
+                  matchedPO?.transaction_detail || row.transaction_detail || "";
+
+                const mappedItems = detailItems.map(
+                  (item) => ({
+                    product_name:
+                      item.product?.product_name ||
+                      `Product ${item.product_id}`,
+
+                    quantity:
+                      item.quantity,
+
+                    price:
+                      item.price,
+
+                    subtotal:
+                      item.subtotal,
+                  })
+                );
+
+                const totalAmount = mappedItems.reduce(
+                  (sum, item) => sum + item.subtotal,
+                  0
+                );
+
                 setSelectedGR({
 
                   receipt_number:
@@ -447,7 +514,7 @@ export default function GoodsReceiptPage() {
                     row.receipt_date,
 
                   po_number:
-                    row.po_number,
+                    resolvedPoNumber,
 
                   received_by:
                     row.received_by,
@@ -459,28 +526,16 @@ export default function GoodsReceiptPage() {
                     row.purchase_order_id,
 
                   transaction_name:
-                    row.transaction_name ?? "",
+                    resolvedTransactionName,
 
                   transaction_detail:
-                    row.transaction_detail ?? "",
+                    resolvedTransactionDetail,
+
+                  total_amount:
+                    totalAmount,
 
                   items:
-                    detailItems.map(
-                      (item) => ({
-                        product_name:
-                          item.product?.product_name ||
-                          `Product ${item.product_id}`,
-
-                        quantity:
-                          item.quantity,
-
-                        price:
-                          item.price,
-
-                        subtotal:
-                          item.subtotal,
-                      })
-                    ),
+                    mappedItems,
                 });
 
                 setOpenDetail(true);
@@ -495,14 +550,17 @@ export default function GoodsReceiptPage() {
 
       <GoodsReceiptFormModal
         open={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
+        onClose={() => {
+          setOpenModal(false);
+          setPreSelectedPOId(undefined);
+        }}
         onSubmit={handleSubmit}
         purchaseOrders={purchaseOrders}
         purchaseOrderDetails={
           purchaseOrderDetails
         }
+        initialPOId={preSelectedPOId}
+        onNavigateToPayment={() => router.push("/pembelian/payment")}
       />
 
       <GoodsReceiptDetailModal
@@ -511,6 +569,7 @@ export default function GoodsReceiptPage() {
           setOpenDetail(false)
         }
         data={selectedGR}
+        onNavigateToPayment={() => router.push("/pembelian/payment")}
       />
 
     </AppShell>

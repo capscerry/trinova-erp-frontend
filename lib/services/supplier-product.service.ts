@@ -27,6 +27,24 @@ export const updateSupplierProduct = async (
   return response.data;
 };
 
+/**
+ * Restore stock for a returned item.
+ * Calls POST /api/supplier-product/restore-stock on the backend which
+ * does an atomic available_stock += quantity — no race condition.
+ */
+export const restoreStock = async (
+  productId: number,
+  supplierId: number,
+  quantity: number
+) => {
+  const response = await api.post("/supplier-product/restore-stock", {
+    product_id: productId,
+    supplier_id: supplierId,
+    quantity,
+  });
+  return response.data;
+};
+
 export const importSupplierCatalog =
   async (
     supplierId: number,

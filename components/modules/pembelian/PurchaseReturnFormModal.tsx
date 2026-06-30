@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { X, Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Settlement options (no Open Credit) ─────────────────────────────────────
+// ─── Settlement options ───────────────────────────────────────────────────────
 
 export type SettlementOption =
-  | "Replacement"
+  | "Accept Loss"
   | "Next PO Deduction"
   | "Cash Refund";
 
@@ -72,14 +72,14 @@ interface PurchaseReturnFormModalProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SETTLEMENT_OPTIONS: SettlementOption[] = [
-  "Replacement",
+  "Accept Loss",
   "Next PO Deduction",
   "Cash Refund",
 ];
 
 function getStatus(option: SettlementOption) {
   switch (option) {
-    case "Replacement":       return "Awaiting Replacement";
+    case "Accept Loss":       return "Awaiting Replacement";
     case "Next PO Deduction": return "Pending Deduction";
     case "Cash Refund":       return "Refund Pending";
   }
@@ -87,7 +87,7 @@ function getStatus(option: SettlementOption) {
 
 function getClosingCondition(option: SettlementOption) {
   switch (option) {
-    case "Replacement":       return "Return item and ship replacement before closing.";
+    case "Accept Loss":       return "Supplier will return fixed goods of the exact same product and quantity. Stock will be restored upon confirmation.";
     case "Next PO Deduction": return "Settle the refund as a deduction on the next purchase order.";
     case "Cash Refund":       return "Process cash refund to supplier to close this return note.";
   }
@@ -102,10 +102,10 @@ function buildEmptyForm(nextNumber = ""): PurchaseReturnFormData {
     supplier_name: "",
     purchase_order_number: "",
     total_amount: 0,
-    settlement_option: "Replacement",
+    settlement_option: "Accept Loss",
     notes: "",
-    status: getStatus("Replacement"),
-    closing_condition: getClosingCondition("Replacement"),
+    status: getStatus("Accept Loss"),
+    closing_condition: getClosingCondition("Accept Loss"),
     transaction_name: "",
     transaction_detail: "",
     return_items: [],

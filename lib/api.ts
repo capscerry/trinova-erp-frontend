@@ -10,6 +10,9 @@ api.interceptors.request.use((config) => {
   // Nanti tambahkan token di sini:
   // const token = getCookie("token");
   // if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.data ?? "");
+  }
   return config;
 });
 
@@ -17,9 +20,20 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    const data = err.response?.data;
+
+    // ASP.NET ValidationProblemDetails: surface field-level errors
+    if (data?.errors && typeof data.errors === "object") {
+      const fieldErrors = Object.entries(data.errors as Record<string, string[]>)
+        .map(([field, msgs]) => `${field}: ${msgs.join(", ")}`)
+        .join(" | ");
+      console.error("[API Validation Errors]", data.errors);
+      return Promise.reject(new Error(fieldErrors || data.title || "Validation error"));
+    }
+
     const message =
-      err.response?.data?.message ||
-      err.response?.data?.title ||
+      data?.message ||
+      data?.title ||
       err.message ||
       "Terjadi kesalahan";
     return Promise.reject(new Error(message));

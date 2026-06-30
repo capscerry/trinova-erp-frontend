@@ -7,6 +7,7 @@ import {
   Package,
   ReceiptText,
   CalendarClock,
+  Scissors,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────
@@ -47,6 +48,9 @@ interface PurchaseOrderDetailData {
   status: string;
 
   items: PurchaseOrderItem[];
+
+  /** Stored total from the DB — may be lower than items sum if a purchase return deduction was applied */
+  total_amount?: number;
 
   transaction_name?: string;
 
@@ -103,12 +107,17 @@ export default function PurchaseOrderDetailModal({
     return null;
   }
 
-  const grandTotal =
+  const itemsTotal =
     data.items.reduce(
       (acc, item) =>
         acc + item.subtotal,
       0
     );
+
+  // Use the stored DB total when available — it will be lower than itemsTotal
+  // if a purchase return deduction (Replacement / Next PO Deduction) was applied.
+  const storedTotal = data.total_amount ?? itemsTotal;
+  const returnDeduction = itemsTotal > storedTotal ? itemsTotal - storedTotal : 0;
 
   return (
     <>
@@ -459,11 +468,53 @@ export default function PurchaseOrderDetailModal({
 
             </div>
 
+            {/* RETURN DEDUCTION NOTICE */}
+
+            {returnDeduction > 0 && (
+              <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                <Scissors size={15} className="text-rose-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-rose-700 uppercase tracking-wide">
+                    Purchase Return Deduction Applied
+                  </p>
+                  <p className="text-xs text-rose-600 mt-0.5">
+                    A purchase return settlement reduced this PO's total by{" "}
+                    <span className="font-semibold">{formatRupiah(returnDeduction)}</span>.
+                    The Grand Total below reflects the adjusted amount.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* TOTAL */}
 
             <div className="flex justify-end">
 
               <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[240px]">
+
+                {returnDeduction > 0 && (
+                  <>
+                    <div className="flex items-center justify-between gap-8 mb-1">
+                      <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
+                        Items Subtotal
+                      </span>
+                      <span className="text-sm text-slate-300">
+                        {formatRupiah(itemsTotal)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-8 mb-2">
+                      <span className="text-xs text-rose-400 uppercase tracking-widest font-semibold">
+                        Return Deduction
+                      </span>
+                      <span className="text-sm font-semibold text-rose-400">
+                        − {formatRupiah(returnDeduction)}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-white/10 pt-2" />
+                  </>
+                )}
 
                 <div className="flex items-center justify-between gap-8">
 
@@ -473,7 +524,7 @@ export default function PurchaseOrderDetailModal({
 
                   <span className="text-base font-bold text-gold-400">
                     {formatRupiah(
-                      grandTotal
+                      storedTotal
                     )}
                   </span>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, CreditCard, ArrowRight } from "lucide-react";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -11,12 +11,15 @@ interface GoodsReceiptDetailModalProps {
   open: boolean;
   onClose: () => void;
   data: any;
+  /** Navigate to Purchase Payment page */
+  onNavigateToPayment?: () => void;
 }
 
 export default function GoodsReceiptDetailModal({
   open,
   onClose,
   data,
+  onNavigateToPayment,
 }: GoodsReceiptDetailModalProps) {
 
   if (!open || !data) return null;
@@ -134,8 +137,8 @@ export default function GoodsReceiptDetailModal({
                   Purchase Order
                 </div>
 
-                <div className="text-sm text-slate-700">
-                  {data.po_number}
+                <div className="text-sm font-semibold text-slate-700">
+                  {data.po_number || "-"}
                 </div>
 
               </div>
@@ -164,16 +167,25 @@ export default function GoodsReceiptDetailModal({
 
               </div>
 
-              {data.transaction_name && (
-                <div className="space-y-1">
-                  <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-                    Transaction Name
-                  </div>
-                  <div className="text-sm font-semibold text-slate-700">
-                    {data.transaction_name}
-                  </div>
+              <div className="space-y-1">
+                <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                  Transaction Name
                 </div>
-              )}
+                <div className="text-sm font-semibold text-slate-700">
+                  {data.transaction_name || "-"}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                  Total PO Amount
+                </div>
+                <div className="text-sm font-bold text-navy-700">
+                  {data.total_amount != null
+                    ? `Rp ${formatRupiah(data.total_amount)}`
+                    : "-"}
+                </div>
+              </div>
 
               {data.transaction_detail && (
                 <div className="col-span-2 space-y-1">
@@ -293,6 +305,24 @@ export default function GoodsReceiptDetailModal({
 
                     </tbody>
 
+                    {data.items?.length > 0 && (
+                      <tfoot>
+                        <tr className="bg-slate-50 border-t-2 border-slate-200">
+                          <td colSpan={3} className="px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">
+                            Total
+                          </td>
+                          <td className="px-3 py-2.5 text-sm font-bold text-navy-700">
+                            Rp {formatRupiah(
+                              data.items.reduce(
+                                (sum: number, item: any) => sum + item.subtotal,
+                                0
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+
                   </table>
 
                 </div>
@@ -308,9 +338,8 @@ export default function GoodsReceiptDetailModal({
           <div
             className="
               flex
-              items-center
-              justify-end
-              gap-2
+              flex-col
+              gap-3
               px-6
               py-4
               border-t
@@ -319,22 +348,50 @@ export default function GoodsReceiptDetailModal({
             "
           >
 
-            <button
-              onClick={onClose}
-              className="
-                px-4
-                py-2
-                text-sm
-                font-semibold
-                text-slate-600
-                bg-white
-                border
-                border-slate-200
-                rounded-lg
-              "
-            >
-              Tutup
-            </button>
+            {onNavigateToPayment && (
+              <>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Lanjutkan Ke
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToPayment();
+                  }}
+                  className="flex items-center gap-4 w-full p-3.5 rounded-xl border text-left transition-all bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/70 shrink-0">
+                    <CreditCard size={15} className="text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-800">Purchase Payment</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">Catat pembayaran ke supplier</p>
+                  </div>
+                  <ArrowRight size={13} className="text-emerald-600 shrink-0" />
+                </button>
+              </>
+            )}
+
+            <div className="flex justify-start">
+              <button
+                onClick={onClose}
+                className="
+                  px-4
+                  py-2
+                  text-sm
+                  font-semibold
+                  text-slate-600
+                  bg-white
+                  border
+                  border-slate-200
+                  rounded-lg
+                  hover:bg-slate-100
+                  transition-colors
+                "
+              >
+                Tutup
+              </button>
+            </div>
 
           </div>
 
