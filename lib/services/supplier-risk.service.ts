@@ -34,14 +34,38 @@ export interface TrainSplitMetrics {
   auc_roc:  number;
 }
 
+export interface TrainFoldMetrics {
+  fold:     number;
+  log_loss: number;
+  mse:      number;
+  mae:      number;
+  r2:       number;
+  accuracy: number;
+  auc_roc:  number;
+}
+
+export interface TrainCVResults {
+  fold_metrics:  TrainFoldMetrics[];
+  avg_log_loss?: number | null;
+  avg_mse?:      number | null;
+  avg_mae?:      number | null;
+  avg_r2?:       number | null;
+  avg_accuracy?: number | null;
+  avg_auc_roc?:  number | null;
+}
+
 export interface TrainResponse {
   message:         string;
+  split_method?:   string;
   samples_trained?: number;
   samples_tested?:  number;
+  best_round?:      number;
   model_path?:      string;
   data_source?:     string;
   train_metrics?:   TrainSplitMetrics;
   test_metrics?:    TrainSplitMetrics;
+  /** TimeSeriesSplit CV run on the training set — per-fold + averaged metrics */
+  cv_results?:      TrainCVResults;
 }
 
 // ─── Training row — must match FastAPI REQUIRED_COLUMNS exactly ───────────────
@@ -166,6 +190,28 @@ export const trainFromCsvUpload = async (file: File): Promise<TrainResponse> => 
   return unwrap<TrainResponse>(res);
 };
 
+// ─── AHP-TOPSIS ranking via backend Python service ───────────────────────────
+// POST /api/supplier-risk/rank/ahp-topsis
+// Accepts the results[] from predictAllSuppliers() and returns TOPSIS-ranked output.
+// The Python service computes AHP weights + TOPSIS scores from the ML features.
+
+export interface BackendRankResponse {
+  total:             number;
+  consistency_ratio: number;
+  ahp_weights:       Record<string, number>;   // e.g. { "delay_probability": 0.54, ... }
+  ranked_suppliers:  BatchPredictItem[];        // same fields as BatchPredictItem + topsis_score + topsis_rank
+}
+
+export const rankWithAhpTopsis = async (
+  suppliers: BatchPredictItem[],
+  ahpMatrix?: number[][],
+): Promise<BackendRankResponse> => {
+  const body: Record<string, unknown> = { suppliers };
+  if (ahpMatrix) body.ahp_matrix = { matrix: ahpMatrix };
+  const res = await api.post("/supplier-risk/rank/ahp-topsis", body);
+  return unwrap<BackendRankResponse>(res);
+};
+
 // ─── Batch predict all suppliers ─────────────────────────────────────────────
 // GET /api/supplier-risk/predict/all
 // Returns ML scores for every supplier the backend knows about.
@@ -273,6 +319,33 @@ export function buildMetricsFromTrainResponse(
   const trainM = toSplitMetrics(res.train_metrics, n);
   const testM  = toSplitMetrics(res.test_metrics,  nt);
 
+  // Map TimeSeriesSplit CV fold metrics from the backend shape
+  // into the BackendFoldResult[] shape the RiskPredictionPanel expects.
+  const cvFolds: BackendFoldResult[] = (res.cv_results?.fold_metrics ?? []).map((f) => ({
+    fold: f.fold,
+    metrics: {
+      logloss:  f.log_loss,
+      mse:      f.mse,
+      mae:      f.mae,
+      r2:       f.r2,
+      accuracy: f.accuracy,
+      auc:      f.auc_roc,
+      n:        0,
+    },
+  }));
+
+  // CV mean across folds — use avg_* fields from the backend when available
+  const cv = res.cv_results;
+  const cvMeanMetrics: BackendSplitMetrics = cvFolds.length > 0 ? {
+    logloss:  cv?.avg_log_loss  ?? testM.logloss,
+    mse:      cv?.avg_mse       ?? testM.mse,
+    mae:      cv?.avg_mae       ?? testM.mae,
+    r2:       cv?.avg_r2        ?? testM.r2,
+    accuracy: cv?.avg_accuracy  ?? testM.accuracy,
+    auc:      cv?.avg_auc_roc   ?? testM.auc,
+    n:        cvFolds.length,
+  } : testM;
+
   // Summary values for the top-level metrics strip (accuracy + AUC from test split)
   const acc = testM.accuracy;
   const auc = testM.auc;
@@ -282,10 +355,10 @@ export function buildMetricsFromTrainResponse(
     valMetrics:    { logloss: 0, mse: 0, mae: 0, r2: 0, accuracy: 0, auc: 0, n: 0 },
     testMetrics:   testM,
     learningCurve: [],
-    cvFolds:       [],
-    cvMean:        testM,
+    cvFolds,
+    cvMean:        cvMeanMetrics,
     cvStd:         { logloss: 0, mse: 0, mae: 0, r2: 0, accuracy: 0, auc: 0, n: 0 },
-    bestRound:     0,
+    bestRound:     res.best_round ?? 0,
     totalRounds:   0,
     splitSizes:    { train: n, val: 0, test: nt },
     isOverfit:     trainM.accuracy - testM.accuracy > 0.1,
