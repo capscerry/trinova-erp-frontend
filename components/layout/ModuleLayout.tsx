@@ -1,13 +1,14 @@
 "use client";
-"use client";
 
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
+import { useNotifications } from "@/lib/NotificationContext";
 import { getNavForRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Bell, LogOut, Search } from "lucide-react";
+import { NotificationPanel } from "./NotificationPanel";
 
 interface ModuleLayoutProps {
   title: string;
@@ -17,11 +18,14 @@ interface ModuleLayoutProps {
 
 export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const bellWrapperRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -74,10 +78,34 @@ export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
               className="bg-transparent text-sm text-slate-400 placeholder:text-slate-400 outline-none w-full"
             />
           </form>
-          <div className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-colors">
-            <Bell size={15} className="text-slate-500" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+
+          {/* ── Bell ─────────────────────────────────────── */}
+          <div className="relative" ref={bellWrapperRef}>
+            <button
+              onClick={() => setBellOpen((prev) => !prev)}
+              aria-label="Notifikasi"
+              className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center hover:bg-slate-200 transition-colors"
+            >
+              <Bell size={15} className="text-slate-500" />
+              <span
+                className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-white transition-colors ${
+                  unreadCount > 0 ? "bg-red-500" : "bg-slate-300"
+                }`}
+              />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <NotificationPanel
+              open={bellOpen}
+              onClose={() => setBellOpen(false)}
+              anchorRef={bellWrapperRef}
+            />
           </div>
+
           {/* User */}
           <div className="flex items-center gap-2 ml-1">
             <div className="w-8 h-8 rounded-full bg-navy-600 flex items-center justify-center text-gold-500 text-xs font-bold select-none">
@@ -88,6 +116,7 @@ export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
               <p className="text-slate-400 text-[11px] capitalize">{user.role}</p>
             </div>
           </div>
+
           <button
             onClick={logout}
             className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"

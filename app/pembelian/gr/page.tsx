@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -246,9 +247,7 @@ export default function GoodsReceiptPage() {
 
       console.error(error);
 
-      toast.error(
-        "Gagal mengambil Goods Receipt"
-      );
+      notify.error("Gagal mengambil Goods Receipt");
     }
   };
   // ─────────────────────────────────────────────────────────
@@ -383,17 +382,13 @@ export default function GoodsReceiptPage() {
 
       await fetchGoodsReceipts();
 
-      toast.success(
-        "Goods Receipt berhasil dibuat"
-      );
+      notify.success("Goods Receipt berhasil dibuat");
 
     } catch (error) {
 
       console.error(error);
 
-      toast.error(
-        "Gagal membuat Goods Receipt"
-      );
+      notify.error("Gagal membuat Goods Receipt");
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
@@ -14,7 +15,7 @@ import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/serv
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
 
-interface Supplier { id: string; nama: string; }
+interface Supplier { id: string; nama: string; status?: string; }
 interface Product {
   id: string; nama: string;
   supplier_id?: number; supplier_price?: number;
@@ -128,6 +129,7 @@ export default function PurchaseOrderFormModal({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [savedPO, setSavedPO] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [poNumberLoading, setPoNumberLoading] = useState(false);
 
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -208,7 +210,7 @@ export default function PurchaseOrderFormModal({
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       wasOpenRef.current = true;
-      setIsSubmitted(false); setSavedPO(null); setIsSubmitting(false);
+      setIsSubmitted(false); setSavedPO(null); setIsSubmitting(false); setPoNumberLoading(false);
       setApprovalOpen(false); setIsApproving(false);
       setDpOpen(false); setDpSaving(false);
       setDpForm({ payment_date: todayStr(), amount: 0, payment_type: "Partial", notes: "" });
@@ -235,9 +237,11 @@ export default function PurchaseOrderFormModal({
         setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "" });
         setFilteredProducts([]);
         // Fetch the real next PO number from the backend
+        setPoNumberLoading(true);
         getNextPONumber()
           .then(res => setForm(prev => ({ ...prev, po_number: res?.po_number ?? res?.next_number ?? "" })))
-          .catch(() => { /* leave blank if endpoint not available */ });
+          .catch(() => { /* leave blank if endpoint not available */ })
+          .finally(() => setPoNumberLoading(false));
       }
     } else if (!open) {
       wasOpenRef.current = false;
@@ -323,11 +327,61 @@ export default function PurchaseOrderFormModal({
     : Math.max(0, grandTotal - totalDpPaid);
 
   const handleSavePO = async () => {
+    // If PO number hasn't loaded yet, fetch it now before proceeding
+    if (!isEdit && !form.po_number) {
+      setPoNumberLoading(true);
+      try {
+        const res = await getNextPONumber();
+        const poNum = res?.po_number ?? res?.next_number ?? "";
+        if (!poNum) throw new Error("Gagal mendapatkan nomor PO dari server.");
+        setForm(prev => ({ ...prev, po_number: poNum }));
+        // Use the freshly fetched number immediately (don't rely on the state update timing)
+        setIsSubmitting(true);
+        const payload = { ...form, po_number: poNum, total_amount: grandTotal, deletedItems };
+        setPoNumberLoading(false);
+        // Fall through to the create path directly
+        try {
+          const result = await onSubmit(payload);
+          const saved = result ?? payload;
+          setSavedPO(saved);
+          if (saved?.po_number && saved.po_number !== poNum) {
+            setForm(prev => ({ ...prev, po_number: saved.po_number }));
+          }
+          setIsSubmitted(true);
+          notify.success("Purchase Order tersimpan", `${saved?.po_number ?? poNum} berhasil dibuat sebagai Draft`);
+          toast.success(
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold text-[14px] text-gold-400">Purchase Order tersimpan</span>
+              <span className="text-[12px] text-slate-300">{saved?.po_number ?? poNum} berhasil dibuat sebagai Draft</span>
+            </div>,
+            { duration: 5000 }
+          );
+        } catch (err: any) {
+          notify.error("Gagal menyimpan PO", err?.message ?? "Terjadi kesalahan, coba lagi");
+          toast.error(
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold text-[14px] text-red-400">Gagal menyimpan PO</span>
+              <span className="text-[12px] text-slate-300">{err?.message ?? "Terjadi kesalahan, coba lagi"}</span>
+            </div>,
+            { duration: 6000 }
+          );
+        } finally {
+          setIsSubmitting(false);
+        }
+        return;
+      } catch (err: any) {
+        setPoNumberLoading(false);
+        notify.error("Gagal mendapatkan nomor PO", err?.message ?? "Coba lagi");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const payload = { ...form, total_amount: grandTotal, deletedItems };
     if (isEdit) {
       try {
         await onSubmit(payload);
+        notify.success("Purchase Order diperbarui", `${form.po_number} berhasil disimpan`);
         toast.success(
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-[14px] text-gold-400">Purchase Order diperbarui</span>
@@ -337,6 +391,7 @@ export default function PurchaseOrderFormModal({
         );
         onClose();
       } catch (err: any) {
+        notify.error("Gagal memperbarui PO", err?.message ?? "Terjadi kesalahan, coba lagi");
         toast.error(
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-[14px] text-red-400">Gagal memperbarui PO</span>
@@ -356,6 +411,7 @@ export default function PurchaseOrderFormModal({
           setForm(prev => ({ ...prev, po_number: saved.po_number }));
         }
         setIsSubmitted(true);
+        notify.success("Purchase Order tersimpan", `${saved?.po_number ?? form.po_number} berhasil dibuat sebagai Draft`);
         toast.success(
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-[14px] text-gold-400">Purchase Order tersimpan</span>
@@ -364,6 +420,7 @@ export default function PurchaseOrderFormModal({
           { duration: 5000 }
         );
       } catch (err: any) {
+        notify.error("Gagal menyimpan PO", err?.message ?? "Terjadi kesalahan, coba lagi");
         toast.error(
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-[14px] text-red-400">Gagal menyimpan PO</span>
@@ -386,6 +443,7 @@ export default function PurchaseOrderFormModal({
       setForm(prev => ({ ...prev, status: "Approved" }));
       setApprovalOpen(false);
     } catch (err: any) {
+      notify.error(err?.message ?? "Persetujuan gagal");
       toast.error(err?.message ?? "Persetujuan gagal");
     } finally { setIsApproving(false); }
   };
@@ -692,7 +750,9 @@ export default function PurchaseOrderFormModal({
                   <SelectField
                     value={supplierName}
                     placeholder="Pilih supplier..."
-                    options={suppliers.map(s => s.nama)}
+                    options={suppliers
+                      .filter(s => !s.status || s.status === "Active")
+                      .map(s => s.nama)}
                     onChange={value => {
                       const sel = suppliers.find(s => s.nama === value);
                       const sid = sel?.id ?? "";
@@ -863,10 +923,10 @@ export default function PurchaseOrderFormModal({
               {isCompleted || (isSubmitted && !isEdit) ? "Tutup" : "Batal"}
             </button>
             {!isCompleted && (
-              <button onClick={handleSavePO} disabled={isSubmitting || (isSubmitted && !isEdit)}
+              <button onClick={handleSavePO} disabled={isSubmitting || poNumberLoading || (isSubmitted && !isEdit)}
                 className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                {isSubmitting && <Loader2 size={13} className="animate-spin" />}
-                {isSubmitted ? "Tersimpan" : isEdit ? "Simpan Perubahan" : "Buat Purchase Order"}
+                {(isSubmitting || poNumberLoading) && <Loader2 size={13} className="animate-spin" />}
+                {poNumberLoading ? "Memuat nomor PO..." : isSubmitted ? "Tersimpan" : isEdit ? "Simpan Perubahan" : "Buat Purchase Order"}
               </button>
             )}
           </div>

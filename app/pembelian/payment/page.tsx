@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -193,12 +194,12 @@ export default function PurchasePaymentPage() {
 
     try {
       await deletePurchasePayment(row.purchase_payment_id);
-      toast.success("Purchase Payment berhasil dihapus");
+      notify.success("Purchase Payment berhasil dihapus");
       await loadData();
       await fetchInvoices();
     } catch (err) {
       console.error(err);
-      toast.error("Gagal menghapus Purchase Payment");
+      notify.error("Gagal menghapus Purchase Payment");
     }
   };
 
@@ -234,7 +235,7 @@ export default function PurchasePaymentPage() {
 
         setOpenModal(false);
         setEditingPayment(null);
-        toast.success("Purchase Payment berhasil diperbarui");
+        notify.success("Purchase Payment berhasil diperbarui");
         await loadData();
         await fetchInvoices();
 
@@ -276,14 +277,14 @@ export default function PurchasePaymentPage() {
         }
 
         setOpenModal(false);
-        toast.success("Purchase Payment berhasil dibuat");
+        notify.success("Purchase Payment berhasil dibuat");
         await loadData();
         await fetchInvoices();
       }
 
     } catch (error) {
       console.error(error);
-      toast.error(
+      notify.error(
         isEdit
           ? "Gagal memperbarui Purchase Payment"
           : "Gagal membuat Purchase Payment"

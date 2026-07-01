@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
@@ -163,7 +164,7 @@ export default function PurchaseReturnsPage() {
         transaction_detail:     item.transaction_detail ?? "",
       })));
     } catch {
-      toast.error("Gagal memuat daftar Purchase Returns.");
+      notify.error("Gagal memuat daftar Purchase Returns.");
     }
   };
 
@@ -186,7 +187,7 @@ export default function PurchaseReturnsPage() {
         total_amount:          item.total_amount ?? item.total ?? 0,
       })));
     } catch {
-      toast.error("Gagal memuat data Goods Receipt.");
+      notify.error("Gagal memuat data Goods Receipt.");
     }
   };
 
@@ -269,11 +270,11 @@ export default function PurchaseReturnsPage() {
     try {
       await createPurchaseReturn(data);
       setOpenFormModal(false);
-      toast.success("Purchase Return berhasil dibuat.");
+      notify.success("Purchase Return berhasil dibuat.");
       await loadReturns();
       await loadNextNumber();
     } catch {
-      toast.error("Gagal membuat Purchase Return.");
+      notify.error("Gagal membuat Purchase Return.");
       return;
     }
 
@@ -298,12 +299,12 @@ export default function PurchaseReturnsPage() {
       }
 
       if (errors.length > 0) {
-        toast.warning(`Return dicatat, tetapi ${errors.length} item stok gagal dipulihkan.`);
+        notify.warning(`Return dicatat, tetapi ${errors.length} item stok gagal dipulihkan.`);
         console.warn("[retur] stock restore errors:", errors);
       }
     } catch (err) {
       console.error("[retur] stock restore failed:", err);
-      toast.warning("Purchase Return dicatat, tetapi pemulihan stok gagal.");
+      notify.warning("Purchase Return dicatat, tetapi pemulihan stok gagal.");
     }
   };
 
@@ -313,10 +314,10 @@ export default function PurchaseReturnsPage() {
     if (!confirm(`Hapus Purchase Return ${row.purchase_return_number}?`)) return;
     try {
       await deletePurchaseReturn(row.purchase_return_id);
-      toast.success("Purchase Return berhasil dihapus.");
+      notify.success("Purchase Return berhasil dihapus.");
       await loadReturns();
     } catch {
-      toast.error("Gagal menghapus Purchase Return.");
+      notify.error("Gagal menghapus Purchase Return.");
     }
   };
 
@@ -331,7 +332,7 @@ export default function PurchaseReturnsPage() {
           const pr = returns.find((r) => r.purchase_return_id === returnId);
           const supplierId = pr?.supplier_id ?? 0;
           await resolveAcceptLoss(returnId, returnItems, supplierId, returnAmount);
-          toast.success(
+          notify.success(
             `Retur ditutup — barang pengganti diterima, stok dipulihkan (Rp ${formatNumber(returnAmount)}).`
           );
           await loadReturns();
@@ -341,7 +342,7 @@ export default function PurchaseReturnsPage() {
         case "Next PO Deduction": {
           const { targetPOId, targetPONumber, deductionAmount, newPOTotal } = payload.data;
           await resolveNextPODeduction(returnId, targetPOId, targetPONumber, deductionAmount, newPOTotal);
-          toast.success(
+          notify.success(
             `Potongan Rp ${formatNumber(deductionAmount)} dikunci pada PO ${targetPONumber}.`
           );
           await loadReturns();
@@ -352,7 +353,7 @@ export default function PurchaseReturnsPage() {
         case "Cash Refund": {
           const { targetInvoiceId, targetInvoiceNumber, deductionAmount, returnDate } = payload.data;
           await confirmCashRefund(returnId, targetInvoiceId, targetInvoiceNumber, deductionAmount, returnDate);
-          toast.success(
+          notify.success(
             `Refund dikonfirmasi — Rp ${formatNumber(deductionAmount)} dikreditkan ke invoice ${targetInvoiceNumber}.`
           );
           await loadReturns();
@@ -362,7 +363,7 @@ export default function PurchaseReturnsPage() {
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message ?? "Gagal menyelesaikan retur.");
+      notify.error(err?.message ?? "Gagal menyelesaikan retur.");
       throw err; // let modal spinner reset
     }
   };

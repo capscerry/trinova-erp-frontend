@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -28,6 +29,7 @@ import {
   getUoms,
 } from "@/lib/services";
 
+import { getNextPONumber } from "@/lib/services/po.service";
 import {
   createPurchaseDownPayment,
   getPurchaseDownPayments,
@@ -90,6 +92,7 @@ interface PurchaseOrder {
 interface Supplier {
   id: string;
   nama: string;
+  status?: string;
 }
 
 interface Product {
@@ -424,6 +427,7 @@ export default function PurchaseOrderPage() {
         (item: any) => ({
           id: item.supplier_id.toString(),
           nama: item.supplier_name,
+          status: item.status ?? "Active",
         })
       );
 
@@ -527,12 +531,37 @@ export default function PurchaseOrderPage() {
 
     try {
 
-        const headerPayload = {
+        // ── Client-side guard: catch obvious bad payloads before hitting the API ──
+        if (!payload.supplier_id || Number(payload.supplier_id) === 0) {
+          throw new Error("Supplier harus dipilih sebelum menyimpan PO.");
+        }
+        if (!payload.po_number) {
+          throw new Error("Nomor PO belum tersedia. Tutup modal dan coba lagi.");
+        }
+        if (!payload.items?.length || payload.items.every((i: any) => !i.product_id)) {
+          throw new Error("Tambahkan minimal satu produk ke PO.");
+        }
+
+        // ── Validate supplier is Active before hitting the API ─────────────────
+        // Backend rejects with a generic "Insert Failed" if supplier is inactive.
+        const supplierCheck = suppliers.find(
+          (s) => s.id === String(payload.supplier_id)
+        );
+        if (!supplierCheck) {
+          throw new Error("Supplier tidak ditemukan. Pilih supplier lain.");
+        }
+        if (supplierCheck.status && supplierCheck.status !== "Active") {
+          throw new Error(
+            `Supplier "${supplierCheck.nama}" tidak aktif (status: ${supplierCheck.status}). Hanya supplier berstatus Active yang dapat digunakan untuk PO.`
+          );
+        }
+
+        const buildHeaderPayload = (poNumber: string) => ({
+          po_number:
+            poNumber,
 
           supplier_id:
-            Number(
-              payload.supplier_id
-            ),
+            Number(payload.supplier_id),
 
           order_date:
             (payload.order_date ?? "").split("T")[0],
@@ -546,19 +575,21 @@ export default function PurchaseOrderPage() {
             payload.status,
 
           total_amount:
-            payload.total_amount,
+            typeof payload.total_amount === "number" && !isNaN(payload.total_amount)
+              ? payload.total_amount
+              : 0,
 
           transaction_name:
-            payload.transaction_name ?? "",
+            payload.transaction_name || null,
 
           transaction_detail:
-            payload.transaction_detail ?? "",
-        };
+            payload.transaction_detail || null,
+        });
 
-        // Only include po_number on updates (it's backend-generated on create)
-        const updatePayload = editingPO?.purchase_order_id
-          ? { ...headerPayload, po_number: payload.po_number }
-          : headerPayload;
+        const headerPayload = buildHeaderPayload(payload.po_number ?? "");
+
+        // For updates, updatePayload is the same as headerPayload.
+        const updatePayload = headerPayload;
 
         console.log(
           "HEADER PAYLOAD"
@@ -587,10 +618,7 @@ export default function PurchaseOrderPage() {
 
         } else {
 
-          const headerResponse =
-            await createPurchaseOrder(
-              headerPayload
-            );
+          const headerResponse = await createPurchaseOrder(headerPayload);
 
           purchaseOrderId =
             headerResponse.purchase_order_id;
@@ -681,11 +709,11 @@ export default function PurchaseOrderPage() {
         // Edit: close the modal
         setOpenModal(false);
         setEditingPO(null);
-        toast.success("Purchase Order berhasil diperbarui");
+        notify.success("Purchase Order berhasil diperbarui");
       } else {
         // Create: keep modal open so Proses Ke section becomes active
         setEditingPO(null);
-        toast.success("Purchase Order berhasil dibuat");
+        notify.success("Purchase Order berhasil dibuat");
         return { purchase_order_id: purchaseOrderId, po_number: payload.po_number };
       }
 
@@ -693,9 +721,15 @@ export default function PurchaseOrderPage() {
 
       console.error(error);
 
-      toast.error(
-        "Gagal membuat Purchase Order"
-      );
+      const errMsg = (error as any)?.message ?? "";
+      if (errMsg.toLowerCase().includes("insert failed")) {
+        notify.error(
+          "Gagal membuat Purchase Order",
+          "Supplier mungkin tidak aktif atau data tidak valid. Periksa kembali pilihan supplier."
+        );
+      } else {
+        notify.error("Gagal membuat Purchase Order", errMsg || undefined);
+      }
     }
   };
 
@@ -735,7 +769,7 @@ export default function PurchaseOrderPage() {
 
     await fetchProducts();
     await fetchPurchaseOrders();
-    toast.success("Purchase Order berhasil disetujui");
+    notify.success("Purchase Order berhasil disetujui");
   };
 
   // ─────────────────────────────────────────────────────────
@@ -745,7 +779,7 @@ export default function PurchaseOrderPage() {
   const handleCreateDP = async (data: any) => {
     await createPurchaseDownPayment(data);
     await fetchWorkflowData();
-    toast.success("Down payment berhasil dicatat");
+    notify.success("Down payment berhasil dicatat");
   };
 
   // ─────────────────────────────────────────────────────────
@@ -770,7 +804,7 @@ export default function PurchaseOrderPage() {
 
     await fetchPurchaseOrderDetails();
     await fetchWorkflowData();
-    toast.success("Goods Receipt berhasil dibuat");
+    notify.success("Goods Receipt berhasil dibuat");
     return grResponse;
   };
 
@@ -783,7 +817,7 @@ export default function PurchaseOrderPage() {
     await fetchWorkflowData();
     await fetchPurchaseOrders();
     console.log("CREATE INVOICE RESULT:", result);
-    toast.success("Purchase Invoice berhasil dibuat");
+    notify.success("Purchase Invoice berhasil dibuat");
     return result;
   };
 
@@ -820,7 +854,7 @@ export default function PurchaseOrderPage() {
         // Still navigate so the user sees the updated list
       }
 
-      toast.success("Invoice telah lunas — mengarahkan ke Purchase Invoice");
+      notify.success("Invoice telah lunas — mengarahkan ke Purchase Invoice");
 
       // Close modal first, then navigate on next tick to avoid
       // React mid-render conflicts with router.push
@@ -832,7 +866,7 @@ export default function PurchaseOrderPage() {
     }
 
     await fetchWorkflowData();
-    toast.success("Pembayaran berhasil dicatat");
+    notify.success("Pembayaran berhasil dicatat");
   };
 
   // ─────────────────────────────────────────────────────────
@@ -1239,17 +1273,13 @@ export default function PurchaseOrderPage() {
 
                   await fetchPurchaseOrders();
 
-                  toast.success(
-                    "Purchase Order berhasil dihapus"
-                  );
+                  notify.success("Purchase Order berhasil dihapus");
 
                 } catch (error) {
 
                   console.error(error);
 
-                  toast.error(
-                    "Gagal menghapus Purchase Order"
-                  );
+                  notify.error("Gagal menghapus Purchase Order");
                 }
               }}
             >

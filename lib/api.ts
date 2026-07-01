@@ -7,11 +7,12 @@ export const api = axios.create({
 
 // ─── Request interceptor: tambah token kalau ada ──────────────────────────────
 api.interceptors.request.use((config) => {
-  // Nanti tambahkan token di sini:
-  // const token = getCookie("token");
-  // if (token) config.headers.Authorization = `Bearer ${token}`;
   if (process.env.NODE_ENV === "development") {
-    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.data ?? "");
+    let body: any = config.data;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { /* leave as string */ }
+    }
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, JSON.stringify(body, null, 2));
   }
   return config;
 });
@@ -21,6 +22,15 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const data = err.response?.data;
+
+    // Always log the full raw response in development for easier debugging
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        `[API Error] ${err.config?.method?.toUpperCase()} ${err.config?.url}`,
+        "status:", err.response?.status,
+        "body:", JSON.stringify(data, null, 2)
+      );
+    }
 
     // ASP.NET ValidationProblemDetails: surface field-level errors
     if (data?.errors && typeof data.errors === "object") {

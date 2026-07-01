@@ -21,10 +21,10 @@ interface PurchaseOrder {
 export interface PurchaseDownPaymentFormData {
   purchase_order_id: number;
   supplier_id: number;
-  payment_date: string;
+  payment_date: string | null;
   amount: number;
   payment_type: string;
-  notes: string;
+  notes: string | null;
   status: string;
   transaction_name: string;
   transaction_detail: string;
@@ -425,6 +425,12 @@ export default function PurchaseDownPaymentModal({
                   form.supplier_id ||
                   Number(selectedPO?.supplier?.supplier_id ?? selectedPO?.supplier_id ?? 0);
 
+                // Guard: payment_date is required
+                if (!form.payment_date) {
+                  alert("Tanggal pembayaran harus diisi.");
+                  return;
+                }
+
                 // Guard: amount must not exceed PO total
                 const max = selectedPO?.total_amount ?? 0;
                 if (max > 0 && form.amount > max) {
@@ -434,7 +440,13 @@ export default function PurchaseDownPaymentModal({
                   return;
                 }
 
-                onSubmit({ ...form, supplier_id: resolvedSupplierId });
+                // Send null for empty strings so ASP.NET DateTime? binding succeeds
+                onSubmit({
+                  ...form,
+                  supplier_id: resolvedSupplierId,
+                  payment_date: form.payment_date || null as any,
+                  notes: form.notes || null as any,
+                });
 
               }}
               disabled={!!amountError}

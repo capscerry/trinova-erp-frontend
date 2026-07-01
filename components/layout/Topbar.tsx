@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Search, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import { useNotifications } from "@/lib/NotificationContext";
+import { NotificationPanel } from "./NotificationPanel";
 
 interface TopbarProps {
   title: string;
@@ -12,10 +14,13 @@ interface TopbarProps {
 
 export function Topbar({ title, subtitle }: TopbarProps) {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const bellWrapperRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -53,10 +58,35 @@ export function Topbar({ title, subtitle }: TopbarProps) {
           />
         </form>
 
-        <div className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-colors">
-          <Bell size={16} className="text-slate-500" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+        {/* ── Bell ───────────────────────────────────────────────────── */}
+        <div className="relative" ref={bellWrapperRef}>
+          <button
+            onClick={() => setBellOpen((prev) => !prev)}
+            aria-label="Notifikasi"
+            className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center hover:bg-slate-200 transition-colors"
+          >
+            <Bell size={16} className="text-slate-500" />
+            {/* Dot: red when there are unread items, grey when empty */}
+            <span
+              className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2 border-white transition-colors ${
+                unreadCount > 0 ? "bg-red-500" : "bg-slate-300"
+              }`}
+            />
+            {/* Unread badge count (shows when ≥1) */}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          <NotificationPanel
+            open={bellOpen}
+            onClose={() => setBellOpen(false)}
+            anchorRef={bellWrapperRef}
+          />
         </div>
+
         {user && (
           <button
             onClick={logout}
