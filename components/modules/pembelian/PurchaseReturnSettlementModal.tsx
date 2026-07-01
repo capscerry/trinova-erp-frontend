@@ -289,7 +289,10 @@ function NextPODeductionPanel({
 
   const selectedPO = eligiblePOs.find((p) => p.purchase_order_id === selectedPOId);
   const deduction = pr.total_amount;
-  const newPOTotal = Math.max(0, (selectedPO?.total_amount ?? 0) - deduction);
+  const poTotal = selectedPO?.total_amount ?? 0;
+  const exceedsPOTotal = selectedPO != null && deduction > poTotal;
+  const newPOTotal = exceedsPOTotal ? poTotal : poTotal - deduction;
+  const canConfirm = !!selectedPO && !submitting && eligiblePOs.length > 0 && !exceedsPOTotal;
 
   return (
     <div className="space-y-5">
@@ -332,12 +335,26 @@ function NextPODeductionPanel({
         )}
       </FormField>
 
-      {selectedPO && (
+      {/* Validation error — deduction exceeds PO total */}
+      {exceedsPOTotal && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>
+            Nilai potongan{" "}
+            <span className="font-semibold">Rp {fmt(deduction)}</span> melebihi
+            total PO{" "}
+            <span className="font-semibold">Rp {fmt(poTotal)}</span>.
+            Pilih PO dengan total yang lebih besar atau sesuaikan nilai retur sebelum melanjutkan.
+          </span>
+        </div>
+      )}
+
+      {selectedPO && !exceedsPOTotal && (
         <div className="rounded-lg border border-violet-100 bg-violet-50 px-4 py-3 text-xs text-violet-700 space-y-1">
           <p className="font-semibold text-violet-800">Preview potongan</p>
           <p>
             PO <span className="font-mono font-semibold">{selectedPO.po_number}</span>{" "}
-            akan berkurang dari <span className="font-semibold">Rp {fmt(selectedPO.total_amount)}</span>{" "}
+            akan berkurang dari <span className="font-semibold">Rp {fmt(poTotal)}</span>{" "}
             menjadi <span className="font-semibold text-emerald-700">Rp {fmt(newPOTotal)}</span>.
           </p>
           <p>Status retur → <span className="font-semibold">Deduction Locked</span>.</p>
@@ -345,7 +362,7 @@ function NextPODeductionPanel({
       )}
 
       <button type="button"
-        disabled={!selectedPO || submitting || eligiblePOs.length === 0}
+        disabled={!canConfirm}
         onClick={() => selectedPO && onConfirm({
           targetPOId: selectedPO.purchase_order_id,
           targetPONumber: selectedPO.po_number,
