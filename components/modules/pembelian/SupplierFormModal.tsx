@@ -1,22 +1,19 @@
 "use client";
 
 import React, { useState } from "react";
+import { X } from "lucide-react";
 
 interface SupplierFormModalProps {
   open: boolean;
-
   isEdit: boolean;
-
   formData: {
     supplier_code: string;
     supplier_name: string;
     no_telp_bisnis: string;
     email: string;
     alamat: string;
-
     category_supplier: string;
   };
-
   setFormData: React.Dispatch<
     React.SetStateAction<{
       supplier_code: string;
@@ -24,24 +21,36 @@ interface SupplierFormModalProps {
       no_telp_bisnis: string;
       email: string;
       alamat: string;
-
       category_supplier: string;
     }>
   >;
-
   categories: {
     category_supplier: string;
-
     nama_category: string;
   }[];
-
   onClose: () => void;
-
   onSave: () => void;
+  setCatalogFile: React.Dispatch<React.SetStateAction<File | null>>;
+}
 
-  setCatalogFile: React.Dispatch<
-    React.SetStateAction<File | null>
-  >;
+const inputBase =
+  "w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 transition";
+
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
 }
 
 export default function SupplierFormModal({
@@ -49,278 +58,102 @@ export default function SupplierFormModal({
   isEdit,
   formData,
   setFormData,
-
   categories,
-
   onClose,
   onSave,
   setCatalogFile,
 }: SupplierFormModalProps) {
-
-  const [selectedFileName, setSelectedFileName] =
-    useState<string>("");
+  const [selectedFileName, setSelectedFileName] = useState<string>("");
 
   if (!open) return null;
 
   return (
-    <div
-      className="
-        fixed inset-0
-        bg-black/40
-        flex items-center
-        justify-center
-        z-50
-      "
-    >
-
+    <>
       <div
-        className="
-          bg-white
-          rounded-2xl
-          w-full
-          max-w-4xl
-          shadow-2xl
-          overflow-hidden
-        "
-      >
+        onClick={onClose}
+        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40"
+      />
 
-        {/* HEADER */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
 
-        <div
-          className="
-            bg-gradient-to-r
-            from-[#081F3F]
-            to-[#0E2F5A]
-            px-6 py-5
-            flex items-start
-            justify-between
-          "
-        >
-
-          <div>
-
-            <h2
-              className="
-                text-3xl
-                font-bold
-                text-white
-              "
+          {/* HEADER */}
+          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
+            <div>
+              <h2 className="text-white font-semibold text-[15px] tracking-tight">
+                {isEdit ? "Edit Supplier" : "Tambah Supplier"}
+              </h2>
+              <p className="text-slate-400 text-xs mt-0.5">
+                {isEdit
+                  ? "Perbarui data supplier"
+                  : "Tambahkan supplier baru ke sistem"}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
             >
-              {
-                isEdit
-                  ? "Edit Supplier"
-                  : "Tambah Supplier"
-              }
-            </h2>
-
-            <p
-              className="
-                text-white/70
-                text-sm
-                mt-1
-              "
-            >
-              Kelola data supplier dan supplier catalog
-            </p>
-
+              <X size={16} />
+            </button>
           </div>
 
-          <button
-            onClick={onClose}
-            className="
-              text-white
-              text-2xl
-            "
-          >
-            ×
-          </button>
+          {/* BODY */}
+          <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
 
-        </div>
-
-        {/* BODY */}
-
-        <div className="p-6 space-y-8">
-
-          {/* INFORMASI SUPPLIER */}
-
-          <div>
-
-            <h3
-              className="
-                text-sm
-                font-bold
-                tracking-[3px]
-                text-slate-400
-                uppercase
-                mb-5
-              "
-            >
+            {/* Section label */}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Informasi Supplier
-            </h3>
+            </p>
 
-            <div className="grid grid-cols-2 gap-5">
-
-              <div>
-
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    mb-2
-                    block
-                  "
-                >
-                  Kode Supplier
-                </label>
-
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Kode Supplier">
                 <input
                   type="text"
                   placeholder="SUP-001"
                   value={formData.supplier_code}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      supplier_code:
-                        e.target.value,
-                    })
+                    setFormData({ ...formData, supplier_code: e.target.value })
                   }
-                  className="
-                    w-full
-                    border
-                    border-slate-300
-                    rounded-2xl
-                    px-4 py-3
-                    outline-none
-                    focus:ring-2
-                    focus:ring-emerald-500
-                  "
+                  className={inputBase}
                 />
+              </FormField>
 
-              </div>
-
-              <div>
-
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    mb-2
-                    block
-                  "
-                >
-                  Nama Supplier
-                </label>
-
+              <FormField label="Nama Supplier">
                 <input
                   type="text"
                   placeholder="PT Supplier Jaya"
                   value={formData.supplier_name}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      supplier_name:
-                        e.target.value,
-                    })
+                    setFormData({ ...formData, supplier_name: e.target.value })
                   }
-                  className="
-                    w-full
-                    border
-                    border-slate-300
-                    rounded-2xl
-                    px-4 py-3
-                    outline-none
-                    focus:ring-2
-                    focus:ring-emerald-500
-                  "
+                  className={inputBase}
                 />
+              </FormField>
 
-              </div>
-
-              {/* CATEGORY */}
-
-              <div>
-
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    mb-2
-                    block
-                  "
-                >
-                  Category Supplier
-                </label>
-
+              <FormField label="Category Supplier">
                 <select
-                  value={
-                    formData.category_supplier
-                  }
-
+                  value={formData.category_supplier}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-
-                      category_supplier:
-                        e.target.value,
+                      category_supplier: e.target.value,
                     })
                   }
-
-                  className="
-                    w-full
-                    border
-                    border-slate-300
-                    rounded-2xl
-                    px-4 py-3
-                    outline-none
-                    focus:ring-2
-                    focus:ring-emerald-500
-                  "
+                  className={inputBase}
                 >
-
-                  <option value="">
-                    Pilih Category
-                  </option>
-
-                  {categories.map(
-                    (item) => (
-
-                      <option
-                        key={
-                          item.category_supplier
-                        }
-
-                        value={
-                          item.category_supplier
-                        }
-                      >
-                        {
-                          item.nama_category
-                        }
-                      </option>
-                    )
-                  )}
-
+                  <option value="">Pilih Category</option>
+                  {categories.map((item) => (
+                    <option
+                      key={item.category_supplier}
+                      value={item.category_supplier}
+                    >
+                      {item.nama_category}
+                    </option>
+                  ))}
                 </select>
+              </FormField>
 
-              </div>
-
-              <div>
-
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    mb-2
-                    block
-                  "
-                >
-                  Telepon
-                </label>
-
+              <FormField label="Telepon">
                 <input
                   type="text"
                   placeholder="08123456789"
@@ -328,277 +161,105 @@ export default function SupplierFormModal({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      no_telp_bisnis:
-                        e.target.value,
+                      no_telp_bisnis: e.target.value,
                     })
                   }
-                  className="
-                    w-full
-                    border
-                    border-slate-300
-                    rounded-2xl
-                    px-4 py-3
-                    outline-none
-                    focus:ring-2
-                    focus:ring-emerald-500
-                  "
+                  className={inputBase}
                 />
+              </FormField>
 
-              </div>
-
-              <div>
-
-                <label
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-500
-                    mb-2
-                    block
-                  "
-                >
-                  Email
-                </label>
-
+              <FormField label="Email">
                 <input
                   type="email"
                   placeholder="supplier@email.com"
                   value={formData.email}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      email:
-                        e.target.value,
-                    })
+                    setFormData({ ...formData, email: e.target.value })
                   }
-                  className="
-                    w-full
-                    border
-                    border-slate-300
-                    rounded-2xl
-                    px-4 py-3
-                    outline-none
-                    focus:ring-2
-                    focus:ring-emerald-500
-                  "
+                  className={inputBase}
                 />
-
-              </div>
-
+              </FormField>
             </div>
 
-            <div className="mt-5">
-
-              <label
-                className="
-                  text-sm
-                  font-semibold
-                  text-slate-500
-                  mb-2
-                  block
-                "
-              >
-                Alamat
-              </label>
-
+            <FormField label="Alamat">
               <textarea
                 placeholder="Alamat supplier"
                 value={formData.alamat}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    alamat:
-                      e.target.value,
-                  })
+                  setFormData({ ...formData, alamat: e.target.value })
                 }
-                className="
-                  w-full
-                  border
-                  border-slate-300
-                  rounded-2xl
-                  px-4 py-4
-                  h-28
-                  resize-none
-                  outline-none
-                  focus:ring-2
-                  focus:ring-emerald-500
-                "
+                className={`${inputBase} h-24 resize-none`}
               />
+            </FormField>
 
-            </div>
+            {/* UPLOAD CATALOG — only on create */}
+            {!isEdit && (
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Upload Supplier Catalog
+                </p>
 
+                <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label
+                      htmlFor="catalog-upload"
+                      className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
+                    >
+                      📤 Upload Catalog
+                    </label>
+
+                    <input
+                      id="catalog-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setCatalogFile(file);
+                        setSelectedFileName(file.name);
+                      }}
+                    />
+
+                    {selectedFileName && (
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
+                        ✅ {selectedFileName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-0.5 text-sm">
+                    <p className="font-semibold text-slate-600 text-xs">Format Excel</p>
+                    <p className="text-slate-500 text-xs">
+                      product_id, supplier_price, available_, lead_time_days
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Lead time days = estimasi hari pengiriman barang
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* UPLOAD CATALOG */}
-
-          {!isEdit && (
-
-            <div>
-
-              <h3
-                className="
-                  text-xs
-                  font-semibold
-                  tracking-[0.25em]
-                  text-slate-400
-                  uppercase
-                  mb-4
-                "
-              >
-                Upload Supplier Catalog
-              </h3>
-
-              <div
-                className="
-                  border-2
-                  border-dashed
-                  border-slate-200
-                  rounded-3xl
-                  p-6
-                  bg-slate-50
-                "
-              >
-
-                <div className="flex items-center gap-3 flex-wrap">
-
-                  <label
-                    htmlFor="catalog-upload"
-                    className="
-                      inline-flex
-                      items-center
-                      gap-2
-                      bg-emerald-600
-                      hover:bg-emerald-700
-                      text-white
-                      px-4 py-2.5
-                      rounded-xl
-                      cursor-pointer
-                      text-sm
-                      font-medium
-                      transition
-                    "
-                  >
-                    📤 Upload Catalog
-                  </label>
-
-                  <input
-                    id="catalog-upload"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    className="hidden"
-                    onChange={(e) => {
-
-                      const file =
-                        e.target.files?.[0];
-
-                      if (!file) return;
-
-                      setCatalogFile(file);
-
-                      setSelectedFileName(
-                        file.name
-                      );
-                    }}
-                  />
-
-                  {selectedFileName && (
-
-                    <div
-                      className="
-                        inline-flex
-                        items-center
-                        gap-2
-                        bg-emerald-50
-                        text-emerald-700
-                        px-4 py-2.5
-                        rounded-xl
-                        text-sm
-                        font-medium
-                        border
-                        border-emerald-200
-                      "
-                    >
-                      ✅ {selectedFileName}
-                    </div>
-
-                  )}
-
-                </div>
-
-                <div className="mt-5 space-y-1 text-sm">
-
-                  <p className="font-medium text-slate-600">
-                    Format Excel
-                  </p>
-
-                  <p className="text-slate-500">
-                    product_id, supplier_price,
-                    available_, lead_time_days
-                  </p>
-
-                  <p className="text-xs text-slate-400">
-                    Lead time days = estimasi hari pengiriman barang
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-          )}
+          {/* FOOTER */}
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/60">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+            >
+              Batal
+            </button>
+            <button
+              onClick={onSave}
+              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition"
+            >
+              {isEdit ? "Update Supplier" : "Simpan Supplier"}
+            </button>
+          </div>
 
         </div>
-
-        {/* FOOTER */}
-
-        <div
-          className="
-            border-t
-            px-6 py-5
-            flex justify-end
-            gap-3
-          "
-        >
-
-          <button
-            onClick={onClose}
-            className="
-              px-6 py-3
-              border
-              border-slate-300
-              rounded-2xl
-              font-medium
-              hover:bg-slate-100
-              transition
-            "
-          >
-            Batal
-          </button>
-
-          <button
-            onClick={onSave}
-            className="
-              px-6 py-3
-              bg-[#081F3F]
-              hover:bg-[#0E2F5A]
-              text-white
-              rounded-2xl
-              font-semibold
-              transition
-              shadow-lg
-            "
-          >
-            {
-              isEdit
-                ? "Update Supplier"
-                : "Simpan Supplier"
-            }
-          </button>
-
-        </div>
-
       </div>
-
-    </div>
+    </>
   );
 }

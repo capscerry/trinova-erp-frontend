@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 
 import {
   getSuppliers,
+  getNextSupplierCode,
+  migrateSupplierCodes,
   createSupplier,
   updateSupplier,
   deleteSupplier,
@@ -120,7 +122,7 @@ export default function SupplierPage() {
                 .toString(),
 
             kode:
-              item.supplier_code,
+              item.supplier_code || "",
 
             nama:
               item.supplier_name,
@@ -141,8 +143,12 @@ export default function SupplierPage() {
           })
         );
 
+      // Sort newest first (highest supplier_id first)
       setSuppliers(
-        mappedData
+        mappedData.sort(
+          (a: Supplier, b: Supplier) =>
+            Number(b.id) - Number(a.id)
+        )
       );
 
     } catch (err) {
@@ -161,9 +167,27 @@ export default function SupplierPage() {
         const res =
           await getSupplierCategory();
 
-        setCategories(
-          res.data || []
+        const raw: any[] =
+          res.data || res || [];
+
+        // Normalise to the shape the modal expects:
+        // { category_supplier: string, nama_category: string }
+        const mapped = raw.map(
+          (item: any) => ({
+            category_supplier:
+              String(
+                item.category_supplier ??
+                item.category_id ??
+                ""
+              ),
+            nama_category:
+              item.nama_category ??
+              item.category_name ??
+              "",
+          })
         );
+
+        setCategories(mapped);
 
       } catch (err) {
 
@@ -172,6 +196,9 @@ export default function SupplierPage() {
     };
 
   useEffect(() => {
+
+    // Run once on mount: normalise any legacy codes in the DB, then load
+    migrateSupplierCodes().catch(console.error);
 
     fetchSuppliers();
 
@@ -391,12 +418,17 @@ export default function SupplierPage() {
 
         nameField="nama"
 
-        onAdd={() => {
+        onAdd={async () => {
 
           setIsEdit(false);
 
+          const nextCode =
+            await getNextSupplierCode().catch(
+              () => ""
+            );
+
           setFormData({
-            supplier_code: "",
+            supplier_code: nextCode,
             supplier_name: "",
             no_telp_bisnis: "",
             email: "",
