@@ -24,7 +24,7 @@ import PurchaseReturnDetailModal from "@/components/modules/pembelian/PurchaseRe
 
 import { getGoodsReceipts } from "@/lib/services/gr.service";
 import { getPurchaseOrders, getPurchaseOrderDetails } from "@/lib/services/po.service";
-import { getPurchaseInvoices, getUnpaidInvoicesBySupplier } from "@/lib/services/purchase-invoice.service";
+import { getPurchaseInvoices, getUnpaidInvoicesForReturn } from "@/lib/services/purchase-invoice.service";
 import { restoreStock } from "@/lib/services/supplier-product.service";
 import {
   getPurchaseReturns,
@@ -219,9 +219,9 @@ export default function PurchaseReturnsPage() {
     } catch { /* non-fatal */ }
   };
 
-  const loadUnpaidInvoices = async (supplierId: number) => {
+  const loadUnpaidInvoicesForReturn = async (purchaseReturnId: number) => {
     try {
-      const res = await getUnpaidInvoicesBySupplier(supplierId);
+      const res = await getUnpaidInvoicesForReturn(purchaseReturnId);
       const list = Array.isArray(res) ? res : (res.data ?? []);
       setSettlementInvoices(list.map((item: any) => ({
         invoice_id:         item.purchase_invoice_id ?? item.id,
@@ -396,7 +396,7 @@ export default function PurchaseReturnsPage() {
                   size="sm"
                   onClick={() => {
                     setSettlementTarget(row);
-                    if (row.supplier_id) loadUnpaidInvoices(row.supplier_id);
+                    loadUnpaidInvoicesForReturn(row.purchase_return_id);
                   }}
                   title="Selesaikan retur ini"
                 >
