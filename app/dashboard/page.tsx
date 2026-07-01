@@ -12,6 +12,10 @@ import {
   getProducts,
 } from "@/lib/services";
 import {
+  securityActivityService,
+  type SecurityActivityItem,
+} from "@/lib/services/security-activity.service";
+import {
   TrendingUp,
   ShoppingCart,
   Package,
@@ -23,6 +27,9 @@ import {
   ArrowDownRight,
   BarChart2,
   RefreshCw,
+  ShieldAlert,
+  AlertTriangle,
+  KeyRound,
 } from "lucide-react";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -33,6 +40,19 @@ const fmt = (n: number) =>
     compactDisplay: "short",
     maximumFractionDigits: 1,
   }).format(n);
+
+const formatAlertTime = (value: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +75,39 @@ interface ModuleStat {
   max: number;
   label: string;
 }
+
+const getSecurityMeta = (activityType: string) => {
+  switch (activityType) {
+    case "unauthorized_access":
+      return {
+        label: "Forbidden Access",
+        badge: "bg-red-50 text-red-600 border-red-100",
+        iconWrap: "bg-red-50 text-red-600 border-red-100",
+        icon: ShieldAlert,
+      };
+    case "login_failed":
+      return {
+        label: "Failed Login",
+        badge: "bg-amber-50 text-amber-700 border-amber-100",
+        iconWrap: "bg-amber-50 text-amber-700 border-amber-100",
+        icon: AlertTriangle,
+      };
+    case "authentication_required":
+      return {
+        label: "Missing Token",
+        badge: "bg-blue-50 text-blue-600 border-blue-100",
+        iconWrap: "bg-blue-50 text-blue-600 border-blue-100",
+        icon: KeyRound,
+      };
+    default:
+      return {
+        label: activityType.replaceAll("_", " "),
+        badge: "bg-slate-50 text-slate-600 border-slate-100",
+        iconWrap: "bg-slate-50 text-slate-600 border-slate-100",
+        icon: ShieldAlert,
+      };
+  }
+};
 
 // ─── mini bar chart ──────────────────────────────────────────────────────────
 
@@ -86,11 +139,12 @@ export default function AdminDashboardPage() {
   const [recentSO, setRecentSO] = useState<{ nomor: string; pelanggan: string; total: number; status: string }[]>([]);
   // recent PO
   const [recentPO, setRecentPO] = useState<{ nomor: string; supplier: string; total: number; status: string }[]>([]);
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityActivityItem[]>([]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [poRes, grRes, supplierRes, soList, customerList, productRes] =
+      const [poRes, grRes, supplierRes, soList, customerList, productRes, securityRes] =
         await Promise.allSettled([
           getPurchaseOrders(),
           getGoodsReceipts(),
@@ -98,6 +152,7 @@ export default function AdminDashboardPage() {
           salesOrderService.getAll(),
           customerService.getAll(),
           getProducts(),
+          securityActivityService.getAlerts(12),
         ]);
 
       const poList: any[]   = poRes.status === "fulfilled"  ? (Array.isArray(poRes.value) ? poRes.value : poRes.value?.data ?? []) : [];
@@ -106,6 +161,7 @@ export default function AdminDashboardPage() {
       const soArr: any[]    = soList.status === "fulfilled"  ? soList.value : [];
       const custArr: any[]  = customerList.status === "fulfilled" ? customerList.value : [];
       const prodList: any[] = productRes.status === "fulfilled" ? (Array.isArray(productRes.value) ? productRes.value : productRes.value?.data ?? []) : [];
+      const securityArr: SecurityActivityItem[] = securityRes.status === "fulfilled" ? securityRes.value : [];
 
       // ── computed values ──────────────────────────────────────────────────
 
@@ -232,6 +288,8 @@ export default function AdminDashboardPage() {
         }))
       );
 
+      setSecurityAlerts(securityArr);
+
       setLastUpdated(new Date());
     } catch (e) {
       console.error("Dashboard fetch error:", e);
@@ -319,6 +377,75 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Bottom row ─────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center">
+              <ShieldAlert size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">Security Alerts</p>
+              <p className="text-[11px] text-slate-400">Monitoring login gagal dan percobaan akses tidak sah</p>
+            </div>
+          </div>
+          <div className="inline-flex w-fit items-center rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
+            {securityAlerts.length} alert terbaru
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-20 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        ) : securityAlerts.length === 0 ? (
+          <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-5 text-center">
+            <p className="text-sm font-semibold text-green-700">Tidak ada security alert terbaru</p>
+            <p className="mt-1 text-xs text-green-600">Belum ada login gagal atau percobaan akses role yang ditolak.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {securityAlerts.map((alert) => {
+              const meta = getSecurityMeta(alert.activityType);
+              const Icon = meta.icon;
+
+              return (
+                <div
+                  key={alert.id}
+                  className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 hover:border-slate-200 hover:bg-white transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${meta.iconWrap}`}>
+                      <Icon size={16} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.badge}`}>
+                          {meta.label}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-slate-400">
+                          {formatAlertTime(alert.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-2 truncate text-xs font-semibold text-slate-800">
+                        {alert.title}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
+                        {alert.description || alert.refNumber || "Tidak ada detail tambahan"}
+                      </p>
+                      <p className="mt-2 text-[10px] text-slate-400">
+                        Actor: <span className="font-semibold text-slate-500">{alert.userName || "SYSTEM"}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         {/* Module Activity bar chart */}

@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeSalesStatus } from "@/lib/sales-status";
 import {
   SalesOrderDetail,
   salesOrderService,
@@ -202,10 +203,14 @@ export default function SalesOrderDetailPage() {
     (sum, item) => sum + Number(item.nominalUangMuka ?? 0),
     0
   );
-  const usedDownPayment = downPayments
-    .filter((item) => item.status === "Used")
+  const receivedDownPayment = downPayments
+    .filter((item) => normalizeSalesStatus("down-payment", item.status) === "Received")
     .reduce((sum, item) => sum + Number(item.nominalUangMuka ?? 0), 0);
-  const remainingDownPayment = Math.max(totalDownPayment - usedDownPayment, 0);
+  const usedDownPayment = downPayments
+    .filter((item) => normalizeSalesStatus("down-payment", item.status) === "Used")
+    .reduce((sum, item) => sum + Number(item.nominalUangMuka ?? 0), 0);
+  const outstandingDownPayment = Math.max(totalDownPayment - receivedDownPayment, 0);
+  const availableDownPayment = Math.max(receivedDownPayment - usedDownPayment, 0);
   const orderStatus = data?.status ?? "Draft";
 
   return (
@@ -520,14 +525,14 @@ export default function SalesOrderDetailPage() {
                     <div className="divide-y divide-slate-100 px-5 py-2">
                       {[
                         { label: "Total", value: formatRupiah(grandTotal), strong: true },
-                        { label: "Uang Muka", value: formatRupiah(totalDownPayment), strong: true },
+                        { label: "Uang Muka Ditagihkan", value: formatRupiah(totalDownPayment), strong: true },
                         {
-                          label: "Uang Muka Terpakai/Retur",
-                          value: formatRupiah(usedDownPayment),
+                          label: "Uang Muka Diterima",
+                          value: formatRupiah(receivedDownPayment),
                         },
                         {
-                          label: "Sisa Uang Muka",
-                          value: formatRupiah(remainingDownPayment),
+                          label: "Belum Diterima",
+                          value: formatRupiah(outstandingDownPayment),
                           strong: true,
                         },
                       ].map((item) => (
@@ -624,9 +629,9 @@ export default function SalesOrderDetailPage() {
 
                   <div className="grid grid-cols-3 gap-3 border-b border-slate-100 bg-slate-50/50 p-5">
                     {[
-                      { label: "Total Uang Muka", value: totalDownPayment },
-                      { label: "Terpakai/Retur", value: usedDownPayment },
-                      { label: "Sisa Uang Muka", value: remainingDownPayment },
+                      { label: "Total Ditagihkan", value: totalDownPayment },
+                      { label: "Sudah Diterima", value: receivedDownPayment },
+                      { label: "Tersedia Untuk Invoice", value: availableDownPayment },
                     ].map((item) => (
                       <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">

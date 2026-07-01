@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login"];
+const ROLE_REDIRECTS: Record<string, string> = {
+  admin: "/dashboard",
+  penjualan: "/penjualan",
+  pembelian: "/pembelian",
+  persediaan: "/persediaan",
+};
+
+function getAllowedRoles(pathname: string) {
+  if (pathname === "/dashboard") return ["admin"];
+  if (pathname.startsWith("/user")) return ["admin"];
+  if (pathname.startsWith("/penjualan")) return ["admin", "penjualan"];
+  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian"];
+  if (pathname.startsWith("/persediaan")) return ["admin", "persediaan"];
+
+  return ["admin", "penjualan", "pembelian", "persediaan"];
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,10 +30,16 @@ export function middleware(request: NextRequest) {
   // Cek session cookie (kita set ini saat login)
   // Karena kita pakai sessionStorage (client-only), middleware pakai cookie sebagai sinyal
   const isLoggedIn = request.cookies.get("trinova_session")?.value === "1";
+  const role = request.cookies.get("trinova_role")?.value;
 
   if (!isLoggedIn) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (!role || !getAllowedRoles(pathname).includes(role)) {
+    const redirectUrl = new URL(ROLE_REDIRECTS[role ?? ""] ?? "/login", request.url);
+    return NextResponse.redirect(redirectUrl);
   }
 
   return NextResponse.next();

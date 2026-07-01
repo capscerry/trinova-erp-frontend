@@ -146,7 +146,8 @@ export function FakturPenjualanModal({
       const matched = list.filter(
         (item) =>
           Number(item.customerId) === Number(customerId) &&
-          item.nomorSo?.trim().toLowerCase() === noSo.trim().toLowerCase()
+          item.nomorSo?.trim().toLowerCase() === noSo.trim().toLowerCase() &&
+          isApprovedForPicker("down-payment", item.status)
       );
 
       return {

@@ -7,9 +7,25 @@ export const api = axios.create({
 
 // ─── Request interceptor: tambah token kalau ada ──────────────────────────────
 api.interceptors.request.use((config) => {
-  // Nanti tambahkan token di sini:
-  // const token = getCookie("token");
-  // if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== "undefined") {
+    const token = sessionStorage.getItem("trinova_token");
+    const savedUser = sessionStorage.getItem("trinova_user");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser) as { id?: number; username?: string; email?: string };
+        if (user.id) config.headers["X-User-Id"] = String(user.id);
+        if (user.username || user.email) config.headers["X-User-Name"] = user.username ?? user.email;
+      } catch {
+        // Abaikan session user yang tidak valid; request tetap dikirim tanpa actor header.
+      }
+    }
+  }
+
   return config;
 });
 

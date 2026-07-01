@@ -10,6 +10,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import type { AuthUser, AuthContextValue } from "@/types/auth";
 import { authService } from "@/lib/services/user.service";
+import type { Role } from "@/types/auth";
 
 const SESSION_KEY = "trinova_user";
 const TOKEN_KEY = "trinova_token";
@@ -20,6 +21,15 @@ function setSessionCookie(value: "1" | "") {
   } else {
     document.cookie =
       "trinova_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  }
+}
+
+function setRoleCookie(role?: Role) {
+  if (role) {
+    document.cookie = `trinova_role=${role}; path=/; SameSite=Lax`;
+  } else {
+    document.cookie =
+      "trinova_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
   }
 }
 
@@ -39,6 +49,21 @@ function getRedirectPath(role: AuthUser["role"]) {
   }
 }
 
+function getAllowedRolesForPath(pathname: string): Role[] {
+  if (pathname === "/login") return ["admin", "penjualan", "pembelian", "persediaan"];
+  if (pathname === "/dashboard") return ["admin"];
+  if (pathname.startsWith("/user")) return ["admin"];
+  if (pathname.startsWith("/penjualan")) return ["admin", "penjualan"];
+  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian"];
+  if (pathname.startsWith("/persediaan")) return ["admin", "persediaan"];
+
+  return ["admin", "penjualan", "pembelian", "persediaan"];
+}
+
+function canAccessPath(role: Role, pathname: string) {
+  return getAllowedRolesForPath(pathname).includes(role);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,8 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const parsedUser = JSON.parse(savedUser) as AuthUser;
         setUser(parsedUser);
         setSessionCookie("1");
+        setRoleCookie(parsedUser.role);
       } else {
         setSessionCookie("");
+        setRoleCookie();
         if (pathname !== "/login") {
           router.replace("/login");
         }
@@ -64,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
       setSessionCookie("");
+      setRoleCookie();
       if (pathname !== "/login") {
         router.replace("/login");
       }
@@ -80,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (user.role !== "admin" && pathname === "/dashboard") {
+    if (!canAccessPath(user.role, pathname)) {
       router.replace(getRedirectPath(user.role));
     }
   }, [isLoading, pathname, router, user]);
@@ -100,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem(TOKEN_KEY, authUser.token);
 
     setSessionCookie("1");
+    setRoleCookie(authUser.role);
 
     return authUser;
   };
@@ -111,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(TOKEN_KEY);
 
     setSessionCookie("");
+    setRoleCookie();
 
     router.push("/login");
   };

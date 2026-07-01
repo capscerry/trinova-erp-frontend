@@ -19,6 +19,30 @@ export interface SalesDashboardInvoiceItem {
   status: string;
 }
 
+export interface SalesDashboardActivityItem {
+  id: number;
+  module: string;
+  activityType: string;
+  title: string;
+  description?: string | null;
+  refTable?: string | null;
+  refId?: number | null;
+  refNumber?: string | null;
+  userName: string;
+  createdAt: string;
+}
+
+export interface SalesDashboardUpcomingActivityItem {
+  activityType: string;
+  title: string;
+  description?: string | null;
+  refTable?: string | null;
+  refId?: number | null;
+  refNumber?: string | null;
+  activityDate: string;
+  priority: "normal" | "warning" | "danger" | string;
+}
+
 export interface SalesDashboard {
   totalSalesOrder: number;
   salesOrderCount: number;
@@ -31,6 +55,8 @@ export interface SalesDashboard {
   customerCount: number;
   recentSalesOrders: SalesDashboardOrderItem[];
   recentInvoices: SalesDashboardInvoiceItem[];
+  recentActivities: SalesDashboardActivityItem[];
+  upcomingActivities: SalesDashboardUpcomingActivityItem[];
 }
 
 export const EMPTY_SALES_DASHBOARD: SalesDashboard = {
@@ -45,6 +71,8 @@ export const EMPTY_SALES_DASHBOARD: SalesDashboard = {
   customerCount: 0,
   recentSalesOrders: [],
   recentInvoices: [],
+  recentActivities: [],
+  upcomingActivities: [],
 };
 
 export const salesDashboardService = {

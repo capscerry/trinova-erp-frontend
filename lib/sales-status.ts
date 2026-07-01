@@ -9,7 +9,7 @@ export type SalesStatusModule =
 export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
   quotation: ["Draft", "Sent", "Approved", "Rejected", "Cancelled"],
   "sales-order": ["Draft", "Approved", "Confirmed", "Processing", "Shipped", "Completed", "Cancelled"],
-  "down-payment": ["Draft", "Received", "Used", "Cancelled"],
+  "down-payment": ["Draft", "Issued", "Received", "Used", "Cancelled"],
   "delivery-order": ["Draft", "Approved", "Shipped", "Received", "Invoiced", "Cancelled"],
   "sales-invoice": ["Draft", "Issued", "Partially Paid", "Paid", "Overdue", "Cancelled"],
   "sales-receipt": ["Draft", "Validated", "Cancelled"],
