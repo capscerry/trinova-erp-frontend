@@ -8,7 +8,9 @@ import {
   ReceiptText,
   CalendarClock,
   Scissors,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -118,6 +120,163 @@ export default function PurchaseOrderDetailModal({
   // if a purchase return deduction (Replacement / Next PO Deduction) was applied.
   const storedTotal = data.total_amount ?? itemsTotal;
   const returnDeduction = itemsTotal > storedTotal ? itemsTotal - storedTotal : 0;
+
+  // ── Export to Excel ────────────────────────────────────────────────────
+  const exportToExcel = () => {
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+    const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    const sTitle    = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrLbl   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrVal   = { font: { sz: 10, color: { rgb: "1E3A5F" } },             alignment: { horizontal: "left",   vertical: "center" }, fill: LGRAY, border: MED };
+    const sColHdr   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+    const sCell     = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+    const sCellLeft = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center", wrapText: true }, fill: WHITE, border: THIN };
+    const sCellRight= { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+    const sFootLbl  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+    const sFootVal  = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+    const sBlankN   = { fill: NAVY,  border: MED  };
+    const sBlankT   = { fill: WHITE, border: THIN };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 6;
+    const C = (row: number, col: number) => XLSX.utils.encode_cell({ r: row, c: col });
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Row 0: title
+    ws[C(r, 0)] = { v: "PURCHASE ORDER", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sTitle };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Row 1: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 2: DATE
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "DATE",    t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: formatDate(data.order_date), t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 3: PO NUMBER
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "PO NUMBER", t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: data.po_number, t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 4: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 5: SUPPLIER / STATUS labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLbl };
+    ws[C(r, 1)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 3)] = { v: "STATUS",   t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 5)] = { v: "",         t: "s", s: sHdrLbl };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 6: supplier name / status value
+    ws[C(r, 0)] = { v: data.supplier_name, t: "s", s: sHdrVal };
+    ws[C(r, 1)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: data.status,        t: "s", s: sHdrVal };
+    ws[C(r, 4)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "",                 t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 7: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 8: items table headers
+    ws[C(r, 0)] = { v: "NO.",          t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "DESCRIPTION",  t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "",             t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "QTY",          t: "s", s: sColHdr };
+    ws[C(r, 4)] = { v: "UNIT PRICE",   t: "s", s: sColHdr };
+    ws[C(r, 5)] = { v: "TOTAL (Rp)",   t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Item rows
+    const itemStartR = r;
+    data.items.forEach((item, i) => {
+      ws[C(r, 0)] = { v: i + 1,            t: "n", s: sCell };
+      ws[C(r, 1)] = { v: item.product_name, t: "s", s: sCellLeft };
+      ws[C(r, 2)] = { v: "",                t: "s", s: sCellLeft };
+      ws[C(r, 3)] = { v: item.quantity,     t: "n", s: sCell };
+      ws[C(r, 4)] = { v: item.price,        t: "n", s: sCellRight };
+      ws[C(r, 5)] = { v: item.subtotal,     t: "n", s: sCellRight };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    });
+
+    // Pad to at least 5 item rows
+    for (let fi = data.items.length; fi < 5; fi++) {
+      for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankT };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    }
+
+    // SUBTOTAL
+    const taxAmount      = Math.round(storedTotal / 1.11 * 0.11);
+    const displaySubtotal = storedTotal - taxAmount;
+
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "SUBTOTAL",     t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: displaySubtotal, t: "n", s: sFootVal };
+    r++;
+
+    // TAX
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "TAX (11%)", t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: taxAmount,   t: "n", s: sFootVal };
+    r++;
+
+    // GRAND TOTAL
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "GRAND TOTAL", t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: storedTotal,   t: "n", s: sFootVal };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, // title
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // DATE
+      { hpt: 20 }, // PO NUMBER
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // SUPPLIER/STATUS labels
+      { hpt: 22 }, // values
+      { hpt: 6  }, // spacer
+      { hpt: 22 }, // col headers
+    ];
+    ws["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 10 }, { wch: 8 }, { wch: 18 }, { wch: 18 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Order");
+    const safeName = data.po_number.replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeName}.xlsx`);
+  };
 
   return (
     <>
@@ -534,6 +693,23 @@ export default function PurchaseOrderDetailModal({
 
             </div>
 
+          </div>
+
+          {/* FOOTER */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Export Excel
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              Tutup
+            </button>
           </div>
 
         </div>

@@ -4,36 +4,46 @@ import { useEffect, useState, useCallback } from "react";
 import {
   Brain, RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertTriangle, Trophy, ShoppingCart, Clock, CreditCard,
-  BarChart2, Package, Zap, Info, ArrowRight,
+  BarChart2, Zap, Info, ArrowRight,
+  ShieldCheck, Shield, ShieldAlert, ShieldX,
 } from "lucide-react";
 import Link from "next/link";
 
 import { AppShell } from "@/components/layout";
-import { Button, Card, PageHeader, Tooltip } from "@/components/ui";
+import { Button, Tooltip } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { formatRupiah } from "@/lib/utils";
 
 import {
-  getPurchaseOrders, getPurchaseOrderDetails,
+  getPurchaseOrders,
 } from "@/lib/services/po.service";
 import { getSuppliers }         from "@/lib/services/supplier.service";
 import { getGoodsReceipts }     from "@/lib/services/gr.service";
 import { getPurchaseInvoices }  from "@/lib/services/purchase-invoice.service";
 import { getPurchasePayments }  from "@/lib/services/purchase-payment.service";
 import { getSupplierProducts }  from "@/lib/services/supplier-product.service";
+import { getPurchaseReturns }   from "@/lib/services/purchase-return.service";
+import { predictAllSuppliers, normalizeRiskLevel, trainFromErp } from "@/lib/services/supplier-risk.service";
+import type { BatchPredictItem } from "@/lib/services/supplier-risk.service";
+import {
+  topsis,
+  applyPreset,
+  calcOnTimeRates,
+  calcDeliveryPunctuality,
+  PRIORITY_PRESETS,
+} from "@/lib/ahp-topsis";
+import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
+import type { RiskLevel } from "@/lib/xgboost-risk";
 
 import {
   calcSpendSummary,
   calcLeadTimeStats,
   calcPaymentHealth,
   calcSupplierScores,
-  calcReorderCandidates,
   calcSpendConcentration,
   type SpendSummary,
   type LeadTimeStats,
   type PaymentHealthStats,
   type SupplierScore,
-  type ReorderCandidate,
   type ConcentrationResult,
 } from "@/lib/purchasing-insights";
 
@@ -336,76 +346,294 @@ function LeadTimeTable({ data }: { data: LeadTimeStats[] }) {
   );
 }
 
-// ─── Reorder candidates table ─────────────────────────────────────────────────
+// ─── Supplier ranking types ───────────────────────────────────────────────────
 
-function ReorderTable({ data }: { data: ReorderCandidate[] }) {
-  if (data.length === 0)
-    return <p className="text-[12px] text-slate-400 text-center py-8">Semua stok dalam kondisi aman</p>;
+interface RiskRow {
+  supplier_id:   number;
+  supplier_name: string;
+  risk_score:    number;
+  risk_level:    RiskLevel;
+}
 
-  const maxUrgency = Math.max(...data.map((d) => d.urgencyScore), 1);
-  const fmtRp = (v: number | null) =>
-    v != null ? new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(v) : "—";
+interface AhpPresetRanking {
+  key:         string;
+  label:       string;
+  icon:        string;
+  color:       string;
+  description: string;
+  results:     TopsisResult[];
+}
 
+// AHP criteria — column order must match preset matrices in lib/ahp-topsis.ts
+const AHP_CRITERIA = [
+  { id: "avg_price",            label: "Harga Rata-rata",  description: "", weight: 0.2, benefit: false },
+  { id: "lead_time",            label: "Lead Time",        description: "", weight: 0.2, benefit: false },
+  { id: "on_time_rate",         label: "On-Time Rate",     description: "", weight: 0.2, benefit: true  },
+  { id: "delivery_punctuality", label: "Ketepatan Waktu",  description: "", weight: 0.2, benefit: true  },
+  { id: "return_rate",          label: "Tingkat Retur",    description: "", weight: 0.2, benefit: false },
+];
+
+// ─── Build TOPSIS alternatives from raw ERP data ─────────────────────────────
+
+function buildAltFromErp(
+  suppliers: any[], pos: any[], grs: any[], returns: any[], sps: any[],
+): Alternative[] {
+  const normPos = pos.map((p: any) => ({
+    purchase_order_id: Number(p.purchase_order_id),
+    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
+    order_date:        p.order_date    ?? null,
+    expected_date:     p.expected_date ?? null,
+  }));
+  const normGrs = grs.map((g: any) => ({
+    goods_receipt_id:  Number(g.goods_receipt_id),
+    purchase_order_id: Number(g.purchase_order_id),
+    receipt_date:      g.receipt_date ?? null,
+  }));
+  const normReturns = returns.map((r: any) => ({
+    supplier_id:      Number(r.supplier_id ?? 0),
+    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
+  }));
+  const normSps = sps.map((sp: any) => ({
+    supplier_id:    Number(sp.supplier_id),
+    supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
+    lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
+  }));
+  const normSuppliers = suppliers.map((s: any) => ({
+    supplier_id:   Number(s.supplier_id ?? s.id),
+    supplier_name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
+    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
+  }));
+
+  type Agg = { name: string; code: string; orderCount: number; actualDays: number[]; catalogDays: number[]; prices: number[]; grIds: Set<number> };
+  const agg = new Map<number, Agg>();
+  for (const s of normSuppliers) {
+    agg.set(s.supplier_id, { name: s.supplier_name, code: s.supplier_code, orderCount: 0, actualDays: [], catalogDays: [], prices: [], grIds: new Set() });
+  }
+  for (const po of normPos) { const a = agg.get(po.supplier_id); if (a) a.orderCount++; }
+
+  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
+  const onTimeMap      = calcOnTimeRates(
+    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
+    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
+  const punctualityMap = calcDeliveryPunctuality(
+    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
+    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
+
+  for (const gr of normGrs) {
+    const po = poMap.get(gr.purchase_order_id);
+    if (!po?.order_date || !gr.receipt_date) continue;
+    const days = (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
+    if (days < 0 || days > 365) continue;
+    const a = agg.get(po.supplier_id);
+    if (!a) continue;
+    a.actualDays.push(days);
+    a.grIds.add(gr.goods_receipt_id);
+  }
+  for (const sp of normSps) {
+    const a = agg.get(sp.supplier_id);
+    if (!a) continue;
+    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
+    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
+  }
+  const returnCountMap = new Map<number, number>();
+  for (const ret of normReturns) {
+    if (ret.supplier_id === 0) continue;
+    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
+  }
+
+  const alternatives: Alternative[] = [];
+  for (const [sid, a] of agg.entries()) {
+    if (a.orderCount === 0) continue;
+    const avgPrice = a.prices.length > 0 ? a.prices.reduce((s, v) => s + v, 0) / a.prices.length : 0;
+    const avgLead  = a.actualDays.length > 0 ? a.actualDays.reduce((s, v) => s + v, 0) / a.actualDays.length
+                   : a.catalogDays.length > 0 ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length : 14;
+    const grCount    = a.grIds.size;
+    const retCount   = returnCountMap.get(sid) ?? 0;
+    const returnRate = grCount > 0 ? retCount / grCount : 0;
+    alternatives.push({
+      id: String(sid), name: a.name, code: a.code,
+      values: {
+        avg_price:            Math.round(avgPrice * 100) / 100,
+        lead_time:            Math.round(avgLead * 10) / 10,
+        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
+        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
+        return_rate:          Math.round(returnRate * 1000) / 1000,
+      },
+    });
+  }
+  return alternatives;
+}
+
+// ─── Rank medal ───────────────────────────────────────────────────────────────
+
+function RankMedal({ rank }: { rank: number }) {
+  if (rank === 1) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">1</span>
+  );
+  if (rank === 2) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-[10px] font-extrabold shrink-0">2</span>
+  );
+  if (rank === 3) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-[10px] font-extrabold shrink-0">3</span>
+  );
+  return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-50 border border-slate-200 text-slate-400 text-[10px] font-bold shrink-0">{rank}</span>
+  );
+}
+
+// ─── Risk badge ───────────────────────────────────────────────────────────────
+
+const RISK_CFG: Record<RiskLevel, { barColor: string; textColor: string; badgeCls: string; icon: typeof ShieldCheck }> = {
+  Low:      { barColor: "bg-emerald-400", textColor: "text-emerald-700", badgeCls: "bg-emerald-50 border-emerald-200 text-emerald-700", icon: ShieldCheck },
+  Medium:   { barColor: "bg-amber-400",   textColor: "text-amber-700",   badgeCls: "bg-amber-50  border-amber-200  text-amber-700",   icon: Shield      },
+  High:     { barColor: "bg-orange-400",  textColor: "text-orange-700",  badgeCls: "bg-orange-50 border-orange-200 text-orange-700",  icon: ShieldAlert },
+  Critical: { barColor: "bg-rose-500",    textColor: "text-rose-700",    badgeCls: "bg-rose-50   border-rose-200   text-rose-700",    icon: ShieldX     },
+};
+
+function RiskBadge({ level }: { level: RiskLevel }) {
+  const cfg = RISK_CFG[level];
+  const Icon = cfg.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0", cfg.badgeCls)}>
+      <Icon size={9} />{level}
+    </span>
+  );
+}
+
+// ─── Risk Detection ranking table ─────────────────────────────────────────────
+
+function RiskRankingTable({ rows, loading }: { rows: RiskRow[]; loading: boolean }) {
+  if (loading) return (
+    <div className="space-y-2">
+      {Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-9 bg-slate-100 rounded-lg" />)}
+    </div>
+  );
+  if (rows.length === 0) return (
+    <p className="text-[12px] text-slate-400 text-center py-8">Belum ada data risiko supplier</p>
+  );
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[12px] border-collapse">
-        <thead>
-          <tr className="bg-slate-50 border-b border-slate-100">
-            {[
-              { h: "Produk",           tip: null },
-              { h: "Supplier",         tip: null },
-              { h: "Stok",             tip: null },
-              { h: "Est. Pengiriman",  tip: "Estimasi Lead Time — perkiraan hari dari pemesanan hingga barang tersedia, berdasarkan katalog supplier." },
-              { h: "Harga Terakhir",   tip: null },
-              { h: "Prioritas",        tip: "Urgency Score — skor 0–100 yang menggabungkan tingkat kehabisan stok dan lamanya estimasi pengiriman. Makin tinggi makin mendesak." },
-            ].map(({ h, tip }) => (
-              <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif whitespace-nowrap">
-                {tip ? <Tooltip term={h} label={tip} /> : h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {data.map((r, idx) => (
-            <tr key={`${r.productId}-${r.supplierId}-${idx}`} className="hover:bg-slate-50 transition-colors">
-              <td className="px-3 py-3">
-                <p className="font-semibold text-navy-900 font-serif">{r.productName}</p>
-                <p className="text-[10px] text-slate-400 font-mono">#{r.productId}</p>
-              </td>
-              <td className="px-3 py-3 text-slate-600">{r.supplierName}</td>
-              <td className="px-3 py-3">
-                <span className={cn(
-                  "font-bold tabular-nums",
-                  r.availableStock === 0 ? "text-rose-600"
-                  : r.availableStock <= 10 ? "text-amber-600"
-                  : "text-slate-600"
-                )}>
-                  {r.availableStock === 0 ? "Habis" : r.availableStock}
-                </span>
-              </td>
-              <td className="px-3 py-3 tabular-nums text-slate-600">
-                {r.catalogLeadTime != null ? `${r.catalogLeadTime} hari` : "—"}
-              </td>
-              <td className="px-3 py-3 tabular-nums text-slate-700">
-                {r.lastPrice != null ? `Rp ${fmtRp(r.lastPrice)}` : "—"}
-              </td>
-              <td className="px-3 py-3">
-                <div className="flex items-center gap-2">
-                  <MiniBar value={r.urgencyScore} max={maxUrgency}
-                    color={r.urgencyScore >= 70 ? "bg-rose-500" : r.urgencyScore >= 40 ? "bg-amber-400" : "bg-blue-400"}
+      {/* column headers */}
+      <div className="grid grid-cols-[32px_1fr_160px_110px] gap-0 bg-slate-50 border-b border-slate-100 px-4 py-1.5">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+          <Tooltip term="Delay Probability" label="Skor risiko keterlambatan (0–100%) dari model XGBoost. Semakin tinggi = semakin berisiko." />
+        </span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Level</span>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {rows.map((r, i) => {
+          const cfg = RISK_CFG[r.risk_level];
+          return (
+            <div
+              key={r.supplier_id}
+              className={cn(
+                "grid grid-cols-[32px_1fr_160px_110px] gap-0 items-center px-4 py-2.5 transition-colors",
+                i === 0 ? "bg-rose-50/30" : "hover:bg-slate-50"
+              )}
+            >
+              <RankMedal rank={i + 1} />
+              <p className="text-[12px] font-semibold text-navy-900 font-serif truncate pr-2">{r.supplier_name}</p>
+              <div className="flex items-center gap-2 pr-3">
+                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-700", cfg.barColor)}
+                    style={{ width: `${Math.round(r.risk_score * 100)}%` }}
                   />
-                  <span className={cn(
-                    "text-[11px] font-bold tabular-nums shrink-0 w-6",
-                    r.urgencyScore >= 70 ? "text-rose-600" : r.urgencyScore >= 40 ? "text-amber-600" : "text-blue-600"
-                  )}>
-                    {r.urgencyScore}
+                </div>
+                <span className={cn("tabular-nums font-bold text-[11px] shrink-0 w-10 text-right", cfg.textColor)}>
+                  {(r.risk_score * 100).toFixed(1)}%
+                </span>
+              </div>
+              <RiskBadge level={r.risk_level} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── AHP preset ranking table ─────────────────────────────────────────────────
+
+// Per-preset accent: left-border color + header tag color (no emojis, navy base)
+const PRESET_STYLE: Record<string, { border: string; tag: string; tagText: string; icon: typeof Brain }> = {
+  balanced:        { border: "border-l-slate-400",  tag: "bg-slate-100 text-slate-600",   tagText: "Seimbang",        icon: BarChart2   },
+  urgency_high:    { border: "border-l-rose-400",   tag: "bg-rose-50   text-rose-700",    tagText: "Urgensi Tinggi",  icon: Zap         },
+  budget_priority: { border: "border-l-amber-400",  tag: "bg-amber-50  text-amber-700",   tagText: "Prioritas Budget",icon: CreditCard  },
+  quality_focus:   { border: "border-l-blue-500",   tag: "bg-blue-50   text-blue-700",    tagText: "Fokus Kualitas",  icon: Trophy      },
+};
+
+function AhpPresetTable({ preset, loading }: { preset: AhpPresetRanking; loading: boolean }) {
+  const style = PRESET_STYLE[preset.key] ?? PRESET_STYLE.balanced;
+  const Icon  = style.icon;
+  return (
+    <div className={cn("bg-white rounded-xl border border-slate-200 border-l-4 shadow-sm overflow-hidden", style.border)}>
+      {/* header */}
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
+        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center shrink-0">
+          <Icon size={11} className="text-gold-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-bold text-navy-900 font-serif leading-none">{preset.label}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{preset.description}</p>
+        </div>
+        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0", style.tag)}>
+          AHP-TOPSIS
+        </span>
+      </div>
+      {/* column headers */}
+      <div className="grid grid-cols-[32px_1fr_140px] gap-0 bg-slate-50 border-b border-slate-100 px-4 py-1.5">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+          <Tooltip term="Skor Ci" label="Closeness Coefficient (Ci) — mendekati 1 = paling dekat ke kondisi ideal di semua kriteria." />
+        </span>
+      </div>
+      {/* body */}
+      {loading ? (
+        <div className="p-3 space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-8 bg-slate-100 rounded" />)}
+        </div>
+      ) : preset.results.length === 0 ? (
+        <p className="text-[12px] text-slate-400 text-center py-6">Belum ada data ERP</p>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {preset.results.slice(0, 7).map((r) => {
+            const pct = Math.round(r.score * 100);
+            const barColor =
+              pct >= 70 ? "bg-navy-700"
+              : pct >= 40 ? "bg-navy-400"
+              : "bg-slate-300";
+            return (
+              <div
+                key={r.alternativeId}
+                className={cn(
+                  "grid grid-cols-[32px_1fr_140px] gap-0 items-center px-4 py-2.5 transition-colors",
+                  r.rank === 1 ? "bg-gold-300/10" : "hover:bg-slate-50"
+                )}
+              >
+                <RankMedal rank={r.rank} />
+                <p className="text-[12px] font-semibold text-navy-900 font-serif truncate pr-2">{r.name}</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-700", barColor)}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="tabular-nums font-bold text-navy-900 text-[11px] shrink-0 w-14 text-right">
+                    {r.score.toFixed(4)}
                   </span>
                 </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -513,20 +741,23 @@ export default function PurchasingInsightPage() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const [spend,        setSpend]        = useState<SpendSummary | null>(null);
-  const [leadTimes,    setLeadTimes]    = useState<LeadTimeStats[]>([]);
-  const [paymentHealth, setPaymentHealth] = useState<PaymentHealthStats | null>(null);
+  const [spend,          setSpend]          = useState<SpendSummary | null>(null);
+  const [leadTimes,      setLeadTimes]      = useState<LeadTimeStats[]>([]);
+  const [paymentHealth,  setPaymentHealth]  = useState<PaymentHealthStats | null>(null);
   const [supplierScores, setSupplierScores] = useState<SupplierScore[]>([]);
-  const [reorderList,  setReorderList]  = useState<ReorderCandidate[]>([]);
-  const [concentration, setConcentration] = useState<ConcentrationResult | null>(null);
+  const [concentration,  setConcentration]  = useState<ConcentrationResult | null>(null);
+
+  // AI supplier rankings
+  const [rankLoading,  setRankLoading]  = useState(true);
+  const [riskRows,     setRiskRows]     = useState<RiskRow[]>([]);
+  const [ahpRankings,  setAhpRankings]  = useState<AhpPresetRanking[]>([]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [poRes, poDetailRes, supplierRes, grRes, invoiceRes, paymentRes, spRes] =
+      const [poRes, supplierRes, grRes, invoiceRes, paymentRes, spRes] =
         await Promise.allSettled([
           getPurchaseOrders(),
-          getPurchaseOrderDetails(),
           getSuppliers(),
           getGoodsReceipts(),
           getPurchaseInvoices(),
@@ -538,7 +769,6 @@ export default function PurchasingInsightPage() {
         r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : r.value?.data ?? []) : [];
 
       const pos         = norm<any>(poRes);
-      const poDetails   = norm<any>(poDetailRes);
       const suppliers   = norm<any>(supplierRes);
       const grs         = norm<any>(grRes);
       const invoices    = norm<any>(invoiceRes);
@@ -563,7 +793,6 @@ export default function PurchasingInsightPage() {
       setLeadTimes(calcLeadTimeStats(normPos, grs, supProducts, normSuppliers));
       setPaymentHealth(calcPaymentHealth(invoices, payments));
       setSupplierScores(calcSupplierScores(normPos, grs, supProducts, invoices, normSuppliers));
-      setReorderList(calcReorderCandidates(supProducts, normSuppliers, poDetails));
       setLastUpdated(new Date());
     } catch (e) {
       console.error("Insight fetch error:", e);
@@ -572,7 +801,87 @@ export default function PurchasingInsightPage() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // ── Fetch AI rankings: risk detection + AHP-TOPSIS 4 presets ────────────
+  const fetchRankings = useCallback(async () => {
+    setRankLoading(true);
+    try {
+      const norm = (r: PromiseSettledResult<any>) =>
+        r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : r.value?.data ?? []) : [];
+
+      // ── Step 1: Re-train XGBoost on latest ERP data (non-fatal if fails) ──
+      try {
+        await trainFromErp(true);
+      } catch {
+        // Training failure is non-fatal — predict will use the existing model
+      }
+
+      // ── Step 2: Batch fetch everything in parallel ────────────────────────
+      const [suppRes, poRes, grRes, retRes, spRes, riskRes] = await Promise.allSettled([
+        getSuppliers(),
+        getPurchaseOrders(),
+        getGoodsReceipts(),
+        getPurchaseReturns(),
+        getSupplierProducts(),
+        predictAllSuppliers(),
+      ]);
+
+      const suppliers = norm(suppRes);
+      const nameMap   = new Map<number, string>(
+        suppliers.map((s: any) => [
+          Number(s.supplier_id ?? s.id),
+          String(s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`),
+        ])
+      );
+
+      // ── Risk rows: sorted highest → lowest risk score ──────────────────
+      if (riskRes.status === "fulfilled") {
+        const rows: RiskRow[] = riskRes.value.results
+          .filter((v: BatchPredictItem) => v.supplier_id != null && v.supplier_id !== 0)
+          .map((v: BatchPredictItem) => ({
+            supplier_id:   Number(v.supplier_id),
+            supplier_name: v.supplier_name ?? nameMap.get(Number(v.supplier_id)) ?? `Supplier ${v.supplier_id}`,
+            risk_score:    Number(v.delay_probability ?? 0),
+            risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
+          }))
+          .sort((a: RiskRow, b: RiskRow) => b.risk_score - a.risk_score);
+        setRiskRows(rows);
+      }
+
+      // ── AHP preset rankings ────────────────────────────────────────────
+      const pos     = norm(poRes);
+      const grs     = norm(grRes);
+      const returns = norm(retRes);
+      const sps     = norm(spRes);
+
+      if (suppliers.length > 0) {
+        const alts = buildAltFromErp(suppliers, pos, grs, returns, sps);
+        const rankings: AhpPresetRanking[] = PRIORITY_PRESETS.map((preset) => {
+          const { result } = applyPreset(preset.key as any);
+          const criteria   = AHP_CRITERIA.map((c, i) => ({ ...c, weight: result.weights[i] }));
+          // Sort by score descending so rank 1 (best Ci) is always first in the list
+          const sorted = topsis(alts, criteria).sort((a, b) => b.score - a.score);
+          return {
+            key:         preset.key,
+            label:       preset.label,
+            icon:        preset.icon,
+            color:       preset.color,
+            description: preset.description,
+            results:     sorted,
+          };
+        });
+        setAhpRankings(rankings);
+      }
+    } catch (e) {
+      console.error("Rankings fetch error:", e);
+    } finally {
+      setRankLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+    fetchRankings();
+  }, [fetchAll, fetchRankings]);
 
   const fmtCompact = (n: number) =>
     new Intl.NumberFormat("id-ID", { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(n);
@@ -834,23 +1143,73 @@ export default function PurchasingInsightPage() {
         </div>
       </div>
 
-      {/* ── Row 4: Lead time + Reorder ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
+      {/* ── Row 4: Lead time (full-width) ────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
+        <SectionTitle icon={Clock}
+          label="Estimasi Pengiriman Aktual vs Target"
+          sub="Selisih hari antara tanggal pesanan dan tanggal barang diterima" />
+        {loading ? <SkeletonBlock h="h-48" /> : <LeadTimeTable data={leadTimes} />}
+      </div>
 
-        {/* Lead time */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={Clock}
-            label="Estimasi Pengiriman Aktual vs Target"
-            sub="Selisih hari antara tanggal pesanan dan tanggal barang diterima" />
-          {loading ? <SkeletonBlock h="h-48" /> : <LeadTimeTable data={leadTimes} />}
+      {/* ── Row 5: Supplier Rankings — Risk Detection + AHP 4 presets ────────── */}
+      <div className="mb-5">
+        {/* section header */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-navy-900 to-navy-600 flex items-center justify-center shrink-0">
+              <Brain size={13} className="text-gold-400" />
+            </div>
+            <div>
+              <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">Perankingan Supplier — AI & AHP</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">AHP-TOPSIS (Seimbang, Urgensi Tinggi, Prioritas Budget, Fokus Kualitas)</p>
+            </div>
+          </div>
+          <div className="flex-1 h-px bg-slate-100" />
+          <button
+            onClick={fetchRankings}
+            disabled={rankLoading}
+            className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-navy-700 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw size={11} className={rankLoading ? "animate-spin" : ""} />
+            {rankLoading ? "Memproses..." : "Refresh Rankings"}
+          </button>
         </div>
 
-        {/* Reorder */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={Package}
-            label="Produk Perlu Restok"
-            sub="Produk stok rendah diurutkan berdasarkan tingkat prioritas" />
-          {loading ? <SkeletonBlock h="h-48" /> : <ReorderTable data={reorderList} />}
+        {/* Risk Detection — full-width table (commented out until backend returns data)
+        <div className="bg-white rounded-xl border border-slate-200 border-l-4 border-l-rose-400 shadow-sm p-5 mb-4">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center shrink-0">
+              <Zap size={11} className="text-gold-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-serif font-bold text-navy-900 text-[14px] leading-none">Risk Detection</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">XGBoost · dilatih dari data ERP terbaru · diurutkan dari risiko tertinggi</p>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 shrink-0">
+              XGBoost
+            </span>
+          </div>
+          <RiskRankingTable rows={riskRows} loading={rankLoading} />
+        </div>
+        */}
+
+        {/* AHP 4 presets — 2×2 grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {rankLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 border-l-4 border-l-slate-200 overflow-hidden bg-white shadow-sm">
+                  <div className="h-[52px] bg-slate-50 border-b border-slate-100 animate-pulse" />
+                  <div className="p-4 space-y-2">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <div key={j} className="animate-pulse h-8 bg-slate-100 rounded" />
+                    ))}
+                  </div>
+                </div>
+              ))
+            : ahpRankings.map((preset) => (
+                <AhpPresetTable key={preset.key} preset={preset} loading={rankLoading} />
+              ))
+          }
         </div>
       </div>
 

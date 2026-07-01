@@ -7,10 +7,12 @@ import {
   Building2,
   Calendar,
   BadgeCheck,
+  Download,
   Wallet,
   CreditCard,
   Hash,
 } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
 
 // ─────────────────────────────────────────────────────────────
@@ -45,6 +47,9 @@ interface PurchaseInvoiceDetailModalProps {
   open: boolean;
   onClose: () => void;
   invoice: PurchaseInvoice | null;
+  goodsReceipts?: any[];
+  purchaseOrderDetails?: any[];
+  products?: any[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -93,6 +98,9 @@ export default function PurchaseInvoiceDetailModal({
   open,
   onClose,
   invoice,
+  goodsReceipts = [],
+  purchaseOrderDetails = [],
+  products = [],
 }: PurchaseInvoiceDetailModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -135,6 +143,296 @@ export default function PurchaseInvoiceDetailModal({
     invoice.total_amount - invoice.dp_paid - totalPaymentsMade
   );
 
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // ── Resolve line items: PO details joined with products by product_id ──
+    const inv = invoice as any;
+
+    // Strategy 1: invoice carries purchase_order_id directly
+    let poId: number | null = inv.purchase_order_id ? Number(inv.purchase_order_id) : null;
+
+    // Strategy 2: invoice → GR lookup via goods_receipt_id
+    if (!poId && inv.goods_receipt_id) {
+      const matchedGR = goodsReceipts.find(
+        (gr: any) => Number(gr.goods_receipt_id ?? gr.id) === Number(inv.goods_receipt_id)
+      );
+      poId = matchedGR ? Number(matchedGR.purchase_order_id ?? null) : null;
+    }
+
+    // Strategy 3: match GR by transaction_name
+    if (!poId && inv.transaction_name) {
+      const matchedGR = goodsReceipts.find(
+        (gr: any) => gr.transaction_name === inv.transaction_name
+      );
+      poId = matchedGR ? Number(matchedGR.purchase_order_id ?? null) : null;
+    }
+
+    const lineItems: { description: string; qty: number; unitPrice: number; total: number }[] =
+      poId
+        ? purchaseOrderDetails
+            .filter((d: any) => Number(d.purchase_order_id) === poId)
+            .map((d: any) => {
+              const product = products.find(
+                (p: any) => Number(p.product_id) === Number(d.product_id)
+              );
+              return {
+                description: product?.product_name ?? product?.nama ?? `Product ${d.product_id}`,
+                qty:         Number(d.quantity ?? 0),
+                unitPrice:   Number(d.price ?? 0),
+                total:       Number(d.subtotal ?? 0),
+              };
+            })
+        : [];
+
+    // ── Shared styles ─────────────────────────────────────────────────────
+    const ALL_MED  = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const ALL_THIN = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    // Navy background (#1E2D4F matches the app's navy-900) + white bold text
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } }; // light gray for value cells
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+
+    const sTitle = {
+      font:      { bold: true, sz: 18, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill:      NAVY,
+      border:    ALL_MED,
+    };
+    const sHdrLabel = {
+      font:      { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "left", vertical: "center" },
+      fill:      NAVY,
+      border:    ALL_MED,
+    };
+    const sHdrValue = {
+      font:      { sz: 10, color: { rgb: "1E3A5F" } },
+      alignment: { horizontal: "left", vertical: "center" },
+      fill:      LGRAY,
+      border:    ALL_MED,
+    };
+    const sColHdr = {
+      font:      { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      fill:      NAVY,
+      border:    ALL_MED,
+    };
+    const sCell = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill:      WHITE,
+      border:    ALL_THIN,
+    };
+    const sCellLeft = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "left", vertical: "center", wrapText: true },
+      fill:      WHITE,
+      border:    ALL_THIN,
+    };
+    const sCellRight = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      WHITE,
+      border:    ALL_THIN,
+      numFmt:    '#,##0',
+    };
+    const sFootLabel = {
+      font:      { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      NAVY,
+      border:    ALL_MED,
+    };
+    const sFootValue = {
+      font:      { bold: true, sz: 11, color: { rgb: "F5C518" } }, // gold accent
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      NAVY,
+      border:    ALL_MED,
+      numFmt:    '#,##0',
+    };
+    const sBlankMed  = { fill: NAVY,  border: ALL_MED  };
+    const sBlankThin = { fill: WHITE, border: ALL_THIN };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 6;
+    const C = (row: number, col: number) => XLSX.utils.encode_cell({ r: row, c: col });
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Row 0: title
+    ws[C(r, 0)] = { v: "PURCHASE INVOICE", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Row 1: blank spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 2: DATE
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "DATE",       t: "s", s: sHdrLabel };
+    ws[C(r, 4)] = { v: formatDate(invoice.invoice_date), t: "s", s: sHdrValue };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrValue };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 3: INVOICE NO.
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "INVOICE NO.", t: "s", s: sHdrLabel };
+    ws[C(r, 4)] = { v: formatINVNumber(invoice.invoice_number), t: "s", s: sHdrValue };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrValue };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 4: blank
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 5: SUPPLIER / BILL TO labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLabel };
+    ws[C(r, 1)] = { v: "", t: "s", s: sHdrLabel };
+    ws[C(r, 2)] = { v: "", t: "s", s: sHdrLabel };
+    ws[C(r, 3)] = { v: "BILL TO",  t: "s", s: sHdrLabel };
+    ws[C(r, 4)] = { v: "", t: "s", s: sHdrLabel };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrLabel };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 6: supplier name / bill-to (empty)
+    ws[C(r, 0)] = { v: invoice.supplier_name, t: "s", s: sHdrValue };
+    ws[C(r, 1)] = { v: "", t: "s", s: sHdrValue };
+    ws[C(r, 2)] = { v: "", t: "s", s: sHdrValue };
+    ws[C(r, 3)] = { v: "", t: "s", s: sHdrValue };
+    ws[C(r, 4)] = { v: "", t: "s", s: sHdrValue };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrValue };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 7: blank
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 8: PAYMENT / INVOICE DATE / STATUS / REFERENCE column headers
+    ws[C(r, 0)] = { v: "PAYMENT",      t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "INVOICE DATE", t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "STATUS",       t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "",             t: "s", s: sColHdr };
+    ws[C(r, 4)] = { v: "REFERENCE",    t: "s", s: sColHdr };
+    ws[C(r, 5)] = { v: "",             t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 9: payment info values
+    const firstPayment = payments[0];
+    const paymentNoValue = firstPayment?.payment_number
+      ? formatPAYNumber(firstPayment.payment_number)
+      : "—";
+    ws[C(r, 0)] = { v: paymentNoValue,                    t: "s", s: sCell };
+    ws[C(r, 1)] = { v: formatDate(invoice.invoice_date),  t: "s", s: sCell };
+    ws[C(r, 2)] = { v: invoice.status,                    t: "s", s: sCell };
+    ws[C(r, 3)] = { v: "",                                t: "s", s: sCell };
+    ws[C(r, 4)] = { v: invoice.supplier_name, t: "s", s: sCell };
+    ws[C(r, 5)] = { v: "",                                t: "s", s: sCell };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 10: blank
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 11: items table column headers
+    ws[C(r, 0)] = { v: "NO.",         t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "DESCRIPTION", t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "",            t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "QTY",         t: "s", s: sColHdr };
+    ws[C(r, 4)] = { v: "UNIT PRICE",  t: "s", s: sColHdr };
+    ws[C(r, 5)] = { v: "TOTAL (Rp)",  t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Item rows
+    const itemStartR = r;
+    if (lineItems.length === 0) {
+      ws[C(r, 0)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 1)] = { v: "", t: "s", s: sBlankThin };
+      ws[C(r, 2)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 3)] = { v: "", t: "s", s: sBlankThin };
+      ws[C(r, 4)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 5)] = { v: "", t: "s", s: sBlankThin };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    } else {
+      lineItems.forEach((item, i) => {
+        ws[C(r, 0)] = { v: i + 1,           t: "n", s: sCell };
+        ws[C(r, 1)] = { v: item.description, t: "s", s: sCellLeft };
+        ws[C(r, 2)] = { v: "",              t: "s", s: sCellLeft };
+        ws[C(r, 3)] = { v: item.qty,        t: "n", s: sCell };
+        ws[C(r, 4)] = { v: item.unitPrice,  t: "n", s: sCellRight };
+        ws[C(r, 5)] = { v: item.total,      t: "n", s: sCellRight };
+        merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+        r++;
+      });
+    }
+
+    // Pad to at least 5 item rows
+    const filled = r - itemStartR;
+    for (let fi = filled; fi < 5; fi++) {
+      ws[C(r, 0)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 1)] = { v: "", t: "s", s: sBlankThin };
+      ws[C(r, 2)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 3)] = { v: "", t: "s", s: sBlankThin };
+      ws[C(r, 4)] = { v: "", t: "s", s: sBlankThin }; ws[C(r, 5)] = { v: "", t: "s", s: sBlankThin };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    }
+
+    // SUBTOTAL / TAX / GRAND TOTAL
+    const grandTotal     = invoice.total_amount;
+    const taxAmount      = Math.round(grandTotal / 1.11 * 0.11);
+    const displaySubtotal = grandTotal - taxAmount;
+
+    // SUBTOTAL
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankMed };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "SUBTOTAL",    t: "s", s: sFootLabel };
+    ws[C(r, 5)] = { v: displaySubtotal, t: "n", s: sFootValue };
+    r++;
+
+    // TAX
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankMed };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "TAX (11%)",   t: "s", s: sFootLabel };
+    ws[C(r, 5)] = { v: taxAmount,     t: "n", s: sFootValue };
+    r++;
+
+    // GRAND TOTAL
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankMed };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "GRAND TOTAL", t: "s", s: sFootLabel };
+    ws[C(r, 5)] = { v: grandTotal,    t: "n", s: sFootValue };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, // row 0: title
+      { hpt: 6  }, // row 1: spacer
+      { hpt: 20 }, // row 2: DATE
+      { hpt: 20 }, // row 3: INVOICE NO.
+      { hpt: 6  }, // row 4: blank
+      { hpt: 20 }, // row 5: SUPPLIER/BILL TO labels
+      { hpt: 22 }, // row 6: supplier name values
+      { hpt: 6  }, // row 7: blank
+      { hpt: 20 }, // row 8: payment terms headers
+      { hpt: 20 }, // row 9: payment term values
+      { hpt: 6  }, // row 10: blank
+      { hpt: 20 }, // row 11: items column headers
+    ];
+    ws["!cols"]   = [{ wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 8 }, { wch: 22 }, { wch: 22 }];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Invoice");
+    const safeNum = formatINVNumber(invoice.invoice_number).replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeNum}.xlsx`);
+  };
+
   return (
     <>
       {/* BACKDROP */}
@@ -175,7 +473,7 @@ export default function PurchaseInvoiceDetailModal({
               <div className="grid grid-cols-2 gap-3">
                 <InfoCard icon={<ReceiptText size={13} />} label="Invoice Number" value={formatINVNumber(invoice.invoice_number)} />
                 <InfoCard icon={<Calendar size={13} />}    label="Invoice Date"   value={formatDate(invoice.invoice_date)} />
-                <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={`Supplier ${invoice.supplier_name}`} />
+                <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={invoice.supplier_name} />
                 <InfoCard icon={<Hash size={13} />}        label="Umur (Hari)"    value={String(invoice.age)} />
               </div>
             </div>
@@ -340,7 +638,14 @@ export default function PurchaseInvoiceDetailModal({
           </div>
 
           {/* FOOTER */}
-          <div className="flex items-center justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Export Excel
+            </button>
             <button
               onClick={onClose}
               className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"

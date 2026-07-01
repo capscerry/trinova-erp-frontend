@@ -484,7 +484,7 @@ export default function RekomendasiPage() {
           };
         });
 
-      backendResults.sort((a, b) => b.risk_score - a.risk_score);
+      backendResults.sort((a, b) => a.risk_score - b.risk_score);
       setRiskResults(backendResults);
       setRiskSource("backend");
       setMlDone(true);
@@ -522,7 +522,7 @@ export default function RekomendasiPage() {
               },
             };
           });
-        fallback.sort((a, b) => b.risk_score - a.risk_score);
+        fallback.sort((a, b) => a.risk_score - b.risk_score);
         setRiskResults(fallback);
         setMlDone(true);
       } catch {
@@ -723,7 +723,7 @@ export default function RekomendasiPage() {
                   <Brain size={13} className="text-slate-500" />
                 </div>
                 <div>
-                  <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">Data Supplier (dari ERP)</h2>
+                  <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">Data Supplier</h2>
                   <p className="text-[11px] text-slate-400 mt-0.5">{alternatives.length} supplier dengan riwayat transaksi</p>
                 </div>
               </div>

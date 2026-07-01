@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -289,6 +291,171 @@ export default function PurchasePaymentPage() {
     }
   };
 
+  // ─── Excel helpers ──────────────────────────
+
+  const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+  const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+  const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+  const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+  const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+  const sTitle  = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+  const sSub    = { font: { sz: 10, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "center", vertical: "center" }, fill: LGRAY, border: MED };
+  const sColHdr = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+  const sCell   = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+  const sCellL  = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center", wrapText: true }, fill: WHITE, border: THIN };
+  const sNum    = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+  const sTotLbl = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+  const sTotVal = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+  const sHdrLbl = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "left", vertical: "center" }, fill: NAVY, border: MED };
+  const sHdrVal = { font: { sz: 10, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "left", vertical: "center" }, fill: LGRAY, border: MED };
+  const sBlankN = { fill: NAVY, border: MED };
+
+  const formatDateXlsx = (d: string) =>
+    d ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d)) : "—";
+
+  const C = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+  const exportList = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const COLS = 6;
+    const ws: XLSX.WorkSheet = {};
+
+    ws[C(0, 0)] = { v: "PURCHASE PAYMENT LIST", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(0, c)] = { v: "", t: "s", s: sTitle };
+
+    ws[C(1, 0)] = { v: `Export Date: ${today}`, t: "s", s: sSub };
+    for (let c = 1; c < COLS; c++) ws[C(1, c)] = { v: "", t: "s", s: sSub };
+
+    for (let c = 0; c < COLS; c++) ws[C(2, c)] = { v: "", t: "s" };
+
+    ["NO.", "PAYMENT NUMBER", "INVOICE NUMBER", "SUPPLIER", "METHOD", "AMOUNT (Rp)"].forEach((h, c) => {
+      ws[C(3, c)] = { v: h, t: "s", s: sColHdr };
+    });
+
+    let grandTotal = 0;
+    payments.forEach((p: any, i: number) => {
+      const r = 4 + i;
+      ws[C(r, 0)] = { v: i + 1,                              t: "n", s: sCell  };
+      ws[C(r, 1)] = { v: formatPAYNumber(p.payment_number),  t: "s", s: sCell  };
+      ws[C(r, 2)] = { v: formatINVNumber(p.invoice_number),  t: "s", s: sCell  };
+      ws[C(r, 3)] = { v: p.supplier_name ?? "—",             t: "s", s: sCellL };
+      ws[C(r, 4)] = { v: p.payment_method ?? "—",            t: "s", s: sCell  };
+      ws[C(r, 5)] = { v: Number(p.amount ?? 0),              t: "n", s: sNum   };
+      grandTotal += Number(p.amount ?? 0);
+    });
+
+    const footerR = 4 + payments.length + 1;
+    for (let c = 0; c < 4; c++) ws[C(footerR, c)] = { v: "", t: "s", s: sBlankN };
+    ws[C(footerR, 4)] = { v: "TOTAL",      t: "s", s: sTotLbl };
+    ws[C(footerR, 5)] = { v: grandTotal,   t: "n", s: sTotVal };
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: footerR, c: COLS - 1 } });
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    ];
+    ws["!rows"]   = [{ hpt: 36 }, { hpt: 18 }, { hpt: 8 }, { hpt: 22 }];
+    ws["!cols"]   = [{ wch: 5 }, { wch: 22 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Payment");
+    XLSX.writeFile(wb, `Purchase_Payment_${today}.xlsx`);
+  };
+
+  const exportDetail = (d: any) => {
+    const COLS = 4;
+    const ws: XLSX.WorkSheet = {};
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Title
+    ws[C(r, 0)] = { v: "PURCHASE PAYMENT", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sTitle };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Right-side header block
+    const headerFields: [string, string][] = [
+      ["DATE",           formatDateXlsx(d.payment_date)],
+      ["PAYMENT NUMBER", formatPAYNumber(d.payment_number)],
+      ["INVOICE NUMBER", formatINVNumber(d.invoice_number)],
+    ];
+    headerFields.forEach(([label, value]) => {
+      ws[C(r, 0)] = { v: "",    t: "s" };
+      ws[C(r, 1)] = { v: label, t: "s", s: sHdrLbl };
+      ws[C(r, 2)] = { v: value, t: "s", s: sHdrVal };
+      ws[C(r, 3)] = { v: "",    t: "s", s: sHdrVal };
+      merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+      r++;
+    });
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // SUPPLIER / STATUS labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLbl };
+    ws[C(r, 1)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: "STATUS",   t: "s", s: sHdrLbl };
+    ws[C(r, 3)] = { v: "",         t: "s", s: sHdrLbl };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    ws[C(r, 0)] = { v: d.supplier_name ?? "—", t: "s", s: sHdrVal };
+    ws[C(r, 1)] = { v: "",                      t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: d.status ?? "—",         t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",                      t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Payment details table header
+    ws[C(r, 0)] = { v: "METHOD",      t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "NOTES",       t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "",            t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "AMOUNT (Rp)", t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    ws[C(r, 0)] = { v: d.payment_method ?? "—",  t: "s", s: sCell  };
+    ws[C(r, 1)] = { v: d.notes?.trim() || "—",   t: "s", s: sCellL };
+    ws[C(r, 2)] = { v: "",                        t: "s", s: sCellL };
+    ws[C(r, 3)] = { v: Number(d.amount ?? 0),     t: "n", s: sNum   };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Total footer
+    for (let c = 0; c < 3; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    ws[C(r, 3)] = { v: Number(d.amount ?? 0), t: "n", s: sTotVal };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, { hpt: 6 },
+      { hpt: 20 }, { hpt: 20 }, { hpt: 20 },
+      { hpt: 6  }, { hpt: 20 }, { hpt: 22 },
+      { hpt: 6  }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+    ];
+    ws["!cols"] = [{ wch: 18 }, { wch: 55 }, { wch: 14 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Payment");
+    const safeName = formatPAYNumber(d.payment_number).replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeName}.xlsx`);
+  };
+
   // ─── Render ─────────────────────────────────
 
   return (
@@ -296,6 +463,13 @@ export default function PurchasePaymentPage() {
       title="Purchase Payment"
       subtitle="Kelola pembayaran supplier"
     >
+
+      <div className="flex justify-end mb-3">
+        <Button variant="secondary" size="sm" onClick={exportList}>
+          <Download size={14} className="mr-1.5" />
+          Export Excel
+        </Button>
+      </div>
 
       <DataTable<any>
         title="Daftar Purchase Payment"
@@ -449,10 +623,17 @@ export default function PurchasePaymentPage() {
               className="
                 border-t border-slate-100
                 px-6 py-4
-                flex justify-end
+                flex justify-between items-center
                 bg-slate-50/60
               "
             >
+              <button
+                onClick={() => exportDetail(detailData)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
               <Button
                 variant="ghost"
                 onClick={() => setOpenDetail(false)}

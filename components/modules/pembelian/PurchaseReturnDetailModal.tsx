@@ -1,7 +1,8 @@
 "use client";
 
-import { X, RefreshCcw, Scissors, Banknote } from "lucide-react";
+import { X, RefreshCcw, Scissors, Banknote, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx-js-style";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,11 +85,134 @@ export default function PurchaseReturnDetailModal({
 }: PurchaseReturnDetailModalProps) {
   if (!open || !data) return null;
 
-  // Parse settlement notes for display
-  // Notes may contain "applied to PO ...", "credited against invoice ...", etc.
   const settlementNotes = data.notes
     ? data.notes.split(".").map((s) => s.trim()).filter(Boolean)
     : [];
+
+  const exportToExcel = () => {
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+    const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    const sTitle   = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrLbl  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrVal  = { font: { sz: 10, color: { rgb: "1E3A5F" } },             alignment: { horizontal: "left",   vertical: "center" }, fill: LGRAY, border: MED };
+    const sColHdr  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+    const sCell    = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+    const sCellL   = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center", wrapText: true }, fill: WHITE, border: THIN };
+    const sFootLbl = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+    const sFootVal = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+    const sBlankN  = { fill: NAVY, border: MED };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 4;
+    const C = (row: number, col: number) => XLSX.utils.encode_cell({ r: row, c: col });
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Title
+    ws[C(r, 0)] = { v: "PURCHASE RETURN", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sTitle };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Right-side header block
+    const headerFields: [string, string][] = [
+      ["DATE",          fmtDate(data.return_date)],
+      ["RETURN NUMBER", data.purchase_return_number],
+      ["PO NUMBER",     data.purchase_order_number || "—"],
+    ];
+    headerFields.forEach(([label, value]) => {
+      ws[C(r, 0)] = { v: "",    t: "s" };
+      ws[C(r, 1)] = { v: label, t: "s", s: sHdrLbl };
+      ws[C(r, 2)] = { v: value, t: "s", s: sHdrVal };
+      ws[C(r, 3)] = { v: "",    t: "s", s: sHdrVal };
+      merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+      r++;
+    });
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // SUPPLIER / STATUS labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLbl };
+    ws[C(r, 1)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: "STATUS",   t: "s", s: sHdrLbl };
+    ws[C(r, 3)] = { v: "",         t: "s", s: sHdrLbl };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    ws[C(r, 0)] = { v: data.supplier_name, t: "s", s: sHdrVal };
+    ws[C(r, 1)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: data.status,        t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",                 t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Details table header
+    ws[C(r, 0)] = { v: "SETTLEMENT",       t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "NOTES",            t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "",                 t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "TOTAL RETURN (Rp)",t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Details values
+    ws[C(r, 0)] = { v: data.settlement_option || "—", t: "s", s: sCell  };
+    ws[C(r, 1)] = { v: data.notes?.trim() || "—",      t: "s", s: sCellL };
+    ws[C(r, 2)] = { v: "",                              t: "s", s: sCellL };
+    ws[C(r, 3)] = { v: data.total_amount,               t: "n", s: { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right", vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' } };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Closing condition row (if present)
+    if (data.closing_condition) {
+      for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: { fill: WHITE, border: THIN } };
+      r++;
+      ws[C(r, 0)] = { v: "CLOSING CONDITION", t: "s", s: sColHdr };
+      for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sColHdr };
+      merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+      r++;
+      ws[C(r, 0)] = { v: data.closing_condition, t: "s", s: sCellL };
+      for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sCellL };
+      merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+      r++;
+    }
+
+    // Total footer
+    for (let c = 0; c < 3; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    ws[C(r, 3)] = { v: data.total_amount, t: "n", s: sFootVal };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, { hpt: 6  },
+      { hpt: 20 }, { hpt: 20 }, { hpt: 20 },
+      { hpt: 6  }, { hpt: 20 }, { hpt: 22 },
+      { hpt: 6  }, { hpt: 22 }, { hpt: 22 },
+    ];
+    ws["!cols"] = [{ wch: 20 }, { wch: 45 }, { wch: 10 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Return");
+    const safeName = data.purchase_return_number.replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeName}.xlsx`);
+  };
 
   return (
     <>
@@ -244,7 +368,14 @@ export default function PurchaseReturnDetailModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Export Excel
+            </button>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"

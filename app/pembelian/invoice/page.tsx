@@ -17,7 +17,8 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { CheckCircle2, FileText, X } from "lucide-react";
+import { CheckCircle2, Download, FileText, X } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 import {
   getPurchaseInvoices,
@@ -25,6 +26,8 @@ import {
   createPurchaseInvoice,
   updatePurchaseInvoice,
   deletePurchaseInvoice,
+  getPurchaseOrderDetails,
+  getProducts,
 } from "@/lib/services";
 
 import { getPurchasePayments } from "@/lib/services/purchase-payment.service";
@@ -229,6 +232,12 @@ export default function PurchaseInvoicePage() {
   const [goodsReceipts, setGoodsReceipts] =
     useState<any[]>([]);
 
+  const [purchaseOrderDetails, setPurchaseOrderDetails] =
+    useState<any[]>([]);
+
+  const [products, setProducts] =
+    useState<any[]>([]);
+
   const [openModal, setOpenModal] =
     useState(false);
 
@@ -344,31 +353,42 @@ export default function PurchaseInvoicePage() {
     }
   };
 
-const fetchGoodsReceipt = async () => {
+  const fetchGoodsReceipt = async () => {
+    try {
+      const res = await getGoodsReceipts();
+      const list = Array.isArray(res) ? res : res.data;
+      setGoodsReceipts(list);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-  try {
+  const fetchPurchaseOrderDetails = async () => {
+    try {
+      const res = await getPurchaseOrderDetails();
+      const list = Array.isArray(res) ? res : res.data ?? [];
+      setPurchaseOrderDetails(list);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-    const res =
-      await getGoodsReceipts();
+  const fetchProducts = async () => {
+    try {
+      const res = await getProducts();
+      const list = Array.isArray(res) ? res : res.data ?? [];
+      setProducts(list);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-    const list = Array.isArray(res)
-      ? res
-      : res.data;
-
-    setGoodsReceipts(list);
-
-  } catch (error) {
-
-    console.error(error);
-  }
-};
-
-useEffect(() => {
-
-  fetchInvoices();
-  fetchGoodsReceipt();
-
-}, []);
+  useEffect(() => {
+    fetchInvoices();
+    fetchGoodsReceipt();
+    fetchPurchaseOrderDetails();
+    fetchProducts();
+  }, []);
 
   // Auto-open create modal when navigated from PO page with ?po_id=
   // The GR list is pre-filtered to only GRs from that PO.
@@ -385,11 +405,178 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goodsReceipts]);
 
+  const exportToExcel = () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // ── Shared style helpers ──────────────────────────────────────────────
+    const borderFull = {
+      top:    { style: "medium" },
+      bottom: { style: "medium" },
+      left:   { style: "medium" },
+      right:  { style: "medium" },
+    };
+    const borderThin = {
+      top:    { style: "thin" },
+      bottom: { style: "thin" },
+      left:   { style: "thin" },
+      right:  { style: "thin" },
+    };
+
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+
+    const styleHeader = {
+      font:      { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      fill:      NAVY,
+      border:    borderFull,
+    };
+    const styleCell = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill:      WHITE,
+      border:    borderThin,
+    };
+    const styleCellLeft = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "left", vertical: "center" },
+      fill:      WHITE,
+      border:    borderThin,
+    };
+    const styleNumber = {
+      font:      { sz: 10, color: { rgb: "374151" } },
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      WHITE,
+      border:    borderThin,
+      numFmt:    '#,##0',
+    };
+    const styleTotalLabel = {
+      font:      { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      NAVY,
+      border:    borderFull,
+    };
+    const styleTotalValue = {
+      font:      { bold: true, sz: 11, color: { rgb: "F5C518" } },
+      alignment: { horizontal: "right", vertical: "center" },
+      fill:      NAVY,
+      border:    borderFull,
+      numFmt:    '#,##0',
+    };
+    const styleTitleRow = {
+      font:      { bold: true, sz: 18, color: { rgb: "FFFFFF" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill:      NAVY,
+      border:    borderFull,
+    };
+    const styleSubtitle = {
+      font:      { sz: 10, color: { rgb: "1E3A5F" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      fill:      LGRAY,
+      border:    borderFull,
+    };
+
+    // ── Build worksheet using cell-by-cell approach ───────────────────────
+    const ws: XLSX.WorkSheet = {};
+
+    const COLS = 9; // A–I
+
+    // Helper: encode cell address
+    const C = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+    // Row 0: Title
+    ws[C(0, 0)] = { v: "PURCHASE INVOICE LIST", t: "s", s: styleTitleRow };
+    for (let c = 1; c < COLS; c++) ws[C(0, c)] = { v: "", t: "s", s: styleTitleRow };
+
+    // Row 1: Export date
+    ws[C(1, 0)] = { v: `Export Date: ${today}`, t: "s", s: styleSubtitle };
+    for (let c = 1; c < COLS; c++) ws[C(1, c)] = { v: "", t: "s", s: styleSubtitle };
+
+    // Row 2: blank
+    for (let c = 0; c < COLS; c++) ws[C(2, c)] = { v: "", t: "s" };
+
+    // Row 3: column headers
+    const headers = ["NO.", "INVOICE NUMBER", "DATE", "SUPPLIER", "STATUS", "AGE (DAY)", "TOTAL (Rp)", "PAID (Rp)", "OUTSTANDING (Rp)"];
+    headers.forEach((h, c) => {
+      ws[C(3, c)] = { v: h, t: "s", s: styleHeader };
+    });
+
+    // Data rows starting at row 4
+    let grandTotal = 0;
+    let grandPaid  = 0;
+    let grandOut   = 0;
+
+    invoices.forEach((inv, i) => {
+      const r = 4 + i;
+      ws[C(r, 0)] = { v: i + 1,                              t: "n", s: styleCell };
+      ws[C(r, 1)] = { v: formatINVNumber(inv.invoice_number), t: "s", s: styleCell };
+      ws[C(r, 2)] = { v: formatDate(inv.invoice_date),        t: "s", s: styleCell };
+      ws[C(r, 3)] = { v: inv.supplier_name,                  t: "s", s: styleCellLeft };
+      ws[C(r, 4)] = { v: inv.status,                          t: "s", s: styleCell };
+      ws[C(r, 5)] = { v: inv.age,                             t: "n", s: styleCell };
+      ws[C(r, 6)] = { v: inv.total_amount,                   t: "n", s: styleNumber };
+      ws[C(r, 7)] = { v: inv.dp_paid,                        t: "n", s: styleNumber };
+      ws[C(r, 8)] = { v: inv.outstanding_amount,             t: "n", s: styleNumber };
+      grandTotal += inv.total_amount;
+      grandPaid  += inv.dp_paid;
+      grandOut   += inv.outstanding_amount;
+    });
+
+    // Total footer row
+    const footerR = 4 + invoices.length + 1;
+    for (let c = 0; c < 5; c++) ws[C(footerR, c)] = { v: "", t: "s", s: { fill: NAVY, border: borderFull } };
+    ws[C(footerR, 5)] = { v: "TOTAL",    t: "s", s: styleTotalLabel };
+    ws[C(footerR, 6)] = { v: grandTotal, t: "n", s: styleTotalValue };
+    ws[C(footerR, 7)] = { v: grandPaid,  t: "n", s: styleTotalValue };
+    ws[C(footerR, 8)] = { v: grandOut,   t: "n", s: styleTotalValue };
+
+    // Set sheet ref range
+    ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: footerR, c: COLS - 1 } });
+
+    // Merges: title rows span all columns
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    ];
+
+    // Row heights: title tall, subtitle, spacer, column headers, data rows default
+    ws["!rows"] = [{ hpt: 36 }, { hpt: 18 }, { hpt: 8 }, { hpt: 22 }];
+
+    // Column widths
+    ws["!cols"] = [
+      { wch: 5  },
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Invoice");
+    XLSX.writeFile(wb, `Purchase_Invoice_${today}.xlsx`);
+  };
+
   return (
     <AppShell
       title="Purchase Invoice"
       subtitle="Kelola invoice pembelian"
     >
+
+        <div className="flex justify-end mb-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={exportToExcel}
+          >
+            <Download size={14} className="mr-1.5" />
+            Export Excel
+          </Button>
+        </div>
 
         <div ref={tableRef}>
         <DataTable<PurchaseInvoice>
@@ -475,6 +662,9 @@ useEffect(() => {
     setSelectedInvoice(null);
   }}
   invoice={selectedInvoice}
+  goodsReceipts={goodsReceipts}
+  purchaseOrderDetails={purchaseOrderDetails}
+  products={products}
 />
 
 <PurchaseInvoiceFormModal

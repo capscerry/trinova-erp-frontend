@@ -1,7 +1,9 @@
 "use client";
+"use client";
 
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { getNavForRole } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,16 @@ interface ModuleLayoutProps {
 export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
+  }
 
   if (!user) return null;
 
@@ -42,10 +54,26 @@ export function ModuleLayout({ title, subtitle, children }: ModuleLayoutProps) {
 
         {/* Right */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-48">
-            <Search size={13} className="text-slate-400" />
-            <span className="text-sm text-slate-400">Cari...</span>
-          </div>
+          <form
+            onSubmit={handleSearch}
+            className={`flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-48 transition-all duration-150 ${
+              focused ? "ring-2 ring-gold-400 bg-white" : ""
+            }`}
+          >
+            <button type="submit" aria-label="Cari" className="flex items-center">
+              <Search size={13} className="text-slate-400 shrink-0" />
+            </button>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder="Cari..."
+              className="bg-transparent text-sm text-slate-400 placeholder:text-slate-400 outline-none w-full"
+            />
+          </form>
           <div className="relative w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-slate-200 transition-colors">
             <Bell size={15} className="text-slate-500" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />

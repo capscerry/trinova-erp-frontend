@@ -3,6 +3,8 @@
 import { AppShell } from "@/components/layout";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 import {
   getPurchaseOrders,
@@ -24,6 +26,38 @@ from "@/components/modules/pembelian/PurchaseDownPaymentDetailModal";
 import { Button } from "@/components/ui/Button";
 
 import { DataTable } from "@/components/ui/DataTable";
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+
+type DPStatus = "Paid" | "Unpaid" | "Cancelled";
+
+const DP_STATUS_STYLE: Record<DPStatus, string> = {
+  Unpaid:    "bg-amber-50 text-amber-700 border border-amber-200",
+  Paid:      "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  Cancelled: "bg-rose-50 text-rose-600 border border-rose-200",
+};
+
+function DPStatusBadge({ status }: { status: string }) {
+  const style =
+    DP_STATUS_STYLE[status as DPStatus] ??
+    "bg-slate-100 text-slate-600 border border-slate-200";
+  return (
+    <span
+      className={`
+        inline-flex
+        px-2.5
+        py-1
+        rounded-full
+        text-xs
+        font-semibold
+        whitespace-nowrap
+        ${style}
+      `}
+    >
+      {status}
+    </span>
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +104,7 @@ const COLUMNS = [
   {
     key: "status",
     label: "Status",
+    render: (val: any) => <DPStatusBadge status={String(val)} />,
   },
 ];
 
@@ -179,8 +214,82 @@ export default function PurchaseDownPaymentPage() {
     subtitle="Kelola uang muka pembelian"
     >
         <>
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end mb-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
 
+                const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+                const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+                const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+                const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+                const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+                const sTitle    = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+                const sSub      = { font: { sz: 10, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "center", vertical: "center" }, fill: LGRAY, border: MED };
+                const sColHdr   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+                const sCell     = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+                const sCellLeft = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: WHITE, border: THIN };
+                const sNum      = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+                const sTotLbl   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+                const sTotVal   = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+
+                const formatDateCell = (d: string) =>
+                  new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d));
+
+                const ws: XLSX.WorkSheet = {};
+                const COLS = 5;
+                const C = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+                ws[C(0, 0)] = { v: "PURCHASE DOWN PAYMENT LIST", t: "s", s: sTitle };
+                for (let c = 1; c < COLS; c++) ws[C(0, c)] = { v: "", t: "s", s: sTitle };
+
+                ws[C(1, 0)] = { v: `Export Date: ${today}`, t: "s", s: sSub };
+                for (let c = 1; c < COLS; c++) ws[C(1, c)] = { v: "", t: "s", s: sSub };
+
+                for (let c = 0; c < COLS; c++) ws[C(2, c)] = { v: "", t: "s" };
+
+                ["NO.", "DP NUMBER", "SUPPLIER", "PAYMENT DATE", "AMOUNT (Rp)"].forEach((h, c) => {
+                  ws[C(3, c)] = { v: h, t: "s", s: sColHdr };
+                });
+
+                let grandTotal = 0;
+                downPayments.forEach((dp: any, i: number) => {
+                  const r = 4 + i;
+                  ws[C(r, 0)] = { v: i + 1,                              t: "n", s: sCell };
+                  ws[C(r, 1)] = { v: formatDPNumber(dp.dp_number),       t: "s", s: sCell };
+                  ws[C(r, 2)] = { v: dp.supplier_name ?? "—",            t: "s", s: sCellLeft };
+                  ws[C(r, 3)] = { v: dp.payment_date ? formatDateCell(dp.payment_date) : "—", t: "s", s: sCell };
+                  ws[C(r, 4)] = { v: Number(dp.amount ?? 0),             t: "n", s: sNum };
+                  grandTotal += Number(dp.amount ?? 0);
+                });
+
+                const footerR = 4 + downPayments.length + 1;
+                for (let c = 0; c < 3; c++) ws[C(footerR, c)] = { v: "", t: "s", s: { fill: NAVY, border: MED } };
+                ws[C(footerR, 3)] = { v: "TOTAL",    t: "s", s: sTotLbl };
+                ws[C(footerR, 4)] = { v: grandTotal, t: "n", s: sTotVal };
+
+                ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: footerR, c: COLS - 1 } });
+                ws["!merges"] = [
+                  { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+                  { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+                ];
+                ws["!rows"]   = [{ hpt: 36 }, { hpt: 18 }, { hpt: 8 }, { hpt: 22 }];
+                ws["!cols"]   = [{ wch: 5 }, { wch: 20 }, { wch: 28 }, { wch: 18 }, { wch: 20 }];
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Down Payment");
+                XLSX.writeFile(wb, `Purchase_Down_Payment_${today}.xlsx`);
+              }}
+            >
+              <Download size={14} className="mr-1.5" />
+              Export Excel
+            </Button>
+        </div>
+
+        <div className="flex justify-end mb-4">
             <button
             onClick={() => {
                 setEditRow(null);
@@ -198,7 +307,6 @@ export default function PurchaseDownPaymentPage() {
             >
             + Tambah DP
             </button>
-
         </div>
 
         <DataTable

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 import {
   getPurchaseOrders,
@@ -887,6 +889,79 @@ export default function PurchaseOrderPage() {
   }, []);
 
   // ─────────────────────────────────────────────────────────
+  // EXPORT TO EXCEL (LIST)
+  // ─────────────────────────────────────────────────────────
+
+  const exportToExcel = () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+    const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    const sTitle    = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+    const sSub      = { font: { sz: 10, color: { rgb: "1E3A5F" } }, alignment: { horizontal: "center", vertical: "center" }, fill: LGRAY, border: MED };
+    const sColHdr   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+    const sCell     = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+    const sCellLeft = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: WHITE, border: THIN };
+    const sNum      = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+    const sTotLbl   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+    const sTotVal   = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 6;
+    const C = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
+
+    // Row 0: title
+    ws[C(0, 0)] = { v: "PURCHASE ORDER LIST", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(0, c)] = { v: "", t: "s", s: sTitle };
+
+    // Row 1: export date
+    ws[C(1, 0)] = { v: `Export Date: ${today}`, t: "s", s: sSub };
+    for (let c = 1; c < COLS; c++) ws[C(1, c)] = { v: "", t: "s", s: sSub };
+
+    // Row 2: blank
+    for (let c = 0; c < COLS; c++) ws[C(2, c)] = { v: "", t: "s" };
+
+    // Row 3: column headers
+    const headers = ["NO.", "PO NUMBER", "DATE", "SUPPLIER", "STATUS", "TOTAL (Rp)"];
+    headers.forEach((h, c) => { ws[C(3, c)] = { v: h, t: "s", s: sColHdr }; });
+
+    // Data rows
+    let grandTotal = 0;
+    purchaseOrders.forEach((po, i) => {
+      const r = 4 + i;
+      ws[C(r, 0)] = { v: i + 1,       t: "n", s: sCell };
+      ws[C(r, 1)] = { v: po.nomor,    t: "s", s: sCell };
+      ws[C(r, 2)] = { v: formatDate(po.tanggal), t: "s", s: sCell };
+      ws[C(r, 3)] = { v: po.supplier, t: "s", s: sCellLeft };
+      ws[C(r, 4)] = { v: po.status,   t: "s", s: sCell };
+      ws[C(r, 5)] = { v: po.total,    t: "n", s: sNum };
+      grandTotal += po.total;
+    });
+
+    // Footer
+    const footerR = 4 + purchaseOrders.length + 1;
+    for (let c = 0; c < 4; c++) ws[C(footerR, c)] = { v: "", t: "s", s: { fill: NAVY, border: MED } };
+    ws[C(footerR, 4)] = { v: "GRAND TOTAL", t: "s", s: sTotLbl };
+    ws[C(footerR, 5)] = { v: grandTotal,    t: "n", s: sTotVal };
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: footerR, c: COLS - 1 } });
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: COLS - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: COLS - 1 } },
+    ];
+    ws["!rows"]   = [{ hpt: 36 }, { hpt: 18 }, { hpt: 8 }, { hpt: 22 }];
+    ws["!cols"]   = [{ wch: 5 }, { wch: 22 }, { wch: 14 }, { wch: 28 }, { wch: 20 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Order");
+    XLSX.writeFile(wb, `Purchase_Order_${today}.xlsx`);
+  };
+
+  // ─────────────────────────────────────────────────────────
   // RETURN
   // ─────────────────────────────────────────────────────────
 
@@ -895,6 +970,13 @@ export default function PurchaseOrderPage() {
       title="Purchase Order"
       subtitle="Kelola pesanan pembelian"
     >
+
+      <div className="flex justify-end mb-3">
+        <Button variant="secondary" size="sm" onClick={exportToExcel}>
+          <Download size={14} className="mr-1.5" />
+          Export Excel
+        </Button>
+      </div>
 
       <DataTable<PurchaseOrder>
         title="Daftar Purchase Order"

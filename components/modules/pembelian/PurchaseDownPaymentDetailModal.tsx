@@ -11,7 +11,9 @@ import {
   Clock,
   Package,
   ArrowRight,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 interface PurchaseDownPaymentDetailData {
   purchase_down_payment_id?: number;
@@ -90,6 +92,140 @@ export default function PurchaseDownPaymentDetailModal({
   const outstanding =
     (data.po_total ?? 0) -
     (data.amount ?? 0);
+
+  const exportToExcel = () => {
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+    const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    const sTitle   = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrLbl  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrVal  = { font: { sz: 10, color: { rgb: "1E3A5F" } },             alignment: { horizontal: "left",   vertical: "center" }, fill: LGRAY, border: MED };
+    const sColHdr  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+    const sCell    = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+    const sCellL   = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: WHITE, border: THIN };
+    const sNum     = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+    const sFootLbl = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+    const sFootVal = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+    const sBlankN  = { fill: NAVY,  border: MED  };
+    const sBlankT  = { fill: WHITE, border: THIN };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 4;
+    const C = (row: number, col: number) => XLSX.utils.encode_cell({ r: row, c: col });
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Row 0: title
+    ws[C(r, 0)] = { v: "PURCHASE DOWN PAYMENT", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sTitle };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Row 1: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 2: DATE
+    ws[C(r, 0)] = { v: "",           t: "s" };
+    ws[C(r, 1)] = { v: "DATE",       t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: formatDate(data.payment_date), t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",           t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Row 3: DP NUMBER
+    ws[C(r, 0)] = { v: "",           t: "s" };
+    ws[C(r, 1)] = { v: "DP NUMBER",  t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: formatDPNumber(data.dp_number), t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",           t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Row 4: PO NUMBER
+    ws[C(r, 0)] = { v: "",           t: "s" };
+    ws[C(r, 1)] = { v: "PO NUMBER",  t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: data.po_number ?? "—", t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",           t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Row 5: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 6: SUPPLIER / STATUS labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLbl };
+    ws[C(r, 1)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: "STATUS",   t: "s", s: sHdrLbl };
+    ws[C(r, 3)] = { v: "",         t: "s", s: sHdrLbl };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Row 7: supplier name / status value
+    ws[C(r, 0)] = { v: data.supplier_name, t: "s", s: sHdrVal };
+    ws[C(r, 1)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: data.status,        t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: "",                 t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
+    r++;
+
+    // Row 8: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 9: payment details table header
+    ws[C(r, 0)] = { v: "PAYMENT TYPE", t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "NOTES",        t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "PO TOTAL (Rp)",t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "DP PAID (Rp)", t: "s", s: sColHdr };
+    r++;
+
+    // Row 10: values
+    ws[C(r, 0)] = { v: data.payment_type ?? "—",       t: "s", s: sCell };
+    ws[C(r, 1)] = { v: data.notes?.trim() || "—",      t: "s", s: sCellL };
+    ws[C(r, 2)] = { v: Number(data.po_total ?? 0),     t: "n", s: sNum  };
+    ws[C(r, 3)] = { v: Number(data.amount  ?? 0),      t: "n", s: sNum  };
+    r++;
+
+    // Row 11: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankT };
+    r++;
+
+    // OUTSTANDING footer row
+    ws[C(r, 0)] = { v: "", t: "s", s: sBlankN };
+    ws[C(r, 1)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+    ws[C(r, 2)] = { v: "OUTSTANDING (Rp)", t: "s", s: sFootLbl };
+    ws[C(r, 3)] = { v: outstanding,        t: "n", s: sFootVal };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, // title
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // DATE
+      { hpt: 20 }, // DP NUMBER
+      { hpt: 20 }, // PO NUMBER
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // SUPPLIER/STATUS labels
+      { hpt: 22 }, // values
+      { hpt: 6  }, // spacer
+      { hpt: 22 }, // col headers
+      { hpt: 22 }, // values row
+    ];
+    ws["!cols"] = [{ wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 20 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Down Payment");
+    const safeName = formatDPNumber(data.dp_number).replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeName}.xlsx`);
+  };
 
   return (
     <>
@@ -365,7 +501,14 @@ export default function PurchaseDownPaymentDetailModal({
               </>
             )}
 
-            <div className="flex justify-start">
+            <div className="flex justify-between items-center">
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
