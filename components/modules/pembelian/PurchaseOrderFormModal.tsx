@@ -7,10 +7,11 @@ import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
   ShieldCheck, Loader2, Check, ClipboardList, Search,
-  CheckCircle2, AlertCircle, Clock,
+  CheckCircle2, AlertCircle, Clock, Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
+import { AhpTopsisBestPreview } from "./AhpTopsisBestPreview";
 import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
@@ -742,6 +743,16 @@ export default function PurchaseOrderFormModal({
                     placeholder="Pilih tanggal ekspektasi..." />
                 </FormField>
               </div>
+
+              {!isEdit && (
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    <Trophy size={11} className="text-gold-500" />
+                    Rekomendasi AHP-TOPSIS
+                  </div>
+                  <AhpTopsisBestPreview variant="light" showTitle={false} />
+                </div>
+              )}
 
               <FormField label="Supplier" icon={<Building2 size={13} />}>
                 {isEdit ? (
