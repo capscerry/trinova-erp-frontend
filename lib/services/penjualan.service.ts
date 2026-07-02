@@ -1,4 +1,4 @@
-﻿import { api, type ApiResponse } from "@/lib/api";
+import { api, type ApiResponse } from "@/lib/api";
 
 import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
 
@@ -7,6 +7,7 @@ import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
 export type SalesOrderStatus =
   | "Draft"
   | "Approved"
+  | "Processed"
   | "Confirmed"
   | "Processing"
   | "Shipped"
@@ -476,6 +477,7 @@ export type QuotationStatus =
   | "Draft"
   | "Sent"
   | "Approved"
+  | "Processed"
   | "Rejected"
   | "Cancelled";
 

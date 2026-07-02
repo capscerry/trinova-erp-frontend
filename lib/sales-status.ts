@@ -7,8 +7,20 @@ export type SalesStatusModule =
   | "sales-receipt";
 
 export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
-  quotation: ["Draft", "Sent", "Approved", "Rejected", "Cancelled"],
-  "sales-order": ["Draft", "Approved", "Confirmed", "Processing", "Shipped", "Completed", "Cancelled"],
+  quotation: ["Draft", "Sent", "Approved", "Processed", "Rejected", "Cancelled"],
+  "sales-order": [
+    "Draft",
+    "Approved",
+    "Confirmed",
+    "Processing",
+    "Delivery Overdue",
+    "In Delivery",
+    "Delivered",
+    "Invoiced",
+    "Partially Paid",
+    "Completed",
+    "Cancelled",
+  ],
   "down-payment": ["Draft", "Issued", "Received", "Used", "Cancelled"],
   "delivery-order": ["Draft", "Approved", "Shipped", "Received", "Invoiced", "Cancelled"],
   "sales-invoice": ["Draft", "Issued", "Partially Paid", "Paid", "Overdue", "Cancelled"],
@@ -36,9 +48,18 @@ export function normalizeSalesStatus(
     ditolak: "Rejected",
     dibatalkan: "Cancelled",
 
+    diproses: module === "quotation" ? "Processed" : "Processing",
+    terproses: "Processed",
+    processed: module === "quotation" ? "Processed" : "Processing",
     dikonfirmasi: "Confirmed",
-    diproses: "Processing",
     selesai: "Completed",
+
+    "telat kirim": "Delivery Overdue",
+    "terlambat kirim": "Delivery Overdue",
+    "delivery overdue": "Delivery Overdue",
+    "in delivery": "In Delivery",
+    "sedang dikirim": "In Delivery",
+    delivered: "Delivered",
 
     diterima: "Received",
     terpakai: "Used",
@@ -64,8 +85,8 @@ export function isApprovedForPicker(
   const normalized = normalizeSalesStatus(module, status);
 
   const selectableStatuses: Record<SalesStatusModule, string[]> = {
-    quotation: ["Draft", "Sent"],
-    "sales-order": ["Draft", "Approved", "Confirmed", "Processing"],
+    quotation: ["Draft", "Sent", "Approved"],
+    "sales-order": ["Draft", "Approved", "Confirmed", "Processing", "Delivery Overdue"],
     "down-payment": ["Received"],
     "delivery-order": ["Draft", "Approved", "Shipped", "Received"],
     "sales-invoice": ["Issued", "Partially Paid", "Overdue"],
@@ -76,17 +97,22 @@ export function isApprovedForPicker(
 }
 
 export function getStatusTone(status?: string | null) {
-  const normalized = normalizeSalesStatus("sales-invoice", status);
+  const value = (status || "").trim();
+  const normalized =
+    Object.values(SALES_STATUS_OPTIONS)
+      .flat()
+      .find((option) => option.toLowerCase() === value.toLowerCase()) ||
+    normalizeSalesStatus("sales-order", value);
 
-  if (["Approved", "Completed", "Paid", "Validated", "Received"].includes(normalized)) {
+  if (["Approved", "Completed", "Paid", "Validated", "Received", "Delivered"].includes(normalized)) {
     return "bg-emerald-100 text-emerald-700 border-emerald-200";
   }
 
-  if (["Sent", "Confirmed", "Issued", "Shipped", "Invoiced"].includes(normalized)) {
+  if (["Sent", "Confirmed", "Issued", "Shipped", "Invoiced", "In Delivery", "Processed"].includes(normalized)) {
     return "bg-sky-100 text-sky-700 border-sky-200";
   }
 
-  if (["Processing", "Partially Paid", "Overdue"].includes(normalized)) {
+  if (["Processing", "Partially Paid", "Overdue", "Delivery Overdue"].includes(normalized)) {
     return "bg-amber-100 text-amber-700 border-amber-200";
   }
 

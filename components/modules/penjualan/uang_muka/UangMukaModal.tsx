@@ -28,6 +28,8 @@ import {
 } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import { SalesOrderPickerModal } from "@/components/modules/penjualan/SalesOrderPickerModal";
 
+export type { UangMukaFormData };
+
 type UangMukaInitialData = Partial<UangMukaFormData> & {
   orderId?: number;
   customer_id?: number;
