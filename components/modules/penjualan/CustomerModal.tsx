@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, User, Mail, Phone, MapPin, Hash, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface CustomerFormData {
@@ -51,11 +52,8 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true);
-        const response = await fetch("https://localhost:7283/api/category-customer");
-        if (!response.ok) {
-          throw new Error("Failed to fetch categories");
-        }
-        const data = await response.json();
+        const response = await api.get("/category-customer");
+        const data = response.data;
         setCategories(data.data);
       } catch (error) {
         console.error("Error fetching categories:", error);

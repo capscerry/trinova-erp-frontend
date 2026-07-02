@@ -1,110 +1,23 @@
-const BASE_URL =
-  `${process.env.NEXT_PUBLIC_API_URL}/master-product`;
+import { api } from "@/lib/api";
 
-// ─── Get Products ───────────────────────────────────────────────
+const BASE_URL = "/master-product";
+
 export async function getProducts() {
-  const response =
-    await fetch(BASE_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch products"
-    );
-  }
-
-  const result =
-    await response.json();
-
-  return result.data;
+  const response = await api.get(BASE_URL);
+  return response.data.data;
 }
 
-// ─── Create Product ────────────────────────────────────────────
-export async function createProduct(
-  data: any
-) {
-  console.log(
-    "PAYLOAD",
-    JSON.stringify(data, null, 2)
-  );
-
-  const response = await fetch(
-    BASE_URL,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-      body: JSON.stringify(data),
-    }
-  );
-
-  const result =
-    await response.json();
-
-  console.log(
-    "STATUS:",
-    response.status
-  );
-
-  console.log(
-    "RESPONSE:",
-    result
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      result.message ??
-      "Failed to create product"
-    );
-  }
-
-  return result;
+export async function createProduct(data: any) {
+  const response = await api.post(BASE_URL, data);
+  return response.data;
 }
 
-// ─── Update Product ────────────────────────────────────────────
-export async function updateProduct(
-  data: any
-) {
-  const response = await fetch(
-    BASE_URL,
-    {
-      method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
-      body: JSON.stringify(data),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to update product"
-    );
-  }
-
-  return response.json();
+export async function updateProduct(data: any) {
+  const response = await api.put(BASE_URL, data);
+  return response.data;
 }
 
-// ─── Delete Product ────────────────────────────────────────────
-export async function deleteProduct(
-  id: number
-) {
-  const response = await fetch(
-    `${BASE_URL}/${id}`,
-    {
-      method: "DELETE",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Delete failed: ${response.status}`
-    );
-  }
-
-  return response.json();
+export async function deleteProduct(id: number) {
+  const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
 }

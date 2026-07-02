@@ -1,12 +1,7 @@
-import axios from "axios";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL;
+import { api } from "@/lib/api";
 
 export async function getStockTransactions() {
-  const response = await axios.get(
-    `${API_URL}/StockTransaction`
-  );
+  const response = await api.get("/StockTransaction");
 
   return response.data;
 }

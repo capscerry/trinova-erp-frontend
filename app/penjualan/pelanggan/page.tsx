@@ -7,6 +7,7 @@ import {
 } from "@/components/modules/penjualan/CustomerModal";
 import { Column, DataTable, StatusBadge } from "@/components/ui";
 import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 interface Customer {
   id: number;
@@ -107,13 +108,8 @@ export default function CustomerPage() {
   const fetchCustomerData = async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://localhost:7283/api/customer");
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch customer data");
-      }
-
-      const result = await response.json();
+      const response = await api.get("/customer");
+      const result = response.data;
 
       const mappedData: Customer[] = (result.data || []).map(
         (item: CustomerApi) => ({
@@ -181,18 +177,7 @@ export default function CustomerPage() {
         categoryId: Number(formData.category),
       };
 
-      const response = await fetch("https://localhost:7283/api/customer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to add customer");
-      }
+      await api.post("/customer", payload);
 
       showToast("Customer berhasil ditambahkan", "success");
       setModalOpen(false);
@@ -220,18 +205,7 @@ export default function CustomerPage() {
         categoryId: Number(formData.category)
       }
 
-      const response = await fetch(`https://localhost:7283/api/customer/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to update customer')
-      }
+      await api.put(`/customer/${id}`, payload)
 
       showToast('Customer berhasil diupdate', 'success')
       handleCloseModal()
@@ -245,18 +219,8 @@ export default function CustomerPage() {
   }
 
   const toggleCustomerStatus = async (id: number) => {
-    const response = await fetch(
-      `https://localhost:7283/api/customer/${id}/status`,
-      {
-        method: "PATCH",
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to update customer status");
-    }
-
-    const result = await response.json();
+    const response = await api.patch(`/customer/${id}/status`);
+    const result = response.data;
     return result.status === true;
   };
 

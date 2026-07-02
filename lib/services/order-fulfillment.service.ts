@@ -1,17 +1,10 @@
-const BASE_URL =
-  `${process.env.NEXT_PUBLIC_API_URL}/OrderFulfillment`;
+import { api } from "@/lib/api";
+
+const BASE_URL = "/OrderFulfillment";
 
 export async function getOrderFulfillments() {
-  const response =
-    await fetch(BASE_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch order fulfillment"
-    );
-  }
-
-  return response.json();
+  const response = await api.get(BASE_URL);
+  return response.data;
 }
 
 export async function createOrderFulfillment(
@@ -22,21 +15,6 @@ export async function createOrderFulfillment(
     notes?: string;
   }
 ) {
-  const response =
-    await fetch(BASE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to create order fulfillment"
-    );
-  }
-
-  return response.json();
+  const response = await api.post(BASE_URL, payload);
+  return response.data;
 }

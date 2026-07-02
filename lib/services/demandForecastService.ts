@@ -1,22 +1,10 @@
-const BASE_URL =
-  `${process.env.NEXT_PUBLIC_API_URL}/DemandForecast`;
+import { api } from "@/lib/api";
+
+const BASE_URL = "/DemandForecast";
 
 export async function getDemandForecast() {
-  console.log("Calling:", BASE_URL);
-
-  const response = await fetch(BASE_URL);
-
-  console.log("Status:", response.status);
-
-  const result = await response.json();
-
-  console.log(result);
-
-  if (!response.ok) {
-    throw new Error(
-      result.message ?? "Failed to fetch demand forecast"
-    );
-  }
+  const response = await api.get(BASE_URL);
+  const result = response.data;
 
   return result.data ?? result;
 }

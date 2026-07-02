@@ -1,15 +1,8 @@
-const BASE_URL =
-  `${process.env.NEXT_PUBLIC_API_URL}/InventoryStock`;
+import { api } from "@/lib/api";
+
+const BASE_URL = "/InventoryStock";
 
 export async function getInventoryStocks() {
-  const response =
-    await fetch(BASE_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch inventory stocks"
-    );
-  }
-
-  return await response.json();
+  const response = await api.get(BASE_URL);
+  return response.data;
 }

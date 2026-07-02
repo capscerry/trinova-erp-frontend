@@ -1,5 +1,6 @@
-const BASE_URL =
-  `${process.env.NEXT_PUBLIC_API_URL}/product-subcategories`;
+import { api } from "@/lib/api";
+
+const BASE_URL = "/product-subcategories";
 
 export interface ProductSubcategory {
   subcategory_id: number;
@@ -24,64 +25,24 @@ export interface ProductSubcategory {
 
 // ─── Get Subcategories ───────────────────────────────────────────────
 export async function getSubcategories() {
-  const response =
-    await fetch(BASE_URL);
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch subcategories"
-    );
-  }
-
-  return response.json();
+  const response = await api.get(BASE_URL);
+  return response.data;
 }
 
 // ─── Get Subcategories By Category ──────────────────────────────────
 export async function getSubcategoriesByCategory(
   categoryId: number
 ) {
-  const response =
-    await fetch(
-      `${BASE_URL}/by-category/${categoryId}`
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      "Failed to fetch subcategories"
-    );
-  }
-
-  return response.json();
+  const response = await api.get(`${BASE_URL}/by-category/${categoryId}`);
+  return response.data;
 }
 
 // ─── Create Subcategory ─────────────────────────────────────────────
 export async function createSubcategory(
   data: any
 ) {
-  const response = await fetch(
-    BASE_URL,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
-      body: JSON.stringify(data),
-    }
-  );
-
-  const result =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result.message
-    );
-  }
-
-  return result;
+  const response = await api.post(BASE_URL, data);
+  return response.data;
 }
 
 // ─── Update Subcategory ─────────────────────────────────────────────
@@ -89,48 +50,14 @@ export async function updateSubcategory(
   id: number,
   data: any
 ) {
-  const response = await fetch(
-    `${BASE_URL}/${id}`,
-    {
-      method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-
-      body: JSON.stringify(data),
-    }
-  );
-
-  const result =
-    await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result.message
-    );
-  }
-
-  return result;
+  const response = await api.put(`${BASE_URL}/${id}`, data);
+  return response.data;
 }
 
 // ─── Delete Subcategory ─────────────────────────────────────────────
 export async function deleteSubcategory(
   id: number
 ) {
-  const response = await fetch(
-    `${BASE_URL}/${id}`,
-    {
-      method: "DELETE",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Delete failed: ${response.status}`
-    );
-  }
-
-  return response.json();
+  const response = await api.delete(`${BASE_URL}/${id}`);
+  return response.data;
 }
