@@ -7,12 +7,8 @@ import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
   ShieldCheck, Loader2, Check, ClipboardList, Search,
-<<<<<<< HEAD
-  CheckCircle2, AlertCircle, Clock, Trophy,
-=======
   CheckCircle2, AlertCircle, Clock, Trophy, Brain,
   BarChart2, Zap, RefreshCw,
->>>>>>> f1137e1 (recommendation panel added)
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
@@ -944,15 +940,6 @@ export default function PurchaseOrderFormModal({
                 </FormField>
               </div>
 
-<<<<<<< HEAD
-              {!isEdit && (
-                <div>
-                  <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    <Trophy size={11} className="text-gold-500" />
-                    Rekomendasi AHP-TOPSIS
-                  </div>
-                  <AhpTopsisBestPreview variant="light" showTitle={false} />
-=======
               {/* ── AHP-TOPSIS Supplier Recommendations (new PO only) ─────────── */}
               {!isEdit && !rankLoading && presetBests.length > 0 && (
                 <div className="rounded-xl border border-gold-200 bg-gradient-to-br from-gold-50 to-amber-50 p-4 space-y-3">
@@ -1026,7 +1013,6 @@ export default function PurchaseOrderFormModal({
                       <div key={i} className="h-[62px] bg-white/60 rounded-lg border border-gold-200 animate-pulse" />
                     ))}
                   </div>
->>>>>>> f1137e1 (recommendation panel added)
                 </div>
               )}
 

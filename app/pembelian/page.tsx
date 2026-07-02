@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { ModuleOverview } from "@/components/modules/ModuleOverview";
-<<<<<<< HEAD
 import { AhpTopsisBestPreview } from "@/components/modules/pembelian/AhpTopsisBestPreview";
-
-=======
->>>>>>> f1137e1 (recommendation panel added)
 import { NAV_CONFIG } from "@/lib/nav";
 import Link from "next/link";
 import {
