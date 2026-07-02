@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { ModuleOverview } from "@/components/modules/ModuleOverview";
 import { AhpTopsisBestPreview } from "@/components/modules/pembelian/AhpTopsisBestPreview";
 import { NAV_CONFIG } from "@/lib/nav";
+import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
 import {
   Brain, ArrowRight, TrendingUp, Clock, Trophy,
   ShoppingCart, Truck, Clock3, Building2,
-  BarChart2, Zap, CreditCard, RefreshCw,
+  BarChart2, Zap, CreditCard, RefreshCw, MoreVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,11 @@ import {
   PRIORITY_PRESETS,
 } from "@/lib/ahp-topsis";
 import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
+import {
+  EMPTY_PURCHASING_DASHBOARD,
+  purchasingDashboardService,
+  type PurchasingDashboard,
+} from "@/lib/services/purchasing-dashboard.service";
 
 // ─────────────────────────────────────────────────────────────
 // STATS (static placeholders for ModuleOverview)
@@ -168,9 +174,67 @@ const PRESET_ICON: Record<string, { icon: React.ElementType; iconColor: string }
 // PAGE
 // ─────────────────────────────────────────────────────────────
 
+const toValidDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDayName = (value?: string | null) =>
+  toValidDate(value)?.toLocaleDateString("id-ID", { weekday: "long" }) ?? "-";
+
+const formatDayNumber = (value?: string | null) =>
+  toValidDate(value)?.toLocaleDateString("id-ID", { day: "2-digit" }) ?? "--";
+
+const formatMonthName = (value?: string | null) =>
+  toValidDate(value)?.toLocaleDateString("id-ID", { month: "short" }) ?? "-";
+
+const formatTimeOnly = (value?: string | null) =>
+  toValidDate(value)?.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) ?? "--:--";
+
+const getDateKey = (value?: string | null) =>
+  toValidDate(value)?.toISOString().slice(0, 10) ?? "";
+
+const priorityClass: Record<string, string> = {
+  danger: "border-red-200 bg-red-50 text-red-700",
+  warning: "border-amber-200 bg-amber-50 text-amber-700",
+  normal: "border-slate-200 bg-slate-50 text-slate-600",
+};
+
+const getActivityHref = (refTable?: string | null, refId?: number | null) => {
+  if (!refTable || !refId) return null;
+
+  const routeMap: Record<string, string> = {
+    purchase_order: "/pembelian/po",
+    purchase_invoice: "/pembelian/invoice",
+    goods_receipt: "/pembelian/gr",
+    purchase_payment: "/pembelian/payment",
+    purchase_down_payment: "/pembelian/pdp",
+  };
+
+  return routeMap[refTable] ?? null;
+};
 export default function PembelianPage() {
+  const { user } = useAuth();
   const module = NAV_CONFIG.find((n) => n.id === "pembelian")!;
 
+  const [dashboard, setDashboard] = useState<PurchasingDashboard>(EMPTY_PURCHASING_DASHBOARD);
+  const [activityLoading, setActivityLoading] = useState(true);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setActivityLoading(true);
+      setDashboard(await purchasingDashboardService.getDashboard());
+    } catch (error) {
+      console.error("Gagal memuat dashboard purchasing:", error);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
   const [presetBests, setPresetBests] = useState<PresetBest[]>([]);
   const [rankLoading, setRankLoading] = useState(true);
 
@@ -355,7 +419,112 @@ export default function PembelianPage() {
 
         </div>
       </Link>
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+          <div className="flex h-10 items-center justify-between border-b border-slate-200 px-4">
+            <p className="truncate text-base font-semibold text-slate-900">
+              Aktivitas Terakhir Anda{user?.email ? ` (${user.email})` : ""}
+            </p>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={fetchDashboard} disabled={activityLoading} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-900 transition-colors hover:bg-slate-100 disabled:opacity-50" aria-label="Refresh aktivitas terakhir">
+                <RefreshCw size={19} className={activityLoading ? "animate-spin" : ""} />
+              </button>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100" aria-label="Menu aktivitas terakhir">
+                <MoreVertical size={18} />
+              </button>
+            </div>
+          </div>
 
+          <div className="h-[245px] overflow-y-auto px-4 py-3">
+            {activityLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />)}
+              </div>
+            ) : dashboard.recentActivities.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-lg italic text-slate-500">Tidak ada aktivitas</p>
+              </div>
+            ) : (
+              <div>
+                {dashboard.recentActivities.map((item, index) => {
+                  const href = getActivityHref(item.refTable, item.refId);
+                  const dateKey = getDateKey(item.createdAt);
+                  const previousDateKey = index > 0 ? getDateKey(dashboard.recentActivities[index - 1]?.createdAt) : "";
+                  const showDate = index === 0 || dateKey !== previousDateKey;
+                  const content = (
+                    <div className="group grid grid-cols-[72px_1fr] gap-3">
+                      <div className="pt-1 text-slate-600">
+                        {showDate && <><p className="text-sm">{formatDayName(item.createdAt)}</p><p className="leading-none text-[44px] font-light">{formatDayNumber(item.createdAt)}</p><p className="-mt-1 text-2xl">{formatMonthName(item.createdAt)}</p></>}
+                      </div>
+                      <div className="relative border-l border-slate-200 pb-7 pl-8">
+                        <span className="absolute -left-[7px] top-2 h-3.5 w-3.5 rounded-full border border-blue-500 bg-blue-100" />
+                        <div className="grid grid-cols-[56px_1fr] gap-2">
+                          <p className="text-sm font-bold text-slate-900">{formatTimeOnly(item.createdAt)}</p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-slate-600 group-hover:text-slate-900">{item.title}</p>
+                            {(item.description || item.refNumber) && <p className="mt-1 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+
+                  return href ? <Link key={item.id} href={href} className="block">{content}</Link> : <div key={item.id}>{content}</div>;
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+          <div className="flex h-10 items-center justify-between border-b border-slate-200 px-4">
+            <p className="truncate text-base font-semibold text-slate-900">Kegiatan Mendatang</p>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={fetchDashboard} disabled={activityLoading} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-900 transition-colors hover:bg-slate-100 disabled:opacity-50" aria-label="Refresh kegiatan mendatang">
+                <RefreshCw size={19} className={activityLoading ? "animate-spin" : ""} />
+              </button>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100" aria-label="Menu kegiatan mendatang">
+                <MoreVertical size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="h-[245px] overflow-y-auto px-4 py-4">
+            {activityLoading ? (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-md bg-slate-100" />)}
+              </div>
+            ) : dashboard.upcomingActivities.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-lg italic text-slate-500">Tidak ada kegiatan</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dashboard.upcomingActivities.map((item, index) => {
+                  const href = getActivityHref(item.refTable, item.refId);
+                  const badgeClass = priorityClass[item.priority] ?? priorityClass.normal;
+                  const content = (
+                    <div className="grid grid-cols-[64px_1fr] gap-4 rounded-lg border border-slate-100 px-3 py-3 transition-colors hover:bg-slate-50">
+                      <div className="text-slate-600"><p className="text-sm">{formatDayName(item.activityDate)}</p><p className="leading-none text-3xl font-light">{formatDayNumber(item.activityDate)}</p><p className="text-sm">{formatMonthName(item.activityDate)}</p></div>
+                      <div className="min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                            {(item.description || item.refNumber) && <p className="mt-1 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
+                          </div>
+                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${badgeClass}`}>{item.priority}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+
+                  return href ? <Link key={`${item.activityType}-${item.refId ?? index}-${item.activityDate}`} href={href} className="block">{content}</Link> : <div key={`${item.activityType}-${index}`}>{content}</div>;
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </AppShell>
   );
 }
