@@ -18,8 +18,6 @@ export interface UangMukaFormData {
   totalHargaPesanan: number;
   isTaxable: boolean;
   isTaxIncluded: boolean;
-  kenaPajak?: boolean;
-  totalTermasukPajak?: boolean;
   taxAmount: number;
 }
 
@@ -33,8 +31,6 @@ export interface UangMukaPayload {
   nominalUangMuka: number;
   isTaxable: boolean;
   isTaxIncluded: boolean;
-  kenaPajak?: boolean;
-  totalTermasukPajak?: boolean;
   taxAmount: number;
   totalAmount: number;
   syaratPembayaran: string;

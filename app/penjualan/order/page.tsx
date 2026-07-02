@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
@@ -151,10 +151,9 @@ function SalesOrderPageInner() {
           statusKey: "status",
           statusOptions: SALES_STATUS_OPTIONS["sales-order"],
         }}
-        dateField="tanggal"
-        nameField="pelanggan"
-        isLoading={isLoading}
-        className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"        renderActions={(row) => (
+        className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
+        // isLoading={isLoading}
+        renderActions={(row) => (
           <div className="flex items-center justify-center">
             <button
               onClick={() => handleDetail(row)}
@@ -171,4 +170,3 @@ function SalesOrderPageInner() {
     </AppShell>
   );
 }
-

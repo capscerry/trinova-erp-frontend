@@ -18,7 +18,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   type SalesQuotation,
-  type QuotationStatus,
   type SalesQuotationFormData,
   salesQuotationService,
 } from "@/lib/services/penjualan.service";
@@ -481,16 +480,13 @@ export default function SalesQuotationPage() {
                         module="quotation"
                         id={row.id}
                         value={row.status}
-                        onUpdated={(status) => {
-                          const nextStatus = status as QuotationStatus;
+                        onUpdated={(status) =>
                           setData((current) =>
                             current.map((item) =>
-                              item.id === row.id
-                                ? { ...item, status: nextStatus }
-                                : item
+                              item.id === row.id ? { ...item, status } : item
                             )
-                          );
-                        }}
+                          )
+                        }
                       />
                     </td>
 
