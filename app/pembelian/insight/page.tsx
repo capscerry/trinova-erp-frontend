@@ -890,42 +890,113 @@ export default function PurchasingInsightPage() {
     <AppShell title="AI Purchasing Insight" subtitle="Analitik pembelian berbasis AHP & TOPSIS">
 
       {/* ── Hero header ──────────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-6 mb-6 flex items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-400/15 text-gold-400 text-[11px] font-bold uppercase tracking-widest mb-3">
-            <Brain size={12} />
-            AI Purchasing Insight
+      <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-6 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-400/15 text-gold-400 text-[11px] font-bold uppercase tracking-widest mb-3">
+              <Brain size={12} />
+              AI Purchasing Insight
+            </div>
+            <h1 className="text-xl font-bold text-white font-serif leading-tight">
+              Analisis Penuh Performa Pembelian
+            </h1>
+            <p className="text-slate-300 text-[13px] mt-1 max-w-xl">
+              Penilaian supplier, tren pembelian bulanan, estimasi pengiriman aktual vs target,
+              kesehatan pembayaran, diversifikasi, dan produk perlu restok — semua dari data transaksi nyata.
+            </p>
           </div>
-          <h1 className="text-xl font-bold text-white font-serif leading-tight">
-            Analisis Penuh Performa Pembelian
-          </h1>
-          <p className="text-slate-300 text-[13px] mt-1 max-w-xl">
-            Penilaian supplier, tren pembelian bulanan, estimasi pengiriman aktual vs target,
-            kesehatan pembayaran, diversifikasi, dan produk perlu restok — semua dari data transaksi nyata.
-          </p>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <button
+              onClick={fetchAll}
+              disabled={loading}
+              className="flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+            >
+              <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+              {lastUpdated
+                ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
+                : "Refresh"}
+            </button>
+            <Link
+              href="/rekomendasi"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold-400 text-navy-900 text-[11px] font-bold hover:bg-gold-300 transition-colors"
+            >
+              <Brain size={11} />
+              Kalkulator Rekomendasi AI
+            </Link>
+            <Link href="/pembelian" className="text-[11px] text-slate-500 hover:text-gold-400 transition-colors flex items-center gap-1">
+              ← Kembali ke Pembelian
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <button
-            onClick={fetchAll}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-white transition-colors disabled:opacity-40"
-          >
-            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            {lastUpdated
-              ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
-              : "Refresh"}
-          </button>
-          <Link
-            href="/rekomendasi"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gold-400 text-navy-900 text-[11px] font-bold hover:bg-gold-300 transition-colors"
-          >
-            <Brain size={11} />
-            Kalkulator Rekomendasi AI
-          </Link>
-          <Link href="/pembelian" className="text-[11px] text-slate-500 hover:text-gold-400 transition-colors flex items-center gap-1">
-            ← Kembali ke Pembelian
-          </Link>
-        </div>
+
+        {/* ── AHP-TOPSIS Best Supplier Preview ─────────────────────────────────── */}
+        {!rankLoading && ahpRankings.length > 0 && (
+          <div className="mt-5 pt-5 border-t border-white/10">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy size={11} className="text-gold-400" />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-gold-400">
+                Skor AHP + TOPSIS — Supplier Terbaik Per Prioritas
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {ahpRankings.map((preset) => {
+                const best = preset.results[0];
+                if (!best) return null;
+                const presetStyle = PRESET_STYLE[preset.key] ?? PRESET_STYLE.balanced;
+                const Icon = presetStyle.icon;
+                return (
+                  <div
+                    key={preset.key}
+                    className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center shrink-0">
+                        <Icon size={10} className="text-gold-400" />
+                      </div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-300 truncate">
+                        {preset.label}
+                      </p>
+                    </div>
+                    <p className="font-serif font-bold text-white text-[13px] leading-tight truncate mb-1.5">
+                      {best.name}
+                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gold-400 text-navy-900 text-[9px] font-extrabold">
+                          1
+                        </span>
+                        <span className="text-[10px] font-bold text-gold-400 tabular-nums">
+                          {best.score.toFixed(4)}
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-slate-400">Ci Score</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {rankLoading && (
+          <div className="mt-5 pt-5 border-t border-white/10">
+            <div className="flex items-center gap-2 mb-3">
+              <RefreshCw size={11} className="text-gold-400 animate-spin" />
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-gold-400">
+                Memproses Ranking AHP-TOPSIS...
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-3 animate-pulse">
+                  <div className="h-4 bg-white/10 rounded w-2/3 mb-2" />
+                  <div className="h-5 bg-white/10 rounded w-full mb-2" />
+                  <div className="h-3 bg-white/10 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Top KPI row ──────────────────────────────────────────────────────── */}
