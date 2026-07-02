@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getNextGRNumber } from "@/lib/services/gr.service";
 
 import {
   X,
@@ -9,6 +10,11 @@ import {
   Package,
   User,
   ToggleLeft,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  CreditCard,
+  ArrowRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -16,6 +22,9 @@ import { cn } from "@/lib/utils";
 interface PurchaseOrder {
   purchase_order_id: number;
   po_number: string;
+  expected_date?: string | null;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -32,6 +41,8 @@ export interface GoodsReceiptFormData {
   receipt_date: string;
   received_by: string;
   status: string;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface GoodsReceiptFormModalProps {
@@ -41,15 +52,18 @@ interface GoodsReceiptFormModalProps {
 
   purchaseOrders: PurchaseOrder[];
   purchaseOrderDetails: PurchaseOrderDetail[];
+  /** When set, pre-selects this PO on open (used from Option A replacement flow) */
+  initialPOId?: number;
+  /** Pre-filled receipt number (auto-fetched by parent for Option A) */
+  nextGRNumber?: string;
+  /** Navigate to Purchase Payment page after saving */
+  onNavigateToPayment?: () => void;
 }
 
 const todayStr = () =>
   new Date().toISOString().split("T")[0];
 
-const generateReceiptNumber = () =>
-  `GR-${new Date().getFullYear()}-${Math.floor(
-    Math.random() * 9000
-  ) + 1000}`;
+
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -62,38 +76,78 @@ export default function GoodsReceiptFormModal({
   onSubmit,
   purchaseOrders,
   purchaseOrderDetails,
+  initialPOId,
+  nextGRNumber,
+  onNavigateToPayment,
 }: GoodsReceiptFormModalProps) {
+
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const [selectedDetails, setSelectedDetails] =
     useState<PurchaseOrderDetail[]>([]);
 
+  const [selectedExpectedDate, setSelectedExpectedDate] =
+    useState<string | null>(null);
+
   const [form, setForm] =
     useState<GoodsReceiptFormData>({
       purchase_order_id: "",
-      receipt_number:
-        generateReceiptNumber(),
+      receipt_number: "",
       receipt_date: todayStr(),
       received_by: "",
       status: "Received",
+      transaction_name: "",
+      transaction_detail: "",
     });
 
   useEffect(() => {
 
-    if (open) {
+    if (!open) return;
 
-      setForm({
-        purchase_order_id: "",
-        receipt_number:
-          generateReceiptNumber(),
-        receipt_date: todayStr(),
-        received_by: "",
-        status: "Received",
-      });
+    setIsSubmitted(false);
 
-      setSelectedDetails([]);
+    const prefillPOId = initialPOId ? String(initialPOId) : "";
+
+    setForm({
+      purchase_order_id: prefillPOId,
+      receipt_number: "",
+      receipt_date: todayStr(),
+      received_by: "",
+      status: "Received",
+      transaction_name: "",
+      transaction_detail: "",
+    });
+
+    setSelectedDetails([]);
+    setSelectedExpectedDate(null);
+
+    // Use parent-supplied number if provided; otherwise fetch from backend
+    if (nextGRNumber) {
+      setForm(prev => ({ ...prev, receipt_number: nextGRNumber, purchase_order_id: prefillPOId }));
+    } else {
+      getNextGRNumber()
+        .then(res => setForm(prev => ({
+          ...prev,
+          receipt_number: res?.receipt_number ?? res?.next_number ?? "",
+          purchase_order_id: prefillPOId,
+        })))
+        .catch(() => { /* leave blank if endpoint not available */ });
     }
 
-  }, [open]);
+    // Pre-select details if initialPOId was given
+    if (initialPOId) {
+      const filtered = purchaseOrderDetails.filter(
+        (item) => Number(item.purchase_order_id) === initialPOId
+      );
+      setSelectedDetails(filtered);
+
+      const selectedPO = purchaseOrders.find(
+        (po) => po.purchase_order_id === initialPOId
+      );
+      setSelectedExpectedDate(selectedPO?.expected_date ?? null);
+    }
+
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setField = <
     K extends keyof GoodsReceiptFormData
@@ -112,10 +166,18 @@ export default function GoodsReceiptFormModal({
     purchaseOrderId: string
   ) => {
 
-    setField(
-      "purchase_order_id",
-      purchaseOrderId
+    const selectedPO = purchaseOrders.find(
+      (po) => String(po.purchase_order_id) === purchaseOrderId
     );
+
+    setSelectedExpectedDate(selectedPO?.expected_date ?? null);
+
+    setForm((prev) => ({
+      ...prev,
+      purchase_order_id: purchaseOrderId,
+      transaction_name: selectedPO?.transaction_name ?? prev.transaction_name,
+      transaction_detail: selectedPO?.transaction_detail ?? prev.transaction_detail,
+    }));
 
     const filtered =
       purchaseOrderDetails.filter(
@@ -128,6 +190,23 @@ export default function GoodsReceiptFormModal({
   };
 
   if (!open) return null;
+
+  // Sort newest-first by purchase_order_id
+  const sortedPOs = [...purchaseOrders].sort(
+    (a, b) => b.purchase_order_id - a.purchase_order_id
+  );
+
+  // ── On-time indicator derived from receipt_date vs expected_date ──
+  type OnTimeStatus = "on_time" | "late" | "unknown";
+  const onTimeStatus: OnTimeStatus = (() => {
+    if (!selectedExpectedDate || !form.receipt_date) return "unknown";
+    return form.receipt_date <= selectedExpectedDate ? "on_time" : "late";
+  })();
+
+  const formatDateId = (d: string) =>
+    new Intl.DateTimeFormat("id-ID", {
+      day: "2-digit", month: "long", year: "numeric",
+    }).format(new Date(d));
 
   return (
     <>
@@ -216,16 +295,17 @@ export default function GoodsReceiptFormModal({
                   <input
                     readOnly
                     value={form.receipt_number}
+                    placeholder="Otomatis"
                     className={cn(
                       inputBase,
-                      "bg-slate-50 text-slate-500"
+                      "bg-slate-50 text-slate-500 placeholder-slate-400"
                     )}
                   />
 
                 </FormField>
 
                 <FormField
-                  label="Tanggal"
+                  label="Tanggal Terima"
                   icon={<Calendar size={13} />}
                 >
 
@@ -244,6 +324,52 @@ export default function GoodsReceiptFormModal({
                 </FormField>
 
               </div>
+
+              {/* Tanggal Ekspektasi reference — shown once a PO is selected */}
+              {selectedExpectedDate && (
+                <div className={cn(
+                  "rounded-xl border px-4 py-3 flex items-start gap-3",
+                  onTimeStatus === "on_time"
+                    ? "bg-emerald-50 border-emerald-200"
+                    : onTimeStatus === "late"
+                    ? "bg-rose-50 border-rose-200"
+                    : "bg-slate-50 border-slate-200"
+                )}>
+                  <div className="mt-0.5 shrink-0">
+                    {onTimeStatus === "on_time" && <CheckCircle2 size={15} className="text-emerald-600" />}
+                    {onTimeStatus === "late"    && <AlertCircle  size={15} className="text-rose-500" />}
+                    {onTimeStatus === "unknown" && <Clock        size={15} className="text-slate-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-xs font-bold uppercase tracking-wide",
+                      onTimeStatus === "on_time" ? "text-emerald-700"
+                        : onTimeStatus === "late" ? "text-rose-600"
+                        : "text-slate-500"
+                    )}>
+                      Tanggal Ekspektasi (dari PO)
+                    </p>
+                    <p className={cn(
+                      "text-sm font-semibold mt-0.5",
+                      onTimeStatus === "on_time" ? "text-emerald-800"
+                        : onTimeStatus === "late" ? "text-rose-700"
+                        : "text-slate-700"
+                    )}>
+                      {formatDateId(selectedExpectedDate)}
+                    </p>
+                    {onTimeStatus !== "unknown" && (
+                      <p className={cn(
+                        "text-xs mt-1",
+                        onTimeStatus === "on_time" ? "text-emerald-600" : "text-rose-500"
+                      )}>
+                        {onTimeStatus === "on_time"
+                          ? "Penerimaan tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                          : "Penerimaan terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <FormField
                 label="Purchase Order"
@@ -264,13 +390,14 @@ export default function GoodsReceiptFormModal({
                     Pilih Purchase Order
                   </option>
 
-                  {purchaseOrders.map((po) => (
+                  {sortedPOs.map((po) => (
 
                     <option
                       key={po.purchase_order_id}
                       value={po.purchase_order_id}
                     >
                       {po.po_number}
+                      {po.transaction_name ? ` | ${po.transaction_name}` : ""}
                     </option>
 
                   ))}
@@ -351,6 +478,24 @@ export default function GoodsReceiptFormModal({
                 </div>
 
               </FormField>
+
+              {(form.transaction_name || form.transaction_detail) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Transaction Info (dari PO)
+                  </p>
+                  {form.transaction_name && (
+                    <p className="text-sm font-semibold text-slate-700">
+                      {form.transaction_name}
+                    </p>
+                  )}
+                  {form.transaction_detail && (
+                    <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                      {form.transaction_detail}
+                    </p>
+                  )}
+                </div>
+              )}
 
             </Section>
 
@@ -463,56 +608,80 @@ export default function GoodsReceiptFormModal({
 
           {/* FOOTER */}
 
-          <div
-            className="
-              flex
-              items-center
-              justify-end
-              gap-2
-              px-6
-              py-4
-              border-t
-              border-slate-100
-              bg-slate-50/60
-            "
-          >
+          <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
 
-            <button
-              onClick={onClose}
-              className="
-                px-4
-                py-2
-                text-sm
-                font-semibold
-                text-slate-600
-                bg-white
-                border
-                border-slate-200
-                rounded-lg
-              "
-            >
-              Batal
-            </button>
+            {isSubmitted && onNavigateToPayment ? (
+              <>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Lanjutkan Ke
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToPayment();
+                  }}
+                  className="flex items-center gap-4 w-full p-3.5 rounded-xl border text-left transition-all bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/70 shrink-0">
+                    <CreditCard size={15} className="text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-800">Purchase Payment</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">Catat pembayaran ke supplier</p>
+                  </div>
+                  <ArrowRight size={13} className="text-emerald-600 shrink-0" />
+                </button>
+                <div className="flex justify-start">
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={onClose}
+                  className="
+                    px-4
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-slate-600
+                    bg-white
+                    border
+                    border-slate-200
+                    rounded-lg
+                    hover:bg-slate-100
+                    transition-colors
+                  "
+                >
+                  Batal
+                </button>
 
-            <button
-              onClick={() => {
-
-                onSubmit(form);
-
-                onClose();
-              }}
-              className="
-                px-5
-                py-2
-                text-sm
-                font-semibold
-                text-gold-400
-                bg-navy-900
-                rounded-lg
-              "
-            >
-              Simpan Goods Receipt
-            </button>
+                <button
+                  onClick={async () => {
+                    await onSubmit(form);
+                    setIsSubmitted(true);
+                  }}
+                  className="
+                    px-5
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-gold-400
+                    bg-navy-900
+                    hover:bg-navy-700
+                    rounded-lg
+                    transition-colors
+                  "
+                >
+                  Simpan Goods Receipt
+                </button>
+              </div>
+            )}
 
           </div>
 

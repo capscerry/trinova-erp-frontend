@@ -1,4 +1,4 @@
-import type { NavModule } from "@/types";
+﻿import type { NavModule } from "@/types";
 import type { Role } from "@/types/auth";
 
 // Tambah allowedRoles: role mana saja yang boleh akses modul ini
@@ -38,13 +38,13 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Operasional",
         items: [
-          { id: "penjualan.order",      label: "Sales Quotations", href: "/penjualan/quotation" },
-          { id: "penjualan.order_list", label: "Sales Orders",     href: "/penjualan/order" },
-          { id: "penjualan.invoice",    label: "Sales Invoices",         href: "/penjualan/invoice" },
-          { id: "penjualan.retur",      label: "Sales Returns",   href: "/penjualan/retur" },
-          { id: "penjualn.uang_muka", label  : "Sales Down Payments" , href : "/penjualan/uang-muka"},
-          { id: "penjualan.pengiriman_penjualan", label : "Delivery Orders", href : "/penjualan/pengiriman-penjualan"},
-          {id : "penjualan.penerimaan_penjualan", label : "Sales Receipts", href : "/penjualan/penerimaan-penjualan"}
+          { id: "penjualan.order", label: "Sales Quotations", href: "/penjualan/quotation" },
+          { id: "penjualan.order_list", label: "Sales Orders", href: "/penjualan/order" },
+          { id: "penjualan.invoice", label: "Sales Invoices", href: "/penjualan/invoice" },
+          { id: "penjualan.retur", label: "Sales Returns", href: "/penjualan/retur" },
+          { id: "penjualn.uang_muka", label: "Sales Down Payments", href: "/penjualan/uang-muka" },
+          { id: "penjualan.pengiriman_penjualan", label: "Delivery Orders", href: "/penjualan/pengiriman-penjualan" },
+          { id: "penjualan.penerimaan_penjualan", label: "Sales Receipts", href: "/penjualan/penerimaan-penjualan" }
         ],
       },
     ],
@@ -57,20 +57,34 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
       {
         group: "Master Data",
         items: [
-          { id: "pembelian.supplier", label: "Supplier",          href: "/pembelian/supplier" },
           { id: "pembelian.produk",   label: "Supplier Category", href: "/pembelian/category-supplier" },
+          { id: "pembelian.supplier", label: "Supplier",          href: "/pembelian/supplier" },
         ],
       },
       {
         group: "Operasional",
         items: [
-          { id: "pembelian.po",         label: "Purchase Order",   href: "/pembelian/po" },
-          { id: "pembelian.penerimaan", label: "Goods Receipt",    href: "/pembelian/gr" },
-          { id: "pembelian.invoice",    label: "Purchase Invoice", href: "/pembelian/invoice" },
-          { id: "pembelian.retur",      label: "Purchase Returns", href: "/pembelian/retur" },
+          { id: "pembelian.po",         label: "Purchase Order",       href: "/pembelian/po" },
+          { id: "pembelian.dp",         label: "Purchase Down Payment", href: "/pembelian/pdp" },
+          { id: "pembelian.penerimaan", label: "Goods Receipt",        href: "/pembelian/gr" },
+          { id: "pembelian.invoice",    label: "Purchase Invoice",     href: "/pembelian/invoice" },
+          { id: "pembelian.payment",    label: "Purchase Payment",      href: "/pembelian/payment" },
+          { id: "pembelian.retur",      label: "Purchase Returns",     href: "/pembelian/retur" },
+        ],
+      },
+      {
+        group: "AI & Analitik",
+        items: [
+          { id: "pembelian.insight", label: "AI Purchasing Insight", href: "/pembelian/insight" },
         ],
       },
     ],
+  },
+  {
+    id: "rekomendasi",
+    label: "Rekomendasi AI",
+    href: "/rekomendasi",
+    allowedRoles: ["admin", "penjualan", "pembelian", "persediaan"],
   },
   {
     id: "persediaan",
@@ -108,3 +122,4 @@ export function getNavForRole(role: Role) {
   if (role === "admin") return NAV_CONFIG;
   return NAV_CONFIG.filter((m) => m.allowedRoles.includes(role));
 }
+

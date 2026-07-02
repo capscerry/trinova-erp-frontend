@@ -10,12 +10,16 @@ interface GoodsReceipt {
   supplier_id: number;
   supplier_name: string;
   total_amount: number;
+  transaction_name?: string;
+  transaction_detail?: string;
 }
 
 export interface PurchaseInvoiceFormData {
   goods_receipt_id: number;
   supplier_id: number;
   total_amount: number;
+  transaction_name: string;
+  transaction_detail: string;
 }
 
 interface PurchaseInvoiceFormModalProps {
@@ -49,6 +53,8 @@ export default function PurchaseInvoiceFormModal({
       goods_receipt_id: 0,
       supplier_id: 0,
       total_amount: 0,
+      transaction_name: "",
+      transaction_detail: "",
     });
 
     const [status, setStatus] =
@@ -62,6 +68,8 @@ export default function PurchaseInvoiceFormModal({
         goods_receipt_id: 0,
         supplier_id: 0,
         total_amount: 0,
+        transaction_name: "",
+        transaction_detail: "",
       });
       setStatus(currentStatus);
 
@@ -70,6 +78,11 @@ export default function PurchaseInvoiceFormModal({
   }, [open]);
 
   if (!open) return null;
+
+  // Sort newest-first by goods_receipt_id
+  const sortedGRs = [...goodsReceipts].sort(
+    (a, b) => b.goods_receipt_id - a.goods_receipt_id
+  );
 
   const selectedGR =
     goodsReceipts.find(
@@ -179,6 +192,12 @@ export default function PurchaseInvoiceFormModal({
 
                     total_amount:
                       selected.total_amount,
+
+                    transaction_name:
+                      selected.transaction_name ?? "",
+
+                    transaction_detail:
+                      selected.transaction_detail ?? "",
                   });
 
                 }}
@@ -189,7 +208,7 @@ export default function PurchaseInvoiceFormModal({
                   Pilih Goods Receipt
                 </option>
 
-                {goodsReceipts.map(
+                {sortedGRs.map(
                   (gr) => (
 
                     <option
@@ -201,6 +220,7 @@ export default function PurchaseInvoiceFormModal({
                       }
                     >
                       {gr.receipt_number}
+                      {gr.transaction_name ? ` | ${gr.transaction_name}` : ""}
                     </option>
 
                   )
@@ -240,6 +260,24 @@ export default function PurchaseInvoiceFormModal({
               />
 
             </FormField>
+
+            {(form.transaction_name || form.transaction_detail) && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Transaction Info (dari GR)
+                </p>
+                {form.transaction_name && (
+                  <p className="text-sm font-semibold text-slate-700">
+                    {form.transaction_name}
+                  </p>
+                )}
+                {form.transaction_detail && (
+                  <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                    {form.transaction_detail}
+                  </p>
+                )}
+              </div>
+            )}
 
           </div>
 

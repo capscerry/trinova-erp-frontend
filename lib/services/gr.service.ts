@@ -2,11 +2,13 @@ import { api } from "../api";
 
 // GET ALL GR
 export const getGoodsReceipts = async () => {
+  const res = await api.get("/goods-receipt");
+  return res.data;
+};
 
-  const res = await api.get(
-    "/goods-receipt"
-  );
-
+// GET NEXT GR NUMBER
+export const getNextGRNumber = async () => {
+  const res = await api.get("/goods-receipt/next-number");
   return res.data;
 };
 

@@ -6,6 +6,11 @@ export const getPurchaseOrders = async () => {
   return res.data;
 };
 
+export const getNextPONumber = async () => {
+  const res = await api.get("/purchase-order/next-number");
+  return res.data;
+};
+
 export const createPurchaseOrder = async (
   payload: any
 ) => {
@@ -36,6 +41,17 @@ export const deletePurchaseOrder = async (
     `/purchase-order/${id}`
   );
 
+  return res.data;
+};
+
+/**
+ * Approve a PO via the dedicated backend endpoint.
+ * The backend atomically transitions Draft → Approved and deducts
+ * available_stock on every supplier-product line. Rolls back if any
+ * line has insufficient stock.
+ */
+export const approvePurchaseOrder = async (id: number) => {
+  const res = await api.patch(`/purchase-order/${id}/approve`);
   return res.data;
 };
 

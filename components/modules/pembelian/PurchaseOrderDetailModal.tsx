@@ -6,7 +6,11 @@ import {
   Building2,
   Package,
   ReceiptText,
+  CalendarClock,
+  Scissors,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx-js-style";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -23,7 +27,15 @@ interface PurchaseOrderItem {
 
   price: number;
 
+  tax_percent: number;
+
+  tax_amount: number;
+
   subtotal: number;
+
+  available_stock?: number;
+
+  lead_time_days?: number;
 }
 
 interface PurchaseOrderDetailData {
@@ -33,9 +45,18 @@ interface PurchaseOrderDetailData {
 
   order_date: string;
 
+  expected_date?: string | null;
+
   status: string;
 
   items: PurchaseOrderItem[];
+
+  /** Stored total from the DB — may be lower than items sum if a purchase return deduction was applied */
+  total_amount?: number;
+
+  transaction_name?: string;
+
+  transaction_detail?: string;
 }
 
 interface PurchaseOrderDetailModalProps {
@@ -88,12 +109,174 @@ export default function PurchaseOrderDetailModal({
     return null;
   }
 
-  const grandTotal =
+  const itemsTotal =
     data.items.reduce(
       (acc, item) =>
         acc + item.subtotal,
       0
     );
+
+  // Use the stored DB total when available — it will be lower than itemsTotal
+  // if a purchase return deduction (Replacement / Next PO Deduction) was applied.
+  const storedTotal = data.total_amount ?? itemsTotal;
+  const returnDeduction = itemsTotal > storedTotal ? itemsTotal - storedTotal : 0;
+
+  // ── Export to Excel ────────────────────────────────────────────────────
+  const exportToExcel = () => {
+    const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
+    const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
+    const WHITE = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+    const MED   = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
+    const THIN  = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
+
+    const sTitle    = { font: { bold: true, sz: 18, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrLbl   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "left",   vertical: "center" }, fill: NAVY, border: MED };
+    const sHdrVal   = { font: { sz: 10, color: { rgb: "1E3A5F" } },             alignment: { horizontal: "left",   vertical: "center" }, fill: LGRAY, border: MED };
+    const sColHdr   = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, fill: NAVY, border: MED };
+    const sCell     = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "center", vertical: "center" }, fill: WHITE, border: THIN };
+    const sCellLeft = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "left",   vertical: "center", wrapText: true }, fill: WHITE, border: THIN };
+    const sCellRight= { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right",  vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+    const sFootLbl  = { font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED };
+    const sFootVal  = { font: { bold: true, sz: 11, color: { rgb: "F5C518" } }, alignment: { horizontal: "right", vertical: "center" }, fill: NAVY, border: MED, numFmt: '#,##0' };
+    const sBlankN   = { fill: NAVY,  border: MED  };
+    const sBlankT   = { fill: WHITE, border: THIN };
+
+    const ws: XLSX.WorkSheet = {};
+    const COLS = 6;
+    const C = (row: number, col: number) => XLSX.utils.encode_cell({ r: row, c: col });
+    const merges: XLSX.Range[] = [];
+    let r = 0;
+
+    // Row 0: title
+    ws[C(r, 0)] = { v: "PURCHASE ORDER", t: "s", s: sTitle };
+    for (let c = 1; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sTitle };
+    merges.push({ s: { r, c: 0 }, e: { r, c: COLS - 1 } });
+    r++;
+
+    // Row 1: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 2: DATE
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "DATE",    t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: formatDate(data.order_date), t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 3: PO NUMBER
+    ws[C(r, 0)] = { v: "", t: "s" }; ws[C(r, 1)] = { v: "", t: "s" }; ws[C(r, 2)] = { v: "", t: "s" };
+    ws[C(r, 3)] = { v: "PO NUMBER", t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: data.po_number, t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "", t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 4 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 4: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 5: SUPPLIER / STATUS labels
+    ws[C(r, 0)] = { v: "SUPPLIER", t: "s", s: sHdrLbl };
+    ws[C(r, 1)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 2)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 3)] = { v: "STATUS",   t: "s", s: sHdrLbl };
+    ws[C(r, 4)] = { v: "",         t: "s", s: sHdrLbl };
+    ws[C(r, 5)] = { v: "",         t: "s", s: sHdrLbl };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 6: supplier name / status value
+    ws[C(r, 0)] = { v: data.supplier_name, t: "s", s: sHdrVal };
+    ws[C(r, 1)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 3)] = { v: data.status,        t: "s", s: sHdrVal };
+    ws[C(r, 4)] = { v: "",                 t: "s", s: sHdrVal };
+    ws[C(r, 5)] = { v: "",                 t: "s", s: sHdrVal };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 2 } });
+    merges.push({ s: { r, c: 3 }, e: { r, c: 5 } });
+    r++;
+
+    // Row 7: spacer
+    for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+    r++;
+
+    // Row 8: items table headers
+    ws[C(r, 0)] = { v: "NO.",          t: "s", s: sColHdr };
+    ws[C(r, 1)] = { v: "DESCRIPTION",  t: "s", s: sColHdr };
+    ws[C(r, 2)] = { v: "",             t: "s", s: sColHdr };
+    ws[C(r, 3)] = { v: "QTY",          t: "s", s: sColHdr };
+    ws[C(r, 4)] = { v: "UNIT PRICE",   t: "s", s: sColHdr };
+    ws[C(r, 5)] = { v: "TOTAL (Rp)",   t: "s", s: sColHdr };
+    merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+    r++;
+
+    // Item rows
+    const itemStartR = r;
+    data.items.forEach((item, i) => {
+      ws[C(r, 0)] = { v: i + 1,            t: "n", s: sCell };
+      ws[C(r, 1)] = { v: item.product_name, t: "s", s: sCellLeft };
+      ws[C(r, 2)] = { v: "",                t: "s", s: sCellLeft };
+      ws[C(r, 3)] = { v: item.quantity,     t: "n", s: sCell };
+      ws[C(r, 4)] = { v: item.price,        t: "n", s: sCellRight };
+      ws[C(r, 5)] = { v: item.subtotal,     t: "n", s: sCellRight };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    });
+
+    // Pad to at least 5 item rows
+    for (let fi = data.items.length; fi < 5; fi++) {
+      for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankT };
+      merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
+      r++;
+    }
+
+    // SUBTOTAL
+    const taxAmount      = Math.round(storedTotal / 1.11 * 0.11);
+    const displaySubtotal = storedTotal - taxAmount;
+
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "SUBTOTAL",     t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: displaySubtotal, t: "n", s: sFootVal };
+    r++;
+
+    // TAX
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "TAX (11%)", t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: taxAmount,   t: "n", s: sFootVal };
+    r++;
+
+    // GRAND TOTAL
+    for (let c = 0; c < 4; c++) ws[C(r, c)] = { v: "", t: "s", s: sBlankN };
+    merges.push({ s: { r, c: 0 }, e: { r, c: 3 } });
+    ws[C(r, 4)] = { v: "GRAND TOTAL", t: "s", s: sFootLbl };
+    ws[C(r, 5)] = { v: storedTotal,   t: "n", s: sFootVal };
+    r++;
+
+    ws["!ref"]    = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: r - 1, c: COLS - 1 } });
+    ws["!merges"] = merges;
+    ws["!rows"]   = [
+      { hpt: 36 }, // title
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // DATE
+      { hpt: 20 }, // PO NUMBER
+      { hpt: 6  }, // spacer
+      { hpt: 20 }, // SUPPLIER/STATUS labels
+      { hpt: 22 }, // values
+      { hpt: 6  }, // spacer
+      { hpt: 22 }, // col headers
+    ];
+    ws["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 10 }, { wch: 8 }, { wch: 18 }, { wch: 18 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchase Order");
+    const safeName = data.po_number.replace(/[^A-Za-z0-9-]/g, "_");
+    XLSX.writeFile(wb, `${safeName}.xlsx`);
+  };
 
   return (
     <>
@@ -239,6 +422,32 @@ export default function PurchaseOrderDetailModal({
 
               </div>
 
+              {/* EXPECTED DATE */}
+
+              <div className={`rounded-xl p-4 border ${
+                data.expected_date
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-slate-200"
+              }`}>
+
+                <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+
+                  <CalendarClock size={14} />
+
+                  Tanggal Ekspektasi
+
+                </div>
+
+                <div className={`text-sm font-semibold ${
+                  data.expected_date ? "text-amber-800" : "text-slate-400 font-normal italic"
+                }`}>
+                  {data.expected_date
+                    ? formatDate(data.expected_date)
+                    : "Tidak diset"}
+                </div>
+
+              </div>
+
               {/* STATUS */}
 
               <div className="border border-slate-200 rounded-xl p-4">
@@ -272,6 +481,36 @@ export default function PurchaseOrderDetailModal({
 
             </div>
 
+            {(data.transaction_name || data.transaction_detail) && (
+              <div className="grid grid-cols-1 gap-4">
+
+                {data.transaction_name && (
+                  <div className="border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+                      <ReceiptText size={14} />
+                      Transaction Name
+                    </div>
+                    <div className="font-semibold text-slate-700 text-sm">
+                      {data.transaction_name}
+                    </div>
+                  </div>
+                )}
+
+                {data.transaction_detail && (
+                  <div className="border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+                      <ReceiptText size={14} />
+                      Transaction Detail
+                    </div>
+                    <div className="text-slate-700 text-sm whitespace-pre-wrap">
+                      {data.transaction_detail}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
             {/* ITEM TABLE */}
 
             <div>
@@ -292,9 +531,13 @@ export default function PurchaseOrderDetailModal({
 
                         {[
                           "Product",
+                          "Stock",
+                          "Lead Time",
                           "Qty",
                           "UOM",
                           "Price",
+                          "Tax %",
+                          "Tax Amount",
                           "Subtotal",
                         ].map((header) => (
 
@@ -321,10 +564,10 @@ export default function PurchaseOrderDetailModal({
 
                     <tbody className="divide-y divide-slate-100">
 
-                      {data.items.map((item) => (
+                      {data.items.map((item, idx) => (
 
                         <tr
-                          key={item.id}
+                          key={item.id ? `${item.id}-${idx}` : idx}
                           className="hover:bg-slate-50/50"
                         >
 
@@ -333,15 +576,37 @@ export default function PurchaseOrderDetailModal({
                           </td>
 
                           <td className="px-4 py-3 text-slate-600">
+                            {item.available_stock ?? "-"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {item.lead_time_days != null
+                              ? `${item.lead_time_days} Hari`
+                              : "-"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600">
                             {item.quantity}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600">
-                            {item.uom_name}
+                            {item.uom_name || "-"}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                             {formatRupiah(item.price)}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {item.tax_percent > 0
+                              ? `${item.tax_percent}%`
+                              : "0%"}
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
+                            {item.tax_percent > 0
+                              ? `+${formatRupiah(item.tax_amount)}`
+                              : "-"}
                           </td>
 
                           <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
@@ -362,11 +627,53 @@ export default function PurchaseOrderDetailModal({
 
             </div>
 
+            {/* RETURN DEDUCTION NOTICE */}
+
+            {returnDeduction > 0 && (
+              <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                <Scissors size={15} className="text-rose-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-rose-700 uppercase tracking-wide">
+                    Purchase Return Deduction Applied
+                  </p>
+                  <p className="text-xs text-rose-600 mt-0.5">
+                    A purchase return settlement reduced this PO's total by{" "}
+                    <span className="font-semibold">{formatRupiah(returnDeduction)}</span>.
+                    The Grand Total below reflects the adjusted amount.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* TOTAL */}
 
             <div className="flex justify-end">
 
               <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[240px]">
+
+                {returnDeduction > 0 && (
+                  <>
+                    <div className="flex items-center justify-between gap-8 mb-1">
+                      <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
+                        Items Subtotal
+                      </span>
+                      <span className="text-sm text-slate-300">
+                        {formatRupiah(itemsTotal)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-8 mb-2">
+                      <span className="text-xs text-rose-400 uppercase tracking-widest font-semibold">
+                        Return Deduction
+                      </span>
+                      <span className="text-sm font-semibold text-rose-400">
+                        − {formatRupiah(returnDeduction)}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-white/10 pt-2" />
+                  </>
+                )}
 
                 <div className="flex items-center justify-between gap-8">
 
@@ -376,7 +683,7 @@ export default function PurchaseOrderDetailModal({
 
                   <span className="text-base font-bold text-gold-400">
                     {formatRupiah(
-                      grandTotal
+                      storedTotal
                     )}
                   </span>
 
@@ -386,6 +693,23 @@ export default function PurchaseOrderDetailModal({
 
             </div>
 
+          </div>
+
+          {/* FOOTER */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Export Excel
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              Tutup
+            </button>
           </div>
 
         </div>

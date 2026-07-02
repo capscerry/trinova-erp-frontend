@@ -1,11 +1,10 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   headers: { "Content-Type": "application/json" },
 });
 
-// ─── Request interceptor: tambah token kalau ada ──────────────────────────────
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = sessionStorage.getItem("trinova_token");
@@ -21,28 +20,54 @@ api.interceptors.request.use((config) => {
         if (user.id) config.headers["X-User-Id"] = String(user.id);
         if (user.username || user.email) config.headers["X-User-Name"] = user.username ?? user.email;
       } catch {
-        // Abaikan session user yang tidak valid; request tetap dikirim tanpa actor header.
+        // Ignore invalid session user data; request can still continue without actor headers.
       }
     }
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    let body: unknown = config.data;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        // Leave non-JSON strings as-is for logging.
+      }
+    }
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, JSON.stringify(body, null, 2));
   }
 
   return config;
 });
 
-// ─── Response interceptor: normalisasi error ─────────────────────────────────
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    const message =
-      err.response?.data?.message ||
-      err.response?.data?.title ||
-      err.message ||
-      "Terjadi kesalahan";
+    const data = err.response?.data;
+
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        `[API Error] ${err.config?.method?.toUpperCase()} ${err.config?.url}`,
+        "status:",
+        err.response?.status,
+        "body:",
+        JSON.stringify(data, null, 2)
+      );
+    }
+
+    if (data?.errors && typeof data.errors === "object") {
+      const fieldErrors = Object.entries(data.errors as Record<string, string[]>)
+        .map(([field, msgs]) => `${field}: ${msgs.join(", ")}`)
+        .join(" | ");
+      console.error("[API Validation Errors]", data.errors);
+      return Promise.reject(new Error(fieldErrors || data.title || "Validation error"));
+    }
+
+    const message = data?.message || data?.title || err.message || "Terjadi kesalahan";
     return Promise.reject(new Error(message));
   }
 );
 
-// ─── Generic response wrapper (sesuaikan dengan shape API kamu) ───────────────
 export interface ApiResponse<T> {
   data: T;
   message?: string;

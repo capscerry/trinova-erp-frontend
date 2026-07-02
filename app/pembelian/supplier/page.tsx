@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { Button } from "@/components/ui/Button";
 
 import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
 
@@ -9,6 +10,8 @@ import { useEffect, useState } from "react";
 
 import {
   getSuppliers,
+  getNextSupplierCode,
+  migrateSupplierCodes,
   createSupplier,
   updateSupplier,
   deleteSupplier,
@@ -52,16 +55,6 @@ const COLUMNS: Column<Supplier>[] = [
   {
     key: "telepon",
     label: "TELEPON",
-  },
-
-  {
-    key: "email",
-    label: "EMAIL",
-  },
-
-  {
-    key: "alamat",
-    label: "ALAMAT",
   },
 ];
 
@@ -129,7 +122,7 @@ export default function SupplierPage() {
                 .toString(),
 
             kode:
-              item.supplier_code,
+              item.supplier_code || "",
 
             nama:
               item.supplier_name,
@@ -150,8 +143,12 @@ export default function SupplierPage() {
           })
         );
 
+      // Sort newest first (highest supplier_id first)
       setSuppliers(
-        mappedData
+        mappedData.sort(
+          (a: Supplier, b: Supplier) =>
+            Number(b.id) - Number(a.id)
+        )
       );
 
     } catch (err) {
@@ -170,9 +167,27 @@ export default function SupplierPage() {
         const res =
           await getSupplierCategory();
 
-        setCategories(
-          res.data || []
+        const raw: any[] =
+          res.data || res || [];
+
+        // Normalise to the shape the modal expects:
+        // { category_supplier: string, nama_category: string }
+        const mapped = raw.map(
+          (item: any) => ({
+            category_supplier:
+              String(
+                item.category_supplier ??
+                item.category_id ??
+                ""
+              ),
+            nama_category:
+              item.nama_category ??
+              item.category_name ??
+              "",
+          })
         );
+
+        setCategories(mapped);
 
       } catch (err) {
 
@@ -181,6 +196,9 @@ export default function SupplierPage() {
     };
 
   useEffect(() => {
+
+    // Run once on mount: normalise any legacy codes in the DB, then load
+    migrateSupplierCodes().catch(console.error);
 
     fetchSuppliers();
 
@@ -398,12 +416,19 @@ export default function SupplierPage() {
 
         addLabel="Tambah Supplier"
 
-        onAdd={() => {
+        nameField="nama"
+
+        onAdd={async () => {
 
           setIsEdit(false);
 
+          const nextCode =
+            await getNextSupplierCode().catch(
+              () => ""
+            );
+
           setFormData({
-            supplier_code: "",
+            supplier_code: nextCode,
             supplier_name: "",
             no_telp_bisnis: "",
             email: "",
@@ -421,52 +446,31 @@ export default function SupplierPage() {
 
         renderActions={(row) => (
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 justify-center">
 
-            <button
-              onClick={() =>
-                handleDetail(row)
-              }
-              className="
-                px-3 py-1
-                border
-                rounded-md
-                text-xs
-              "
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleDetail(row)}
             >
               Detail
-            </button>
+            </Button>
 
-            <button
-              onClick={() =>
-                handleEdit(row)
-              }
-              className="
-                px-3 py-1
-                border
-                rounded-md
-                text-xs
-              "
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEdit(row)}
             >
               Edit
-            </button>
+            </Button>
 
-            <button
-              onClick={() =>
-                handleDelete(
-                  row.id
-                )
-              }
-              className="
-                px-3 py-1
-                bg-red-500
-                text-white
-                rounded-md
-                text-xs
-              "
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => handleDelete(row.id)}
             >
               Hapus
-            </button>
+            </Button>
 
           </div>
         )}
@@ -505,7 +509,8 @@ export default function SupplierPage() {
         <div
           className="
             fixed inset-0
-            bg-black/40
+            bg-black/50
+            backdrop-blur-[2px]
             flex items-center
             justify-center
             z-50
@@ -518,108 +523,99 @@ export default function SupplierPage() {
               rounded-2xl
               w-full
               max-w-lg
-              shadow-xl
+              shadow-2xl
+              border
+              border-slate-200
               overflow-hidden
             "
           >
 
-            <div
-              className="
-                bg-gradient-to-r
-                from-[#081F3F]
-                to-[#0E2F5A]
-                px-6 py-5
-              "
-            >
-
-              <h2
-                className="
-                  text-2xl
-                  font-bold
-                  text-white
-                "
-              >
-                Detail Supplier
-              </h2>
-
-            </div>
-
-            <div className="p-6 space-y-5">
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Kode Supplier
-                </p>
-
-                <p className="font-semibold">
-                  {detailData.kode}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Nama Supplier
-                </p>
-
-                <p className="font-semibold">
-                  {detailData.nama}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Telepon
-                </p>
-
-                <p className="font-semibold">
-                  {detailData.telepon}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Email
-                </p>
-
-                <p className="font-semibold">
-                  {detailData.email}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest">
-                  Alamat
-                </p>
-
-                <p className="font-semibold">
-                  {detailData.alamat}
-                </p>
-              </div>
-
-            </div>
+            {/* Header */}
 
             <div
               className="
-                border-t
+                flex items-center
+                justify-between
                 px-6 py-4
-                flex justify-end
+                bg-gradient-to-r
+                from-navy-900
+                to-navy-600
               "
             >
+
+              <div>
+
+                <h2 className="text-white font-semibold text-[15px]">
+                  Detail Supplier
+                </h2>
+
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Informasi lengkap supplier
+                </p>
+
+              </div>
 
               <button
-                onClick={() =>
-                  setOpenDetail(false)
-                }
+                onClick={() => setOpenDetail(false)}
                 className="
-                  px-5 py-2
-                  border
-                  rounded-xl
-                  hover:bg-gray-50
-                  transition
+                  w-8 h-8
+                  rounded-lg
+                  flex items-center justify-center
+                  text-slate-400
+                  hover:text-white hover:bg-white/10
+                  transition-colors
                 "
               >
-                Tutup
+                ✕
               </button>
+
+            </div>
+
+            {/* Body */}
+
+            <div className="p-6 space-y-4">
+
+              {[
+                { label: "Kode Supplier", value: detailData.kode },
+                { label: "Nama Supplier", value: detailData.nama },
+                { label: "Telepon",       value: detailData.telepon },
+                { label: "Email",         value: detailData.email },
+                { label: "Alamat",        value: detailData.alamat },
+              ].map(({ label, value }) => (
+
+                <div key={label} className="border border-slate-200 rounded-xl p-4">
+
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                    {label}
+                  </p>
+
+                  <p className="text-sm font-semibold text-slate-700">
+                    {value || "—"}
+                  </p>
+
+                </div>
+
+              ))}
+
+            </div>
+
+            {/* Footer */}
+
+            <div
+              className="
+                border-t border-slate-100
+                px-6 py-4
+                flex justify-end
+                bg-slate-50/60
+              "
+            >
+
+              <Button
+                variant="ghost"
+                onClick={() => setOpenDetail(false)}
+              >
+                Tutup
+              </Button>
 
             </div>
 

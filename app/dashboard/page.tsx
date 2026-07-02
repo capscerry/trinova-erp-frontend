@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { AppShell } from "@/components/layout";
 import { useAuth } from "@/lib/AuthContext";
@@ -11,6 +11,19 @@ import {
   customerService,
   getProducts,
 } from "@/lib/services";
+import { getSupplierProducts } from "@/lib/services/supplier-product.service";
+import { getPurchaseReturns } from "@/lib/services/purchase-return.service";
+import { predictAllSuppliers, normalizeRiskLevel } from "@/lib/services/supplier-risk.service";
+import type { BatchPredictItem } from "@/lib/services/supplier-risk.service";
+import {
+  topsis,
+  applyPreset,
+  calcOnTimeRates,
+  calcDeliveryPunctuality,
+  PRIORITY_PRESETS,
+} from "@/lib/ahp-topsis";
+import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
+import type { RiskLevel } from "@/lib/xgboost-risk";
 import {
   securityActivityService,
   type SecurityActivityItem,
@@ -30,9 +43,25 @@ import {
   ShieldAlert,
   AlertTriangle,
   KeyRound,
+  ShieldCheck,
+  Shield,
+  ShieldX,
+  Trophy,
+  Brain,
+  Zap,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ AHP criteria (must match preset matrix column order) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const CRITERIA = [
+  { id: "avg_price",            label: "Harga Rata-rata",  description: "", weight: 0.2, benefit: false },
+  { id: "lead_time",            label: "Lead Time",        description: "", weight: 0.2, benefit: false },
+  { id: "on_time_rate",         label: "On-Time Rate",     description: "", weight: 0.2, benefit: true  },
+  { id: "delivery_punctuality", label: "Ketepatan Waktu",  description: "", weight: 0.2, benefit: true  },
+  { id: "return_rate",          label: "Tingkat Retur",    description: "", weight: 0.2, benefit: false },
+];
+
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -54,7 +83,7 @@ const formatAlertTime = (value: string) => {
   });
 };
 
-// ─── types ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface StatCard {
   label: string;
@@ -109,38 +138,328 @@ const getSecurityMeta = (activityType: string) => {
   }
 };
 
-// ─── mini bar chart ──────────────────────────────────────────────────────────
+interface RiskRow {
+  supplier_id: number;
+  supplier_name: string;
+  risk_score: number;
+  risk_level: RiskLevel;
+}
+
+interface AhpPresetRanking {
+  key: string;
+  label: string;
+  color: string;
+  icon: string;
+  description: string;
+  results: TopsisResult[];
+}
+
+// â”€â”€â”€ build TOPSIS alternatives from ERP data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function buildAlternatives(
+  suppliers: any[],
+  pos: any[],
+  grs: any[],
+  returns: any[],
+  supplierProducts: any[],
+): Alternative[] {
+  const normPos = pos.map((p: any) => ({
+    purchase_order_id: Number(p.purchase_order_id),
+    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
+    order_date:        p.order_date    ?? null,
+    expected_date:     p.expected_date ?? null,
+  }));
+  const normGrs = grs.map((g: any) => ({
+    goods_receipt_id:  Number(g.goods_receipt_id),
+    purchase_order_id: Number(g.purchase_order_id),
+    receipt_date:      g.receipt_date ?? null,
+  }));
+  const normReturns = returns.map((r: any) => ({
+    supplier_id:      Number(r.supplier_id ?? 0),
+    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
+  }));
+  const normSps = supplierProducts.map((sp: any) => ({
+    supplier_id:    Number(sp.supplier_id),
+    supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
+    lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
+  }));
+  const normSuppliers = suppliers.map((s: any) => ({
+    supplier_id:   Number(s.supplier_id ?? s.id),
+    supplier_name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
+    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
+  }));
+
+  type Agg = {
+    name: string; code: string; orderCount: number;
+    actualDays: number[]; catalogDays: number[]; prices: number[];
+    grIds: Set<number>;
+  };
+  const agg = new Map<number, Agg>();
+  for (const s of normSuppliers) {
+    agg.set(s.supplier_id, {
+      name: s.supplier_name, code: s.supplier_code,
+      orderCount: 0, actualDays: [], catalogDays: [], prices: [], grIds: new Set(),
+    });
+  }
+  for (const po of normPos) { const a = agg.get(po.supplier_id); if (a) a.orderCount++; }
+  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
+
+  const onTimeMap      = calcOnTimeRates(
+    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
+    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
+  const punctualityMap = calcDeliveryPunctuality(
+    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
+    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
+
+  for (const gr of normGrs) {
+    const po = poMap.get(gr.purchase_order_id);
+    if (!po?.order_date || !gr.receipt_date) continue;
+    const days = (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
+    if (days < 0 || days > 365) continue;
+    const a = agg.get(po.supplier_id);
+    if (!a) continue;
+    a.actualDays.push(days);
+    a.grIds.add(gr.goods_receipt_id);
+  }
+  for (const sp of normSps) {
+    const a = agg.get(sp.supplier_id);
+    if (!a) continue;
+    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
+    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
+  }
+  const returnCountMap = new Map<number, number>();
+  for (const ret of normReturns) {
+    if (ret.supplier_id === 0) continue;
+    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
+  }
+
+  const alternatives: Alternative[] = [];
+  for (const [sid, a] of agg.entries()) {
+    if (a.orderCount === 0) continue;
+    const avgPrice   = a.prices.length > 0 ? a.prices.reduce((s,v) => s+v, 0) / a.prices.length : 0;
+    const avgLead    = a.actualDays.length > 0
+      ? a.actualDays.reduce((s,v) => s+v, 0) / a.actualDays.length
+      : a.catalogDays.length > 0 ? a.catalogDays.reduce((s,v) => s+v, 0) / a.catalogDays.length : 14;
+    const grCount    = a.grIds.size;
+    const retCount   = returnCountMap.get(sid) ?? 0;
+    const returnRate = grCount > 0 ? retCount / grCount : 0;
+    alternatives.push({
+      id: String(sid), name: a.name, code: a.code,
+      values: {
+        avg_price:            Math.round(avgPrice * 100) / 100,
+        lead_time:            Math.round(avgLead * 10) / 10,
+        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
+        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
+        return_rate:          Math.round(returnRate * 1000) / 1000,
+      },
+    });
+  }
+  return alternatives;
+}
+
+// â”€â”€â”€ mini bar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-700 ${color}`}
-        style={{ width: `${pct}%` }}
-      />
+      <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-// ─── page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ risk level helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const RISK_CFG: Record<RiskLevel, { label: string; barColor: string; textColor: string; badgeClass: string; icon: typeof ShieldCheck }> = {
+  Low:      { label: "Low",      barColor: "bg-emerald-400", textColor: "text-emerald-700", badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700", icon: ShieldCheck },
+  Medium:   { label: "Medium",   barColor: "bg-amber-400",   textColor: "text-amber-700",   badgeClass: "bg-amber-50  border-amber-200  text-amber-700",   icon: Shield      },
+  High:     { label: "High",     barColor: "bg-orange-400",  textColor: "text-orange-700",  badgeClass: "bg-orange-50 border-orange-200 text-orange-700",  icon: ShieldAlert },
+  Critical: { label: "Critical", barColor: "bg-rose-500",    textColor: "text-rose-700",    badgeClass: "bg-rose-50   border-rose-200   text-rose-700",    icon: ShieldX     },
+};
+
+function RiskBadge({ level }: { level: RiskLevel }) {
+  const cfg = RISK_CFG[level];
+  const Icon = cfg.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0", cfg.badgeClass)}>
+      <Icon size={9} />{cfg.label}
+    </span>
+  );
+}
+
+// â”€â”€â”€ rank medal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function RankMedal({ rank }: { rank: number }) {
+  if (rank === 1) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">
+      1
+    </span>
+  );
+  if (rank === 2) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-[10px] font-extrabold shrink-0">2</span>
+  );
+  if (rank === 3) return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-[10px] font-extrabold shrink-0">3</span>
+  );
+  return (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-50 border border-slate-200 text-slate-400 text-[10px] font-bold shrink-0">{rank}</span>
+  );
+}
+
+// â”€â”€â”€ Risk Ranking widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function RiskRankingWidget({ rows, loading }: { rows: RiskRow[]; loading: boolean }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+      {/* header */}
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-slate-800">
+        <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+          <Brain size={13} className="text-rose-300" />
+        </div>
+        <div>
+          <p className="text-[13px] font-bold text-white leading-none">Risk Detection</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">XGBoost Â· delay probability score</p>
+        </div>
+      </div>
+
+      {/* column headers */}
+      <div className="grid grid-cols-[28px_1fr_72px_90px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Skor</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Level</span>
+      </div>
+
+      {/* body */}
+      {loading ? (
+        <div className="p-4 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="px-5 py-10 text-center">
+          <Zap size={18} className="mx-auto text-slate-300 mb-2" />
+          <p className="text-xs text-slate-400">Belum ada data risiko</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {rows.map((r, i) => {
+            const cfg = RISK_CFG[r.risk_level];
+            return (
+              <div key={r.supplier_id} className="grid grid-cols-[28px_1fr_72px_90px] gap-2 items-center px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                <RankMedal rank={i + 1} />
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-slate-800 truncate">{r.supplier_name}</p>
+                  <div className="mt-1 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all duration-700", cfg.barColor)} style={{ width: `${Math.round(r.risk_score * 100)}%` }} />
+                  </div>
+                </div>
+                <p className={cn("text-[12px] font-bold tabular-nums text-right", cfg.textColor)}>
+                  {(r.risk_score * 100).toFixed(1)}%
+                </p>
+                <div className="flex justify-end">
+                  <RiskBadge level={r.risk_level} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// â”€â”€â”€ AHP preset ranking card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const PRESET_STYLE: Record<string, { header: string; accent: string; badge: string }> = {
+  balanced:        { header: "from-slate-700 to-slate-800",   accent: "text-slate-300",  badge: "bg-slate-200 text-slate-700 border-slate-300"  },
+  urgency_high:    { header: "from-rose-700  to-rose-900",    accent: "text-rose-300",   badge: "bg-rose-100  text-rose-700  border-rose-300"   },
+  budget_priority: { header: "from-amber-600 to-amber-800",   accent: "text-amber-200",  badge: "bg-amber-100 text-amber-700 border-amber-300"  },
+  quality_focus:   { header: "from-blue-700  to-blue-900",    accent: "text-blue-300",   badge: "bg-blue-100  text-blue-700  border-blue-300"   },
+};
+
+function AhpPresetCard({ preset, loading }: { preset: AhpPresetRanking; loading: boolean }) {
+  const style = PRESET_STYLE[preset.key] ?? PRESET_STYLE.balanced;
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+      {/* header */}
+      <div className={cn("flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r", style.header)}>
+        <span className="text-lg leading-none">{preset.icon}</span>
+        <div>
+          <p className="text-[13px] font-bold text-white leading-none">{preset.label}</p>
+          <p className={cn("text-[10px] mt-0.5 truncate max-w-[200px]", style.accent)}>{preset.description}</p>
+        </div>
+      </div>
+
+      {/* column headers */}
+      <div className="grid grid-cols-[28px_1fr_90px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Skor Ci</span>
+      </div>
+
+      {/* body */}
+      {loading ? (
+        <div className="p-4 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
+          ))}
+        </div>
+      ) : preset.results.length === 0 ? (
+        <div className="px-5 py-10 text-center">
+          <Trophy size={18} className="mx-auto text-slate-300 mb-2" />
+          <p className="text-xs text-slate-400">Belum ada data ERP</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {preset.results.slice(0, 7).map((r) => {
+            const pct = Math.round(r.score * 100);
+            const barColor = pct >= 70 ? "bg-green-400" : pct >= 40 ? "bg-amber-400" : "bg-rose-400";
+            return (
+              <div key={r.alternativeId} className="grid grid-cols-[28px_1fr_90px] gap-2 items-center px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                <RankMedal rank={r.rank} />
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-slate-800 truncate">{r.name}</p>
+                  <div className="mt-1 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all duration-700", barColor)} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+                <p className="text-[12px] font-bold tabular-nums text-slate-700 text-right">{r.score.toFixed(4)}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// â”€â”€â”€ page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [rankLoading, setRankLoading]   = useState(true);
+  const [lastUpdated, setLastUpdated]   = useState<Date | null>(null);
 
   // stat cards
-  const [stats, setStats] = useState<StatCard[]>([]);
-  // module bars
+  const [stats, setStats]               = useState<StatCard[]>([]);
+    // module bars
   const [moduleBars, setModuleBars] = useState<ModuleStat[]>([]);
-  // recent SO
+  // recent SO / PO
   const [recentSO, setRecentSO] = useState<{ nomor: string; pelanggan: string; total: number; status: string }[]>([]);
-  // recent PO
   const [recentPO, setRecentPO] = useState<{ nomor: string; supplier: string; total: number; status: string }[]>([]);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityActivityItem[]>([]);
 
+  // AI rankings
+  const [riskRows, setRiskRows]         = useState<RiskRow[]>([]);
+  const [ahpRankings, setAhpRankings]   = useState<AhpPresetRanking[]>([]);
+
+  // â”€â”€ fetch ERP stats (stat cards, module bars, recent tables) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -155,138 +474,51 @@ export default function AdminDashboardPage() {
           securityActivityService.getAlerts(12),
         ]);
 
-      const poList: any[]   = poRes.status === "fulfilled"  ? (Array.isArray(poRes.value) ? poRes.value : poRes.value?.data ?? []) : [];
-      const grList: any[]   = grRes.status === "fulfilled"  ? (Array.isArray(grRes.value) ? grRes.value : grRes.value?.data ?? []) : [];
+      const poList: any[]   = poRes.status       === "fulfilled" ? (Array.isArray(poRes.value)       ? poRes.value       : poRes.value?.data       ?? []) : [];
+      const grList: any[]   = grRes.status       === "fulfilled" ? (Array.isArray(grRes.value)       ? grRes.value       : grRes.value?.data       ?? []) : [];
       const supList: any[]  = supplierRes.status === "fulfilled" ? (Array.isArray(supplierRes.value) ? supplierRes.value : supplierRes.value?.data ?? []) : [];
-      const soArr: any[]    = soList.status === "fulfilled"  ? soList.value : [];
+      const soArr: any[]    = soList.status       === "fulfilled" ? soList.value       : [];
       const custArr: any[]  = customerList.status === "fulfilled" ? customerList.value : [];
       const prodList: any[] = productRes.status === "fulfilled" ? (Array.isArray(productRes.value) ? productRes.value : productRes.value?.data ?? []) : [];
       const securityArr: SecurityActivityItem[] = securityRes.status === "fulfilled" ? securityRes.value : [];
-
-      // ── computed values ──────────────────────────────────────────────────
 
       const totalPembelian = poList.reduce((s: number, i: any) => s + Number(i.total_amount ?? i.totalAmount ?? 0), 0);
       const totalPenjualan = soArr.reduce((s: number, i: any) => s + Number(i.total ?? i.subTotal ?? 0), 0);
       const pendingPO      = poList.filter((i: any) => i.status === "Draft" || i.status === "Waiting to be processed").length;
       const pendingSO      = soArr.filter((i: any) => i.status === "Draft" || i.status === "Dikonfirmasi").length;
 
-      // ── stat cards ───────────────────────────────────────────────────────
-
       setStats([
-        {
-          label:   "Total Penjualan",
-          value:   `Rp ${fmt(totalPenjualan)}`,
-          sub:     `${soArr.length} sales order`,
-          change:  "+12%",
-          trend:   "up",
-          icon:    TrendingUp,
-          color:   "text-blue-600",
-          iconBg:  "bg-blue-50 border-blue-100",
-        },
-        {
-          label:   "Total Pembelian",
-          value:   `Rp ${fmt(totalPembelian)}`,
-          sub:     `${poList.length} purchase order`,
-          change:  "+8%",
-          trend:   "up",
-          icon:    ShoppingCart,
-          color:   "text-amber-600",
-          iconBg:  "bg-amber-50 border-amber-100",
-        },
-        {
-          label:   "Customer Aktif",
-          value:   String(custArr.filter((c: any) => c.status === "Aktif" || c.isActive).length || custArr.length),
-          sub:     `${custArr.length} total terdaftar`,
-          change:  "+3",
-          trend:   "up",
-          icon:    Users,
-          color:   "text-purple-600",
-          iconBg:  "bg-purple-50 border-purple-100",
-        },
-        {
-          label:   "Supplier Aktif",
-          value:   String(supList.filter((s: any) => s.isActive !== false).length || supList.length),
-          sub:     `${supList.length} total terdaftar`,
-          change:  "+1",
-          trend:   "up",
-          icon:    Building2,
-          color:   "text-green-600",
-          iconBg:  "bg-green-50 border-green-100",
-        },
-        {
-          label:   "Goods Receipt",
-          value:   String(grList.length),
-          sub:     "Penerimaan barang",
-          change:  "+4",
-          trend:   "up",
-          icon:    Truck,
-          color:   "text-cyan-600",
-          iconBg:  "bg-cyan-50 border-cyan-100",
-        },
-        {
-          label:   "PO Pending",
-          value:   String(pendingPO),
-          sub:     "Menunggu proses",
-          change:  pendingPO > 5 ? "+2" : "-1",
-          trend:   pendingPO > 5 ? "down" : "up",
-          icon:    Clock3,
-          color:   "text-rose-600",
-          iconBg:  "bg-rose-50 border-rose-100",
-        },
-        {
-          label:   "SO Pending",
-          value:   String(pendingSO),
-          sub:     "Belum selesai diproses",
-          change:  pendingSO > 5 ? "+2" : "-1",
-          trend:   pendingSO > 5 ? "down" : "up",
-          icon:    BarChart2,
-          color:   "text-orange-600",
-          iconBg:  "bg-orange-50 border-orange-100",
-        },
-        {
-          label:   "Total Produk",
-          value:   String(prodList.length),
-          sub:     "Goods & service",
-          change:  "0",
-          trend:   "neutral",
-          icon:    Package,
-          color:   "text-teal-600",
-          iconBg:  "bg-teal-50 border-teal-100",
-        },
+        { label: "Total Penjualan",  value: `Rp ${fmt(totalPenjualan)}`,  sub: `${soArr.length} sales order`,       change: "+12%", trend: "up",     icon: TrendingUp,  color: "text-blue-600",   iconBg: "bg-blue-50 border-blue-100"   },
+        { label: "Total Pembelian",  value: `Rp ${fmt(totalPembelian)}`,  sub: `${poList.length} purchase order`,   change: "+8%",  trend: "up",     icon: ShoppingCart,color: "text-amber-600",  iconBg: "bg-amber-50 border-amber-100"  },
+        { label: "Customer Aktif",   value: String(custArr.filter((c: any) => c.status === "Aktif" || c.isActive).length || custArr.length), sub: `${custArr.length} total terdaftar`, change: "+3", trend: "up", icon: Users,       color: "text-purple-600", iconBg: "bg-purple-50 border-purple-100" },
+        { label: "Supplier Aktif",   value: String(supList.filter((s: any) => s.isActive !== false).length || supList.length), sub: `${supList.length} total terdaftar`, change: "+1", trend: "up", icon: Building2,   color: "text-green-600",  iconBg: "bg-green-50 border-green-100"  },
+        { label: "Goods Receipt",    value: String(grList.length),        sub: "Penerimaan barang",                 change: "+4",   trend: "up",     icon: Truck,       color: "text-cyan-600",   iconBg: "bg-cyan-50 border-cyan-100"   },
+        { label: "PO Pending",       value: String(pendingPO),            sub: "Menunggu proses",                   change: pendingPO > 5 ? "+2" : "-1", trend: pendingPO > 5 ? "down" : "up", icon: Clock3, color: "text-rose-600", iconBg: "bg-rose-50 border-rose-100" },
+        { label: "SO Pending",       value: String(pendingSO),            sub: "Belum selesai diproses",            change: pendingSO > 5 ? "+2" : "-1", trend: pendingSO > 5 ? "down" : "up", icon: BarChart2, color: "text-orange-600", iconBg: "bg-orange-50 border-orange-100" },
+        { label: "Total Produk",     value: String(prodList.length),      sub: "Goods & service",                   change: "0",    trend: "neutral", icon: Package,     color: "text-teal-600",   iconBg: "bg-teal-50 border-teal-100"   },
       ]);
-
-      // ── module bars ───────────────────────────────────────────────────────
 
       const maxVal = Math.max(soArr.length, poList.length, grList.length, custArr.length, 1);
       setModuleBars([
-        { module: "Sales Order",    color: "text-blue-600",   barColor: "bg-blue-500",   value: soArr.length,   max: maxVal, label: `${soArr.length} transaksi` },
-        { module: "Purchase Order", color: "text-amber-600",  barColor: "bg-amber-500",  value: poList.length,  max: maxVal, label: `${poList.length} transaksi` },
+        { module: "Sales Order",    color: "text-blue-600",   barColor: "bg-blue-500",   value: soArr.length,   max: maxVal, label: `${soArr.length} transaksi`   },
+        { module: "Purchase Order", color: "text-amber-600",  barColor: "bg-amber-500",  value: poList.length,  max: maxVal, label: `${poList.length} transaksi`  },
         { module: "Goods Receipt",  color: "text-cyan-600",   barColor: "bg-cyan-500",   value: grList.length,  max: maxVal, label: `${grList.length} penerimaan` },
-        { module: "Customer",       color: "text-purple-600", barColor: "bg-purple-500", value: custArr.length, max: maxVal, label: `${custArr.length} customer` },
-        { module: "Supplier",       color: "text-green-600",  barColor: "bg-green-500",  value: supList.length, max: maxVal, label: `${supList.length} supplier` },
+        { module: "Customer",       color: "text-purple-600", barColor: "bg-purple-500", value: custArr.length, max: maxVal, label: `${custArr.length} customer`  },
+        { module: "Supplier",       color: "text-green-600",  barColor: "bg-green-500",  value: supList.length, max: maxVal, label: `${supList.length} supplier`  },
       ]);
 
-      // ── recent SO (top 5) ─────────────────────────────────────────────────
-
-      setRecentSO(
-        soArr.slice(0, 5).map((i: any) => ({
-          nomor:     i.nomor ?? i.soNumber ?? "-",
-          pelanggan: i.pelanggan ?? i.customerName ?? "-",
-          total:     i.total ?? i.subTotal ?? 0,
-          status:    i.status ?? "-",
-        }))
-      );
-
-      // ── recent PO (top 5) ─────────────────────────────────────────────────
-
-      setRecentPO(
-        poList.slice(0, 5).map((i: any) => ({
-          nomor:    i.poNumber ?? i.po_number ?? "-",
-          supplier: i.supplierName ?? i.supplier_name ?? "-",
-          total:    Number(i.total_amount ?? i.totalAmount ?? 0),
-          status:   i.status ?? "-",
-        }))
-      );
+      setRecentSO(soArr.slice(0, 5).map((i: any) => ({
+        nomor:     i.nomor     ?? i.soNumber  ?? "-",
+        pelanggan: i.pelanggan ?? i.customerName ?? "-",
+        total:     i.total     ?? i.subTotal  ?? 0,
+        status:    i.status    ?? "-",
+      })));
+      setRecentPO(poList.slice(0, 5).map((i: any) => ({
+        nomor:    i.poNumber    ?? i.po_number    ?? "-",
+        supplier: i.supplierName ?? i.supplier_name ?? "-",
+        total:    Number(i.total_amount ?? i.totalAmount ?? 0),
+        status:   i.status ?? "-",
+      })));
 
       setSecurityAlerts(securityArr);
 
@@ -298,20 +530,91 @@ export default function AdminDashboardPage() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  // â”€â”€ fetch AI rankings (risk + AHP) â€” runs in parallel with fetchAll â”€â”€â”€â”€â”€
+  const fetchRankings = async () => {
+    setRankLoading(true);
+    try {
+      const norm = (r: any) => Array.isArray(r) ? r : r?.data ?? [];
 
-  // ── status badge ───────────────────────────────────────────────────────────
+      const [suppRes, poRes, grRes, retRes, spRes, riskRes] = await Promise.allSettled([
+        getSuppliers(),
+        getPurchaseOrders(),
+        getGoodsReceipts(),
+        getPurchaseReturns(),
+        getSupplierProducts(),
+        predictAllSuppliers(),
+      ]);
 
+      // â”€â”€ supplier name map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      const suppliers = suppRes.status === "fulfilled" ? norm(suppRes.value) : [];
+      const nameMap   = new Map<number, string>(
+        suppliers.map((s: any) => [
+          Number(s.supplier_id ?? s.id),
+          String(s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`),
+        ])
+      );
+
+      // â”€â”€ risk rows: sorted high â†’ low risk score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      if (riskRes.status === "fulfilled") {
+        const rows: RiskRow[] = riskRes.value.results
+          .filter((v: BatchPredictItem) => v.supplier_id != null && v.supplier_id !== 0)
+          .map((v: BatchPredictItem) => ({
+            supplier_id:   Number(v.supplier_id),
+            supplier_name: v.supplier_name ?? nameMap.get(Number(v.supplier_id)) ?? `Supplier ${v.supplier_id}`,
+            risk_score:    Number(v.delay_probability ?? 0),
+            risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
+          }))
+          .sort((a: RiskRow, b: RiskRow) => b.risk_score - a.risk_score);
+        setRiskRows(rows);
+      }
+
+      // â”€â”€ AHP preset rankings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      const pos      = poRes.status  === "fulfilled" ? norm(poRes.value)  : [];
+      const grs      = grRes.status  === "fulfilled" ? norm(grRes.value)  : [];
+      const returns  = retRes.status === "fulfilled" ? norm(retRes.value) : [];
+      const sps      = spRes.status  === "fulfilled" ? norm(spRes.value)  : [];
+
+      if (suppliers.length > 0) {
+        const alts = buildAlternatives(suppliers, pos, grs, returns, sps);
+
+        const rankings: AhpPresetRanking[] = PRIORITY_PRESETS.map((preset) => {
+          const { result } = applyPreset(preset.key as any);
+          const criteria   = CRITERIA.map((c, i) => ({ ...c, weight: result.weights[i] }));
+          const results    = topsis(alts, criteria);
+          return {
+            key:         preset.key,
+            label:       preset.label,
+            icon:        preset.icon,
+            color:       preset.color,
+            description: preset.description,
+            results,
+          };
+        });
+        setAhpRankings(rankings);
+      }
+    } catch (e) {
+      console.error("Rankings fetch error:", e);
+    } finally {
+      setRankLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+    fetchRankings();
+  }, []);
+
+  // â”€â”€ status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
-      Draft:                    "bg-slate-100 text-slate-500",
-      Dikonfirmasi:             "bg-blue-100 text-blue-600",
-      Diproses:                 "bg-amber-100 text-amber-600",
-      Dikirim:                  "bg-cyan-100 text-cyan-600",
-      Selesai:                  "bg-green-100 text-green-600",
-      Dibatalkan:               "bg-red-100 text-red-500",
-      "Waiting to be processed":"bg-amber-100 text-amber-600",
-      Approved:                 "bg-green-100 text-green-600",
+      Draft:                     "bg-slate-100 text-slate-500",
+      Dikonfirmasi:              "bg-blue-100 text-blue-600",
+      Diproses:                  "bg-amber-100 text-amber-600",
+      Dikirim:                   "bg-cyan-100 text-cyan-600",
+      Selesai:                   "bg-green-100 text-green-600",
+      Dibatalkan:                "bg-red-100 text-red-500",
+      "Waiting to be processed": "bg-amber-100 text-amber-600",
+      Approved:                  "bg-green-100 text-green-600",
     };
     return (
       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${map[s] ?? "bg-slate-100 text-slate-500"}`}>
@@ -320,43 +623,40 @@ export default function AdminDashboardPage() {
     );
   };
 
-  // ─── render ──────────────────────────────────────────────────────────────
-
+  // â”€â”€â”€ render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <AppShell title="Dashboard" subtitle="Overview sistem Trinova Business Suite">
-      {/* ── Header row ─────────────────────────────────────────────────────── */}
+
+      {/* â”€â”€ Header row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-slate-500 text-sm">
-            Selamat datang,{" "}
-            <span className="font-semibold text-slate-700">{user?.username}</span>
-          </p>
-        </div>
+        <p className="text-slate-500 text-sm">
+          Selamat datang,{" "}
+          <span className="font-semibold text-slate-700">{user?.username}</span>
+        </p>
         <button
-          onClick={fetchAll}
-          disabled={loading}
+          onClick={() => { fetchAll(); fetchRankings(); }}
+          disabled={loading || rankLoading}
           className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40"
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-          {lastUpdated ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}` : "Refresh"}
+          <RefreshCw size={12} className={(loading || rankLoading) ? "animate-spin" : ""} />
+          {lastUpdated
+            ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
+            : "Refresh"}
         </button>
       </div>
 
-      {/* ── Stat Cards ─────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Stat Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="bg-white rounded-2xl border border-slate-100 p-5 animate-pulse h-28" />
             ))
           : stats.map((s) => {
-              const Icon = s.icon;
-              const isUp = s.trend === "up";
+              const Icon     = s.icon;
+              const isUp     = s.trend === "up";
               const isNeutral = s.trend === "neutral";
               return (
-                <div
-                  key={s.label}
-                  className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-sm hover:border-slate-200 transition-all duration-150"
-                >
+                <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-sm hover:border-slate-200 transition-all duration-150">
                   <div className="flex items-start justify-between">
                     <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${s.iconBg}`}>
                       <Icon size={15} className={s.color} />
@@ -376,7 +676,7 @@ export default function AdminDashboardPage() {
             })}
       </div>
 
-      {/* ── Bottom row ─────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Bottom row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="bg-white rounded-2xl border border-slate-100 p-6 mb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -448,16 +748,12 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-        {/* Module Activity bar chart */}
+        {/* Module Activity */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <p className="text-sm font-bold text-slate-700 mb-1">Aktivitas Modul</p>
           <p className="text-[11px] text-slate-400 mb-5">Volume transaksi per modul</p>
           {loading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
-              ))}
-            </div>
+            <div className="space-y-4">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />)}</div>
           ) : (
             <div className="space-y-4">
               {moduleBars.map((m) => (
@@ -473,16 +769,12 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* Recent Sales Orders */}
+        {/* Recent SO */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <p className="text-sm font-bold text-slate-700 mb-1">Sales Order Terbaru</p>
           <p className="text-[11px] text-slate-400 mb-4">5 transaksi penjualan terakhir</p>
           {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />
-              ))}
-            </div>
+            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />)}</div>
           ) : recentSO.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-8">Belum ada data</p>
           ) : (
@@ -503,16 +795,12 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* Recent Purchase Orders */}
+        {/* Recent PO */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
           <p className="text-sm font-bold text-slate-700 mb-1">Purchase Order Terbaru</p>
           <p className="text-[11px] text-slate-400 mb-4">5 transaksi pembelian terakhir</p>
           {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />
-              ))}
-            </div>
+            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />)}</div>
           ) : recentPO.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-8">Belum ada data</p>
           ) : (
@@ -532,8 +820,51 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* â”€â”€ AI Supplier Rankings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center shrink-0">
+            <Brain size={12} className="text-yellow-400" />
+          </div>
+          <p className="text-sm font-bold text-slate-800">Supplier Rankings â€” AI & AHP</p>
+        </div>
+        <div className="flex-1 h-px bg-slate-100" />
+        <p className="text-[11px] text-slate-400">Berbasis data ERP Â· XGBoost Risk Â· AHP-TOPSIS</p>
+      </div>
+
+      {/* Risk + AHP row */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-6">
+
+        {/* Risk Detection â€” spans 1 col */}
+        <div className="xl:col-span-1">
+          <RiskRankingWidget rows={riskRows} loading={rankLoading} />
+        </div>
+
+        {/* AHP 4 presets â€” spans 4 cols as 2Ã—2 grid */}
+        <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {rankLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                  <div className="h-14 bg-slate-200 animate-pulse" />
+                  <div className="p-4 space-y-3">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <div key={j} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
+                    ))}
+                  </div>
+                </div>
+              ))
+            : ahpRankings.map((preset) => (
+                <AhpPresetCard key={preset.key} preset={preset} loading={rankLoading} />
+              ))
+          }
+        </div>
 
       </div>
+
     </AppShell>
   );
 }
+
+

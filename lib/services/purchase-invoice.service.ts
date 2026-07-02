@@ -48,3 +48,25 @@ export const deletePurchaseInvoice =
 
     return res.data;
 };
+
+// GET UNPAID INVOICES BY SUPPLIER
+export const getUnpaidInvoicesBySupplier =
+  async (supplierId: number) => {
+
+    const res = await api.get(
+      `/purchase-invoice/unpaid/${supplierId}`
+    );
+
+    return res.data;
+};
+
+// GET UNPAID INVOICES FOR A SPECIFIC RETURN (resolves supplier server-side)
+// Calls GET /api/purchase-return/{id}/invoices so the frontend never needs
+// to know the supplier_id — the backend walks the GR chain itself.
+export const getUnpaidInvoicesForReturn =
+  async (purchaseReturnId: number) => {
+    const res = await api.get(
+      `/purchase-return/${purchaseReturnId}/invoices`
+    );
+    return res.data;
+};
