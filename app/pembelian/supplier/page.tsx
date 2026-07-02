@@ -16,9 +16,13 @@ import {
   updateSupplier,
   deleteSupplier,
   importSupplierCatalog,
-
   getSupplierCategory,
 } from "@/lib/services";
+
+import {
+  parseCatalogFile,
+  validateCatalogRows,
+} from "@/lib/services/supplier-product.service";
 
 // ─── Type ──────────────────────────────────────────────────────────────────────
 
@@ -88,6 +92,9 @@ export default function SupplierPage() {
       useState<File | null>(
         null
       );
+
+  /** Errors from server-side / post-create catalog validation shown in the modal */
+  const [catalogErrors, setCatalogErrors] = useState<string[]>([]);
 
   const [formData, setFormData] =
     useState({
@@ -276,9 +283,36 @@ export default function SupplierPage() {
           const supplierId =
             response.data.supplier_id;
 
-          // ─── Import Catalog ─────────────────
+          // ─── Validate & Import Catalog ──────────────────
 
           if (catalogFile) {
+
+            // Parse the file and run ownership check against the new supplier
+            const rows =
+              await parseCatalogFile(catalogFile);
+
+            const validation =
+              await validateCatalogRows(rows, supplierId);
+
+            if (validation.errors.length > 0) {
+
+              // Surface errors back into the modal — supplier is already saved
+              // but catalog import is skipped until the file is corrected
+              setCatalogErrors(validation.errors);
+
+              alert(
+                "Supplier berhasil disimpan, tetapi catalog tidak diimport karena ada kesalahan.\n\n" +
+                validation.errors.join("\n") +
+                "\n\nSilakan perbaiki file catalog dan upload ulang."
+              );
+
+              // Refresh list (supplier exists) but keep modal open so user can fix
+              fetchSuppliers();
+              return;
+            }
+
+            // All good — proceed with import
+            setCatalogErrors([]);
 
             await importSupplierCatalog(
               supplierId,
@@ -304,6 +338,7 @@ export default function SupplierPage() {
         });
 
         setCatalogFile(null);
+        setCatalogErrors([]);
 
         setIsEdit(false);
 
@@ -438,6 +473,7 @@ export default function SupplierPage() {
           });
 
           setCatalogFile(null);
+          setCatalogErrors([]);
 
           setOpenModal(true);
         }}
@@ -490,15 +526,18 @@ export default function SupplierPage() {
 
         categories={categories}
 
-        onClose={() =>
-          setOpenModal(false)
-        }
+        onClose={() => {
+          setCatalogErrors([]);
+          setOpenModal(false);
+        }}
 
         onSave={handleSubmit}
 
         setCatalogFile={
           setCatalogFile
         }
+
+        catalogErrors={catalogErrors}
       />
 
       {/* ─── Detail Modal ─────────────────────────────────── */}

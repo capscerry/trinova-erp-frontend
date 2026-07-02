@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { parseCatalogFile } from "@/lib/services/supplier-product.service";
 
 interface SupplierFormModalProps {
   open: boolean;
@@ -31,6 +32,8 @@ interface SupplierFormModalProps {
   onClose: () => void;
   onSave: () => void;
   setCatalogFile: React.Dispatch<React.SetStateAction<File | null>>;
+  /** Errors injected from the parent after server-side / post-create validation */
+  catalogErrors?: string[];
 }
 
 const inputBase =
@@ -62,10 +65,53 @@ export default function SupplierFormModal({
   onClose,
   onSave,
   setCatalogFile,
+  catalogErrors = [],
 }: SupplierFormModalProps) {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
+  /** Duplicate product_ids detected client-side while parsing the file */
+  const [duplicateIds, setDuplicateIds] = useState<number[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
 
   if (!open) return null;
+
+  const allCatalogErrors = [
+    ...(duplicateIds.length > 0
+      ? [`Produk duplikat ditemukan (product_id): ${duplicateIds.join(", ")}`]
+      : []),
+    ...catalogErrors,
+  ];
+  const hasCatalogErrors = allCatalogErrors.length > 0;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    setDuplicateIds([]);
+
+    try {
+      const rows = await parseCatalogFile(file);
+
+      // ── Duplicate check ──────────────────────────────────────────────────────
+      const seen = new Map<number, number>();
+      for (const row of rows) {
+        seen.set(row.product_id, (seen.get(row.product_id) ?? 0) + 1);
+      }
+      const dupes = [...seen.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([id]) => id);
+
+      setDuplicateIds(dupes);
+      setCatalogFile(file);
+      setSelectedFileName(file.name);
+    } catch {
+      setDuplicateIds([]);
+      setCatalogFile(file);
+      setSelectedFileName(file.name);
+    } finally {
+      setIsParsing(false);
+    }
+  };
 
   return (
     <>
@@ -213,20 +259,42 @@ export default function SupplierFormModal({
                       type="file"
                       accept=".xlsx,.xls"
                       className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setCatalogFile(file);
-                        setSelectedFileName(file.name);
-                      }}
+                      onChange={handleFileChange}
                     />
 
-                    {selectedFileName && (
+                    {isParsing && (
+                      <span className="inline-flex items-center gap-1.5 text-slate-500 text-sm">
+                        <Loader2 size={14} className="animate-spin" />
+                        Memvalidasi file…
+                      </span>
+                    )}
+
+                    {!isParsing && selectedFileName && !hasCatalogErrors && (
                       <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
-                        ✅ {selectedFileName}
+                        <CheckCircle2 size={14} />
+                        {selectedFileName}
+                      </span>
+                    )}
+
+                    {!isParsing && selectedFileName && hasCatalogErrors && (
+                      <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-sm font-medium">
+                        <AlertCircle size={14} />
+                        {selectedFileName}
                       </span>
                     )}
                   </div>
+
+                  {/* Validation error panel */}
+                  {hasCatalogErrors && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
+                      {allCatalogErrors.map((err, i) => (
+                        <p key={i} className="text-xs text-red-700 flex gap-1.5 items-start">
+                          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                          {err}
+                        </p>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="space-y-0.5 text-sm">
                     <p className="font-semibold text-slate-600 text-xs">Format Excel</p>
@@ -252,7 +320,8 @@ export default function SupplierFormModal({
             </button>
             <button
               onClick={onSave}
-              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition"
+              disabled={duplicateIds.length > 0 || isParsing}
+              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isEdit ? "Update Supplier" : "Simpan Supplier"}
             </button>

@@ -3,6 +3,7 @@
 import { AppShell } from "@/components/layout";
 
 import { ModuleOverview } from "@/components/modules/ModuleOverview";
+import { AhpTopsisBestPreview } from "@/components/modules/pembelian/AhpTopsisBestPreview";
 
 import { NAV_CONFIG } from "@/lib/nav";
 
@@ -104,6 +105,9 @@ export default function PembelianPage() {
                 Buka AI Insight
                 <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform duration-150" />
               </div>
+
+              {/* Live AHP-TOPSIS preview — best supplier per preset */}
+              <AhpTopsisBestPreview />
             </div>
 
             {/* Right — feature pills */}
