@@ -11,6 +11,17 @@ export const getSupplierProducts =
     return response.data;
 };
 
+export const getSupplierProductsBySupplier =
+  async (supplierId: number) => {
+
+    const response =
+      await api.get(
+        `/supplier-product/by-supplier/${supplierId}`
+      );
+
+    return response.data;
+};
+
 /**
  * Patch a supplier-product record.
  * Used to update available_stock after PO approval (deduct)
