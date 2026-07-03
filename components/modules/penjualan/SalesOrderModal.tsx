@@ -17,6 +17,7 @@ import { salesOrderService } from "@/lib/services/penjualan.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
+import { notify } from "@/lib/notify";
 
 export type { SalesOrderItem, SalesOrderFormData } from "./sales_order/SalesOrderType";
 
@@ -141,11 +142,13 @@ export function SalesOrderModal({
         // tanpa menampilkan panel "Proses ke" (itu khusus alur create →
         // lanjut ke Uang Muka/Pengiriman/Faktur untuk SO yang baru dibuat).
         setSuccessMessage("Perubahan Sales Order berhasil disimpan.");
+        notify.success("Sales Order berhasil diperbarui");
         setEditSaved(true);
         onSubmit(form);
       } else {
         setIsSubmitted(true);
         setSuccessMessage("Sales Order berhasil disimpan.");
+        notify.success("Sales Order berhasil dibuat");
         // Jangan panggil onSubmit di sini,
         // karena biasanya parent akan menutup modal.
         // onSubmit(form);
@@ -164,7 +167,7 @@ export function SalesOrderModal({
   };
 
   const handleNavigate = (
-    target: "uang-muka" | "pengiriman" | "faktur"
+    target: "uang-muka" | "pengiriman" | "faktur" | "penerimaan"
   ) => {
     if (!savedSo) return;
 

@@ -859,6 +859,10 @@ export const penerimaanPenjualanService = {
     return mapPenerimaanPenjualan(response.data.data);
   },
 
+  async update(id: number | string, payload: PenerimaanPenjualanPayload): Promise<void> {
+    await api.put(`/sales-receipt/${id}`, payload);
+  },
+
   async getById(id: number | string): Promise<PenerimaanPenjualan> {
     const list = await this.getAll();
     const found = list.find((item) => Number(item.id) === Number(id));

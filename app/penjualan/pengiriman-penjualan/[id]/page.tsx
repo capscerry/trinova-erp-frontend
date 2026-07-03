@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Edit, Printer } from "lucide-react";
 import { AppShell } from "@/components/layout";
+import { PengirimanModal } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
+import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanType";
 import {
   pengirimanPenjualanService,
   type PengirimanPenjualanFullDetail,
 } from "@/lib/services/pengiriman-penjualan.service";
+import { notify } from "@/lib/notify";
 
 const formatDate = (value?: string | null) => {
   if (!value) return "-";
@@ -22,15 +25,55 @@ export default function PengirimanDetailPage() {
   const [data, setData] = useState<PengirimanPenjualanFullDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!id) return;
     pengirimanPenjualanService
       .getFullDetailById(id)
       .then(setData)
       .catch(() => setError("Gagal memuat detail pengiriman."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const editInitialData: Partial<PengirimanFormData> | undefined = data
+    ? {
+        id: data.id,
+        customerId: data.customerId,
+        pelanggan: data.pelanggan,
+        noSuratJalan: data.noSuratJalan,
+        noSuratJalanMode: "manual",
+        tanggalKirim: data.tanggalKirim?.slice(0, 10) ?? "",
+        salesOrderId: data.soId,
+        noSo: data.noSo,
+        noPO: data.noPO,
+        shippingTypeId: data.shippingTypeId,
+        shippingType: data.shippingType,
+        alamatPengiriman: data.alamatPengiriman,
+        keterangan: data.keterangan,
+        items: data.items.map((item) => ({
+          id: `${item.productId}-${item.productCode}`,
+          productId: item.productId,
+          productCode: item.productCode,
+          productName: item.productName,
+          satuan: item.satuan,
+          uomId: item.uomId,
+          qtyDipesan: item.qtyDipesan,
+          qtyDikirim: item.qtyDikirim,
+        })),
+      }
+    : undefined;
+
+  const handleEditSubmit = async () => {
+    setEditModalOpen(false);
+    notify.success("Delivery Order berhasil diperbarui");
+    await loadData();
+  };
 
   return (
     <AppShell title="Detail Pengiriman Pesanan" subtitle="Rincian surat jalan pelanggan">
@@ -39,9 +82,14 @@ export default function PengirimanDetailPage() {
           <ArrowLeft size={15} /> Kembali
         </button>
         {data && (
-          <button onClick={() => window.open(`/penjualan/pengiriman-penjualan/${id}/print`, "_blank")} className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-700">
-            <Printer size={15} /> Print PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditModalOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+              <Edit size={15} /> Edit
+            </button>
+            <button onClick={() => window.open(`/penjualan/pengiriman-penjualan/${id}/print`, "_blank")} className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-700">
+              <Printer size={15} /> Print PDF
+            </button>
+          </div>
         )}
       </div>
 
@@ -91,6 +139,13 @@ export default function PengirimanDetailPage() {
           </section>
         </div>
       )}
+
+      <PengirimanModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onSubmit={handleEditSubmit}
+        initialData={editInitialData}
+      />
     </AppShell>
   );
 }

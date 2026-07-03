@@ -87,6 +87,20 @@ export function mapPengirimanPenjualan(item: DeliveryOrderHeaderApi): Pengiriman
   };
 }
 
+function extractDeliveryOrderHeader(
+  body:
+    | ApiResponse<DeliveryOrderHeaderApi>
+    | DeliveryOrderHeaderApi
+    | { header?: DeliveryOrderHeaderApi }
+    | null
+    | undefined
+) {
+  if (!body) return undefined;
+  if ("data" in body && body.data) return body.data;
+  if ("header" in body && body.header) return body.header;
+  return body as DeliveryOrderHeaderApi;
+}
+
 // ─── Detail Item (dari GetDoDetail, di-fetch terpisah saat buka Detail/Edit) ──
 
 export interface DeliveryOrderDetailApi {
@@ -192,6 +206,41 @@ export const pengirimanPenjualanService = {
       "/delivery-order",
       payload
     );
-    return mapPengirimanPenjualan(response.data.data);
+    const header = extractDeliveryOrderHeader(response.data);
+
+    if (header?.id) {
+      return mapPengirimanPenjualan(header);
+    }
+
+    const inserted = await this.getAll();
+    const found = inserted.find((item) =>
+      item.noSuratJalan === payload.header.doNumber ||
+      (
+        item.customerId === payload.header.customerId &&
+        item.noPO === payload.header.poNumber &&
+        item.tanggalKirim?.slice(0, 10) === payload.header.doDate?.slice(0, 10)
+      )
+    );
+
+    if (found) return found;
+
+    return {
+      id: 0,
+      noSuratJalan: payload.header.doNumber ?? "",
+      tanggalKirim: payload.header.doDate,
+      customerId: payload.header.customerId,
+      pelanggan: "",
+      soId: payload.header.soId ?? undefined,
+      noPO: payload.header.poNumber,
+      shippingTypeId: payload.header.deliveryCategoryId,
+      shippingType: "",
+      alamatPengiriman: payload.header.address ?? "",
+      keterangan: payload.header.notes ?? "",
+      status: "Draft",
+    };
+  },
+
+  async update(id: number | string, payload: PengirimanPenjualanPayload): Promise<void> {
+    await api.put(`/delivery-order/${id}`, payload);
   },
 };

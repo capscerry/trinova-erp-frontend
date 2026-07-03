@@ -310,6 +310,14 @@ export function UangMukaModal({
       setIsSubmitting(true);
 
       const payload = mapFormToApiPayload(form);
+
+      if (isEdit && form.id) {
+        await uangMukaService.update(form.id, payload);
+        onSubmit(form);
+        setSaved(true);
+        return;
+      }
+
       const response = await uangMukaService.create(payload);
 
       console.log("✅ Uang Muka tersimpan:", response);
@@ -909,12 +917,10 @@ export function UangMukaModal({
                   </div>
                   <div>
                     <p className={`text-xs font-bold ${saved ? "text-slate-800" : "text-slate-500"}`}>
-                      {onProses ? "Pengiriman" : "Penerimaan Penjualan"}
+                      Penerimaan Penjualan
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      {onProses
-                        ? "Lanjutkan ke dokumen pengiriman"
-                        : "Catat pembayaran yang diterima dari pelanggan ini"}
+                      Catat pembayaran yang diterima dari pelanggan ini
                     </p>
                   </div>
                 </div>

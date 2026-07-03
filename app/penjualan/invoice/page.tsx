@@ -16,6 +16,7 @@ import {
 } from "@/lib/services/sales-invoice.service";
 import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -87,6 +88,7 @@ export default function SalesInvoicePage() {
     } catch (err) {
       console.error(err);
       showMessage("Failed to load sales invoices", "error");
+      notify.error("Gagal memuat Sales Invoice");
     } finally {
       setIsLoading(false);
     }
@@ -104,9 +106,21 @@ export default function SalesInvoicePage() {
 
   const handleSubmit = (form: FakturPenjualanFormData) => {
     void form;
-    setModalOpen(false);
     showMessage("Sales invoice saved successfully");
+    notify.success("Sales Invoice berhasil disimpan");
     fetchData();
+  };
+
+  const handleProcessToReceipt = (form: FakturPenjualanFormData & { remainingAmount?: number }) => {
+    const params = new URLSearchParams();
+    if (form.customerId) params.set("customerId", String(form.customerId));
+    if (form.pelanggan) params.set("pelanggan", form.pelanggan);
+    if (form.id) params.set("salesInvoiceId", String(form.id));
+    if (form.salesOrderId) params.set("salesOrderId", String(form.salesOrderId));
+    params.set("nilaiPembayaran", String(form.remainingAmount ?? 0));
+    params.set("keterangan", `Pembayaran faktur ${form.noFaktur}`);
+
+    router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
   };
 
   return (
@@ -155,6 +169,7 @@ export default function SalesInvoicePage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
+        onProses={handleProcessToReceipt}
       />
     </AppShell>
   );

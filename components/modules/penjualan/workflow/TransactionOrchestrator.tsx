@@ -4,12 +4,14 @@ import { SalesOrderModal } from "@/components/modules/penjualan/SalesOrderModal"
 import { UangMukaModal } from "@/components/modules/penjualan/uang_muka/UangMukaModal";
 import { PengirimanModal } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
 import { FakturPenjualanModal } from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanModal";
+import { PenerimaanModal } from "@/components/modules/penjualan/penerimaan_penjualan/PenerimaanModal";
 import { useWorkflowDraft, type DraftKey } from "@/lib/WorkflowDraftContext";
 
 import type { SalesOrderFormData, WorkflowSalesOrderData } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanType";
 import type { FakturPenjualanFormData } from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanType";
+import type { PenerimaanFormData } from "@/components/modules/penjualan/penerimaan_penjualan/PenerimaanPenjualanType";
 
 type DraftSalesOrder = Partial<SalesOrderFormData> & Record<string, unknown>;
 type DraftItem = Record<string, unknown>;
@@ -84,7 +86,7 @@ export function TransactionOrchestrator() {
   };
 
   const handleSONavigate = (
-    target: "uang-muka" | "pengiriman" | "faktur",
+    target: "uang-muka" | "pengiriman" | "faktur" | "penerimaan",
     data: WorkflowSalesOrderData
   ) => {
     setDraftPart("salesOrder", data as SalesOrderFormData & Record<string, unknown>);
@@ -92,10 +94,16 @@ export function TransactionOrchestrator() {
     if (target === "uang-muka") openModal("uangMuka");
     if (target === "pengiriman") openModal("pengiriman");
     if (target === "faktur") openModal("faktur");
+    if (target === "penerimaan") openModal("penerimaan");
   };
 
   const handleUMSubmit = (data: UangMukaFormData) => {
     setDraftPart("uangMuka", data);
+  };
+
+  const handleUMProses = (data: UangMukaFormData) => {
+    setDraftPart("uangMuka", data);
+    openModal("penerimaan");
   };
 
   const handlePengirimanSubmit = (data: PengirimanFormData) => {
@@ -103,12 +111,29 @@ export function TransactionOrchestrator() {
     closeModal();
   };
 
+  const handlePengirimanProses = (data: PengirimanFormData) => {
+    setDraftPart("pengiriman", data);
+    openModal("faktur");
+  };
+
   const handleFakturSubmit = (data: FakturPenjualanFormData) => {
     setDraftPart("faktur", data);
+  };
+
+  const handleFakturProses = (data: FakturPenjualanFormData & { remainingAmount?: number }) => {
+    setDraftPart("faktur", data);
+    openModal("penerimaan");
+  };
+
+  const handlePenerimaanSubmit = (data: PenerimaanFormData) => {
+    setDraftPart("penerimaan", data);
     closeModal();
   };
 
   const so = draft.salesOrder as DraftSalesOrder | undefined;
+  const uangMuka = draft.uangMuka as (Partial<UangMukaFormData> & Record<string, unknown>) | undefined;
+  const pengiriman = draft.pengiriman as (Partial<PengirimanFormData> & Record<string, unknown>) | undefined;
+  const faktur = draft.faktur as (Partial<FakturPenjualanFormData> & Record<string, unknown>) | undefined;
   const salesOrderId = getNumber(so, ["orderId", "salesOrderId", "id"]);
   const salesOrderNumber = getString(so, ["noPesanan", "nomor", "soNumber", "orderNumber"]);
 
@@ -165,7 +190,35 @@ export function TransactionOrchestrator() {
 
   const fakturInitialData: Partial<FakturPenjualanFormData> | undefined =
     draft.faktur ??
-    (so
+    (pengiriman
+      ? {
+          customerId: getNumber(pengiriman, ["customerId"]) || undefined,
+          pelanggan: getString(pengiriman, ["pelanggan", "customerName"]),
+          salesOrderId: getNumber(pengiriman, ["salesOrderId"]) || salesOrderId || undefined,
+          noSo: getString(pengiriman, ["noSo"]) || salesOrderNumber,
+          deliveryOrderId: getNumber(pengiriman, ["id"]) || undefined,
+          noPengiriman: getString(pengiriman, ["noSuratJalan", "noPengiriman"]),
+          noPO: getString(pengiriman, ["noPO"]),
+          alamat: getString(pengiriman, ["alamatPengiriman", "address"]),
+          keterangan: getString(pengiriman, ["keterangan", "notes"]),
+          kenaPajak: getBool(so, ["kenaPajak", "isTaxAble"]),
+          items: getItems(pengiriman as DraftSalesOrder).map((item) => {
+            const productId = getNumber(item, ["productId"]);
+            const soItem = getItems(so).find((source) => getNumber(source, ["productId"]) === productId);
+            return {
+              id: crypto.randomUUID(),
+              productId: productId || undefined,
+              productCode: getString(item, ["productCode"]),
+              productName: getString(item, ["productName", "namaBarang"]),
+              uomId: getNumber(item, ["uomId"]) || undefined,
+              satuan: getString(item, ["satuan", "uomCode", "uom"]),
+              qty: getNumber(item, ["qtyDikirim", "qty", "quantity", "productQty"]),
+              harga: getNumber(soItem, ["harga", "price", "productPrice"]),
+              diskon: getNumber(soItem, ["diskon", "discountPercent", "productDiscount"]),
+            };
+          }),
+        }
+      : so
       ? {
           customerId: getNumber(so, ["customerId"]) || undefined,
           pelanggan: getString(so, ["pelanggan", "customerName"]),
@@ -189,6 +242,48 @@ export function TransactionOrchestrator() {
         }
       : undefined);
 
+  const penerimaanInitialData: Partial<PenerimaanFormData> | undefined =
+    draft.penerimaan ??
+    (faktur
+      ? {
+          customerId: getNumber(faktur, ["customerId"]) || undefined,
+          pelanggan: getString(faktur, ["pelanggan", "customerName"]),
+          bank: "",
+          nilaiPembayaran: getNumber(faktur, ["remainingAmount"]) || 0,
+          tanggalBayar: new Date().toISOString().split("T")[0],
+          noBukti: "",
+          noBuktiMode: "auto" as const,
+          keterangan: `Pembayaran faktur ${getString(faktur, ["noFaktur"])}`,
+          salesInvoiceId: getNumber(faktur, ["id"]) || undefined,
+          salesOrderId: getNumber(faktur, ["salesOrderId"]) || salesOrderId || undefined,
+        }
+      : uangMuka
+      ? {
+          customerId: getNumber(uangMuka, ["customerId"]) || undefined,
+          pelanggan: getString(uangMuka, ["pelanggan", "customerName"]),
+          bank: "",
+          nilaiPembayaran: getNumber(uangMuka, ["uangMuka", "nominalUangMuka", "totalAmount"]),
+          tanggalBayar: new Date().toISOString().split("T")[0],
+          noBukti: "",
+          noBuktiMode: "auto" as const,
+          keterangan: `Pembayaran uang muka ${getString(uangMuka, ["noFaktur"])}`,
+          uangMukaId: getNumber(uangMuka, ["id"]) || undefined,
+          salesOrderId: salesOrderId || undefined,
+        }
+      : so
+      ? {
+          customerId: getNumber(so, ["customerId"]) || undefined,
+          pelanggan: getString(so, ["pelanggan", "customerName"]),
+          bank: "",
+          nilaiPembayaran: getSalesOrderTotal(so),
+          tanggalBayar: new Date().toISOString().split("T")[0],
+          noBukti: "",
+          noBuktiMode: "auto" as const,
+          keterangan: `Pembayaran dari Sales Order ${salesOrderNumber}`,
+          salesOrderId: salesOrderId || undefined,
+        }
+      : undefined);
+
   return (
     <>
       <SalesOrderModal
@@ -205,12 +300,14 @@ export function TransactionOrchestrator() {
         onSubmit={handleUMSubmit}
         initialData={uangMukaInitialData}
         isSaved={isSaved("uangMuka")}
+        onProses={handleUMProses}
       />
 
       <PengirimanModal
         open={activeModal === "pengiriman"}
         onClose={closeModal}
         onSubmit={handlePengirimanSubmit}
+        onProses={handlePengirimanProses}
         initialData={pengirimanInitialData}
       />
 
@@ -218,7 +315,15 @@ export function TransactionOrchestrator() {
         open={activeModal === "faktur"}
         onClose={closeModal}
         onSubmit={handleFakturSubmit}
+        onProses={handleFakturProses}
         initialData={fakturInitialData}
+      />
+
+      <PenerimaanModal
+        open={activeModal === "penerimaan"}
+        onClose={closeModal}
+        onSubmit={handlePenerimaanSubmit}
+        initialData={penerimaanInitialData}
       />
     </>
   );

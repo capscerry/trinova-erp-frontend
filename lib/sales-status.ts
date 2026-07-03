@@ -21,7 +21,7 @@ export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
     "Completed",
     "Cancelled",
   ],
-  "down-payment": ["Draft", "Issued", "Received", "Used", "Cancelled"],
+  "down-payment": ["Draft", "Issued", "Partially Paid", "Received", "Used", "Cancelled"],
   "delivery-order": ["Draft", "Approved", "Shipped", "Received", "Invoiced", "Cancelled"],
   "sales-invoice": ["Draft", "Issued", "Partially Paid", "Paid", "Overdue", "Cancelled"],
   "sales-receipt": ["Draft", "Validated", "Cancelled"],

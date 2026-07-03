@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout";
 import {
   ArrowLeft,
   Printer,
+  Edit,
   CreditCard,
   MapPin,
   Calendar,
@@ -23,6 +24,11 @@ import {
   uangMukaService,
   type UangMuka,
 } from "@/lib/services/penjualan.service";
+import {
+  UangMukaModal,
+  type UangMukaFormData,
+} from "@/components/modules/penjualan/uang_muka/UangMukaModal";
+import { notify } from "@/lib/notify";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +145,7 @@ export default function UangMukaDetailPage() {
   const [data, setData] = useState<UangMuka | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const taxSummary = data
     ? getDownPaymentTaxView(data)
     : {
@@ -151,22 +158,51 @@ export default function UangMukaDetailPage() {
         note: "",
       };
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!id) return;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const result = await uangMukaService.getById(id);
-        setData(result);
-      } catch (err) {
-        console.error(err);
-        setError("Gagal memuat data Uang Muka");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    try {
+      setLoading(true);
+      const result = await uangMukaService.getById(id);
+      setData(result);
+    } catch (err) {
+      console.error(err);
+      setError("Gagal memuat data Uang Muka");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const editInitialData: UangMukaFormData | undefined = data
+    ? {
+        id: data.id,
+        customerId: data.customerId,
+        pelanggan: data.customerName ?? "",
+        noFaktur: data.noFaktur,
+        noFakturMode: "manual",
+        tanggal: data.tanggal?.slice(0, 10) ?? "",
+        uangMuka: Number(data.nominalUangMuka ?? 0),
+        noPO: data.noPO ?? "",
+        kenaPajak: Boolean(data.isTaxable),
+        totalTermasukPajak: Boolean(data.isTaxIncluded),
+        syaratPembayaran: data.syaratPembayaran ?? "",
+        alamat: data.alamat ?? "",
+        keterangan: data.keterangan ?? "",
+        fakturType: "Faktur Penjualan",
+        noPesanan: data.nomorSo ?? "",
+        totalHargaPesanan: Number(data.totalAmount ?? data.nominalUangMuka ?? 0),
+      }
+    : undefined;
+
+  const handleEditSubmit = async () => {
+    setEditModalOpen(false);
+    notify.success("Sales Down Payment berhasil diperbarui");
+    await loadData();
+  };
 
   return (
     <AppShell
@@ -194,6 +230,13 @@ export default function UangMukaDetailPage() {
                          border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
             >
               <Printer size={13} /> Cetak
+            </button>
+            <button
+              onClick={() => setEditModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
+                         bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+            >
+              <Edit size={13} /> Edit
             </button>
           </div>
         )}
@@ -444,6 +487,13 @@ export default function UangMukaDetailPage() {
           </div>
         </div>
       ) : null}
+
+      <UangMukaModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onSubmit={handleEditSubmit}
+        initialData={editInitialData}
+      />
     </AppShell>
   );
 }

@@ -1,4 +1,4 @@
-import { CreditCard, Truck, Receipt } from "lucide-react";
+import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
 
   // ─── Types ────────────────────────────────────────────────────────────────────
   export interface SalesOrderItem {
@@ -94,7 +94,7 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
     }[];
 
     onNavigate?: (
-      target: "uang-muka" | "pengiriman" | "faktur",
+      target: "uang-muka" | "pengiriman" | "faktur" | "penerimaan",
       soData: WorkflowSalesOrderData
     ) => void;
   }
@@ -124,6 +124,14 @@ import { CreditCard, Truck, Receipt } from "lucide-react";
       icon: Receipt,
       color: "text-emerald-600",
       bg: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200",
+    },
+    {
+      key: "penerimaan" as const,
+      label: "Penerimaan",
+      desc: "Catat pembayaran langsung dari SO ini",
+      icon: WalletCards,
+      color: "text-amber-600",
+      bg: "bg-amber-50 hover:bg-amber-100 border-amber-200",
     },
   ];
 

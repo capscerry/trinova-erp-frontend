@@ -13,6 +13,7 @@ import { uangMukaService } from "@/lib/services/penjualan.service";
 import { Eye } from "lucide-react";
 import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 
 export interface UangMuka {
   no: number;
@@ -124,6 +125,7 @@ export default function UangMukaPage() {
     } catch (error) {
       console.error(error);
       showMessage("Failed to load down payments", "error");
+      notify.error("Gagal memuat Sales Down Payment");
     } finally {
       setIsLoading(false);
     }
@@ -188,6 +190,9 @@ export default function UangMukaPage() {
     showMessage(
       formData.id ? "Down payment updated successfully" : "Down payment added successfully",
       "success"
+    );
+    notify.success(
+      formData.id ? "Sales Down Payment berhasil diperbarui" : "Sales Down Payment berhasil dibuat"
     );
   };
 

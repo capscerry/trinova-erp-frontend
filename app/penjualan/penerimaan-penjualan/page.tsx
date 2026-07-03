@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/penjualan.service";
 import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -88,6 +89,7 @@ export default function PenerimaanPenjualanPage() {
     } catch (err) {
       console.error(err);
       showMessage("Failed to load sales receipts", "error");
+      notify.error("Gagal memuat Sales Receipt");
     } finally {
       setIsLoading(false);
     }
@@ -116,6 +118,7 @@ export default function PenerimaanPenjualanPage() {
     const customerId = customerIdParam ? Number(customerIdParam) : undefined;
     const pelanggan = pelangganParam ?? "";
     const nilaiPembayaran = Number(searchParams.get("nilaiPembayaran") ?? 0);
+    const keterangan = searchParams.get("keterangan") ?? "";
 
     const uangMukaIdParam = searchParams.get("uangMukaId");
     const salesOrderIdParam = searchParams.get("salesOrderId");
@@ -131,6 +134,7 @@ export default function PenerimaanPenjualanPage() {
       tanggalBayar: todayStr(),
       noBukti: generateNoBukti(),
       noBuktiMode: "auto",
+      keterangan,
       uangMukaId: uangMukaId && uangMukaId > 0 ? uangMukaId : undefined,
       salesOrderId: salesOrderId && salesOrderId > 0 ? salesOrderId : undefined,
       salesInvoiceId: salesInvoiceId && salesInvoiceId > 0 ? salesInvoiceId : undefined,
@@ -159,6 +163,7 @@ export default function PenerimaanPenjualanPage() {
     setModalOpen(false);
     setInitialFormData(undefined);
     showMessage("Sales receipt saved successfully");
+    notify.success("Sales Receipt berhasil disimpan");
     fetchData();
   };
 

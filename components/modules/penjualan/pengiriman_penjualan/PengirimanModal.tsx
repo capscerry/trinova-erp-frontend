@@ -33,6 +33,7 @@ export interface PengirimanModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PengirimanFormData) => void;
+  onProses?: (data: PengirimanFormData) => void;
   initialData?: Partial<PengirimanFormData>;
 }
 
@@ -41,6 +42,7 @@ export function PengirimanModal({
   open,
   onClose,
   onSubmit,
+  onProses,
   initialData,
 }: PengirimanModalProps) {
   const isEdit = !!initialData?.id;
@@ -253,13 +255,26 @@ export function PengirimanModal({
 
     try {
       setIsSubmitting(true);
+
+      if (isEdit) {
+        const payload = mapFormToApiPayload(form);
+        await pengirimanPenjualanService.update(form.id!, payload);
+        onSubmit(form);
+        return;
+      }
       console.log("🔍 [PengirimanModal] form.items sebelum mapping ke payload:", form.items);
 
       const payload = mapFormToApiPayload(form);
       console.log("🔍 [PengirimanModal] Payload FINAL yang dikirim ke POST /api/delivery-order:", JSON.stringify(payload, null, 2));
 
-      await pengirimanPenjualanService.create(payload);
-      onSubmit(form);
+      const saved = await pengirimanPenjualanService.create(payload);
+      const savedForm = {
+        ...form,
+        id: saved.id,
+        noSuratJalan: saved.noSuratJalan || form.noSuratJalan,
+      };
+      setForm(savedForm);
+      onSubmit(savedForm);
     } catch (err: unknown) {
       console.error("❌ Gagal menyimpan pengiriman:", err);
       alert("Gagal menyimpan data: " + getErrorMessage(err));
@@ -676,6 +691,13 @@ export function PengirimanModal({
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
             >
               Batal
+            </button>
+            <button
+              onClick={() => onProses?.(form)}
+              disabled={!onProses || !form.id}
+              className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Process to Sales Invoice
             </button>
             <button
               onClick={handleSubmit}

@@ -11,12 +11,14 @@ import type { SalesOrderFormData } from "@/components/modules/penjualan/sales_or
 import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanType";
 import type { FakturPenjualanFormData } from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanType";
+import type { PenerimaanFormData } from "@/components/modules/penjualan/penerimaan_penjualan/PenerimaanPenjualanType";
 
 export interface WorkflowDraft {
   salesOrder?: SalesOrderFormData & Record<string, unknown>;
   uangMuka?: UangMukaFormData;
   pengiriman?: PengirimanFormData;
   faktur?: FakturPenjualanFormData;
+  penerimaan?: PenerimaanFormData;
 }
 
 export type DraftKey = keyof WorkflowDraft;
@@ -26,6 +28,7 @@ export type ModalKey =
   | "uangMuka"
   | "pengiriman"
   | "faktur"
+  | "penerimaan"
   | null;
 
 interface WorkflowDraftContextValue {

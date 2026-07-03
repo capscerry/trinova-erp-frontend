@@ -17,6 +17,7 @@ import {
 } from "@/lib/services/penjualan.service";
 import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -104,6 +105,7 @@ function SalesOrderPageInner() {
     } catch (error) {
       console.error(error);
       showMessage("Failed to load sales orders", "error");
+      notify.error("Gagal memuat Sales Order");
     } finally {
       setIsLoading(false);
     }

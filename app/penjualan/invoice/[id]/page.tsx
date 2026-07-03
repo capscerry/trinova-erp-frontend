@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CreditCard, Printer } from "lucide-react";
+import { ArrowLeft, CreditCard, Edit, Printer } from "lucide-react";
 import { AppShell } from "@/components/layout";
+import {
+  FakturPenjualanModal,
+  type FakturPenjualanFormData,
+} from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanModal";
 import {
   salesInvoiceService,
   type SalesInvoiceFullDetail,
 } from "@/lib/services/sales-invoice.service";
+import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -43,9 +48,15 @@ export default function SalesInvoiceDetailPage() {
   const [data, setData] = useState<SalesInvoiceFullDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const fetchData = async () => {
     salesInvoiceService
       .getFullDetailById(id)
       .then(setData)
@@ -54,7 +65,7 @@ export default function SalesInvoiceDetailPage() {
         setError("Gagal memuat detail faktur penjualan.");
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  };
 
   const grossTotal = useMemo(
     () => data?.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0) ?? 0,
@@ -76,6 +87,45 @@ export default function SalesInvoiceDetailPage() {
     }
 
     router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
+  };
+
+  const editInitialData: Partial<FakturPenjualanFormData> | undefined = data
+    ? {
+        id: data.id,
+        customerId: data.customerId,
+        pelanggan: data.customerName,
+        noFaktur: data.invoiceNumber,
+        noFakturMode: "manual",
+        tanggal: data.invoiceDate?.slice(0, 10) ?? "",
+        jatuhTempo: data.dueDate?.slice(0, 10) ?? "",
+        salesOrderId: data.salesOrderId,
+        noSo: data.salesOrderNumber,
+        deliveryOrderId: data.deliveryOrderId,
+        noPengiriman: data.deliveryOrderNumber,
+        noPO: "",
+        alamat: "",
+        keterangan: data.notes,
+        kenaPajak: Number(data.taxTotal || 0) > 0,
+        uangMuka: data.downPaymentAmount,
+        biayaKirim: data.shippingCost,
+        items: data.items.map((item) => ({
+          id: String(item.id),
+          productId: item.productId,
+          productCode: item.productCode,
+          productName: item.productName || item.description,
+          uomId: item.uomId,
+          satuan: item.uomName,
+          qty: item.quantity,
+          harga: item.price,
+          diskon: item.discount,
+        })),
+      }
+    : undefined;
+
+  const handleEditSubmit = async () => {
+    setEditModalOpen(false);
+    notify.success("Sales Invoice berhasil diperbarui");
+    await fetchData();
   };
 
   return (
@@ -101,6 +151,14 @@ export default function SalesInvoiceDetailPage() {
                 Record Payment
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setEditModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+            >
+              <Edit size={15} />
+              Edit
+            </button>
             <button
               type="button"
               onClick={() => window.open(`/penjualan/invoice/${id}/print`, "_blank")}
@@ -190,6 +248,13 @@ export default function SalesInvoiceDetailPage() {
           </section>
         </div>
       )}
+
+      <FakturPenjualanModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onSubmit={handleEditSubmit}
+        initialData={editInitialData}
+      />
     </AppShell>
   );
 }

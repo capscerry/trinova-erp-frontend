@@ -18,6 +18,14 @@ import {
   penerimaanPenjualanService,
 } from "@/lib/services/penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
+import { salesInvoiceService, type SalesInvoice } from "@/lib/services/sales-invoice.service";
+
+const formatRupiah = (value: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PenerimaanModalProps {
@@ -70,6 +78,9 @@ export function PenerimaanModal({
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [showBankDropdown, setShowBankDropdown] = useState(false);
   const [filterBank, setFilterBank] = useState("");
+  const [invoiceOptions, setInvoiceOptions] = useState<SalesInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [showInvoicePicker, setShowInvoicePicker] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -147,6 +158,41 @@ export function PenerimaanModal({
     setFilterBank("");
   };
 
+  const loadSalesInvoices = async () => {
+    try {
+      setLoadingInvoices(true);
+      const invoices = await salesInvoiceService.getAll();
+      setInvoiceOptions(
+        invoices.filter((invoice) => {
+          const matchesCustomer = !form.customerId || invoice.customerId === form.customerId;
+          const isOutstanding = Number(invoice.remainingAmount ?? 0) > 0;
+          const isPayable = !["Paid", "Cancelled"].includes(String(invoice.status));
+          return matchesCustomer && isOutstanding && isPayable;
+        })
+      );
+      setShowInvoicePicker(true);
+    } catch (err) {
+      console.error("Gagal memuat faktur penjualan:", err);
+      alert("Gagal memuat faktur penjualan");
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  const handleSelectInvoice = (invoice: SalesInvoice) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: invoice.customerId,
+      pelanggan: invoice.customerName || prev.pelanggan,
+      nilaiPembayaran: Number(invoice.remainingAmount ?? invoice.grandTotal ?? 0),
+      salesInvoiceId: invoice.id,
+      salesOrderId: invoice.salesOrderId,
+      uangMukaId: undefined,
+      keterangan: `Pembayaran faktur ${invoice.invoiceNumber}`,
+    }));
+    setShowInvoicePicker(false);
+  };
+
   // ── No Bukti mode toggle ──────────────────────────────
   const switchNoBuktiMode = (mode: "auto" | "manual") => {
     set("noBuktiMode", mode);
@@ -174,6 +220,14 @@ export function PenerimaanModal({
 
     try {
       setIsSubmitting(true);
+
+      if (isEdit) {
+        const payload = mapFormToApiPayload(form);
+        await penerimaanPenjualanService.update(form.id!, payload);
+        onSubmit(form);
+        return;
+      }
+
       const payload = mapFormToApiPayload(form);
       await penerimaanPenjualanService.create(payload);
       onSubmit(form);
@@ -277,6 +331,33 @@ export function PenerimaanModal({
                 )}
               </div>
             </FormField>
+
+            <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-sky-700">
+                    Ambil dari Sales Invoice
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-sky-600">
+                    Pilih faktur yang masih memiliki sisa tagihan
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadSalesInvoices}
+                  disabled={loadingInvoices}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loadingInvoices ? "Memuat..." : "Pilih"}
+                </button>
+              </div>
+
+              {form.salesInvoiceId && (
+                <div className="mt-2 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-sky-700">
+                  Invoice terpilih ID #{form.salesInvoiceId}
+                </div>
+              )}
+            </div>
 
             {/* Bank (uang dikirim melalui apa) */}
             <FormField label="Bank" icon={<Landmark size={14} />} required hint="Rekening tujuan pembayaran">
@@ -451,6 +532,66 @@ export function PenerimaanModal({
           </div>
         </div>
       </div>
+
+      {showInvoicePicker && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setShowInvoicePicker(false)} />
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between bg-sky-600 px-5 py-3.5">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Pilih Sales Invoice</h3>
+                  <p className="text-xs text-sky-100">
+                    {form.pelanggan || "Invoice outstanding"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInvoicePicker(false)}
+                  className="text-sky-100 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto p-4">
+                {invoiceOptions.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-slate-400">
+                    Tidak ada invoice outstanding untuk customer ini
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {invoiceOptions.map((invoice) => (
+                      <button
+                        key={invoice.id}
+                        type="button"
+                        onClick={() => handleSelectInvoice(invoice)}
+                        className="grid w-full grid-cols-[1fr_auto] gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                      >
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-slate-800">
+                            {invoice.invoiceNumber}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {invoice.customerName}
+                            {invoice.salesOrderNumber ? ` • ${invoice.salesOrderNumber}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-navy-900">
+                            {formatRupiah(invoice.remainingAmount)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">{invoice.status}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

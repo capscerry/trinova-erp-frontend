@@ -18,6 +18,7 @@ import {
 } from "@/lib/services/pengiriman-penjualan.service";
 import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 
 const formatDate = (d?: string | null) => {
   if (!d) return "-";
@@ -77,6 +78,7 @@ export default function PengirimanPenjualanPage() {
     } catch (err) {
       console.error(err);
       showMessage("Failed to load delivery orders", "error");
+      notify.error("Gagal memuat Delivery Order");
     } finally {
       setIsLoading(false);
     }
@@ -135,6 +137,7 @@ export default function PengirimanPenjualanPage() {
     setModalOpen(false);
     setInitialFormData(undefined);
     showMessage("Delivery order saved successfully");
+    notify.success("Delivery Order berhasil disimpan");
     fetchData();
   };
 
