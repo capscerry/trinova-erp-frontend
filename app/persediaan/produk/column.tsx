@@ -67,7 +67,7 @@ export const getColumns = ({
     width: "140px",
     render: (_, row) => (
       <span className="text-slate-700">
-        {row.masterUom?.uom_name}
+        {row.masterUom?.uom_code}
       </span>
     ),
   },

@@ -21,6 +21,7 @@ export interface Product {
 
   masterUom?: {
     uom_id: number;
+    uom_code: string;
     uom_name: string;
   };
 }
