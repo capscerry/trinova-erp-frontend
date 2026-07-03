@@ -30,7 +30,7 @@ import {
   getProducts,
 } from "@/lib/services";
 
-import { getPurchasePayments } from "@/lib/services/purchase-payment.service";
+import { getPurchaseDownPayments } from "@/lib/services/purchase-down-payment.service";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -52,6 +52,7 @@ interface PurchaseInvoice {
   status: InvoiceStatus;
   age: number;
   dp_paid: number;
+  payment_paid: number;
   outstanding_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
@@ -175,12 +176,23 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
   },
 
   {
-    key: "age",
-    label: "Age (Day)",
+    key: "dp_paid",
+    label: "DP Amount",
 
     render: (val) => (
-      <span className="text-slate-600">
-        {String(val)}
+      <span className="font-semibold text-blue-700">
+        Rp {formatNumber(Number(val))}
+      </span>
+    ),
+  },
+
+  {
+    key: "payment_paid",
+    label: "Payment Amount",
+
+    render: (val) => (
+      <span className="font-semibold text-emerald-700">
+        Rp {formatNumber(Number(val))}
       </span>
     ),
   },
@@ -197,16 +209,6 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
   },
 
   {
-  key: "dp_paid",
-  label: "Paid",
-
-  render: (val) => (
-    <span className="font-semibold text-emerald-700">
-      Rp {formatNumber(Number(val))}
-    </span>
-  ),
-},
-{
   key: "outstanding_amount",
   label: "Outstanding",
 
@@ -238,6 +240,9 @@ export default function PurchaseInvoicePage() {
   const [products, setProducts] =
     useState<any[]>([]);
 
+  const [downPayments, setDownPayments] =
+    useState<any[]>([]);
+
   const [openModal, setOpenModal] =
     useState(false);
 
@@ -265,32 +270,19 @@ export default function PurchaseInvoicePage() {
 
     try {
 
-      const [invoiceRes, paymentRes] = await Promise.all([
-        getPurchaseInvoices(),
-        getPurchasePayments(),
-      ]);
+      const invoiceRes = await getPurchaseInvoices();
 
       const list = Array.isArray(invoiceRes)
         ? invoiceRes
         : invoiceRes.data;
 
-      const allPayments: any[] = Array.isArray(paymentRes)
-        ? paymentRes
-        : paymentRes.data ?? [];
-
-      // Build a map of invoice_id -> sum of actual payments made
-      const paymentSumByInvoice: Record<number, number> = {};
-      for (const p of allPayments) {
-        const invId = Number(p.purchase_invoice_id);
-        if (!invId) continue;
-        paymentSumByInvoice[invId] =
-          (paymentSumByInvoice[invId] ?? 0) + Number(p.amount ?? 0);
-      }
-
       const mapped = list.map(
         (item: any) => {
-          const invId = Number(item.purchase_invoice_id);
-          const actualPaid = paymentSumByInvoice[invId] ?? 0;
+
+          // Use server-computed outstanding_amount and dp_paid directly —
+          // the backend SQL already subtracts both down-payments and
+          // purchase-payments from total_amount correctly.
+          const outstanding = Math.max(0, Number(item.outstanding_amount ?? 0));
 
           return {
 
@@ -316,14 +308,17 @@ export default function PurchaseInvoicePage() {
               item.total_amount,
 
             dp_paid:
-              actualPaid,
+              Number(item.dp_paid ?? 0),
+
+            payment_paid:
+              Number(item.payment_paid ?? 0),
 
             outstanding_amount:
-              Math.max(0, (item.total_amount ?? 0) - actualPaid),
+              outstanding,
 
             status: (item.status === "Cancelled"
               ? "Cancelled"
-              : Math.max(0, (item.total_amount ?? 0) - actualPaid) === 0
+              : outstanding === 0
                 ? "Paid"
                 : "Unpaid") as InvoiceStatus,
 
@@ -383,11 +378,22 @@ export default function PurchaseInvoicePage() {
     }
   };
 
+  const fetchDownPayments = async () => {
+    try {
+      const res = await getPurchaseDownPayments();
+      const list = Array.isArray(res) ? res : res.data ?? [];
+      setDownPayments(list);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   useEffect(() => {
     fetchInvoices();
     fetchGoodsReceipt();
     fetchPurchaseOrderDetails();
     fetchProducts();
+    fetchDownPayments();
   }, []);
 
   // Auto-open create modal when navigated from PO page with ?po_id=
@@ -665,6 +671,7 @@ export default function PurchaseInvoicePage() {
   goodsReceipts={goodsReceipts}
   purchaseOrderDetails={purchaseOrderDetails}
   products={products}
+  downPayments={downPayments}
 />
 
 <PurchaseInvoiceFormModal

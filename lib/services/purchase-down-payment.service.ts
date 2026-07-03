@@ -39,3 +39,12 @@ export const deletePurchaseDownPayment =
 
     return res.data;
   };
+
+export const getDownPaymentsByPurchaseOrder =
+  async (purchaseOrderId: number) => {
+    const res = await api.get(
+      `/purchase-down-payment?purchase_order_id=${purchaseOrderId}`
+    );
+
+    return res.data;
+  };

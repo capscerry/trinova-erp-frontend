@@ -11,6 +11,7 @@ import {
   Wallet,
   CreditCard,
   Hash,
+  ArrowDownCircle,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
@@ -43,6 +44,17 @@ interface Payment {
   notes?: string;
 }
 
+interface DownPayment {
+  purchase_down_payment_id: number;
+  dp_number: string;
+  purchase_order_id: number;
+  payment_date?: string;
+  payment_type?: string;
+  amount?: number;
+  status?: string;
+  notes?: string;
+}
+
 interface PurchaseInvoiceDetailModalProps {
   open: boolean;
   onClose: () => void;
@@ -50,6 +62,7 @@ interface PurchaseInvoiceDetailModalProps {
   goodsReceipts?: any[];
   purchaseOrderDetails?: any[];
   products?: any[];
+  downPayments?: any[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -101,6 +114,7 @@ export default function PurchaseInvoiceDetailModal({
   goodsReceipts = [],
   purchaseOrderDetails = [],
   products = [],
+  downPayments = [],
 }: PurchaseInvoiceDetailModalProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -132,15 +146,38 @@ export default function PurchaseInvoiceDetailModal({
 
   if (!open || !invoice) return null;
 
-  // Sum only the payments that were fetched for this invoice
+  // ── Resolve the PO ID for this invoice via goods_receipt ──
+  const inv = invoice as any;
+  let poId: number | null = inv.purchase_order_id ? Number(inv.purchase_order_id) : null;
+  if (!poId && inv.goods_receipt_id) {
+    const matchedGR = goodsReceipts.find(
+      (gr: any) => Number(gr.goods_receipt_id ?? gr.id) === Number(inv.goods_receipt_id)
+    );
+    poId = matchedGR ? Number(matchedGR.purchase_order_id ?? null) : null;
+  }
+
+  // ── Filter down payments that belong to this invoice's PO ──
+  const invoiceDPs: DownPayment[] = poId
+    ? downPayments.filter(
+        (dp: any) => Number(dp.purchase_order_id) === poId
+      )
+    : [];
+
+  const totalDPMade = invoiceDPs.reduce(
+    (sum, dp) => sum + Number(dp.amount ?? 0),
+    0
+  );
+
+  // Sum only the payments fetched for this invoice
   const totalPaymentsMade = payments.reduce(
     (sum, p) => sum + Number(p.amount ?? 0),
     0
   );
-  // Outstanding = total - what has actually been paid (payments + dp)
+
+  // Outstanding = total - down payments - purchase payments
   const computedOutstanding = Math.max(
     0,
-    invoice.total_amount - invoice.dp_paid - totalPaymentsMade
+    invoice.total_amount - totalDPMade - totalPaymentsMade
   );
 
   const exportToExcel = () => {
@@ -497,12 +534,86 @@ export default function PurchaseInvoiceDetailModal({
                 Ringkasan Pembayaran
               </p>
               <div className="grid grid-cols-4 gap-3">
-                <SummaryCard label="Invoice Total"    value={formatRupiah(invoice.total_amount)} />
-                <SummaryCard label="DP Dibayar"       value={formatRupiah(invoice.dp_paid)} />
-                <SummaryCard label="Payment Dibayar"  value={formatRupiah(totalPaymentsMade)} highlight />
-                <SummaryCard label="Outstanding"      value={formatRupiah(computedOutstanding)} dim={computedOutstanding === 0} />
+                <SummaryCard label="Invoice Total"   value={formatRupiah(invoice.total_amount)} />
+                <SummaryCard label="DP Dibayar"      value={formatRupiah(totalDPMade)} />
+                <SummaryCard label="Payment Dibayar" value={formatRupiah(totalPaymentsMade)} highlight />
+                <SummaryCard label="Outstanding"     value={formatRupiah(computedOutstanding)} dim={computedOutstanding === 0} />
               </div>
             </div>
+
+            {/* ── DOWN PAYMENT HISTORY ── */}
+            {invoiceDPs.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+                  Riwayat Down Payment
+                </p>
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-4 py-2.5 text-left font-semibold text-slate-400 uppercase tracking-wide">
+                          No. DP
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-semibold text-slate-400 uppercase tracking-wide">
+                          Tanggal
+                        </th>
+                        <th className="px-4 py-2.5 text-left font-semibold text-slate-400 uppercase tracking-wide">
+                          Tipe
+                        </th>
+                        <th className="px-4 py-2.5 text-right font-semibold text-slate-400 uppercase tracking-wide">
+                          Jumlah
+                        </th>
+                        <th className="px-4 py-2.5 text-center font-semibold text-slate-400 uppercase tracking-wide">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoiceDPs.map((dp, i) => (
+                        <tr
+                          key={dp.purchase_down_payment_id ?? i}
+                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
+                        >
+                          <td className="px-4 py-3 font-mono font-semibold text-navy-700">
+                            {dp.dp_number ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {dp.payment_date ? formatDate(dp.payment_date) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <span className="inline-flex items-center gap-1">
+                              <ArrowDownCircle size={11} className="text-slate-400" />
+                              {dp.payment_type ?? "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-700">
+                            {formatRupiah(Number(dp.amount ?? 0))}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLE[dp.status ?? ""] ?? "bg-slate-100 text-slate-600"}`}
+                            >
+                              {dp.status ?? "—"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-navy-900">
+                        <td colSpan={3} className="px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+                          Total DP
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-gold-400">
+                          {formatRupiah(totalDPMade)}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* ── PAYMENT HISTORY ── */}
             <div>
