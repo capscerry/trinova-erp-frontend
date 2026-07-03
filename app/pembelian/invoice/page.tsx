@@ -319,11 +319,11 @@ export default function PurchaseInvoicePage() {
               actualPaid,
 
             outstanding_amount:
-              item.outstanding_amount ?? 0,
+              Math.max(0, (item.total_amount ?? 0) - actualPaid),
 
             status: (item.status === "Cancelled"
               ? "Cancelled"
-              : (item.outstanding_amount ?? 0) === 0
+              : Math.max(0, (item.total_amount ?? 0) - actualPaid) === 0
                 ? "Paid"
                 : "Unpaid") as InvoiceStatus,
 

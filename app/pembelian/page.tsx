@@ -215,7 +215,7 @@ const getActivityHref = (refTable?: string | null, refId?: number | null) => {
   return routeMap[refTable] ?? null;
 };
 export default function PembelianPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const module = NAV_CONFIG.find((n) => n.id === "pembelian")!;
 
   const [dashboard, setDashboard] = useState<PurchasingDashboard>(EMPTY_PURCHASING_DASHBOARD);
@@ -233,13 +233,15 @@ export default function PembelianPage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     fetchDashboard();
-  }, [fetchDashboard]);
+  }, [fetchDashboard, authLoading, user]);
   const [presetBests, setPresetBests] = useState<PresetBest[]>([]);
   const [rankLoading, setRankLoading] = useState(true);
 
   useEffect(() => {
     async function loadRankings() {
+      if (authLoading || !user) return;
       setRankLoading(true);
       try {
         const norm = (r: PromiseSettledResult<any>) =>
@@ -285,7 +287,7 @@ export default function PembelianPage() {
       }
     }
     loadRankings();
-  }, []);
+  }, [authLoading, user]);
 
   return (
     <AppShell
