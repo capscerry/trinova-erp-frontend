@@ -189,13 +189,13 @@ export default function
   return (
 
     <AppShell
-      title="Category Supplier"
-      subtitle="Master category supplier"
+      title="Supplier Category"
+      subtitle="Master Supplier Catgory"
     >
 
       <DataTable<SupplierCategory>
 
-        title="Daftar Category Supplier"
+        title="Daftar Supplier Category"
 
         columns={COLUMNS}
 
