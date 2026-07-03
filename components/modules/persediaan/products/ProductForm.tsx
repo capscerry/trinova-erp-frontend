@@ -4,35 +4,34 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 
-import {
-  getCategories,
-  Category,
-} from "@/lib/services/category.service";
+import { getCategories, Category, } from "@/lib/services/category.service";
 
-import {
-  getSubcategoriesByCategory,
-} from "@/lib/services/subcategory.service";
+import { getSubcategoriesByCategory, ProductSubcategory } from "@/lib/services/subcategory.service";
 
-import {
-  getUoms,
-  Uom,
-} from "@/lib/services/uom.service";
+import { getUoms, Uom,} from "@/lib/services/uom.service";
+
+import { toast } from "sonner";
+
+import { Loader2 } from "lucide-react";
 
 export interface ProductFormData {
   product_name: string;
-  product_code: string;
-  product_type: string;
 
   category_id: number;
   subcategory_id: number;
   uom_id: number;
 }
 
-interface Subcategory {
-  subcategory_id: number;
-  category_id: number;
-  code: string;
-  name: string;
+interface Product {
+    product_id:number;
+
+    product_name:string;
+
+    category_id:number;
+
+    subcategory_id:number;
+
+    uom_id:number;
 }
 
 interface Props {
@@ -40,16 +39,13 @@ interface Props {
     data: ProductFormData
   ) => Promise<void>;
 
-  existingCodes: string[];
-
   loading?: boolean;
 
-  initialData?: any;
+  initialData?: Product;
 }
 
 export default function ProductForm({
   onSubmit,
-  existingCodes,
   loading = false,
   initialData,
 }: Props) {
@@ -57,25 +53,26 @@ export default function ProductForm({
     useState<Category[]>([]);
 
   const [subcategories, setSubcategories] =
-    useState<Subcategory[]>([]);
+    useState<ProductSubcategory[]>([]);
 
   const [uoms, setUoms] =
     useState<Uom[]>([]);
 
     useEffect(() => {
-      fetchInitialData();
+      void fetchInitialData();
     }, []);
 
   const [formData, setFormData] =
     useState<ProductFormData>({
       product_name: "",
-      product_code: "",
-      product_type: "Spare Part",
 
       category_id: 0,
       subcategory_id: 0,
       uom_id: 0,
     });
+
+  const [loadingSubcategories, setLoadingSubcategories] =
+  useState(false);
 
   useEffect(() => {
     if (!initialData) return;
@@ -83,12 +80,6 @@ export default function ProductForm({
     setFormData({
       product_name:
         initialData.product_name,
-
-      product_code:
-        initialData.product_code,
-
-      product_type:
-        initialData.product_type,
 
       category_id:
         initialData.category_id,
@@ -105,19 +96,24 @@ export default function ProductForm({
     );
   }, [initialData]);
 
-  async function loadSubcategories(
-    categoryId: number
-  ) {
+  async function loadSubcategories(categoryId: number) {
     try {
+      setLoadingSubcategories(true);
+
       const data =
-        await getSubcategoriesByCategory(
-          categoryId
-        );
+        await getSubcategoriesByCategory(categoryId);
 
       setSubcategories(data);
 
     } catch (error) {
       console.error(error);
+
+      toast.error(
+        "Failed to load subcategories."
+      );
+
+    } finally {
+      setLoadingSubcategories(false);
     }
   }
 
@@ -129,8 +125,13 @@ export default function ProductForm({
           getUoms(),
         ]);
 
+      console.log("Category:", categoryData);
+      console.log("UOM:", uomData);
+
       setCategories(categoryData);
       setUoms(uomData);
+
+      console.log("Category Data:", categoryData);
 
     } catch (error) {
       console.error(error);
@@ -140,76 +141,26 @@ export default function ProductForm({
   async function handleCategoryChange(
     e: React.ChangeEvent<HTMLSelectElement>
   ) {
-    const categoryId = Number(
-      e.target.value
-    );
+    const categoryId = Number(e.target.value);
 
     setFormData((prev) => ({
       ...prev,
       category_id: categoryId,
       subcategory_id: 0,
-      product_code: "",
     }));
 
-    try {
-      await loadSubcategories(
-        categoryId
-      );
+    setSubcategories([]);
 
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  function generateProductCode(
-    categoryId: number,
-    subcategoryCode: string
-  ) {
-    const categoryPart = String(
-      categoryId
-    ).padStart(2, "0");
-
-    const subcategoryPart =
-      String(subcategoryCode).padStart(
-        2,
-        "0"
-      );
-
-    const runningNumber = String(
-      existingCodes.length + 1
-    ).padStart(6, "0");
-
-    return `ITM-${categoryPart}${subcategoryPart}${runningNumber}`;
+    await loadSubcategories(categoryId);
   }
 
   function handleSubcategoryChange(
-    e: React.ChangeEvent<HTMLSelectElement>
+      e: React.ChangeEvent<HTMLSelectElement>
   ) {
-    const subcategoryId = Number(
-      e.target.value
-    );
-
-    const selectedSubcategory =
-      subcategories.find(
-        (x) =>
-          x.subcategory_id ===
-          subcategoryId
-      );
-
-    const generatedCode =
-      generateProductCode(
-        formData.category_id,
-        selectedSubcategory?.code ??
-          "00"
-      );
-
-    setFormData((prev) => ({
-      ...prev,
-      subcategory_id:
-        subcategoryId,
-      product_code:
-        generatedCode,
-    }));
+      setFormData(prev => ({
+          ...prev,
+          subcategory_id: Number(e.target.value),
+      }));
   }
 
   function handleInputChange(
@@ -239,14 +190,28 @@ export default function ProductForm({
       JSON.stringify(formData, null, 2)
     );
 
-    if (
-      formData.category_id === 0 ||
-      formData.subcategory_id === 0 ||
-      formData.uom_id === 0
+    if(
+
+    !formData.product_name.trim()
+
+    ||
+
+    formData.category_id===0
+
+    ||
+
+    formData.subcategory_id===0
+
+    ||
+
+    formData.uom_id===0
+
     ) {
-      alert(
-        "Category, Subcategory dan UOM wajib dipilih"
+      toast.error(
+        "Please complete all required fields."
       );
+
+      console.log("State Categories:", categories);
 
       return;
     }
@@ -277,40 +242,6 @@ export default function ProductForm({
           className="w-full rounded-lg border px-3 py-2"
           required
         />
-      </div>
-
-      {/* Product Type */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Product Type
-        </label>
-
-        <select
-          name="product_type"
-          value={
-            formData.product_type
-          }
-          onChange={
-            handleInputChange
-          }
-          className="w-full rounded-lg border px-3 py-2"
-        >
-          <option value="Spare Part">
-            Spare Part
-          </option>
-
-          <option value="Raw Material">
-            Raw Material
-          </option>
-
-          <option value="Finished Goods">
-            Finished Goods
-          </option>
-
-          <option value="Service">
-            Service
-          </option>
-        </select>
       </div>
 
       {/* Category */}
@@ -359,6 +290,11 @@ export default function ProductForm({
         </label>
 
         <select
+          disabled={
+              formData.category_id === 0 ||
+              loadingSubcategories
+          }
+          
           value={
             formData.subcategory_id
           }
@@ -369,25 +305,34 @@ export default function ProductForm({
           required
         >
           <option value={0}>
-            Select Subcategory
+            {formData.category_id === 0
+              ? "Select Category First"
+              : loadingSubcategories
+                ? "Loading subcategories..."
+                : "Select Subcategory"}
           </option>
 
           {subcategories.map(
             (subcategory) => (
               <option
-                key={
-                  subcategory.subcategory_id
-                }
-                value={
-                  subcategory.subcategory_id
-                }
+                  key={subcategory.subcategory_id}
+                  value={subcategory.subcategory_id}
               >
-                {subcategory.name}
+                  {subcategory.name}
               </option>
             )
           )}
         </select>
+
+        {loadingSubcategories && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading subcategories...
+          </div>
+        )}
       </div>
+
+
 
       {/* UOM */}
       <div className="space-y-2">
@@ -419,22 +364,6 @@ export default function ProductForm({
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Product Code */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Product Code
-        </label>
-
-        <input
-          type="text"
-          value={
-            formData.product_code
-          }
-          readOnly
-          className="w-full rounded-lg border bg-slate-100 px-3 py-2"
-        />
       </div>
 
       <div className="flex justify-end">

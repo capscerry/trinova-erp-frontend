@@ -3,7 +3,6 @@ export interface Product {
 
   product_name: string;
   product_code: string;
-  product_type: string;
 
   category_id: number;
   subcategory_id: number;
