@@ -55,13 +55,13 @@ export default function StockTransferForm({
     useState<Warehouse[]>([]);
 
   const [formData, setFormData] =
-    useState<StockTransferFormData>({
-      product_id: 0,
-      source_warehouse_id: 0,
-      destination_warehouse_id: 0,
-      quantity: 1,
-      notes: "",
-    });  
+  useState<StockTransferFormData>({
+    product_id: 0,
+    source_warehouse_id: 0,
+    destination_warehouse_id: 0,
+    quantity: 1,
+    notes: "",
+  });  
 
   useEffect(() => {
     loadInventoryStocks();
@@ -399,6 +399,8 @@ export default function StockTransferForm({
           }
         />
       </div>
+
+      {/* SAVE */}
 
       <div className="flex justify-end">
         <Button
