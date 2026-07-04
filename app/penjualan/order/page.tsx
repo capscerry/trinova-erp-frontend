@@ -116,6 +116,12 @@ function SalesOrderPageInner() {
   }, [fetchData]);
 
   useEffect(() => {
+    const refreshSalesOrders = () => fetchData();
+    window.addEventListener("sales-order:saved", refreshSalesOrders);
+    return () => window.removeEventListener("sales-order:saved", refreshSalesOrders);
+  }, [fetchData]);
+
+  useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => setMessage(""), 3000);
     return () => clearTimeout(timer);

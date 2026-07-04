@@ -37,7 +37,7 @@ export function SalesOrderHeaderForm({
   const [nomorMode, setNomorMode] = useState<"auto" | "manual">("auto");
   const [nomorManual, setNomorManual] = useState("");
 
-  const [customerOptions,setCustomerOptions] = useState<{id : number ; name :string}[]>([]);
+  const [customerOptions,setCustomerOptions] = useState<{id : number ; name :string; address: string}[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false); 
 
   const setField = <K extends keyof SalesOrderFormData>(k: K, v: SalesOrderFormData[K]) =>
@@ -53,7 +53,8 @@ export function SalesOrderHeaderForm({
             data.map(
                 (c) => ({
                      id: Number(c.id),
-                     name: c.nama 
+                     name: c.nama,
+                     address: c.alamat ?? "",
                 }))
             );
     }catch(error){
@@ -171,6 +172,7 @@ export function SalesOrderHeaderForm({
             onChange({
                 pelanggan: v,
                 customerId: selected?.id,
+                alamatPengiriman: selected?.address ?? "",
                 // Reset quotation reference saat ganti customer
                 quotationId: undefined,
                 quotationNumber: undefined,

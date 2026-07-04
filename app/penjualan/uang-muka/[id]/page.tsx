@@ -187,6 +187,7 @@ export default function UangMukaDetailPage() {
         tanggal: data.tanggal?.slice(0, 10) ?? "",
         uangMuka: Number(data.nominalUangMuka ?? 0),
         noPO: data.noPO ?? "",
+        noSo: data.nomorSo ?? "",
         kenaPajak: Boolean(data.isTaxable),
         totalTermasukPajak: Boolean(data.isTaxIncluded),
         syaratPembayaran: data.syaratPembayaran ?? "",

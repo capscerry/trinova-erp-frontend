@@ -51,7 +51,7 @@ export function PengirimanModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Customer dropdown ────────────────────────────────
-  const [customerOptions, setCustomerOptions] = useState<{ id: number; name: string }[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<{ id: number; name: string; address: string }[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState("");
@@ -72,7 +72,7 @@ export function PengirimanModal({
       try {
         setLoadingCustomers(true);
         const data = await customerService.getAllActive();
-        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama })));
+        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama, address: c.alamat ?? "" })));
       } catch (err) {
         console.error("Gagal memuat data customer:", err);
         setCustomerOptions([]);
@@ -149,11 +149,12 @@ export function PengirimanModal({
     c.name.toLowerCase().includes(filterCustomer.toLowerCase())
   );
 
-  const handleSelectCustomer = (customer: { id: number; name: string }) => {
+  const handleSelectCustomer = (customer: { id: number; name: string; address: string }) => {
     setForm((prev) => ({
       ...prev,
       pelanggan: customer.name,
       customerId: customer.id,
+      alamatPengiriman: customer.address,
       // Reset referensi SO sebelumnya saat ganti customer
       salesOrderId: undefined,
       noSo: "",
@@ -183,7 +184,7 @@ export function PengirimanModal({
 
   // ── SO Picker confirm ─────────────────────────────────
   const handleSoConfirm = (
-    so: { id: number; nomor: string; poNumber: string; alamat: string },
+    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
     items: PengirimanSOPickerResultItem[]
   ) => {
     console.log("🔍 [PengirimanModal] Items diterima dari SO Picker (handleSoConfirm):", items);
@@ -193,6 +194,7 @@ export function PengirimanModal({
       salesOrderId: so.id,
       noSo: so.nomor,
       noPO: so.poNumber || prev.noPO,
+      tanggalKirim: so.tanggalKirim || prev.tanggalKirim,
       alamatPengiriman: so.alamat || prev.alamatPengiriman,
       items: items.map((it) => ({
         id: crypto.randomUUID(),

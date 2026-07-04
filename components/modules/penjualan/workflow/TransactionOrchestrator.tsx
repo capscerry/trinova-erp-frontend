@@ -108,7 +108,6 @@ export function TransactionOrchestrator() {
 
   const handlePengirimanSubmit = (data: PengirimanFormData) => {
     setDraftPart("pengiriman", data);
-    closeModal();
   };
 
   const handlePengirimanProses = (data: PengirimanFormData) => {
@@ -150,6 +149,7 @@ export function TransactionOrchestrator() {
           uangMuka: getSalesOrderTotal(so),
           noPO: getString(so, ["noPO", "poNumber"]),
           noSo: salesOrderNumber,
+          salesOrderId: salesOrderId || undefined,
           noPesanan: salesOrderNumber,
           syaratPembayaran: "",
           alamat: getString(so, ["alamatPengiriman", "address"]),
@@ -168,7 +168,7 @@ export function TransactionOrchestrator() {
           pelanggan: getString(so, ["pelanggan", "customerName"]),
           noSuratJalan: "",
           noSuratJalanMode: "auto" as const,
-          tanggalKirim: new Date().toISOString().split("T")[0],
+          tanggalKirim: getString(so, ["tanggalKirim", "deliveryDate"]) || new Date().toISOString().split("T")[0],
           salesOrderId: salesOrderId || undefined,
           noSo: salesOrderNumber,
           noPO: getString(so, ["noPO", "poNumber"]),
@@ -268,7 +268,7 @@ export function TransactionOrchestrator() {
           noBuktiMode: "auto" as const,
           keterangan: `Pembayaran uang muka ${getString(uangMuka, ["noFaktur"])}`,
           uangMukaId: getNumber(uangMuka, ["id"]) || undefined,
-          salesOrderId: salesOrderId || undefined,
+          salesOrderId: getNumber(uangMuka, ["salesOrderId"]) || salesOrderId || undefined,
         }
       : so
       ? {
