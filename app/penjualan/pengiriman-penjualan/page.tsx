@@ -134,11 +134,16 @@ export default function PengirimanPenjualanPage() {
   };
 
   const handleModalSubmit = () => {
-    setModalOpen(false);
-    setInitialFormData(undefined);
     showMessage("Delivery order saved successfully");
     notify.success("Delivery Order berhasil disimpan");
     fetchData();
+  };
+
+  const handleProcessToInvoice = (form: PengirimanFormData) => {
+    const params = new URLSearchParams();
+    if (form.customerId) params.set("customerId", String(form.customerId));
+    if (form.pelanggan) params.set("pelanggan", form.pelanggan);
+    router.push(`/penjualan/invoice?${params.toString()}`);
   };
 
   const handleModalClose = () => {
@@ -193,6 +198,7 @@ export default function PengirimanPenjualanPage() {
         open={modalOpen}
         onClose={handleModalClose}
         onSubmit={handleModalSubmit}
+        onProses={handleProcessToInvoice}
         initialData={initialFormData}
       />
     </AppShell>

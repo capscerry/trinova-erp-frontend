@@ -16,6 +16,8 @@ import {
   bankService,
   type Bank,
   penerimaanPenjualanService,
+  uangMukaService,
+  type UangMuka,
 } from "@/lib/services/penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
 import { salesInvoiceService, type SalesInvoice } from "@/lib/services/sales-invoice.service";
@@ -81,6 +83,9 @@ export function PenerimaanModal({
   const [invoiceOptions, setInvoiceOptions] = useState<SalesInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [showInvoicePicker, setShowInvoicePicker] = useState(false);
+  const [uangMukaOptions, setUangMukaOptions] = useState<UangMuka[]>([]);
+  const [loadingUangMuka, setLoadingUangMuka] = useState(false);
+  const [showUangMukaPicker, setShowUangMukaPicker] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -191,6 +196,41 @@ export function PenerimaanModal({
       keterangan: `Pembayaran faktur ${invoice.invoiceNumber}`,
     }));
     setShowInvoicePicker(false);
+  };
+
+  const loadUangMuka = async () => {
+    try {
+      setLoadingUangMuka(true);
+      const list = await uangMukaService.getAll();
+      setUangMukaOptions(
+        list.filter((item) => {
+          const matchesCustomer = !form.customerId || item.customerId === form.customerId;
+          const status = String(item.status ?? "").toLowerCase();
+          const canReceive = !["received", "cancelled", "dibatalkan"].includes(status);
+          return matchesCustomer && canReceive;
+        })
+      );
+      setShowUangMukaPicker(true);
+    } catch (err) {
+      console.error("Gagal memuat uang muka:", err);
+      alert("Gagal memuat uang muka");
+    } finally {
+      setLoadingUangMuka(false);
+    }
+  };
+
+  const handleSelectUangMuka = (uangMuka: UangMuka) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: uangMuka.customerId,
+      pelanggan: uangMuka.customerName || prev.pelanggan,
+      nilaiPembayaran: Number(uangMuka.totalAmount ?? uangMuka.nominalUangMuka ?? 0),
+      uangMukaId: uangMuka.id,
+      salesOrderId: undefined,
+      salesInvoiceId: undefined,
+      keterangan: `Pembayaran uang muka ${uangMuka.noFaktur}`,
+    }));
+    setShowUangMukaPicker(false);
   };
 
   // ── No Bukti mode toggle ──────────────────────────────
@@ -355,6 +395,33 @@ export function PenerimaanModal({
               {form.salesInvoiceId && (
                 <div className="mt-2 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-sky-700">
                   Invoice terpilih ID #{form.salesInvoiceId}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                    Ambil dari Uang Muka
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-emerald-600">
+                    Pilih uang muka yang belum diterima penuh
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadUangMuka}
+                  disabled={loadingUangMuka}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loadingUangMuka ? "Memuat..." : "Pilih"}
+                </button>
+              </div>
+
+              {form.uangMukaId && (
+                <div className="mt-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-700">
+                  Uang muka terpilih ID #{form.uangMukaId}
                 </div>
               )}
             </div>
@@ -582,6 +649,66 @@ export function PenerimaanModal({
                             {formatRupiah(invoice.remainingAmount)}
                           </p>
                           <p className="mt-0.5 text-xs text-slate-400">{invoice.status}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showUangMukaPicker && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setShowUangMukaPicker(false)} />
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between bg-emerald-600 px-5 py-3.5">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Pilih Uang Muka</h3>
+                  <p className="text-xs text-emerald-100">
+                    {form.pelanggan || "Down payment outstanding"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUangMukaPicker(false)}
+                  className="text-emerald-100 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto p-4">
+                {uangMukaOptions.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-slate-400">
+                    Tidak ada uang muka outstanding untuk customer ini
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {uangMukaOptions.map((uangMuka) => (
+                      <button
+                        key={uangMuka.id}
+                        type="button"
+                        onClick={() => handleSelectUangMuka(uangMuka)}
+                        className="grid w-full grid-cols-[1fr_auto] gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+                      >
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-slate-800">
+                            {uangMuka.noFaktur}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {uangMuka.customerName}
+                            {uangMuka.nomorSo ? ` • ${uangMuka.nomorSo}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-navy-900">
+                            {formatRupiah(uangMuka.totalAmount ?? uangMuka.nominalUangMuka)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-400">{uangMuka.status}</p>
                         </div>
                       </button>
                     ))}

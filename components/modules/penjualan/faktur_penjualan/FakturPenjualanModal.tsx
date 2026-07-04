@@ -69,7 +69,7 @@ export function FakturPenjualanModal({
 }: FakturPenjualanModalProps) {
   const [form, setForm] = useState<FakturPenjualanFormData>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ id: number; name: string; address: string }[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState("");
   const [soList, setSoList] = useState<SalesOrder[]>([]);
@@ -98,7 +98,7 @@ export function FakturPenjualanModal({
     const load = async () => {
       try {
         const data = await customerService.getAllActive();
-        setCustomers(data.map((c) => ({ id: Number(c.id), name: c.nama })));
+        setCustomers(data.map((c) => ({ id: Number(c.id), name: c.nama, address: c.alamat ?? "" })));
       } catch (err) {
         console.error("Gagal memuat pelanggan:", err);
         setCustomers([]);
@@ -123,10 +123,11 @@ export function FakturPenjualanModal({
     c.name.toLowerCase().includes(filterCustomer.toLowerCase())
   );
 
-  const handleSelectCustomer = (customer: { id: number; name: string }) => {
+  const handleSelectCustomer = (customer: { id: number; name: string; address: string }) => {
     patchForm({
       customerId: customer.id,
       pelanggan: customer.name,
+      alamat: customer.address,
       salesOrderId: undefined,
       noSo: "",
       deliveryOrderId: undefined,

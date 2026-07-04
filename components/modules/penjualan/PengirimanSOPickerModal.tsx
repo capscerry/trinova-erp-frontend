@@ -26,7 +26,7 @@ interface PengirimanSOPickerModalProps {
   customerId: number;
   customerName: string;
   onConfirm: (
-    so: { id: number; nomor: string; poNumber: string; alamat: string },
+    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
     items: PengirimanSOPickerResultItem[]
   ) => void;
 }
@@ -156,6 +156,7 @@ export function PengirimanSOPickerModal({
         nomor: selectedSo.nomor,
         poNumber: selectedSo.poNumber ?? "",
         alamat: selectedSoRecord.alamat ?? "",
+        tanggalKirim: selectedSo.tanggalKirim,
       },
       items
     );

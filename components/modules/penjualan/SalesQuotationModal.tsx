@@ -85,7 +85,7 @@ export function SalesQuotationModal({
   const [productList, setProductList] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
   const [customerOptions, setCustomerOptions] = useState<
-    { id: number; name: string }[]
+    { id: number; name: string; address: string }[]
   >([]);
 
   // Fetch produk & customer saat mount
@@ -102,6 +102,7 @@ export function SalesQuotationModal({
           data.map((c) => ({
             id:   Number(c.id),
             name: c.nama,
+            address: c.alamat ?? "",
           }))
         );
       })
@@ -307,6 +308,7 @@ export function SalesQuotationModal({
                         ...p,
                         dipesanOleh: v,
                         customerId: selected?.id ?? null,
+                        address: selected?.address ?? "",
                       }));
                     }}
                   />

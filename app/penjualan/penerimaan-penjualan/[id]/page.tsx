@@ -97,8 +97,14 @@ export default function PenerimaanDetailPage() {
             <Info label="Pelanggan" value={data.pelanggan || "-"} />
             <Info label="Bank" value={data.bank || "-"} />
             <Info label="Nilai Pembayaran" value={formatRupiah(data.nilaiPembayaran)} />
-            <Info label="Referensi SO" value={data.salesOrderId ? String(data.salesOrderId) : "-"} />
-            <Info label="Referensi Uang Muka" value={data.uangMukaId ? String(data.uangMukaId) : "-"} />
+            <Info
+              label="Referensi SO"
+              value={data.salesOrderNumber || (data.salesOrderId ? String(data.salesOrderId) : "-")}
+            />
+            <Info
+              label="Referensi Uang Muka"
+              value={data.uangMukaNumber || (data.uangMukaId ? String(data.uangMukaId) : "-")}
+            />
           </div>
         </section>
       )}

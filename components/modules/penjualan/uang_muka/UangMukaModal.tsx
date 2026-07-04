@@ -106,7 +106,7 @@ export function UangMukaModal({
 
   // Customer dropdown state
   const [customerOptions, setCustomerOptions] = useState<
-    { id: number; name: string }[]
+    { id: number; name: string; address: string }[]
   >([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -125,6 +125,7 @@ export function UangMukaModal({
         data.map((c) => ({
           id: Number(c.id),
           name: c.nama,
+          address: c.alamat ?? "",
         }))
       );
     } catch (error) {
@@ -146,11 +147,12 @@ export function UangMukaModal({
   );
 
   // Handle customer selection
-  const handleSelectCustomer = (customer: { id: number; name: string }) => {
+  const handleSelectCustomer = (customer: { id: number; name: string; address: string }) => {
     setForm((prev) => ({
       ...prev,
       pelanggan: customer.name,
       customerId: customer.id,
+      alamat: customer.address,
       // Reset referensi SO sebelumnya saat ganti customer
       noPesanan: "",
       noSo: "",
@@ -221,7 +223,16 @@ export function UangMukaModal({
       tanggal: data.tanggal ?? today,
       uangMuka: Number(data.uangMuka ?? 0),
       noPO: data.noPO ?? data.poNumber ?? "",
-      noSo: data.noSo ?? "",
+      noSo:
+        data.noSo ??
+        data.noPesanan ??
+        data.nomor ??
+        data.soNumber ??
+        data.orderNumber ??
+        data.savedSo?.soNumber ??
+        data.savedSo?.orderNumber ??
+        "",
+      salesOrderId: Number(data.salesOrderId ?? data.orderId ?? data.savedSo?.orderId ?? data.savedSo?.id ?? 0) || undefined,
       syaratPembayaran: data.syaratPembayaran ?? "",
       alamat: data.alamat ?? data.alamatPengiriman ?? data.address ?? "",
       keterangan: data.keterangan ?? data.notes ?? "",
@@ -325,11 +336,12 @@ export function UangMukaModal({
       // PENTING: simpan id hasil create ke form. Tanpa ini, form.id tetap 0
       // selamanya, sehingga fitur "Proses ke Penerimaan" tidak punya ID
       // valid untuk dikirim sebagai relasi uangMukaId.
-      setForm((prev) => ({ ...prev, id: response.id ?? prev.id }));
+      const savedForm = { ...form, id: response.id ?? form.id };
+      setForm(savedForm);
 
       // Modal TIDAK ditutup di sini — beri kesempatan user melihat hasil
       // simpan dan memilih "Proses ke Penerimaan" atau menutup manual.
-      onSubmit({ ...form, id: response.id ?? form.id });
+      onSubmit(savedForm);
       setSaved(true);
     } catch (error: unknown) {
       console.error("Gagal menyimpan Uang Muka:", error);
@@ -366,6 +378,11 @@ export function UangMukaModal({
   };
 
   const handleProsesClick = () => {
+    if (!form.id) {
+      alert("Uang Muka belum memiliki ID. Simpan ulang dokumen terlebih dahulu.");
+      return;
+    }
+
     if (onProses) {
       // Mode workflow-chain (dipakai TransactionOrchestrator): lempar balik
       // ke parent, parent yang akan openModal("pengiriman") dst. Modal ini
@@ -899,10 +916,10 @@ export function UangMukaModal({
               </p>
 
               <button
-                disabled={!saved}
+                disabled={!saved || !form.id}
                 onClick={handleProsesClick}
                 className={`w-full flex items-center justify-between gap-2 p-3.5 rounded-xl border text-left transition-all ${
-                  saved
+                  saved && form.id
                     ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer"
                     : "bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed"
                 }`}
@@ -910,13 +927,13 @@ export function UangMukaModal({
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      saved ? "bg-white/70" : "bg-slate-100"
+                      saved && form.id ? "bg-white/70" : "bg-slate-100"
                     }`}
                   >
-                    <CreditCard size={15} className={saved ? "text-emerald-600" : "text-slate-400"} />
+                    <CreditCard size={15} className={saved && form.id ? "text-emerald-600" : "text-slate-400"} />
                   </div>
                   <div>
-                    <p className={`text-xs font-bold ${saved ? "text-slate-800" : "text-slate-500"}`}>
+                    <p className={`text-xs font-bold ${saved && form.id ? "text-slate-800" : "text-slate-500"}`}>
                       Penerimaan Penjualan
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
@@ -924,13 +941,13 @@ export function UangMukaModal({
                     </p>
                   </div>
                 </div>
-                {saved && <ArrowRight size={14} className="text-emerald-600" />}
+                {saved && form.id && <ArrowRight size={14} className="text-emerald-600" />}
               </button>
 
-              {!saved && (
+              {(!saved || !form.id) && (
                 <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-2">
                   <Check size={10} className="text-slate-300" />
-                  Tombol akan aktif setelah Uang Muka berhasil disimpan
+                  Tombol akan aktif setelah Uang Muka berhasil disimpan dan ID dokumen diterima
                 </p>
               )}
             </div>

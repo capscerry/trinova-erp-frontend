@@ -144,11 +144,13 @@ export function SalesOrderModal({
         setSuccessMessage("Perubahan Sales Order berhasil disimpan.");
         notify.success("Sales Order berhasil diperbarui");
         setEditSaved(true);
+        window.dispatchEvent(new CustomEvent("sales-order:saved"));
         onSubmit(form);
       } else {
         setIsSubmitted(true);
         setSuccessMessage("Sales Order berhasil disimpan.");
         notify.success("Sales Order berhasil dibuat");
+        window.dispatchEvent(new CustomEvent("sales-order:saved"));
         // Jangan panggil onSubmit di sini,
         // karena biasanya parent akan menutup modal.
         // onSubmit(form);

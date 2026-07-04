@@ -252,7 +252,8 @@ export interface UangMukaPayload {
 
 export interface UangMukaApi extends UangMukaPayload {
   customerName?: string;
-  soNumber ? : string;
+  soNumber?: string;
+  SoNumber?: string;
   status?: string;
 }
 
@@ -334,7 +335,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
     customerId: item.customerId,
     customerName: item.customerName,
     noPO: item.noPO,
-    nomorSo: item.noSo || item.soNumber || "",
+    nomorSo: item.noSo || item.soNumber || item.SoNumber || "",
     nominalUangMuka: item.nominalUangMuka,
     isTaxable: item.isTaxable,
     isTaxIncluded: item.isTaxIncluded,
@@ -794,7 +795,9 @@ export interface PenerimaanPenjualanApi {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number | null;
+  uangMukaNumber?: string | null;
   salesOrderId?: number | null;
+  salesOrderNumber?: string | null;
   salesInvoiceId?: number | null;
   status?: string;
 }
@@ -809,7 +812,9 @@ export interface PenerimaanPenjualan {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number;
+  uangMukaNumber?: string;
   salesOrderId?: number;
+  salesOrderNumber?: string;
   salesInvoiceId?: number;
   status?: string;
 }
@@ -837,7 +842,9 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
     nilaiPembayaran: item.nilaiPembayaran,
     tanggalBayar: item.tanggalBayar,
     uangMukaId: item.uangMukaId ?? undefined,
+    uangMukaNumber: item.uangMukaNumber ?? undefined,
     salesOrderId: item.salesOrderId ?? undefined,
+    salesOrderNumber: item.salesOrderNumber ?? undefined,
     salesInvoiceId: item.salesInvoiceId ?? undefined,
     status: normalizeSalesStatus("sales-receipt", item.status),
   };
