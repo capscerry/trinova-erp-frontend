@@ -31,6 +31,7 @@ import {
 } from "@/lib/services";
 
 import { getPurchaseDownPayments } from "@/lib/services/purchase-down-payment.service";
+import { syncAllInvoiceStatuses } from "@/lib/services/purchase-invoice.service";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -389,7 +390,13 @@ export default function PurchaseInvoicePage() {
   };
 
   useEffect(() => {
-    fetchInvoices();
+    const init = async () => {
+      // Backfill: reconcile any invoice whose status was never updated
+      // by a previous payment. Runs silently — failures are non-fatal.
+      try { await syncAllInvoiceStatuses(); } catch { /* ignore */ }
+      fetchInvoices();
+    };
+    init();
     fetchGoodsReceipt();
     fetchPurchaseOrderDetails();
     fetchProducts();

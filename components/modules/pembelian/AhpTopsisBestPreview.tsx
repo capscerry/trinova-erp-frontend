@@ -74,68 +74,152 @@ function buildAlternatives(
   returns: any[],
   supplierProducts: any[]
 ): Alternative[] {
+  // ── Normalise raw API shapes ────────────────────────────────────────────
   const normPos = pos.map((p: any) => ({
     purchase_order_id: Number(p.purchase_order_id ?? p.id ?? 0),
-    supplier_id: Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
-    order_date: p.order_date ?? p.orderDate ?? null,
-    expected_date: p.expected_date ?? p.expectedDate ?? null,
+    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
+    order_date:        p.order_date    ?? p.orderDate    ?? null,
+    expected_date:     p.expected_date ?? p.expectedDate ?? null,
   }));
 
   const normGrs = grs.map((g: any) => ({
-    goods_receipt_id: Number(g.goods_receipt_id ?? g.id ?? 0),
+    goods_receipt_id:  Number(g.goods_receipt_id ?? g.id ?? 0),
     purchase_order_id: Number(g.purchase_order_id ?? g.purchaseOrderId ?? 0),
-    receipt_date: g.receipt_date ?? g.receiptDate ?? null,
+    receipt_date:      g.receipt_date ?? g.receiptDate ?? null,
   }));
 
   const normReturns = returns.map((r: any) => ({
-    supplier_id: Number(r.supplier_id ?? r.supplierId ?? 0),
+    supplier_id:      Number(r.supplier_id ?? r.supplierId ?? 0),
     goods_receipt_id: Number(r.goods_receipt_id ?? r.goodsReceiptId ?? 0),
   }));
 
-  const normSupplierProducts = supplierProducts.map((sp: any) => ({
-    supplier_id: Number(sp.supplier_id ?? sp.supplierId ?? 0),
+  const normSps = supplierProducts.map((sp: any) => ({
+    supplier_id:    Number(sp.supplier_id ?? sp.supplierId ?? 0),
     supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
     lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
   }));
 
-  const onTimeRates = calcOnTimeRates(normPos as any, normGrs as any);
-  const punctuality = calcDeliveryPunctuality(normPos as any, normGrs as any);
+  const normSuppliers = suppliers.map((s: any) => ({
+    supplier_id:   Number(s.supplier_id ?? s.id),
+    supplier_name: s.supplier_name ?? s.nama ?? s.name ?? `Supplier ${s.supplier_id ?? s.id}`,
+    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
+  }));
 
-  return suppliers.map((supplier: any) => {
-    const supplierId = Number(supplier.supplier_id ?? supplier.id ?? 0);
-    const products = normSupplierProducts.filter((sp: any) => sp.supplier_id === supplierId);
-    const supplierReturns = normReturns.filter((r: any) => r.supplier_id === supplierId);
-    const supplierGrs = normGrs.filter((gr: any) => {
-      const po = normPos.find((p: any) => p.purchase_order_id === gr.purchase_order_id);
-      return po?.supplier_id === supplierId;
+  // ── Per-supplier aggregation ────────────────────────────────────────────
+  type Agg = {
+    name: string;
+    code: string;
+    orderCount: number;
+    actualDays: number[];
+    catalogDays: number[];
+    prices: number[];
+    grIds: Set<number>;
+  };
+
+  const agg = new Map<number, Agg>();
+  for (const s of normSuppliers) {
+    agg.set(s.supplier_id, {
+      name: s.supplier_name,
+      code: s.supplier_code,
+      orderCount: 0,
+      actualDays: [],
+      catalogDays: [],
+      prices: [],
+      grIds: new Set(),
     });
+  }
 
-    const avgPrice = products.length
-      ? products.reduce((sum: number, sp: any) => sum + Number(sp.supplier_price || 0), 0) / products.length
-      : 0;
+  // PO → order count
+  for (const po of normPos) {
+    const a = agg.get(po.supplier_id);
+    if (a) a.orderCount++;
+  }
 
-    const leadTimes = products
-      .map((sp: any) => sp.lead_time_days)
-      .filter((value: any) => value != null && !Number.isNaN(Number(value)));
+  // Build PO lookup for GR processing
+  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
 
-    const avgLeadTime = leadTimes.length
-      ? leadTimes.reduce((sum: number, value: any) => sum + Number(value), 0) / leadTimes.length
-      : 0;
+  // Compute on_time_rate + delivery_punctuality
+  const onTimeMap = calcOnTimeRates(
+    normPos.map((p) => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
+    normGrs.map((g) => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
 
-    const returnRate = supplierGrs.length ? supplierReturns.length / supplierGrs.length : 0;
+  const punctualityMap = calcDeliveryPunctuality(
+    normPos.map((p) => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
+    normGrs.map((g) => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
+  );
 
-    return {
-      id: String(supplierId),
-      name: supplier.supplier_name ?? supplier.nama ?? supplier.name ?? "Unknown Supplier",
+  // Actual lead times + GR IDs per supplier
+  for (const gr of normGrs) {
+    const po = poMap.get(gr.purchase_order_id);
+    if (!po?.order_date || !gr.receipt_date) continue;
+
+    const actualDays =
+      (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
+    if (actualDays < 0 || actualDays > 365) continue;
+
+    const a = agg.get(po.supplier_id);
+    if (!a) continue;
+    a.actualDays.push(actualDays);
+    a.grIds.add(gr.goods_receipt_id);
+  }
+
+  // Catalog prices + catalog lead times
+  for (const sp of normSps) {
+    const a = agg.get(sp.supplier_id);
+    if (!a) continue;
+    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
+    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
+  }
+
+  // Return count per supplier (supplier_id on return is most reliable)
+  const returnCountMap = new Map<number, number>();
+  for (const ret of normReturns) {
+    if (ret.supplier_id === 0) continue;
+    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
+  }
+
+  // ── Build Alternative[] — skip suppliers with no purchase history ───────
+  const alternatives: Alternative[] = [];
+
+  for (const [sid, a] of agg.entries()) {
+    // Exclude suppliers that have never had a PO — they have no real data
+    // and their all-zero values would incorrectly rank them #1 for cost
+    // criteria (avg_price=0, lead_time=0 appear "best").
+    if (a.orderCount === 0) continue;
+
+    const avgPrice =
+      a.prices.length > 0
+        ? a.prices.reduce((s, v) => s + v, 0) / a.prices.length
+        : 0;
+
+    // Prefer actual GR-based lead time; fall back to catalog; then 14 days
+    const avgLeadTime =
+      a.actualDays.length > 0
+        ? a.actualDays.reduce((s, v) => s + v, 0) / a.actualDays.length
+        : a.catalogDays.length > 0
+          ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length
+          : 14;
+
+    const grCount    = a.grIds.size;
+    const retCount   = returnCountMap.get(sid) ?? 0;
+    const returnRate = grCount > 0 ? retCount / grCount : 0;
+
+    alternatives.push({
+      id:   String(sid),
+      name: a.name,
+      code: a.code,
       values: {
-        avg_price: avgPrice,
-        lead_time: avgLeadTime,
-        on_time_rate: onTimeRates.get(supplierId) ?? 0,
-        delivery_punctuality: punctuality.get(supplierId) ?? 0,
-        return_rate: returnRate,
+        avg_price:            Math.round(avgPrice * 100) / 100,
+        lead_time:            Math.round(avgLeadTime * 10) / 10,
+        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
+        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
+        return_rate:          Math.round(returnRate * 1000) / 1000,
       },
-    };
-  });
+    });
+  }
+
+  return alternatives;
 }
 
 function normalizeSettled(result: PromiseSettledResult<any>): any[] {

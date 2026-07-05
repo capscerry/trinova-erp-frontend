@@ -70,3 +70,14 @@ export const getUnpaidInvoicesForReturn =
     );
     return res.data;
 };
+
+// SYNC ALL INVOICE STATUSES (backfill)
+// Fires POST /purchase-invoice/sync-status to recalculate and update the
+// status column for every non-Cancelled invoice based on live payment data.
+export const syncAllInvoiceStatuses =
+  async () => {
+    const res = await api.post(
+      "/purchase-invoice/sync-status"
+    );
+    return res.data;
+};

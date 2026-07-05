@@ -203,9 +203,9 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
       : "—";
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
       <table className="w-full text-[12px] border-collapse">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50 border-b border-slate-100">
             {[
               { h: "#",                 tip: null },
@@ -445,7 +445,7 @@ function buildAltFromErp(
 
   const alternatives: Alternative[] = [];
   for (const [sid, a] of agg.entries()) {
-    if (a.orderCount === 0) continue;
+    // Include ALL suppliers — even those with 0 orders (they get default/neutral values)
     const avgPrice = a.prices.length > 0 ? a.prices.reduce((s, v) => s + v, 0) / a.prices.length : 0;
     const avgLead  = a.actualDays.length > 0 ? a.actualDays.reduce((s, v) => s + v, 0) / a.actualDays.length
                    : a.catalogDays.length > 0 ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length : 14;
@@ -601,8 +601,8 @@ function AhpPresetTable({ preset, loading }: { preset: AhpPresetRanking; loading
       ) : preset.results.length === 0 ? (
         <p className="text-[12px] text-slate-400 text-center py-6">Belum ada data ERP</p>
       ) : (
-        <div className="divide-y divide-slate-50">
-          {preset.results.slice(0, 7).map((r) => {
+        <div className="divide-y divide-slate-50 overflow-y-auto max-h-[420px]">
+          {preset.results.map((r) => {
             const pct = Math.round(r.score * 100);
             const barColor =
               pct >= 70 ? "bg-navy-700"

@@ -176,7 +176,12 @@ export default function PurchaseDownPaymentPage() {
             data
         );
 
-        setPurchaseOrders(data);
+        // Only Approved POs are eligible for a Down Payment
+        const approvedOnly = (data as any[]).filter(
+          (po: any) => po.status === "Approved"
+        );
+
+        setPurchaseOrders(approvedOnly);
 
         } catch (error) {
 

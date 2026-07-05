@@ -452,6 +452,17 @@ export default function PurchaseOrderFormModal({
     return () => window.removeEventListener("keydown", h);
   }, [onClose, approvalOpen, dpOpen, grOpen]);
 
+  // When a different PO is loaded for editing (initialData.purchase_order_id changes),
+  // clear savedPO so it never bleeds over from a prior create/edit session.
+  const prevInitialPOIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const newId = initialData?.purchase_order_id;
+    if (newId !== prevInitialPOIdRef.current) {
+      prevInitialPOIdRef.current = newId;
+      setSavedPO(null);
+    }
+  }, [initialData?.purchase_order_id]);
+
   // Fetch next GR number when the GR sub-form is opened
   useEffect(() => {
     if (!grOpen) return;
@@ -485,7 +496,11 @@ export default function PurchaseOrderFormModal({
   const addItem = () => setForm(prev => ({ ...prev, items: [...prev.items, newItem()] }));
   const grandTotal = form.items.reduce((acc, i) => acc + i.subtotal, 0);
 
-  const poId: number = savedPO?.purchase_order_id ?? initialData?.purchase_order_id ?? 0;
+  // For edits, always prefer the authoritative id from initialData (the server-side PO id)
+  // so that a previously-created PO's savedPO state never bleeds into a subsequent edit.
+  const poId: number = isEdit
+    ? (initialData?.purchase_order_id ?? 0)
+    : (savedPO?.purchase_order_id ?? 0);
   const supplierName = suppliers.find(s => s.id === form.supplier_id)?.nama ?? "";
   const poLineItems = purchaseOrderDetails.filter(d => Number(d.purchase_order_id) === poId);
   const prosesActive = isSubmitted || (isEdit && !!poId);

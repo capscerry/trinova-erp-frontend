@@ -116,10 +116,15 @@ export default function PurchaseOrderDetailModal({
       0
     );
 
-  // Use the stored DB total when available — it will be lower than itemsTotal
-  // if a purchase return deduction (Replacement / Next PO Deduction) was applied.
-  const storedTotal = data.total_amount ?? itemsTotal;
-  const returnDeduction = itemsTotal > storedTotal ? itemsTotal - storedTotal : 0;
+  // Always use the sum of line items as the authoritative total.
+  // The stored DB total_amount can be stale (e.g. PO header saved before all
+  // items were added), so trusting it would produce a spurious "return
+  // deduction" banner. A real return deduction is only meaningful when a
+  // purchase-return settlement record explicitly references this PO — which
+  // the Detail modal does not have access to. Showing a deduction based purely
+  // on a header/items mismatch is misleading, so we drop that inference here.
+  const storedTotal = itemsTotal;
+  const returnDeduction = 0;
 
   // ── Export to Excel ────────────────────────────────────────────────────
   const exportToExcel = () => {

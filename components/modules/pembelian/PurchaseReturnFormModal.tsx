@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Plus, Minus } from "lucide-react";
+import { X, Plus, Minus, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Settlement options ───────────────────────────────────────────────────────
@@ -452,14 +452,43 @@ export default function PurchaseReturnFormModal({
                     closing_condition: getClosingCondition(option),
                   });
                 }}
-                className={inputBase}
+                className={cn(
+                  inputBase,
+                  form.settlement_option === "Cash Refund" &&
+                    "border-amber-400 focus:ring-amber-300 bg-amber-50"
+                )}
               >
                 {SETTLEMENT_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {option === "Accept Loss"       ? "Opsi A — Penggantian Barang (Accept Loss)" :
+                     option === "Next PO Deduction" ? "Opsi B — Terima Kerugian / Potong PO Berikutnya" :
+                     option === "Cash Refund"        ? "Opsi C — Cash Refund (Uang Kembali)" :
+                     option}
                   </option>
                 ))}
               </select>
+
+              {/* Cash Refund constraint warning */}
+              {form.settlement_option === "Cash Refund" && (
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+                  <div className="space-y-1">
+                    <p className="font-semibold">Cash Refund memerlukan invoice yang belum lunas</p>
+                    <p className="leading-relaxed text-amber-700">
+                      Opsi ini hanya dapat diproses jika supplier memiliki{" "}
+                      <span className="font-semibold">invoice yang masih outstanding</span>.
+                      Jika tidak ada, pilih:
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi B</span> — Nilai retur dipotong dari PO berikutnya</li>
+                    </ul>
+                    <p className="text-amber-600 italic">
+                      Jika Anda menyimpan dengan Opsi C saat tidak ada invoice outstanding, server akan menolak permintaan ini.
+                    </p>
+                  </div>
+                </div>
+              )}
             </FormField>
 
             <FormField label="Keterangan / Catatan">

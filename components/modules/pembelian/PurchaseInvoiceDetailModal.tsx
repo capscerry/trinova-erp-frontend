@@ -29,6 +29,7 @@ interface PurchaseInvoice {
   status: string;
   age: number;
   dp_paid: number;
+  payment_paid: number;
   outstanding_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
@@ -516,17 +517,27 @@ export default function PurchaseInvoiceDetailModal({
             </div>
 
             {/* ── STATUS BADGE ── */}
-            <div className="flex items-center gap-3">
-              <BadgeCheck size={15} className="text-slate-400 shrink-0" />
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Status
-              </span>
-              <span
-                className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[invoice.status] ?? "bg-slate-100 text-slate-600"}`}
-              >
-                {invoice.status}
-              </span>
-            </div>
+            {(() => {
+              const liveStatus =
+                invoice.status === "Cancelled"
+                  ? "Cancelled"
+                  : computedOutstanding === 0
+                  ? "Paid"
+                  : "Unpaid";
+              return (
+                <div className="flex items-center gap-3">
+                  <BadgeCheck size={15} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Status
+                  </span>
+                  <span
+                    className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[liveStatus] ?? "bg-slate-100 text-slate-600"}`}
+                  >
+                    {liveStatus}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* ── PAYMENT SUMMARY CARDS ── */}
             <div>

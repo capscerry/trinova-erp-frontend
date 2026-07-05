@@ -13,6 +13,7 @@ import PurchaseReturnFormModal, {
   type PurchaseReturnFormData,
   type GoodsReceiptOption as FormGROption,
   type PODetailItem,
+  type ReturnLineItem,
 } from "@/components/modules/pembelian/PurchaseReturnFormModal";
 
 import PurchaseReturnSettlementModal, {
@@ -139,6 +140,7 @@ export default function PurchaseReturnsPage() {
 
   const [openFormModal, setOpenFormModal] = useState(false);
   const [settlementTarget, setSettlementTarget] = useState<PurchaseReturn | null>(null);
+  const [settlementReturnItems, setSettlementReturnItems] = useState<ReturnLineItem[]>([]);
   const [detailTarget, setDetailTarget] = useState<PurchaseReturn | null>(null);
 
   // ── Loaders ────────────────────────────────────────────────────────────────
@@ -267,14 +269,28 @@ export default function PurchaseReturnsPage() {
   // ── Create ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (data: PurchaseReturnFormData) => {
+    // Serialize the selected return line items into transaction_detail so we
+    // can recover them later when the settlement modal opens — without needing
+    // a dedicated API endpoint.
+    const itemsToStore = (data.return_items ?? []).filter((i) => i.qty_return > 0);
+    const payload = {
+      ...data,
+      transaction_detail: JSON.stringify(itemsToStore),
+    };
+
     try {
-      await createPurchaseReturn(data);
+      await createPurchaseReturn(payload);
       setOpenFormModal(false);
       notify.success("Purchase Return berhasil dibuat.");
       await loadReturns();
       await loadNextNumber();
-    } catch {
-      notify.error("Gagal membuat Purchase Return.");
+    } catch (err: any) {
+      // Surface the backend's specific validation message when available
+      const serverMsg: string | undefined =
+        err?.response?.data?.message ??
+        err?.data?.message ??
+        err?.message;
+      notify.error(serverMsg ?? "Gagal membuat Purchase Return.");
       return;
     }
 
@@ -481,6 +497,39 @@ export default function PurchaseReturnsPage() {
                   onClick={() => {
                     setSettlementTarget(row);
                     loadUnpaidInvoicesForReturn(row.purchase_return_id);
+
+                    // Parse the return line items that were serialized into
+                    // transaction_detail when the return was created.
+                    try {
+                      const parsed: ReturnLineItem[] = JSON.parse(row.transaction_detail ?? "[]");
+                      if (Array.isArray(parsed) && parsed.length > 0) {
+                        setSettlementReturnItems(parsed);
+                      } else {
+                        // Fallback: transaction_detail is not JSON (old record) —
+                        // reconstruct from PO details using the full GR quantity.
+                        const gr = goodsReceipts.find(
+                          (g) => g.goods_receipt_id === row.goods_receipt_id
+                        );
+                        if (gr) {
+                          setSettlementReturnItems(
+                            poDetails
+                              .filter((d) => Number(d.purchase_order_id) === Number(gr.purchase_order_id))
+                              .map((d) => ({
+                                product_id:    d.product_id,
+                                product_name:  d.product_name ?? `Produk #${d.product_id}`,
+                                qty_available: d.quantity,
+                                qty_return:    d.quantity,
+                                unit_price:    d.price,
+                                subtotal:      d.quantity * d.price,
+                              }))
+                          );
+                        } else {
+                          setSettlementReturnItems([]);
+                        }
+                      }
+                    } catch {
+                      setSettlementReturnItems([]);
+                    }
                   }}
                   title="Selesaikan retur ini"
                 >
@@ -508,7 +557,7 @@ export default function PurchaseReturnsPage() {
       {/* Settlement modal */}
       <PurchaseReturnSettlementModal
         open={settlementTarget !== null}
-        onClose={() => setSettlementTarget(null)}
+        onClose={() => { setSettlementTarget(null); setSettlementReturnItems([]); }}
         onSettle={handleSettle}
         purchaseReturn={
           settlementTarget
@@ -525,24 +574,7 @@ export default function PurchaseReturnsPage() {
           })
         )}
         purchaseInvoices={settlementInvoices}
-        returnItems={(() => {
-          // Derive return line items from the PO details matching the selected return's GR
-          if (!settlementTarget) return [];
-          const gr = goodsReceipts.find(
-            (g) => g.goods_receipt_id === settlementTarget.goods_receipt_id
-          );
-          if (!gr) return [];
-          return poDetails
-            .filter((d) => Number(d.purchase_order_id) === Number(gr.purchase_order_id))
-            .map((d) => ({
-              product_id:    d.product_id,
-              product_name:  d.product_name ?? `Produk #${d.product_id}`,
-              qty_available: d.quantity,
-              qty_return:    d.quantity, // all items returned
-              unit_price:    d.price,
-              subtotal:      d.quantity * d.price,
-            }));
-        })()}
+        returnItems={settlementReturnItems}
       />
       {/* Detail modal — for settled returns */}
       <PurchaseReturnDetailModal

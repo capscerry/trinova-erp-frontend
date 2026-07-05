@@ -355,7 +355,7 @@ export function TopsisResultsPanel({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px]">
           {results.map((r) => (
             <ResultRow
               key={r.alternativeId}

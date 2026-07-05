@@ -624,7 +624,7 @@ export default function GoodsReceiptPage() {
           purchaseOrderDetails
         }
         initialPOId={preSelectedPOId}
-        onNavigateToPayment={() => router.push("/pembelian/payment")}
+        onNavigateToInvoice={() => router.push("/pembelian/invoice")}
       />
 
       <GoodsReceiptDetailModal

@@ -13,6 +13,7 @@ import * as XLSX from "xlsx-js-style";
 import {
   getPurchaseOrders,
   getPurchaseOrderDetails,
+  getPurchaseOrderDetailsByPO,
 
   createPurchaseOrder,
   createPurchaseOrderDetail,
@@ -556,6 +557,13 @@ export default function PurchaseOrderPage() {
           );
         }
 
+        // Always derive total_amount from the current line items so the header
+        // stays in sync even if the form state carried a stale value from the DB.
+        const computedTotal = (payload.items ?? []).reduce(
+          (sum: number, item: any) => sum + Number(item.subtotal ?? 0),
+          0
+        );
+
         const buildHeaderPayload = (poNumber: string) => ({
           po_number:
             poNumber,
@@ -574,10 +582,7 @@ export default function PurchaseOrderPage() {
           status:
             payload.status,
 
-          total_amount:
-            typeof payload.total_amount === "number" && !isNaN(payload.total_amount)
-              ? payload.total_amount
-              : 0,
+          total_amount: computedTotal,
 
           transaction_name:
             payload.transaction_name || null,
@@ -1043,14 +1048,18 @@ export default function PurchaseOrderPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                const poId = Number(row.id);
 
-                const detailItems =
-                  purchaseOrderDetails.filter(
-                    (item: any) =>
-                      Number(item.purchase_order_id) ===
-                      Number(row.id)
+                let detailItems: any[] = [];
+                try {
+                  detailItems = await getPurchaseOrderDetailsByPO(poId);
+                } catch (err) {
+                  console.error("Failed to fetch PO details for detail view:", err);
+                  detailItems = purchaseOrderDetails.filter(
+                    (item: any) => Number(item.purchase_order_id) === poId
                   );
+                }
 
                 setSelectedPO({
                   po_number:
@@ -1151,36 +1160,43 @@ export default function PurchaseOrderPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                const poId = Number(row.id);
 
-              const detailItems =
-                purchaseOrderDetails.filter(
-                  (item: any) =>
-                    Number(item.purchase_order_id) ===
-                    Number(row.id)
-                );
+                // Fetch details specifically for this PO so we always get the
+                // right rows even when the bulk endpoint returns
+                // purchase_order_id: null on each detail item.
+                let detailItems: any[] = [];
+                try {
+                  detailItems = await getPurchaseOrderDetailsByPO(poId);
+                } catch (err) {
+                  console.error("Failed to fetch PO details:", err);
+                  // Fall back to the already-loaded state (may be empty if
+                  // purchase_order_id is null, but better than crashing).
+                  detailItems = purchaseOrderDetails.filter(
+                    (item: any) => Number(item.purchase_order_id) === poId
+                  );
+                }
 
-              console.log(
-                "DETAIL ITEMS",
-                detailItems
-              );
+                console.log("DETAIL ITEMS", detailItems);
 
                 setEditingPO({
-
-                  purchase_order_id:
-                    Number(row.id),
+                  purchase_order_id: poId,
 
                   po_number:
                     row.nomor,
+
                   supplier_id:
                     row.supplier_id ||
                     suppliers.find(
-                      (s) =>
-                        s.nama === row.supplier
+                      (s) => s.nama === row.supplier
                     )?.id || "",
 
                   order_date:
                     row.tanggal?.split("T")[0],
+
+                  expected_date:
+                    row.expected_date ?? "",
 
                   status:
                     row.status,
@@ -1191,60 +1207,59 @@ export default function PurchaseOrderPage() {
                   transaction_detail:
                     row.transaction_detail ?? "",
 
-                  items:
-                    detailItems.map(
-                      (item: any) => ({
-                        
-                        id: crypto.randomUUID(),
+                  items: detailItems.map((item: any) => {
+                    // The API uses both "purchase_order_details_id" (plural) and
+                    // "purchase_order_detail_id" (singular) depending on the route.
+                    // Normalise to the singular form used everywhere in this file.
+                    const detailId =
+                      item.purchase_order_detail_id ??
+                      item.purchase_order_details_id ??
+                      null;
 
-                          purchase_order_detail_id:
-                            item.purchase_order_detail_id,
+                    const taxPct = Number(
+                      item.tax_percentage ?? item.tax_percent ?? 0
+                    );
+                    const storedTax = Number(item.tax_amount ?? 0);
+                    const taxAmount =
+                      taxPct > 0 && storedTax === 0
+                        ? Number(item.quantity) * Number(item.price) * (taxPct / 100)
+                        : storedTax;
 
-                        product_id:
-                          item.product_id?.toString(),
+                    return {
+                      id: crypto.randomUUID(),
 
-                        product_name:
-                          products.find(
-                            (p) =>
-                              p.id ===
-                              item.product_id?.toString()
-                          )?.nama || "",
+                      purchase_order_detail_id: detailId,
 
-                        isExisting: true,
+                      product_id:
+                        item.product_id?.toString(),
 
-                        quantity:
-                          item.quantity,
+                      product_name:
+                        products.find(
+                          (p) => p.id === item.product_id?.toString()
+                        )?.nama || "",
 
-                        uom_id:
-                          item.uom_id?.toString(),
+                      isExisting: true,
 
-                        uom_name:
-                          uoms.find(
-                            (u) =>
-                              u.id ===
-                              item.uom_id?.toString()
-                          )?.nama || "",
+                      quantity: item.quantity,
 
-                        price:
-                          item.price,
+                      uom_id:
+                        item.uom_id?.toString(),
 
-                        tax_percent:
-                          Number(item.tax_percentage ?? item.tax_percent ?? 0),
+                      uom_name:
+                        item.uom?.uom_name ||
+                        uoms.find(
+                          (u) => u.id === item.uom_id?.toString()
+                        )?.nama || "",
 
-                        tax_amount: (() => {
-                          const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                          const stored = Number(item.tax_amount ?? 0);
-                          if (taxPct > 0 && stored === 0) {
-                            const base = Number(item.quantity) * Number(item.price);
-                            return base * (taxPct / 100);
-                          }
-                          return stored;
-                        })(),
+                      price: item.price,
 
-                        subtotal:
-                          item.subtotal,
-                      })
-                    ),
+                      tax_percent: taxPct,
+
+                      tax_amount: taxAmount,
+
+                      subtotal: Number(item.subtotal),
+                    };
+                  }),
                 });
 
                 setOpenModal(true);
