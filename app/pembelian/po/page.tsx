@@ -1273,6 +1273,13 @@ export default function PurchaseOrderPage() {
               size="sm"
               onClick={async () => {
 
+                if (row.status === "Approved" || row.status === "Completed") {
+                  toast.error("Tidak bisa menghapus PO", {
+                    description: `Purchase Order dengan status "${row.status}" tidak dapat dihapus.`,
+                  });
+                  return;
+                }
+
                 const confirmed =
                   confirm(
                     `Hapus Purchase Order ${row.nomor}?`
