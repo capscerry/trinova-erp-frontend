@@ -395,7 +395,7 @@ export function DataTable<T extends object>({
                 </th>
               ))}
               {renderActions && (
-                <th className="border-b border-slate-200 px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                <th className="border-b border-slate-200 px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
               )}

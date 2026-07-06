@@ -1072,7 +1072,9 @@ export default function PurchaseOrderPage() {
                     row.tanggal?.split("T")[0],
 
                   expected_date:
-                    row.expected_date ?? null,
+                    row.expected_date
+                      ? String(row.expected_date).split("T")[0]
+                      : null,
 
                   status:
                     row.status,
@@ -1109,7 +1111,7 @@ export default function PurchaseOrderPage() {
                           isExisting: true,
 
                           quantity:
-                            item.quantity,
+                            Number(item.quantity),
 
                           uom_id:
                             item.uom_id?.toString(),
@@ -1122,24 +1124,22 @@ export default function PurchaseOrderPage() {
                             "-",
 
                           price:
-                            item.price,
+                            Number(item.price),
 
                           tax_percent:
                             Number(item.tax_percentage ?? item.tax_percent ?? 0),
 
                           tax_amount: (() => {
                             const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                            const stored = Number(item.tax_amount ?? 0);
-                            // Recompute if the stored value is missing/zero but tax % is set
-                            if (taxPct > 0 && stored === 0) {
-                              const base = Number(item.quantity) * Number(item.price);
-                              return base * (taxPct / 100);
-                            }
-                            return stored;
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base * (taxPct / 100);
                           })(),
 
-                          subtotal:
-                            Number(item.subtotal),
+                          subtotal: (() => {
+                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base + base * (taxPct / 100);
+                          })(),
 
                           available_stock:
                             product?.available_stock,
@@ -1196,7 +1196,9 @@ export default function PurchaseOrderPage() {
                     row.tanggal?.split("T")[0],
 
                   expected_date:
-                    row.expected_date ?? "",
+                    row.expected_date
+                      ? String(row.expected_date).split("T")[0]
+                      : "",
 
                   status:
                     row.status,
@@ -1219,11 +1221,11 @@ export default function PurchaseOrderPage() {
                     const taxPct = Number(
                       item.tax_percentage ?? item.tax_percent ?? 0
                     );
-                    const storedTax = Number(item.tax_amount ?? 0);
-                    const taxAmount =
-                      taxPct > 0 && storedTax === 0
-                        ? Number(item.quantity) * Number(item.price) * (taxPct / 100)
-                        : storedTax;
+                    // Always recompute tax_amount and subtotal from the canonical
+                    // formula so toggled-tax items are never stale.
+                    const base = Number(item.quantity) * Number(item.price);
+                    const taxAmount = base * (taxPct / 100);
+                    const subtotal = base + taxAmount;
 
                     return {
                       id: crypto.randomUUID(),
@@ -1240,7 +1242,7 @@ export default function PurchaseOrderPage() {
 
                       isExisting: true,
 
-                      quantity: item.quantity,
+                      quantity: Number(item.quantity),
 
                       uom_id:
                         item.uom_id?.toString(),
@@ -1251,13 +1253,13 @@ export default function PurchaseOrderPage() {
                           (u) => u.id === item.uom_id?.toString()
                         )?.nama || "",
 
-                      price: item.price,
+                      price: Number(item.price),
 
                       tax_percent: taxPct,
 
                       tax_amount: taxAmount,
 
-                      subtotal: Number(item.subtotal),
+                      subtotal: subtotal,
                     };
                   }),
                 });

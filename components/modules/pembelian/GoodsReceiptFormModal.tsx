@@ -33,6 +33,9 @@ interface PurchaseOrderDetail {
   quantity: number;
   price: number;
   subtotal: number;
+  product?: {
+    product_name: string;
+  };
 }
 
 export interface GoodsReceiptFormData {
@@ -515,6 +518,7 @@ export default function GoodsReceiptFormModal({
 
                         {[
                           "Product ID",
+                          "Product Name",
                           "Qty",
                           "Price",
                           "Subtotal",
@@ -548,7 +552,7 @@ export default function GoodsReceiptFormModal({
                         <tr>
 
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className="
                               px-4
                               py-8
@@ -575,6 +579,10 @@ export default function GoodsReceiptFormModal({
 
                             <td className="px-3 py-3">
                               {item.product_id}
+                            </td>
+
+                            <td className="px-3 py-3 text-slate-700">
+                              {item.product?.product_name ?? "-"}
                             </td>
 
                             <td className="px-3 py-3">

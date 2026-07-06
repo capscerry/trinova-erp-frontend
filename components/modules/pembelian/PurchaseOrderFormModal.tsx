@@ -419,12 +419,19 @@ export default function PurchaseOrderFormModal({
       }
 
       if (initialData) {
-        // Normalize items to ensure tax fields exist (older records won't have them)
-        const normalizedItems = (initialData.items ?? []).map(item => ({
-          ...item,
-          tax_percent: item.tax_percent ?? (item as any).tax_percentage ?? 0,
-          tax_amount: item.tax_amount ?? 0,
-        }));
+        // Normalize items and recompute tax_amount + subtotal so the grand total
+        // always reflects the actual tax_percent (handles toggled-tax edge cases).
+        const normalizedItems = (initialData.items ?? []).map(item => {
+          const taxPct = item.tax_percent ?? (item as any).tax_percentage ?? 0;
+          const base = (item.quantity ?? 0) * (item.price ?? 0);
+          const taxAmount = base * (taxPct / 100);
+          return {
+            ...item,
+            tax_percent: taxPct,
+            tax_amount: taxAmount,
+            subtotal: base + taxAmount,
+          };
+        });
         setForm({ ...initialData, items: normalizedItems });
         setFilteredProducts(products.filter(p => p.supplier_id?.toString() === initialData.supplier_id));
         seedFromExisting(initialData.purchase_order_id ?? 0);
@@ -480,8 +487,8 @@ export default function PurchaseOrderFormModal({
       items: prev.items.map(item => {
         if (item.id !== id) return item;
         const u = { ...item, ...patch };
-        const base = u.quantity * u.price;
-        const taxAmount = base * (u.tax_percent / 100);
+        const base = Number(u.quantity) * Number(u.price);
+        const taxAmount = base * (Number(u.tax_percent) / 100);
         return { ...u, tax_amount: taxAmount, subtotal: base + taxAmount };
       }),
     }));

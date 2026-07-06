@@ -11,6 +11,7 @@ import {
   createSupplierCategory,
   updateSupplierCategory,
   deleteSupplierCategory,
+  getNextSupplierCategoryCode,
 } from "@/lib/services";
 
 import { useAuth } from "@/lib/AuthContext";
@@ -19,15 +20,39 @@ interface SupplierCategory {
   category_id: number;
   category_code: string;
   category_name: string;
+  is_active: boolean;
   created_by?: string;
   created_date?: string;
   update_by?: string;
   update_date?: string;
 }
 
+// ─── Status badge ──────────────────────────────────────────────────────────────
+
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
+        ${active
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-slate-100 text-slate-500 border border-slate-200"}
+      `}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
 const COLUMNS: Column<SupplierCategory>[] = [
   { key: "category_code", label: "KODE CATEGORY" },
   { key: "category_name", label: "NAMA CATEGORY" },
+  {
+    key: "is_active",
+    label: "STATUS",
+    render: (value) => <StatusBadge active={value as boolean} />,
+  },
 ];
 
 export default function SupplierCategoryPage() {
@@ -37,7 +62,7 @@ export default function SupplierCategoryPage() {
   const [openModal, setOpenModal] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [selectedId, setSelectedId] = useState("");
-  const [formData, setFormData] = useState({ category_name: "" });
+  const [formData, setFormData] = useState({ category_name: "", is_active: true });
   const [previewCode, setPreviewCode] = useState<string | null>(null);
 
   // ─── FETCH ────────────────────────────────────────────────────────────────
@@ -55,22 +80,19 @@ export default function SupplierCategoryPage() {
     fetchData();
   }, []);
 
-  // ─── OPEN ADD MODAL ───────────────────────────────────────────────────────
-  // Fetch the next code so the user can see it before saving.
+  // ─── OPEN ADD ─────────────────────────────────────────────────────────────
 
   const handleOpenAdd = async () => {
     setIsEdit(false);
-    setFormData({ category_name: "" });
+    setFormData({ category_name: "", is_active: true });
     setPreviewCode(null);
     setOpenModal(true);
 
     try {
-      const res = await import("@/lib/services").then((m) =>
-        m.getNextSupplierCategoryCode()
-      );
-      setPreviewCode(res);
+      const code = await getNextSupplierCategoryCode();
+      setPreviewCode(code);
     } catch {
-      // Non-critical — the backend will still assign a code on insert.
+      // non-critical — backend assigns code on insert
     }
   };
 
@@ -86,12 +108,14 @@ export default function SupplierCategoryPage() {
       if (isEdit) {
         await updateSupplierCategory(selectedId, {
           category_name: formData.category_name,
+          is_active: formData.is_active,
           update_by: user?.username ?? user?.email ?? "system",
         });
         alert("Category berhasil diupdate");
       } else {
         await createSupplierCategory({
           category_name: formData.category_name,
+          is_active: formData.is_active,
           created_by: user?.username ?? user?.email ?? "system",
         });
         alert("Category berhasil ditambahkan");
@@ -99,7 +123,7 @@ export default function SupplierCategoryPage() {
 
       fetchData();
       setOpenModal(false);
-      setFormData({ category_name: "" });
+      setFormData({ category_name: "", is_active: true });
       setPreviewCode(null);
     } catch (err) {
       console.error(err);
@@ -126,7 +150,7 @@ export default function SupplierCategoryPage() {
   const handleEdit = (row: SupplierCategory) => {
     setIsEdit(true);
     setSelectedId(row.category_id.toString());
-    setFormData({ category_name: row.category_name });
+    setFormData({ category_name: row.category_name, is_active: row.is_active });
     setPreviewCode(row.category_code);
     setOpenModal(true);
   };
@@ -171,9 +195,7 @@ export default function SupplierCategoryPage() {
                   {isEdit ? "Edit Category" : "Tambah Category"}
                 </h2>
                 <p className="text-slate-400 text-xs mt-0.5">
-                  {isEdit
-                    ? "Perbarui data category supplier"
-                    : "Tambah category supplier baru"}
+                  {isEdit ? "Perbarui data category supplier" : "Tambah category supplier baru"}
                 </p>
               </div>
               <button
@@ -187,7 +209,7 @@ export default function SupplierCategoryPage() {
             {/* Body */}
             <div className="p-6 space-y-4">
 
-              {/* Kode Category — read-only */}
+              {/* Kode — read-only */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
                   Kode Category
@@ -200,7 +222,7 @@ export default function SupplierCategoryPage() {
                 />
               </div>
 
-              {/* Nama Category */}
+              {/* Nama */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
                   Nama Category
@@ -208,13 +230,43 @@ export default function SupplierCategoryPage() {
                 <input
                   type="text"
                   value={formData.category_name}
-                  onChange={(e) =>
-                    setFormData({ category_name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
                   placeholder="Masukkan nama category..."
                   className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-navy-900/20 focus:border-navy-900 transition"
                 />
               </div>
+
+              {/* Status toggle */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
+                  Status
+                </label>
+                <div className="flex rounded-xl overflow-hidden border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, is_active: true })}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                      formData.is_active
+                        ? "bg-emerald-500 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, is_active: false })}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-colors border-l border-slate-200 ${
+                      !formData.is_active
+                        ? "bg-slate-500 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Inactive
+                  </button>
+                </div>
+              </div>
+
             </div>
 
             {/* Footer */}

@@ -381,7 +381,8 @@ export default function GoodsReceiptDetailModal({
                       <tr className="bg-slate-50 border-b border-slate-200">
 
                         {[
-                          "Product",
+                          "Product ID",
+                          "Product Name",
                           "Qty",
                           "Price",
                           "Subtotal",
@@ -415,7 +416,7 @@ export default function GoodsReceiptDetailModal({
                         <tr>
 
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className="
                               px-4
                               py-8
@@ -440,7 +441,11 @@ export default function GoodsReceiptDetailModal({
                             className="hover:bg-slate-50/50"
                           >
 
-                            <td className="px-3 py-3">
+                            <td className="px-3 py-3 text-slate-500">
+                              {item.product_id ?? index + 1}
+                            </td>
+
+                            <td className="px-3 py-3 text-slate-700">
                               {item.product_name}
                             </td>
 
@@ -466,7 +471,7 @@ export default function GoodsReceiptDetailModal({
                     {data.items?.length > 0 && (
                       <tfoot>
                         <tr className="bg-slate-50 border-t-2 border-slate-200">
-                          <td colSpan={3} className="px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">
+                          <td colSpan={4} className="px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 text-right">
                             Total
                           </td>
                           <td className="px-3 py-2.5 text-sm font-bold text-navy-700">

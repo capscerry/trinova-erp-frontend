@@ -13,6 +13,7 @@ interface SupplierFormModalProps {
     email: string;
     alamat: string;
     category_supplier: string;
+    status: string;
   };
   setFormData: React.Dispatch<
     React.SetStateAction<{
@@ -22,11 +23,13 @@ interface SupplierFormModalProps {
       email: string;
       alamat: string;
       category_supplier: string;
+      status: string;
     }>
   >;
   categories: {
     category_supplier: string;
     nama_category: string;
+    is_active?: boolean;
   }[];
   onClose: () => void;
   onSave: () => void;
@@ -67,6 +70,11 @@ export default function SupplierFormModal({
 
   if (!open) return null;
 
+  // Only show active categories in the dropdown
+  const activeCategories = categories.filter(
+    (c) => c.is_active === undefined || c.is_active === true
+  );
+
   return (
     <>
       <div
@@ -100,7 +108,6 @@ export default function SupplierFormModal({
           {/* BODY */}
           <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
 
-            {/* Section label */}
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Informasi Supplier
             </p>
@@ -134,15 +141,12 @@ export default function SupplierFormModal({
                 <select
                   value={formData.category_supplier}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      category_supplier: e.target.value,
-                    })
+                    setFormData({ ...formData, category_supplier: e.target.value })
                   }
                   className={inputBase}
                 >
                   <option value="">Pilih Category</option>
-                  {categories.map((item) => (
+                  {activeCategories.map((item) => (
                     <option
                       key={item.category_supplier}
                       value={item.category_supplier}
@@ -159,10 +163,7 @@ export default function SupplierFormModal({
                   placeholder="08123456789"
                   value={formData.no_telp_bisnis}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      no_telp_bisnis: e.target.value,
-                    })
+                    setFormData({ ...formData, no_telp_bisnis: e.target.value })
                   }
                   className={inputBase}
                 />
@@ -179,6 +180,37 @@ export default function SupplierFormModal({
                   className={inputBase}
                 />
               </FormField>
+
+              {/* Status toggle — spans both columns */}
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Status
+                </label>
+                <div className="flex rounded-lg overflow-hidden border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, status: "Active" })}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${
+                      formData.status === "Active"
+                        ? "bg-emerald-500 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, status: "Inactive" })}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-colors border-l border-slate-200 ${
+                      formData.status === "Inactive"
+                        ? "bg-slate-500 text-white"
+                        : "bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Inactive
+                  </button>
+                </div>
+              </div>
             </div>
 
             <FormField label="Alamat">
