@@ -233,7 +233,7 @@ export default function PurchaseRequisitionModal({
 
           <div>
             <label className="block mb-2 text-sm font-medium">
-              Warehouse
+              Warehouse <span className="text-red-500 font-bold">*</span>
             </label>
 
             <select
@@ -306,11 +306,11 @@ export default function PurchaseRequisitionModal({
               <thead>
                 <tr className="border-b bg-slate-50">
                   <th className="text-left p-3">
-                    Product
+                    Product <span className="text-red-500 font-bold">*</span>
                   </th>
 
                   <th className="text-left p-3">
-                    Qty Requested
+                    Qty Requested <span className="text-red-500 font-bold">*</span>
                   </th>
 
                   <th className="text-left p-3">

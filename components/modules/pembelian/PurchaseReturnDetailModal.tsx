@@ -68,6 +68,7 @@ export interface PurchaseReturnDetailData {
   notes: string;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseReturnDetailModalProps {
@@ -295,6 +296,16 @@ export default function PurchaseReturnDetailModal({
                   Rp {fmt(data.total_amount)}
                 </span>
               </Field>
+
+              {data.nomor_faktur_pajak && (
+                <div className="col-span-2">
+                  <Field label="Nomor Faktur Pajak">
+                    <span className="font-mono font-semibold text-slate-700">
+                      {data.nomor_faktur_pajak}
+                    </span>
+                  </Field>
+                </div>
+              )}
             </div>
 
             <Divider />

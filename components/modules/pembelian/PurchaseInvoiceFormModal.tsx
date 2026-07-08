@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Package } from "lucide-react";
+import { X, Package, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface GoodsReceipt {
@@ -12,6 +12,7 @@ interface GoodsReceipt {
   total_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 export interface PurchaseInvoiceFormData {
@@ -20,6 +21,7 @@ export interface PurchaseInvoiceFormData {
   total_amount: number;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak: string;
 }
 
 interface PurchaseInvoiceFormModalProps {
@@ -55,10 +57,11 @@ export default function PurchaseInvoiceFormModal({
       total_amount: 0,
       transaction_name: "",
       transaction_detail: "",
+      nomor_faktur_pajak: "",
     });
 
-    const [status, setStatus] =
-        useState(currentStatus);
+  const [status, setStatus] =
+    useState(currentStatus);
 
   useEffect(() => {
 
@@ -70,6 +73,7 @@ export default function PurchaseInvoiceFormModal({
         total_amount: 0,
         transaction_name: "",
         transaction_detail: "",
+        nomor_faktur_pajak: "",
       });
       setStatus(currentStatus);
 
@@ -166,6 +170,7 @@ export default function PurchaseInvoiceFormModal({
             <FormField
               label="Goods Receipt"
               icon={<Package size={13} />}
+              required
             >
 
               <select
@@ -198,6 +203,9 @@ export default function PurchaseInvoiceFormModal({
 
                     transaction_detail:
                       selected.transaction_detail ?? "",
+
+                    nomor_faktur_pajak:
+                      selected.nomor_faktur_pajak ?? "",
                   });
 
                 }}
@@ -260,6 +268,22 @@ export default function PurchaseInvoiceFormModal({
               />
 
             </FormField>
+
+            {form.nomor_faktur_pajak && (
+              <FormField
+                label="Nomor Faktur Pajak"
+                icon={<Hash size={13} />}
+              >
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="font-mono font-semibold text-sm text-slate-700">
+                    {form.nomor_faktur_pajak}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Dari Purchase Order terkait
+                  </p>
+                </div>
+              </FormField>
+            )}
 
             {(form.transaction_name || form.transaction_detail) && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
@@ -347,10 +371,12 @@ export default function PurchaseInvoiceFormModal({
 function FormField({
   label,
   icon,
+  required,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -367,6 +393,7 @@ function FormField({
         )}
 
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
 
       </label>
 

@@ -277,6 +277,7 @@ export default function GoodsReceiptPage() {
         transaction_name:  po.transaction_name ?? "",
         transaction_detail: po.transaction_detail ?? "",
         status:            po.status ?? "",
+        nomor_faktur_pajak: po.nomor_faktur_pajak ?? "",
       }));
 
       // Approved POs for the create form dropdown
@@ -637,6 +638,11 @@ export default function GoodsReceiptPage() {
 
                   total_amount:
                     totalAmount,
+
+                  nomor_faktur_pajak:
+                    allPurchaseOrders.find(
+                      (po) => po.purchase_order_id === row.purchase_order_id
+                    )?.nomor_faktur_pajak ?? "",
 
                   items:
                     mappedItems,

@@ -33,6 +33,7 @@ interface PurchaseInvoice {
   outstanding_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface Payment {
@@ -513,6 +514,15 @@ export default function PurchaseInvoiceDetailModal({
                 <InfoCard icon={<Calendar size={13} />}    label="Invoice Date"   value={formatDate(invoice.invoice_date)} />
                 <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={invoice.supplier_name} />
                 <InfoCard icon={<Hash size={13} />}        label="Umur (Hari)"    value={String(invoice.age)} />
+                {invoice.nomor_faktur_pajak && (
+                  <div className="col-span-2">
+                    <InfoCard
+                      icon={<Hash size={13} />}
+                      label="Nomor Faktur Pajak"
+                      value={invoice.nomor_faktur_pajak}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

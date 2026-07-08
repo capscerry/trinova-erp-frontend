@@ -45,6 +45,8 @@ interface PurchaseDownPaymentDetailData {
   transaction_name?: string;
 
   transaction_detail?: string;
+
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseDownPaymentDetailModalProps {
@@ -383,6 +385,16 @@ export default function PurchaseDownPaymentDetailModal({
                 label="Status"
                 value={data.status}
               />
+
+              {data.nomor_faktur_pajak && (
+                <div className="col-span-2">
+                  <InfoCard
+                    icon={<Hash size={14} />}
+                    label="Nomor Faktur Pajak"
+                    value={data.nomor_faktur_pajak}
+                  />
+                </div>
+              )}
 
             </div>
 

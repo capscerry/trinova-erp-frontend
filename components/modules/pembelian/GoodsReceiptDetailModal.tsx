@@ -356,6 +356,17 @@ export default function GoodsReceiptDetailModal({
                 </div>
               )}
 
+              {data.nomor_faktur_pajak && (
+                <div className="col-span-2 space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                    Nomor Faktur Pajak
+                  </div>
+                  <div className="font-mono font-semibold text-sm text-slate-700">
+                    {data.nomor_faktur_pajak}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* ITEM TABLE */}

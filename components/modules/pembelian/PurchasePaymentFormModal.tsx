@@ -178,6 +178,9 @@ export default function PurchasePaymentFormModal({
             border
             border-slate-200
             overflow-hidden
+            flex
+            flex-col
+            max-h-[90vh]
           "
         >
 
@@ -245,10 +248,11 @@ export default function PurchasePaymentFormModal({
 
           {/* BODY */}
 
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
 
             <FormField
               label="Purchase Invoice"
+              required
             >
 
               <select
@@ -346,7 +350,7 @@ export default function PurchasePaymentFormModal({
 
             </FormField>
 
-            <FormField label="Payment Date">
+            <FormField label="Payment Date" required>
 
               <input
                 type="date"
@@ -359,7 +363,7 @@ export default function PurchasePaymentFormModal({
 
             </FormField>
 
-            <FormField label="Payment Amount">
+            <FormField label="Payment Amount" required>
 
               <input
                 type="number"
@@ -509,9 +513,11 @@ export default function PurchasePaymentFormModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -528,6 +534,7 @@ function FormField({
         "
       >
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
 
       {children}

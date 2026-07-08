@@ -88,6 +88,7 @@ interface PurchaseOrder {
   items?: any[];
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface Supplier {
@@ -333,6 +334,9 @@ export default function PurchaseOrderPage() {
 
         expected_date:
           item.expected_date ?? null,
+
+        nomor_faktur_pajak:
+          item.nomor_faktur_pajak ?? "",
       }));
 
       setPurchaseOrders(mappedData);
@@ -589,6 +593,9 @@ export default function PurchaseOrderPage() {
 
           transaction_detail:
             payload.transaction_detail || null,
+
+          nomor_faktur_pajak:
+            payload.nomor_faktur_pajak || null,
         });
 
         const headerPayload = buildHeaderPayload(payload.po_number ?? "");
@@ -1010,7 +1017,7 @@ export default function PurchaseOrderPage() {
       subtitle="Kelola pesanan pembelian"
     >
 
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3">
         <Button variant="secondary" size="sm" onClick={exportToExcel}>
           <Download size={14} className="mr-1.5" />
           Export Excel
@@ -1084,6 +1091,9 @@ export default function PurchaseOrderPage() {
 
                   transaction_detail:
                     row.transaction_detail ?? "",
+
+                  nomor_faktur_pajak:
+                    row.nomor_faktur_pajak ?? "",
 
                   total_amount:
                     row.total,
@@ -1208,6 +1218,9 @@ export default function PurchaseOrderPage() {
 
                   transaction_detail:
                     row.transaction_detail ?? "",
+
+                  nomor_faktur_pajak:
+                    row.nomor_faktur_pajak ?? "",
 
                   items: detailItems.map((item: any) => {
                     // The API uses both "purchase_order_details_id" (plural) and

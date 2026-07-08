@@ -71,6 +71,22 @@ export const getUnpaidInvoicesForReturn =
     return res.data;
 };
 
+// GET NEXT TAX INVOICE NUMBER
+// Calls GET /purchase-invoice/next-tax-number to get the next unique,
+// auto-incremented nomor faktur pajak (e.g. "FP-0000000001").
+export const getNextTaxInvoiceNumber =
+  async (): Promise<string> => {
+    const res = await api.get(
+      "/purchase-invoice/next-tax-number"
+    );
+    return (
+      res.data?.nomor_faktur_pajak ??
+      res.data?.next_number ??
+      res.data ??
+      ""
+    );
+  };
+
 // SYNC ALL INVOICE STATUSES (backfill)
 // Fires POST /purchase-invoice/sync-status to recalculate and update the
 // status column for every non-Cancelled invoice based on live payment data.

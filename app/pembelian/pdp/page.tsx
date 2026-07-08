@@ -125,6 +125,11 @@ export default function PurchaseDownPaymentPage() {
     const [purchaseOrders, setPurchaseOrders] =
     useState<any[]>([]);
 
+    // Full unfiltered PO list — used for nomor_faktur_pajak lookups
+    // (the DP's PO may have advanced to Completed by the time Detail is opened)
+    const [allPurchaseOrders, setAllPurchaseOrders] =
+    useState<any[]>([]);
+
     const [detailData, setDetailData] =
     useState<any>(null);
 
@@ -176,11 +181,12 @@ export default function PurchaseDownPaymentPage() {
             data
         );
 
-        // Only Approved POs are eligible for a Down Payment
+        // Only Approved POs are eligible for a Down Payment.
         const approvedOnly = (data as any[]).filter(
           (po: any) => po.status === "Approved"
         );
 
+        setAllPurchaseOrders(data as any[]);
         setPurchaseOrders(approvedOnly);
 
         } catch (error) {
@@ -208,10 +214,36 @@ export default function PurchaseDownPaymentPage() {
         (p: any) => String(p.purchase_order_id) === poId
       );
       if (!po) return;
+      // Guard: if this PO already has a (non-cancelled) DP, don't auto-open
+      const alreadyHasDP = downPayments.some(
+        (dp: any) =>
+          Number(dp.purchase_order_id) === Number(poId) &&
+          dp.status !== "Cancelled"
+      );
+      if (alreadyHasDP) return;
       setEditRow(null);
       setOpenModal(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [purchaseOrders]);
+
+  // ── Derived: POs eligible to receive a new DP ─────────────────────────────
+  // Each PO may only be associated with ONE down payment. When creating a new
+  // DP, exclude any approved PO that already has an existing (non-cancelled) DP.
+  // When editing an existing DP, also include the PO it is currently linked to
+  // so the select still shows the saved value.
+  const eligiblePurchaseOrders = (() => {
+    const takenPoIds = new Set(
+      downPayments
+        .filter((dp: any) => dp.status !== "Cancelled")
+        .map((dp: any) => Number(dp.purchase_order_id))
+    );
+    const editPoId = editRow ? Number(editRow.purchase_order_id) : null;
+    return purchaseOrders.filter(
+      (po: any) =>
+        !takenPoIds.has(Number(po.purchase_order_id)) ||
+        Number(po.purchase_order_id) === editPoId
+    );
+  })();
 
   return (
     <AppShell
@@ -335,6 +367,10 @@ export default function PurchaseDownPaymentPage() {
                     setDetailData({
                     ...row,
                     dp_number: formatDPNumber(row.dp_number),
+                    nomor_faktur_pajak:
+                      allPurchaseOrders.find(
+                        (po: any) => Number(po.purchase_order_id) === Number(row.purchase_order_id)
+                      )?.nomor_faktur_pajak ?? "",
                     });
 
                     setOpenDetail(true);
@@ -401,7 +437,7 @@ export default function PurchaseDownPaymentPage() {
             setOpenModal(false);
             setEditRow(null);
         }}
-        purchaseOrders={purchaseOrders}
+        purchaseOrders={eligiblePurchaseOrders}
         editId={editRow?.purchase_down_payment_id ?? null}
         initialData={
             editRow

@@ -262,7 +262,7 @@ export default function ProductForm({
       {/* Product Name */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Product Name
+          Product Name <span className="text-red-500 font-bold">*</span>
         </label>
 
         <input
@@ -316,7 +316,7 @@ export default function ProductForm({
       {/* Category */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Category
+          Category <span className="text-red-500 font-bold">*</span>
         </label>
 
         <select
@@ -355,7 +355,7 @@ export default function ProductForm({
       {/* Subcategory */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Subcategory
+          Subcategory <span className="text-red-500 font-bold">*</span>
         </label>
 
         <select
@@ -392,7 +392,7 @@ export default function ProductForm({
       {/* UOM */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          UOM
+          UOM <span className="text-red-500 font-bold">*</span>
         </label>
 
         <select

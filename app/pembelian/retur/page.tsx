@@ -59,6 +59,7 @@ interface PurchaseReturn {
   notes: string;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -164,6 +165,7 @@ export default function PurchaseReturnsPage() {
         notes:                  item.notes ?? "",
         transaction_name:       item.transaction_name ?? "",
         transaction_detail:     item.transaction_detail ?? "",
+        nomor_faktur_pajak:     item.nomor_faktur_pajak ?? "",
       })));
     } catch {
       notify.error("Gagal memuat daftar Purchase Returns.");
@@ -187,6 +189,7 @@ export default function PurchaseReturnsPage() {
         supplier_name:         item.purchase_order?.supplier?.supplier_name ?? item.supplier_name ?? "",
         purchase_order_number: item.purchase_order?.po_number ?? item.po_number ?? item.purchase_order_number ?? "",
         total_amount:          item.total_amount ?? item.total ?? 0,
+        nomor_faktur_pajak:    item.nomor_faktur_pajak ?? item.purchase_order?.nomor_faktur_pajak ?? "",
       })));
     } catch {
       notify.error("Gagal memuat data Goods Receipt.");

@@ -20,6 +20,7 @@ export interface GoodsReceiptOption {
   /** The PO id that backs this GR — needed to load its detail items */
   purchase_order_id: number;
   total_amount: number;
+  nomor_faktur_pajak?: string;
 }
 
 export interface PODetailItem {
@@ -280,7 +281,7 @@ export default function PurchaseReturnFormModal({
                   className={inputBase}
                 />
               </FormField>
-              <FormField label="Goods Receipt">
+              <FormField label="Goods Receipt" required>
                 <select
                   title="Pilih Goods Receipt"
                   value={form.goods_receipt_id}
@@ -314,6 +315,17 @@ export default function PurchaseReturnFormModal({
                 />
               </FormField>
             </div>
+
+            {selectedGR?.nomor_faktur_pajak && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Nomor Faktur Pajak (dari PO)
+                </p>
+                <p className="font-mono font-semibold text-sm text-slate-700">
+                  {selectedGR.nomor_faktur_pajak}
+                </p>
+              </div>
+            )}
 
             {/* ── Product / quantity picker ─────────────────────────────── */}
             {selectedGR && (
@@ -439,7 +451,7 @@ export default function PurchaseReturnFormModal({
             )}
 
             {/* Settlement option */}
-            <FormField label="Opsi Penyelesaian">
+            <FormField label="Opsi Penyelesaian" required>
               <select
                 title="Opsi Penyelesaian"
                 value={form.settlement_option}
@@ -575,15 +587,18 @@ export default function PurchaseReturnFormModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
     </div>

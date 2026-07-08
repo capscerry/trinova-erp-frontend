@@ -46,6 +46,7 @@ export interface PurchaseOrderFormData {
   purchase_order_id?: number;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderFormModalProps {
@@ -438,7 +439,7 @@ export default function PurchaseOrderFormModal({
       } else {
         setIsApproved(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
-        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "" });
+        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "", nomor_faktur_pajak: "" });
         setFilteredProducts([]);
         // Fetch the real next PO number from the backend
         setPoNumberLoading(true);
@@ -482,16 +483,16 @@ export default function PurchaseOrderFormModal({
     setForm(prev => ({ ...prev, [key]: val }));
 
   const updateItem = (id: string, patch: Partial<PurchaseOrderItem>) =>
-    setForm(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
+    setForm(prev => {
+      const updatedItems = prev.items.map(item => {
         if (item.id !== id) return item;
         const u = { ...item, ...patch };
         const base = Number(u.quantity) * Number(u.price);
         const taxAmount = base * (Number(u.tax_percent) / 100);
         return { ...u, tax_amount: taxAmount, subtotal: base + taxAmount };
-      }),
-    }));
+      });
+      return { ...prev, items: updatedItems };
+    });
 
   const removeItem = (id: string) => {
     const item = form.items.find(x => x.id === id);
@@ -891,6 +892,8 @@ export default function PurchaseOrderFormModal({
   const handleNavigate = (key: typeof PROSES_LINKS[number]["key"]) => {
     if (key === "persetujuan") { setApprovalOpen(true); return; }
     if (key === "uang-muka") {
+      // Each PO may only have one Down Payment — block if one already exists.
+      if (dpDone) return;
       if (onNavigateToDP) { onClose(); onNavigateToDP(poId, form.po_number); return; }
       setDpOpen(true); return;
     }
@@ -950,15 +953,40 @@ export default function PurchaseOrderFormModal({
                 <FormField label="PO Number" icon={<Hash size={13} />}>
                   <input readOnly value={form.po_number} placeholder="Otomatis" className={cn(inputBase, "bg-slate-50 text-slate-500 placeholder-slate-400")} />
                 </FormField>
-                <FormField label="Tanggal" icon={<Calendar size={13} />}>
-                  <input readOnly value={form.order_date}
-                    className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-default")} />
+                <FormField label="Nomor Faktur Pajak" icon={<Hash size={13} />}>
+                  {(() => {
+                    const hasTax = form.items.some(i => (i.tax_percent ?? 0) > 0);
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          value={form.nomor_faktur_pajak ?? ""}
+                          onChange={e => setField("nomor_faktur_pajak", e.target.value)}
+                          placeholder={hasTax ? "Contoh: FP-0000000001" : "Isi pajak pada item terlebih dahulu"}
+                          disabled={!hasTax}
+                          className={cn(
+                            inputBase,
+                            !hasTax && "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
+                          )}
+                        />
+                        {!hasTax && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Nomor Faktur Pajak tersedia setelah ada item dengan pajak &gt; 0%.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </FormField>
-                <FormField label="Tanggal Ekspektasi" icon={<Calendar size={13} />}>
+                <FormField label="Tanggal Ekspektasi" icon={<Calendar size={13} />} required>
                   <input type="date" value={form.expected_date}
                     onChange={e => setField("expected_date", e.target.value)}
                     className={inputBase}
                     placeholder="Pilih tanggal ekspektasi..." />
+                </FormField>
+                <FormField label="Tanggal" icon={<Calendar size={13} />}>
+                  <input readOnly value={form.order_date}
+                    className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-default")} />
                 </FormField>
               </div>
 
@@ -1038,7 +1066,7 @@ export default function PurchaseOrderFormModal({
                 </div>
               )}
 
-              <FormField label="Supplier" icon={<Building2 size={13} />}>
+              <FormField label="Supplier" icon={<Building2 size={13} />} required>
                 {isEdit ? (
                   <input value={supplierName} disabled className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-not-allowed")} />
                 ) : (
@@ -1155,11 +1183,11 @@ export default function PurchaseOrderFormModal({
               <div className="grid grid-cols-2 gap-3">
                 {PROSES_LINKS.filter(l => l.key === "persetujuan" || l.key === "uang-muka").map(({ key, label, desc, icon: Icon, color, bg }) => {
                   // Persetujuan: active as soon as PO is saved/editing but not if Completed
-                  // Uang Muka: only active after Approved but not if Completed
+                  // Uang Muka: only active after Approved, not if Completed, and not if a DP already exists
                   const isActive = !isCompleted && (
                     key === "persetujuan"
                       ? prosesActive && !effectivelyApproved
-                      : prosesActive && effectivelyApproved
+                      : prosesActive && effectivelyApproved && !dpDone
                   );
 
                   const isDone =
@@ -1825,14 +1853,15 @@ function Section({ title, action, children }: {
   );
 }
 
-function FormField({ label, icon, children }: {
-  label: string; icon?: React.ReactNode; children: React.ReactNode;
+function FormField({ label, icon, required, children }: {
+  label: string; icon?: React.ReactNode; required?: boolean; children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
         {icon && <span className="text-slate-400">{icon}</span>}
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
     </div>

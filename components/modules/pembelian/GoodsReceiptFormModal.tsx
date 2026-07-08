@@ -25,6 +25,7 @@ interface PurchaseOrder {
   expected_date?: string | null;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -310,6 +311,7 @@ export default function GoodsReceiptFormModal({
                 <FormField
                   label="Tanggal Terima"
                   icon={<Calendar size={13} />}
+                  required
                 >
 
                   <input
@@ -377,6 +379,7 @@ export default function GoodsReceiptFormModal({
               <FormField
                 label="Purchase Order"
                 icon={<Package size={13} />}
+                required
               >
 
                 <select
@@ -412,6 +415,7 @@ export default function GoodsReceiptFormModal({
               <FormField
                 label="Received By"
                 icon={<User size={13} />}
+                required
               >
 
                 <input
@@ -499,6 +503,23 @@ export default function GoodsReceiptFormModal({
                   )}
                 </div>
               )}
+
+              {/* Nomor Faktur Pajak — read-only, carried from the selected PO */}
+              {(() => {
+                const selPO = purchaseOrders.find(
+                  (po) => String(po.purchase_order_id) === form.purchase_order_id
+                );
+                return selPO?.nomor_faktur_pajak ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Nomor Faktur Pajak (dari PO)
+                    </p>
+                    <p className="font-mono font-semibold text-sm text-slate-700">
+                      {selPO.nomor_faktur_pajak}
+                    </p>
+                  </div>
+                ) : null;
+              })()}
 
             </Section>
 
@@ -739,10 +760,12 @@ function Section({
 function FormField({
   label,
   icon,
+  required,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -759,6 +782,7 @@ function FormField({
         )}
 
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
 
       </label>
 

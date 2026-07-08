@@ -55,6 +55,7 @@ interface PurchaseInvoice {
   dp_paid: number;
   payment_paid: number;
   outstanding_amount: number;
+  nomor_faktur_pajak?: string;
   transaction_name?: string;
   transaction_detail?: string;
 }
@@ -139,6 +140,17 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
     render: (val) => (
       <span className="font-mono font-semibold text-[12px] text-navy-700">
         {formatINVNumber(String(val))}
+      </span>
+    ),
+  },
+
+  {
+    key: "nomor_faktur_pajak",
+    label: "No. Faktur Pajak",
+
+    render: (val) => (
+      <span className="font-mono text-[12px] text-slate-600">
+        {val ? String(val) : <span className="text-slate-300">—</span>}
       </span>
     ),
   },
@@ -337,6 +349,9 @@ export default function PurchaseInvoicePage() {
 
             transaction_detail:
               item.transaction_detail ?? "",
+
+            nomor_faktur_pajak:
+              item.nomor_faktur_pajak ?? "",
           };
         }
       );
@@ -353,7 +368,16 @@ export default function PurchaseInvoicePage() {
     try {
       const res = await getGoodsReceipts();
       const list = Array.isArray(res) ? res : res.data;
-      setGoodsReceipts(list);
+      // Enrich each GR with the linked PO's nomor_faktur_pajak so the
+      // invoice form modal can display it read-only after a GR is selected.
+      const enriched = list.map((gr: any) => ({
+        ...gr,
+        nomor_faktur_pajak:
+          gr.nomor_faktur_pajak ??
+          gr.purchase_order?.nomor_faktur_pajak ??
+          "",
+      }));
+      setGoodsReceipts(enriched);
     } catch (error) {
       console.error(error);
     }
@@ -722,6 +746,9 @@ export default function PurchaseInvoicePage() {
 
         transaction_detail:
           data.transaction_detail ?? "",
+
+        nomor_faktur_pajak:
+          data.nomor_faktur_pajak ?? "",
       });
 
       // Refresh list BEFORE opening modal so the new row is already visible

@@ -41,15 +41,18 @@ const inputBase =
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -125,7 +128,7 @@ export default function SupplierFormModal({
                 />
               </FormField>
 
-              <FormField label="Nama Supplier">
+              <FormField label="Nama Supplier" required>
                 <input
                   type="text"
                   placeholder="PT Supplier Jaya"
@@ -137,7 +140,7 @@ export default function SupplierFormModal({
                 />
               </FormField>
 
-              <FormField label="Category Supplier">
+              <FormField label="Category Supplier" required>
                 <select
                   value={formData.category_supplier}
                   onChange={(e) =>

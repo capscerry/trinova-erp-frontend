@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Scissors,
   Download,
+  Hash,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -57,6 +58,8 @@ interface PurchaseOrderDetailData {
   transaction_name?: string;
 
   transaction_detail?: string;
+
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetailModalProps {
@@ -483,6 +486,26 @@ export default function PurchaseOrderDetailModal({
                 </span>
 
               </div>
+
+              {/* NOMOR FAKTUR PAJAK */}
+
+              {data.nomor_faktur_pajak && (
+                <div className="border border-slate-200 rounded-xl p-4">
+
+                  <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+
+                    <Hash size={14} />
+
+                    Nomor Faktur Pajak
+
+                  </div>
+
+                  <div className="font-mono font-semibold text-slate-700 text-sm">
+                    {data.nomor_faktur_pajak}
+                  </div>
+
+                </div>
+              )}
 
             </div>
 
