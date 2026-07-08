@@ -60,6 +60,13 @@ export interface PurchaseReturnFormData {
   return_items: ReturnLineItem[];
 }
 
+export interface PurchaseOrderForValidation {
+  purchase_order_id: number;
+  supplier_id?: number;
+  supplier_name?: string;
+  status: string;
+}
+
 interface PurchaseReturnFormModalProps {
   open: boolean;
   onClose: () => void;
@@ -68,6 +75,8 @@ interface PurchaseReturnFormModalProps {
   poDetails: PODetailItem[];
   /** Auto-generated next return number from the backend */
   nextNumber?: string;
+  /** Used to guard the Next PO Deduction option — pass all POs from the page */
+  purchaseOrders?: PurchaseOrderForValidation[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -125,6 +134,7 @@ export default function PurchaseReturnFormModal({
   goodsReceipts,
   poDetails,
   nextNumber,
+  purchaseOrders = [],
 }: PurchaseReturnFormModalProps) {
   const [form, setForm] = useState<PurchaseReturnFormData>(() =>
     buildEmptyForm(nextNumber)
@@ -143,6 +153,18 @@ export default function PurchaseReturnFormModal({
   const selectedGR = goodsReceipts.find(
     (gr) => gr.goods_receipt_id === form.goods_receipt_id
   );
+
+  // Compute whether any active POs exist for the selected supplier —
+  // used to guard the "Next PO Deduction" settlement option.
+  const INACTIVE_PO_STATUSES = new Set(["Cancelled", "Completed", "Closed"]);
+  const hasEligiblePOs = purchaseOrders.some((po) => {
+    if (INACTIVE_PO_STATUSES.has(po.status)) return false;
+    if (!selectedGR) return false;
+    return (
+      (selectedGR.supplier_id > 0 && po.supplier_id === selectedGR.supplier_id) ||
+      po.supplier_name?.toLowerCase() === selectedGR.supplier_name.toLowerCase()
+    );
+  });
 
   // ── When user picks a GR, populate return-item rows from PO details ─────────
 
@@ -470,15 +492,41 @@ export default function PurchaseReturnFormModal({
                     "border-amber-400 focus:ring-amber-300 bg-amber-50"
                 )}
               >
-                {SETTLEMENT_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "Accept Loss"       ? "Opsi A — Penggantian Barang (Accept Loss)" :
-                     option === "Next PO Deduction" ? "Opsi B — Terima Kerugian / Potong PO Berikutnya" :
-                     option === "Cash Refund"        ? "Opsi C — Cash Refund (Uang Kembali)" :
-                     option}
-                  </option>
-                ))}
+                {SETTLEMENT_OPTIONS.map((option) => {
+                  const isNextPO = option === "Next PO Deduction";
+                  const disableNextPO = isNextPO && !!selectedGR && !hasEligiblePOs;
+                  return (
+                    <option key={option} value={option} disabled={disableNextPO}>
+                      {option === "Accept Loss"       ? "Opsi A — Penggantian Barang (Accept Loss)" :
+                       option === "Next PO Deduction"
+                         ? disableNextPO
+                           ? "Opsi B — Potong PO Berikutnya (tidak tersedia — belum ada PO aktif)"
+                           : "Opsi B — Terima Kerugian / Potong PO Berikutnya"
+                         : option === "Cash Refund"    ? "Opsi C — Cash Refund (Uang Kembali)"
+                         : option}
+                    </option>
+                  );
+                })}
               </select>
+
+              {/* Next PO Deduction — no eligible POs warning */}
+              {form.settlement_option === "Next PO Deduction" && selectedGR && !hasEligiblePOs && (
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-rose-500" />
+                  <div className="space-y-1">
+                    <p className="font-semibold">Tidak ada PO aktif untuk supplier ini</p>
+                    <p className="leading-relaxed text-rose-700">
+                      Opsi B memerlukan minimal satu PO aktif dari{" "}
+                      <span className="font-semibold">{selectedGR.supplier_name}</span>.
+                      Buat PO baru untuk supplier ini terlebih dahulu, atau pilih opsi lain:
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5 text-rose-700">
+                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi C</span> — Nilai retur dikembalikan tunai melalui invoice</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               {/* Cash Refund constraint warning */}
               {form.settlement_option === "Cash Refund" && (
@@ -571,7 +619,11 @@ export default function PurchaseReturnFormModal({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!selectedGR || !hasSelection}
+              disabled={
+                !selectedGR ||
+                !hasSelection ||
+                (form.settlement_option === "Next PO Deduction" && !!selectedGR && !hasEligiblePOs)
+              }
               className="px-4 py-2 rounded-lg bg-navy-900 text-white hover:bg-navy-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
             >
               Simpan Retur

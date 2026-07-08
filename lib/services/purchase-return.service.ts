@@ -64,12 +64,12 @@ export const getReturnDetails = async (returnId: number) => {
  * Option A — Accept Loss.
  * Closes the return as "Closed". The backend's PUT /purchase-return/{id}
  * handler detects settlement_option = "Accept Loss" and restores inventory
- * stock automatically for every GR line — no frontend stock call needed.
+ * stock automatically for the exact items and quantities that were returned
+ * (read from transaction_detail) — no frontend stock call needed.
  */
 export const resolveAcceptLoss = async (
   returnId: number,
   returnItems: ReturnLineItem[],
-  supplierId: number,
   returnAmount: number
 ) => {
   const itemSummary = returnItems
