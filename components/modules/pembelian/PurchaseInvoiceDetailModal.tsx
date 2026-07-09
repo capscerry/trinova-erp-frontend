@@ -29,9 +29,11 @@ interface PurchaseInvoice {
   status: string;
   age: number;
   dp_paid: number;
+  payment_paid: number;
   outstanding_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface Payment {
@@ -512,21 +514,40 @@ export default function PurchaseInvoiceDetailModal({
                 <InfoCard icon={<Calendar size={13} />}    label="Invoice Date"   value={formatDate(invoice.invoice_date)} />
                 <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={invoice.supplier_name} />
                 <InfoCard icon={<Hash size={13} />}        label="Umur (Hari)"    value={String(invoice.age)} />
+                {invoice.nomor_faktur_pajak && (
+                  <div className="col-span-2">
+                    <InfoCard
+                      icon={<Hash size={13} />}
+                      label="Nomor Faktur Pajak"
+                      value={invoice.nomor_faktur_pajak}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
             {/* ── STATUS BADGE ── */}
-            <div className="flex items-center gap-3">
-              <BadgeCheck size={15} className="text-slate-400 shrink-0" />
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Status
-              </span>
-              <span
-                className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[invoice.status] ?? "bg-slate-100 text-slate-600"}`}
-              >
-                {invoice.status}
-              </span>
-            </div>
+            {(() => {
+              const liveStatus =
+                invoice.status === "Cancelled"
+                  ? "Cancelled"
+                  : computedOutstanding === 0
+                  ? "Paid"
+                  : "Unpaid";
+              return (
+                <div className="flex items-center gap-3">
+                  <BadgeCheck size={15} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Status
+                  </span>
+                  <span
+                    className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[liveStatus] ?? "bg-slate-100 text-slate-600"}`}
+                  >
+                    {liveStatus}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* ── PAYMENT SUMMARY CARDS ── */}
             <div>

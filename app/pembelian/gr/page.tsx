@@ -16,6 +16,7 @@ import {
   createGoodsReceiptDetail,
   getPurchaseOrders,
   getPurchaseOrderDetails,
+  getProducts,
 } from "@/lib/services";
 
 import GoodsReceiptFormModal, {
@@ -178,6 +179,10 @@ export default function GoodsReceiptPage() {
   const [purchaseOrderDetails, setPurchaseOrderDetails] =
     useState<PurchaseOrderDetail[]>([]);
 
+  // product_id → product_name lookup built from master-product
+  const [productMap, setProductMap] =
+    useState<Record<number, string>>({});
+
   const [openModal, setOpenModal] =
     useState(false);
 
@@ -272,6 +277,7 @@ export default function GoodsReceiptPage() {
         transaction_name:  po.transaction_name ?? "",
         transaction_detail: po.transaction_detail ?? "",
         status:            po.status ?? "",
+        nomor_faktur_pajak: po.nomor_faktur_pajak ?? "",
       }));
 
       // Approved POs for the create form dropdown
@@ -292,24 +298,54 @@ export default function GoodsReceiptPage() {
   // ─────────────────────────────────────────────────────────
 
   const fetchPurchaseOrderDetails =
-    async () => {
+    async (pMap: Record<number, string> = productMap) => {
 
       try {
 
         const res =
           await getPurchaseOrderDetails();
 
-        const list = Array.isArray(res)
+        const list: any[] = Array.isArray(res)
           ? res
           : res.data;
 
-        setPurchaseOrderDetails(list);
+        // Enrich each detail item with product_name from the product map
+        const enriched = list.map((item: any) => ({
+          ...item,
+          product: {
+            product_name:
+              pMap[Number(item.product_id)] ??
+              item.product?.product_name ??
+              `Product ${item.product_id}`,
+          },
+        }));
+
+        setPurchaseOrderDetails(enriched);
 
       } catch (error) {
 
         console.error(error);
       }
     };
+
+  // ─────────────────────────────────────────────────────────
+  // FETCH PRODUCTS
+  // ─────────────────────────────────────────────────────────
+
+  const fetchProducts = async (): Promise<Record<number, string>> => {
+    try {
+      const list: any[] = await getProducts();
+      const map: Record<number, string> = {};
+      list.forEach((p: any) => {
+        map[Number(p.product_id ?? p.id)] = p.product_name ?? p.name ?? "";
+      });
+      setProductMap(map);
+      return map;
+    } catch (error) {
+      console.error(error);
+      return {};
+    }
+  };
 
   // ─────────────────────────────────────────────────────────
   // CREATE GR
@@ -400,7 +436,8 @@ export default function GoodsReceiptPage() {
 
     fetchGoodsReceipts();
     fetchPurchaseOrders();
-    fetchPurchaseOrderDetails();
+    // Fetch products first so the map is ready for enriching PO details
+    fetchProducts().then((pMap) => fetchPurchaseOrderDetails(pMap));
 
   }, []);
 
@@ -549,8 +586,12 @@ export default function GoodsReceiptPage() {
 
                 const mappedItems = detailItems.map(
                   (item) => ({
+                    product_id:
+                      item.product_id,
+
                     product_name:
                       item.product?.product_name ||
+                      productMap[Number(item.product_id)] ||
                       `Product ${item.product_id}`,
 
                     quantity:
@@ -598,6 +639,11 @@ export default function GoodsReceiptPage() {
                   total_amount:
                     totalAmount,
 
+                  nomor_faktur_pajak:
+                    allPurchaseOrders.find(
+                      (po) => po.purchase_order_id === row.purchase_order_id
+                    )?.nomor_faktur_pajak ?? "",
+
                   items:
                     mappedItems,
                 });
@@ -624,7 +670,7 @@ export default function GoodsReceiptPage() {
           purchaseOrderDetails
         }
         initialPOId={preSelectedPOId}
-        onNavigateToPayment={() => router.push("/pembelian/payment")}
+        onNavigateToInvoice={() => router.push("/pembelian/invoice")}
       />
 
       <GoodsReceiptDetailModal

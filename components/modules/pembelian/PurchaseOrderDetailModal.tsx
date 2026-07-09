@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Scissors,
   Download,
+  Hash,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -57,6 +58,8 @@ interface PurchaseOrderDetailData {
   transaction_name?: string;
 
   transaction_detail?: string;
+
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetailModalProps {
@@ -116,10 +119,15 @@ export default function PurchaseOrderDetailModal({
       0
     );
 
-  // Use the stored DB total when available — it will be lower than itemsTotal
-  // if a purchase return deduction (Replacement / Next PO Deduction) was applied.
-  const storedTotal = data.total_amount ?? itemsTotal;
-  const returnDeduction = itemsTotal > storedTotal ? itemsTotal - storedTotal : 0;
+  // Always use the sum of line items as the authoritative total.
+  // The stored DB total_amount can be stale (e.g. PO header saved before all
+  // items were added), so trusting it would produce a spurious "return
+  // deduction" banner. A real return deduction is only meaningful when a
+  // purchase-return settlement record explicitly references this PO — which
+  // the Detail modal does not have access to. Showing a deduction based purely
+  // on a header/items mismatch is misleading, so we drop that inference here.
+  const storedTotal = itemsTotal;
+  const returnDeduction = 0;
 
   // ── Export to Excel ────────────────────────────────────────────────────
   const exportToExcel = () => {
@@ -478,6 +486,26 @@ export default function PurchaseOrderDetailModal({
                 </span>
 
               </div>
+
+              {/* NOMOR FAKTUR PAJAK */}
+
+              {data.nomor_faktur_pajak && (
+                <div className="border border-slate-200 rounded-xl p-4">
+
+                  <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+
+                    <Hash size={14} />
+
+                    Nomor Faktur Pajak
+
+                  </div>
+
+                  <div className="font-mono font-semibold text-slate-700 text-sm">
+                    {data.nomor_faktur_pajak}
+                  </div>
+
+                </div>
+              )}
 
             </div>
 

@@ -11,6 +11,7 @@ interface PurchaseOrder {
   total_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 
   supplier?: {
     supplier_id: number;
@@ -175,7 +176,7 @@ export default function PurchaseDownPaymentModal({
 
           <div className="p-6 space-y-4">
 
-            <FormField label="Purchase Order">
+            <FormField label="Purchase Order" required>
 
               <select
                 value={form.purchase_order_id}
@@ -272,7 +273,7 @@ export default function PurchaseDownPaymentModal({
 
             </FormField>
 
-            <FormField label="Payment Date">
+            <FormField label="Payment Date" required>
 
               <input
                 type="date"
@@ -289,7 +290,7 @@ export default function PurchaseDownPaymentModal({
 
             </FormField>
 
-            <FormField label="Amount">
+            <FormField label="Amount" required>
 
               <input
                 type="number"
@@ -378,6 +379,17 @@ export default function PurchaseDownPaymentModal({
                     {form.transaction_detail}
                   </p>
                 )}
+              </div>
+            )}
+
+            {selectedPO?.nomor_faktur_pajak && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Nomor Faktur Pajak (dari PO)
+                </p>
+                <p className="font-mono font-semibold text-sm text-slate-700">
+                  {selectedPO.nomor_faktur_pajak}
+                </p>
               </div>
             )}
 
@@ -476,9 +488,11 @@ export default function PurchaseDownPaymentModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -495,6 +509,7 @@ function FormField({
         "
       >
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
 
       {children}

@@ -233,6 +233,28 @@ export default function PurchasePaymentPage() {
           payload
         );
 
+        // Re-fetch invoices so we have the latest outstanding_amount,
+        // then check if this invoice is now fully paid.
+        await fetchInvoices();
+        const freshInvoices: any[] = await getPurchaseInvoices().then(
+          (r) => r.data || []
+        );
+        const updatedInvoice = freshInvoices.find(
+          (inv: any) =>
+            inv.purchase_invoice_id ===
+            editingPayment.purchase_invoice_id
+        );
+        if (
+          updatedInvoice &&
+          Number(updatedInvoice.outstanding_amount) <= 0 &&
+          updatedInvoice.status !== "Paid"
+        ) {
+          await updatePurchaseInvoice(
+            updatedInvoice.purchase_invoice_id,
+            { status: "Paid" }
+          );
+        }
+
         setOpenModal(false);
         setEditingPayment(null);
         notify.success("Purchase Payment berhasil diperbarui");

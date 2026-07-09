@@ -241,7 +241,7 @@ function buildAlternatives(
   const alternatives: AltWithStats[] = [];
 
   for (const [sid, a] of agg.entries()) {
-    if (a.orderCount === 0) continue;
+    // Include ALL suppliers — even those with 0 orders (they get default/neutral values)
 
     // Avg price: prefer actual invoice prices over catalog prices
     const avgPrice =
@@ -680,7 +680,7 @@ export default function RekomendasiPage() {
         <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-5">
           <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
           <p className="text-[12px] text-amber-700">
-            Belum ada supplier dengan riwayat Purchase Order. Buat PO terlebih dahulu.
+            Belum ada supplier yang terdaftar. Tambahkan supplier terlebih dahulu.
           </p>
         </div>
       )}

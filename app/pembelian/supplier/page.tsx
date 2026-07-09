@@ -29,14 +29,33 @@ interface Supplier {
   telepon: string;
   email: string;
   alamat: string;
-
   category_supplier: string;
+  status: string;
 }
 
 interface SupplierCategory {
   category_supplier: string;
-
   nama_category: string;
+  is_active?: boolean;
+}
+
+// ─── Status badge ──────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const active = status === "Active";
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
+        ${active
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-slate-100 text-slate-500 border border-slate-200"}
+      `}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
 }
 
 // ─── Columns ───────────────────────────────────────────────────────────────────
@@ -55,6 +74,12 @@ const COLUMNS: Column<Supplier>[] = [
   {
     key: "telepon",
     label: "TELEPON",
+  },
+
+  {
+    key: "status",
+    label: "STATUS",
+    render: (value) => <StatusBadge status={value as string} />,
   },
 ];
 
@@ -96,8 +121,8 @@ export default function SupplierPage() {
       no_telp_bisnis: "",
       email: "",
       alamat: "",
-
       category_supplier: "",
+      status: "Active",
     });
 
   // ─── Fetch Supplier ─────────────────────────────────────────────────────────
@@ -140,6 +165,9 @@ export default function SupplierPage() {
             category_supplier:
               item.category_supplier
                 ?.toString() || "",
+
+            status:
+              item.status || "Active",
           })
         );
 
@@ -171,7 +199,7 @@ export default function SupplierPage() {
           res.data || res || [];
 
         // Normalise to the shape the modal expects:
-        // { category_supplier: string, nama_category: string }
+        // { category_supplier: string, nama_category: string, is_active: boolean }
         const mapped = raw.map(
           (item: any) => ({
             category_supplier:
@@ -184,6 +212,8 @@ export default function SupplierPage() {
               item.nama_category ??
               item.category_name ??
               "",
+            is_active:
+              item.is_active === undefined ? true : Boolean(item.is_active),
           })
         );
 
@@ -238,7 +268,7 @@ export default function SupplierPage() {
                   formData.category_supplier
                 ),
 
-              status: "Active",
+              status: formData.status,
             }
           );
 
@@ -270,7 +300,7 @@ export default function SupplierPage() {
                   formData.category_supplier
                 ),
 
-              status: "Active",
+              status: formData.status,
             });
 
           const supplierId =
@@ -299,8 +329,8 @@ export default function SupplierPage() {
           no_telp_bisnis: "",
           email: "",
           alamat: "",
-
           category_supplier: "",
+          status: "Active",
         });
 
         setCatalogFile(null);
@@ -384,6 +414,9 @@ export default function SupplierPage() {
 
         category_supplier:
           row.category_supplier,
+
+        status:
+          row.status || "Active",
       });
 
       setOpenModal(true);
@@ -433,8 +466,8 @@ export default function SupplierPage() {
             no_telp_bisnis: "",
             email: "",
             alamat: "",
-
             category_supplier: "",
+            status: "Active",
           });
 
           setCatalogFile(null);

@@ -90,6 +90,9 @@ export default function PurchasePaymentFormModal({
   const [form, setForm] =
     useState<PurchasePaymentFormData>(EMPTY_FORM);
 
+  const [amountError, setAmountError] =
+    useState<string>("");
+
   useEffect(() => {
 
     if (open) {
@@ -110,6 +113,7 @@ export default function PurchasePaymentFormModal({
       } else {
 
         setForm(EMPTY_FORM);
+        setAmountError("");
 
       }
     }
@@ -135,6 +139,9 @@ export default function PurchasePaymentFormModal({
         inv.purchase_invoice_id ===
         form.purchase_invoice_id
     );
+
+  // Maximum payable = outstanding amount (Total - DP - prior payments)
+  const maxPayable = selectedInvoice?.outstanding_amount ?? 0;
 
   return (
     <>
@@ -171,6 +178,9 @@ export default function PurchasePaymentFormModal({
             border
             border-slate-200
             overflow-hidden
+            flex
+            flex-col
+            max-h-[90vh]
           "
         >
 
@@ -238,10 +248,11 @@ export default function PurchasePaymentFormModal({
 
           {/* BODY */}
 
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
 
             <FormField
               label="Purchase Invoice"
+              required
             >
 
               <select
@@ -339,7 +350,7 @@ export default function PurchasePaymentFormModal({
 
             </FormField>
 
-            <FormField label="Payment Date">
+            <FormField label="Payment Date" required>
 
               <input
                 type="date"
@@ -352,16 +363,32 @@ export default function PurchasePaymentFormModal({
 
             </FormField>
 
-            <FormField label="Payment Amount">
+            <FormField label="Payment Amount" required>
 
               <input
                 type="number"
                 value={form.amount}
-                onChange={(e) =>
-                  setForm({ ...form, amount: Number(e.target.value) })
-                }
-                className={inputBase}
+                min={0}
+                max={maxPayable > 0 ? maxPayable : undefined}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setForm({ ...form, amount: val });
+                  if (maxPayable > 0 && val > maxPayable) {
+                    setAmountError(
+                      `Melebihi sisa tagihan. Maksimal: Rp ${maxPayable.toLocaleString("id-ID")}`
+                    );
+                  } else {
+                    setAmountError("");
+                  }
+                }}
+                className={cn(
+                  inputBase,
+                  amountError && "border-rose-400 focus:ring-rose-300"
+                )}
               />
+              {amountError && (
+                <p className="text-xs text-rose-500 mt-1">{amountError}</p>
+              )}
 
             </FormField>
 
@@ -450,12 +477,11 @@ export default function PurchasePaymentFormModal({
               onClick={() => {
 
                 if (
-                  !isEdit &&
-                  form.amount >
-                    (selectedInvoice?.outstanding_amount ?? 0)
+                  maxPayable > 0 &&
+                  form.amount > maxPayable
                 ) {
-                  alert(
-                    "Payment amount cannot exceed outstanding amount"
+                  setAmountError(
+                    `Melebihi sisa tagihan. Maksimal: Rp ${maxPayable.toLocaleString("id-ID")}`
                   );
                   return;
                 }
@@ -487,9 +513,11 @@ export default function PurchasePaymentFormModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -506,6 +534,7 @@ function FormField({
         "
       >
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
 
       {children}

@@ -13,6 +13,7 @@ import * as XLSX from "xlsx-js-style";
 import {
   getPurchaseOrders,
   getPurchaseOrderDetails,
+  getPurchaseOrderDetailsByPO,
 
   createPurchaseOrder,
   createPurchaseOrderDetail,
@@ -87,6 +88,7 @@ interface PurchaseOrder {
   items?: any[];
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface Supplier {
@@ -332,6 +334,9 @@ export default function PurchaseOrderPage() {
 
         expected_date:
           item.expected_date ?? null,
+
+        nomor_faktur_pajak:
+          item.nomor_faktur_pajak ?? "",
       }));
 
       setPurchaseOrders(mappedData);
@@ -556,6 +561,13 @@ export default function PurchaseOrderPage() {
           );
         }
 
+        // Always derive total_amount from the current line items so the header
+        // stays in sync even if the form state carried a stale value from the DB.
+        const computedTotal = (payload.items ?? []).reduce(
+          (sum: number, item: any) => sum + Number(item.subtotal ?? 0),
+          0
+        );
+
         const buildHeaderPayload = (poNumber: string) => ({
           po_number:
             poNumber,
@@ -574,16 +586,16 @@ export default function PurchaseOrderPage() {
           status:
             payload.status,
 
-          total_amount:
-            typeof payload.total_amount === "number" && !isNaN(payload.total_amount)
-              ? payload.total_amount
-              : 0,
+          total_amount: computedTotal,
 
           transaction_name:
             payload.transaction_name || null,
 
           transaction_detail:
             payload.transaction_detail || null,
+
+          nomor_faktur_pajak:
+            payload.nomor_faktur_pajak || null,
         });
 
         const headerPayload = buildHeaderPayload(payload.po_number ?? "");
@@ -1005,7 +1017,7 @@ export default function PurchaseOrderPage() {
       subtitle="Kelola pesanan pembelian"
     >
 
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3">
         <Button variant="secondary" size="sm" onClick={exportToExcel}>
           <Download size={14} className="mr-1.5" />
           Export Excel
@@ -1043,14 +1055,18 @@ export default function PurchaseOrderPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                const poId = Number(row.id);
 
-                const detailItems =
-                  purchaseOrderDetails.filter(
-                    (item: any) =>
-                      Number(item.purchase_order_id) ===
-                      Number(row.id)
+                let detailItems: any[] = [];
+                try {
+                  detailItems = await getPurchaseOrderDetailsByPO(poId);
+                } catch (err) {
+                  console.error("Failed to fetch PO details for detail view:", err);
+                  detailItems = purchaseOrderDetails.filter(
+                    (item: any) => Number(item.purchase_order_id) === poId
                   );
+                }
 
                 setSelectedPO({
                   po_number:
@@ -1063,7 +1079,9 @@ export default function PurchaseOrderPage() {
                     row.tanggal?.split("T")[0],
 
                   expected_date:
-                    row.expected_date ?? null,
+                    row.expected_date
+                      ? String(row.expected_date).split("T")[0]
+                      : null,
 
                   status:
                     row.status,
@@ -1073,6 +1091,9 @@ export default function PurchaseOrderPage() {
 
                   transaction_detail:
                     row.transaction_detail ?? "",
+
+                  nomor_faktur_pajak:
+                    row.nomor_faktur_pajak ?? "",
 
                   total_amount:
                     row.total,
@@ -1100,7 +1121,7 @@ export default function PurchaseOrderPage() {
                           isExisting: true,
 
                           quantity:
-                            item.quantity,
+                            Number(item.quantity),
 
                           uom_id:
                             item.uom_id?.toString(),
@@ -1113,24 +1134,22 @@ export default function PurchaseOrderPage() {
                             "-",
 
                           price:
-                            item.price,
+                            Number(item.price),
 
                           tax_percent:
                             Number(item.tax_percentage ?? item.tax_percent ?? 0),
 
                           tax_amount: (() => {
                             const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                            const stored = Number(item.tax_amount ?? 0);
-                            // Recompute if the stored value is missing/zero but tax % is set
-                            if (taxPct > 0 && stored === 0) {
-                              const base = Number(item.quantity) * Number(item.price);
-                              return base * (taxPct / 100);
-                            }
-                            return stored;
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base * (taxPct / 100);
                           })(),
 
-                          subtotal:
-                            Number(item.subtotal),
+                          subtotal: (() => {
+                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base + base * (taxPct / 100);
+                          })(),
 
                           available_stock:
                             product?.available_stock,
@@ -1151,36 +1170,45 @@ export default function PurchaseOrderPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                const poId = Number(row.id);
 
-              const detailItems =
-                purchaseOrderDetails.filter(
-                  (item: any) =>
-                    Number(item.purchase_order_id) ===
-                    Number(row.id)
-                );
+                // Fetch details specifically for this PO so we always get the
+                // right rows even when the bulk endpoint returns
+                // purchase_order_id: null on each detail item.
+                let detailItems: any[] = [];
+                try {
+                  detailItems = await getPurchaseOrderDetailsByPO(poId);
+                } catch (err) {
+                  console.error("Failed to fetch PO details:", err);
+                  // Fall back to the already-loaded state (may be empty if
+                  // purchase_order_id is null, but better than crashing).
+                  detailItems = purchaseOrderDetails.filter(
+                    (item: any) => Number(item.purchase_order_id) === poId
+                  );
+                }
 
-              console.log(
-                "DETAIL ITEMS",
-                detailItems
-              );
+                console.log("DETAIL ITEMS", detailItems);
 
                 setEditingPO({
-
-                  purchase_order_id:
-                    Number(row.id),
+                  purchase_order_id: poId,
 
                   po_number:
                     row.nomor,
+
                   supplier_id:
                     row.supplier_id ||
                     suppliers.find(
-                      (s) =>
-                        s.nama === row.supplier
+                      (s) => s.nama === row.supplier
                     )?.id || "",
 
                   order_date:
                     row.tanggal?.split("T")[0],
+
+                  expected_date:
+                    row.expected_date
+                      ? String(row.expected_date).split("T")[0]
+                      : "",
 
                   status:
                     row.status,
@@ -1191,60 +1219,62 @@ export default function PurchaseOrderPage() {
                   transaction_detail:
                     row.transaction_detail ?? "",
 
-                  items:
-                    detailItems.map(
-                      (item: any) => ({
-                        
-                        id: crypto.randomUUID(),
+                  nomor_faktur_pajak:
+                    row.nomor_faktur_pajak ?? "",
 
-                          purchase_order_detail_id:
-                            item.purchase_order_detail_id,
+                  items: detailItems.map((item: any) => {
+                    // The API uses both "purchase_order_details_id" (plural) and
+                    // "purchase_order_detail_id" (singular) depending on the route.
+                    // Normalise to the singular form used everywhere in this file.
+                    const detailId =
+                      item.purchase_order_detail_id ??
+                      item.purchase_order_details_id ??
+                      null;
 
-                        product_id:
-                          item.product_id?.toString(),
+                    const taxPct = Number(
+                      item.tax_percentage ?? item.tax_percent ?? 0
+                    );
+                    // Always recompute tax_amount and subtotal from the canonical
+                    // formula so toggled-tax items are never stale.
+                    const base = Number(item.quantity) * Number(item.price);
+                    const taxAmount = base * (taxPct / 100);
+                    const subtotal = base + taxAmount;
 
-                        product_name:
-                          products.find(
-                            (p) =>
-                              p.id ===
-                              item.product_id?.toString()
-                          )?.nama || "",
+                    return {
+                      id: crypto.randomUUID(),
 
-                        isExisting: true,
+                      purchase_order_detail_id: detailId,
 
-                        quantity:
-                          item.quantity,
+                      product_id:
+                        item.product_id?.toString(),
 
-                        uom_id:
-                          item.uom_id?.toString(),
+                      product_name:
+                        products.find(
+                          (p) => p.id === item.product_id?.toString()
+                        )?.nama || "",
 
-                        uom_name:
-                          uoms.find(
-                            (u) =>
-                              u.id ===
-                              item.uom_id?.toString()
-                          )?.nama || "",
+                      isExisting: true,
 
-                        price:
-                          item.price,
+                      quantity: Number(item.quantity),
 
-                        tax_percent:
-                          Number(item.tax_percentage ?? item.tax_percent ?? 0),
+                      uom_id:
+                        item.uom_id?.toString(),
 
-                        tax_amount: (() => {
-                          const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                          const stored = Number(item.tax_amount ?? 0);
-                          if (taxPct > 0 && stored === 0) {
-                            const base = Number(item.quantity) * Number(item.price);
-                            return base * (taxPct / 100);
-                          }
-                          return stored;
-                        })(),
+                      uom_name:
+                        item.uom?.uom_name ||
+                        uoms.find(
+                          (u) => u.id === item.uom_id?.toString()
+                        )?.nama || "",
 
-                        subtotal:
-                          item.subtotal,
-                      })
-                    ),
+                      price: Number(item.price),
+
+                      tax_percent: taxPct,
+
+                      tax_amount: taxAmount,
+
+                      subtotal: subtotal,
+                    };
+                  }),
                 });
 
                 setOpenModal(true);
@@ -1257,6 +1287,13 @@ export default function PurchaseOrderPage() {
               variant="danger"
               size="sm"
               onClick={async () => {
+
+                if (row.status === "Approved" || row.status === "Completed") {
+                  toast.error("Tidak bisa menghapus PO", {
+                    description: `Purchase Order dengan status "${row.status}" tidak dapat dihapus.`,
+                  });
+                  return;
+                }
 
                 const confirmed =
                   confirm(

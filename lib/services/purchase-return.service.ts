@@ -1,6 +1,5 @@
 import { api } from "@/lib/api";
 import { getPurchaseOrders, updatePurchaseOrder } from "./po.service";
-import { restoreStock } from "./supplier-product.service";
 import { createPurchasePayment } from "./purchase-payment.service";
 import type { ReturnLineItem } from "@/components/modules/pembelian/PurchaseReturnFormModal";
 
@@ -49,26 +48,30 @@ export const deletePurchaseReturn = async (id: number) => {
   return response.data;
 };
 
+/**
+ * Returns the GR detail lines (product_name + quantity) for the given
+ * purchase return. Used by the Accept Loss modal to display the exact
+ * products and quantities that were originally returned.
+ */
+export const getReturnDetails = async (returnId: number) => {
+  const response = await api.get(`/purchase-return/${returnId}/details`);
+  return response.data;
+};
+
 // ─── Settlement helpers ───────────────────────────────────────────────────────
 
 /**
  * Option A — Accept Loss.
- * The supplier ships back fixed goods of the exact same product and quantity.
- * Stock is restored for every returned line item, then the return is closed.
+ * Closes the return as "Closed". The backend's PUT /purchase-return/{id}
+ * handler detects settlement_option = "Accept Loss" and restores inventory
+ * stock automatically for the exact items and quantities that were returned
+ * (read from transaction_detail) — no frontend stock call needed.
  */
 export const resolveAcceptLoss = async (
   returnId: number,
   returnItems: ReturnLineItem[],
-  supplierId: number,
   returnAmount: number
 ) => {
-  // Restore stock for each returned line item
-  for (const item of returnItems) {
-    if (item.product_id && item.qty_return > 0) {
-      await restoreStock(item.product_id, supplierId, item.qty_return);
-    }
-  }
-
   const itemSummary = returnItems
     .map((i) => `${i.product_name} x${i.qty_return}`)
     .join(", ");

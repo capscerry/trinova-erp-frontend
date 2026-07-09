@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Plus, Minus } from "lucide-react";
+import { X, Plus, Minus, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Settlement options ───────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ export interface GoodsReceiptOption {
   /** The PO id that backs this GR — needed to load its detail items */
   purchase_order_id: number;
   total_amount: number;
+  nomor_faktur_pajak?: string;
 }
 
 export interface PODetailItem {
@@ -59,6 +60,13 @@ export interface PurchaseReturnFormData {
   return_items: ReturnLineItem[];
 }
 
+export interface PurchaseOrderForValidation {
+  purchase_order_id: number;
+  supplier_id?: number;
+  supplier_name?: string;
+  status: string;
+}
+
 interface PurchaseReturnFormModalProps {
   open: boolean;
   onClose: () => void;
@@ -67,6 +75,8 @@ interface PurchaseReturnFormModalProps {
   poDetails: PODetailItem[];
   /** Auto-generated next return number from the backend */
   nextNumber?: string;
+  /** Used to guard the Next PO Deduction option — pass all POs from the page */
+  purchaseOrders?: PurchaseOrderForValidation[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -124,6 +134,7 @@ export default function PurchaseReturnFormModal({
   goodsReceipts,
   poDetails,
   nextNumber,
+  purchaseOrders = [],
 }: PurchaseReturnFormModalProps) {
   const [form, setForm] = useState<PurchaseReturnFormData>(() =>
     buildEmptyForm(nextNumber)
@@ -142,6 +153,18 @@ export default function PurchaseReturnFormModal({
   const selectedGR = goodsReceipts.find(
     (gr) => gr.goods_receipt_id === form.goods_receipt_id
   );
+
+  // Compute whether any active POs exist for the selected supplier —
+  // used to guard the "Next PO Deduction" settlement option.
+  const INACTIVE_PO_STATUSES = new Set(["Cancelled", "Completed", "Closed"]);
+  const hasEligiblePOs = purchaseOrders.some((po) => {
+    if (INACTIVE_PO_STATUSES.has(po.status)) return false;
+    if (!selectedGR) return false;
+    return (
+      (selectedGR.supplier_id > 0 && po.supplier_id === selectedGR.supplier_id) ||
+      po.supplier_name?.toLowerCase() === selectedGR.supplier_name.toLowerCase()
+    );
+  });
 
   // ── When user picks a GR, populate return-item rows from PO details ─────────
 
@@ -280,7 +303,7 @@ export default function PurchaseReturnFormModal({
                   className={inputBase}
                 />
               </FormField>
-              <FormField label="Goods Receipt">
+              <FormField label="Goods Receipt" required>
                 <select
                   title="Pilih Goods Receipt"
                   value={form.goods_receipt_id}
@@ -314,6 +337,17 @@ export default function PurchaseReturnFormModal({
                 />
               </FormField>
             </div>
+
+            {selectedGR?.nomor_faktur_pajak && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Nomor Faktur Pajak (dari PO)
+                </p>
+                <p className="font-mono font-semibold text-sm text-slate-700">
+                  {selectedGR.nomor_faktur_pajak}
+                </p>
+              </div>
+            )}
 
             {/* ── Product / quantity picker ─────────────────────────────── */}
             {selectedGR && (
@@ -439,7 +473,7 @@ export default function PurchaseReturnFormModal({
             )}
 
             {/* Settlement option */}
-            <FormField label="Opsi Penyelesaian">
+            <FormField label="Opsi Penyelesaian" required>
               <select
                 title="Opsi Penyelesaian"
                 value={form.settlement_option}
@@ -452,14 +486,69 @@ export default function PurchaseReturnFormModal({
                     closing_condition: getClosingCondition(option),
                   });
                 }}
-                className={inputBase}
+                className={cn(
+                  inputBase,
+                  form.settlement_option === "Cash Refund" &&
+                    "border-amber-400 focus:ring-amber-300 bg-amber-50"
+                )}
               >
-                {SETTLEMENT_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                {SETTLEMENT_OPTIONS.map((option) => {
+                  const isNextPO = option === "Next PO Deduction";
+                  const disableNextPO = isNextPO && !!selectedGR && !hasEligiblePOs;
+                  return (
+                    <option key={option} value={option} disabled={disableNextPO}>
+                      {option === "Accept Loss"       ? "Opsi A — Penggantian Barang (Accept Loss)" :
+                       option === "Next PO Deduction"
+                         ? disableNextPO
+                           ? "Opsi B — Potong PO Berikutnya (tidak tersedia — belum ada PO aktif)"
+                           : "Opsi B — Terima Kerugian / Potong PO Berikutnya"
+                         : option === "Cash Refund"    ? "Opsi C — Cash Refund (Uang Kembali)"
+                         : option}
+                    </option>
+                  );
+                })}
               </select>
+
+              {/* Next PO Deduction — no eligible POs warning */}
+              {form.settlement_option === "Next PO Deduction" && selectedGR && !hasEligiblePOs && (
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-rose-500" />
+                  <div className="space-y-1">
+                    <p className="font-semibold">Tidak ada PO aktif untuk supplier ini</p>
+                    <p className="leading-relaxed text-rose-700">
+                      Opsi B memerlukan minimal satu PO aktif dari{" "}
+                      <span className="font-semibold">{selectedGR.supplier_name}</span>.
+                      Buat PO baru untuk supplier ini terlebih dahulu, atau pilih opsi lain:
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5 text-rose-700">
+                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi C</span> — Nilai retur dikembalikan tunai melalui invoice</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Cash Refund constraint warning */}
+              {form.settlement_option === "Cash Refund" && (
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+                  <div className="space-y-1">
+                    <p className="font-semibold">Cash Refund memerlukan invoice yang belum lunas</p>
+                    <p className="leading-relaxed text-amber-700">
+                      Opsi ini hanya dapat diproses jika supplier memiliki{" "}
+                      <span className="font-semibold">invoice yang masih outstanding</span>.
+                      Jika tidak ada, pilih:
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi B</span> — Nilai retur dipotong dari PO berikutnya</li>
+                    </ul>
+                    <p className="text-amber-600 italic">
+                      Jika Anda menyimpan dengan Opsi C saat tidak ada invoice outstanding, server akan menolak permintaan ini.
+                    </p>
+                  </div>
+                </div>
+              )}
             </FormField>
 
             <FormField label="Keterangan / Catatan">
@@ -530,7 +619,11 @@ export default function PurchaseReturnFormModal({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!selectedGR || !hasSelection}
+              disabled={
+                !selectedGR ||
+                !hasSelection ||
+                (form.settlement_option === "Next PO Deduction" && !!selectedGR && !hasEligiblePOs)
+              }
               className="px-4 py-2 rounded-lg bg-navy-900 text-white hover:bg-navy-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
             >
               Simpan Retur
@@ -546,15 +639,18 @@ export default function PurchaseReturnFormModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
     </div>

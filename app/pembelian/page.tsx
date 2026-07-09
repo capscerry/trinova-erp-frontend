@@ -34,15 +34,15 @@ import {
 } from "@/lib/services/purchasing-dashboard.service";
 
 // ─────────────────────────────────────────────────────────────
-// STATS (static placeholders for ModuleOverview)
+// Format helpers for stat cards
 // ─────────────────────────────────────────────────────────────
 
-const STATS = [
-  { label: "Total Pembelian", value: "Rp 2,17 M", change: "+12.4%", trend: "up" as const, sub: "Bulan ini",           icon: ShoppingCart },
-  { label: "Goods Receipt",   value: "28",         change: "+4",     trend: "up" as const, sub: "Barang diterima",     icon: Truck        },
-  { label: "PO Pending",      value: "6",          change: "+2",     trend: "down" as const, sub: "Menunggu approval", icon: Clock3       },
-  { label: "Supplier Aktif",  value: "14",         change: "+1",     trend: "up" as const, sub: "Supplier terdaftar",  icon: Building2    },
-];
+function formatRupiah(value: number): string {
+  if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(2).replace(".", ",")} M`;
+  if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(2).replace(".", ",")} Jt`;
+  if (value >= 1_000) return `Rp ${(value / 1_000).toFixed(1).replace(".", ",")} Rb`;
+  return `Rp ${value.toLocaleString("id-ID")}`;
+}
 
 // ─────────────────────────────────────────────────────────────
 // AHP criteria (must match preset matrix column order)
@@ -289,13 +289,48 @@ export default function PembelianPage() {
     loadRankings();
   }, [authLoading, user]);
 
+  const stats = [
+    {
+      label: "Total Pembelian",
+      value: activityLoading ? "—" : formatRupiah(dashboard.totalPurchaseAmount),
+      change: "",
+      trend: "up" as const,
+      sub: "Keseluruhan",
+      icon: ShoppingCart,
+    },
+    {
+      label: "Goods Receipt",
+      value: activityLoading ? "—" : String(dashboard.totalGoodsReceipt),
+      change: "",
+      trend: "up" as const,
+      sub: "Total diterima",
+      icon: Truck,
+    },
+    {
+      label: "Total PO",
+      value: activityLoading ? "—" : String(dashboard.totalPurchaseOrder),
+      change: "",
+      trend: "up" as const,
+      sub: "Purchase order",
+      icon: Clock3,
+    },
+    {
+      label: "Supplier Aktif",
+      value: activityLoading ? "—" : String(dashboard.totalSupplier),
+      change: "",
+      trend: "up" as const,
+      sub: "Supplier terdaftar",
+      icon: Building2,
+    },
+  ];
+
   return (
     <AppShell
       title="Purchasing Dashboard"
       subtitle="Overview aktivitas pembelian dan supplier"
     >
       {/* OVERVIEW */}
-      <ModuleOverview module={module} stats={STATS} />
+      <ModuleOverview module={module} stats={stats} />
 
       {/* AI INSIGHT CTA */}
       <Link href="/pembelian/insight" className="block mt-6 group">
