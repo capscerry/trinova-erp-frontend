@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
-import { DataTable } from "@/components/ui";
+import { DataTable ,StatusBadge} from "@/components/ui";
 import { KategoriCustomerModal, type KategoriFormData } from "@/components/modules/penjualan/CategoryCustomerModal";
 import type { Column } from "@/components/ui";
 import {
   categoryCustomerService,
   type KategoriCustomer,
 } from "@/lib/services/category-customer.service";
+
 
 const COLUMNS: Column<KategoriCustomer>[] = [
   { key: "no", label: "No", width: "100px" },
@@ -18,15 +19,10 @@ const COLUMNS: Column<KategoriCustomer>[] = [
     label: "Status",
     width: "150px",
     render: (_value: unknown, row: KategoriCustomer) => (
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-          row.isActive
-            ? "bg-green-100 text-green-800"
-            : "bg-red-100 text-red-800"
-        }`}
-      >
-        {row.isActive ? "Aktif" : "Tidak Aktif"}
-      </span>
+      <StatusBadge
+        status={row.isActive ? "Active" : "Inactive"}
+        variant={row.isActive ? "success" : "danger"}
+      />
     ),
   },
 ];

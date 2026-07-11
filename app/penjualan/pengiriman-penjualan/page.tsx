@@ -143,6 +143,7 @@ export default function PengirimanPenjualanPage() {
     const params = new URLSearchParams();
     if (form.customerId) params.set("customerId", String(form.customerId));
     if (form.pelanggan) params.set("pelanggan", form.pelanggan);
+    if (form.id) params.set("deliveryOrderId", String(form.id));
     router.push(`/penjualan/invoice?${params.toString()}`);
   };
 

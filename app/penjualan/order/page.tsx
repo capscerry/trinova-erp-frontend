@@ -67,6 +67,7 @@ const COLUMNS: Column<SalesOrder>[] = [
         module="sales-order"
         id={row.id}
         value={row.status}
+        excludeOptions={["Cancelled"]}
         onUpdated={(status) => {
           row.status = status as SalesOrder["status"];
         }}

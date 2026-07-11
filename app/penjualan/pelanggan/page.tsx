@@ -77,9 +77,10 @@ const COLUMNS: Column<Customer>[] = [
     key: "status",
     label: "Status",
     width: "120px",
-    render: (val) => <StatusBadge status={val ? "Aktif" : "Nonaktif"} />,
+    render: (val) => <StatusBadge status={val ? "Active" : "Inactive"} variant={val ? "success" :"danger"} />,
   },
 ];
+
 
 export default function CustomerPage() {
   const [data, setData] = useState<Customer[]>([]);

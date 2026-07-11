@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CreditCard, Edit, Printer } from "lucide-react";
 import { AppShell } from "@/components/layout";
+import { StatusBadge } from "@/components/ui";
 import {
   FakturPenjualanModal,
   type FakturPenjualanFormData,
@@ -184,7 +185,7 @@ export default function SalesInvoiceDetailPage() {
               <Info label="No Faktur" value={data.invoiceNumber} />
               <Info label="Tanggal" value={formatDate(data.invoiceDate)} />
               <Info label="Jatuh Tempo" value={formatDate(data.dueDate)} />
-              <Info label="Status" value={String(data.status)} />
+              <Info label="Status" value={<StatusBadge status={data.status} />} />
               <Info label="Pelanggan" value={data.customerName || "-"} />
               <Info label="Sales Order" value={data.salesOrderNumber || "-"} />
               <Info label="Pengiriman" value={data.deliveryOrderNumber || "-"} />
@@ -259,7 +260,7 @@ export default function SalesInvoiceDetailPage() {
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>

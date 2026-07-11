@@ -65,6 +65,8 @@ export interface ProductDropdown {
   productType: string;
   categoryId: number;
   categoryName: string;
+  /** Total qty_available (semua gudang) dari /api/product-data */
+  stock?: number;
   uom: string;
   uomId: number;         // â† BARU: pastikan backend mengirim ini
 }
@@ -77,6 +79,8 @@ export interface Product {
   uomId : number;
   tipe: string;
   kategori: string;
+  /** Total stok tersedia (semua gudang) — sumber: /api/product-data */
+  stock: number;
 }
 
 export interface QuotationItem {
@@ -324,6 +328,7 @@ export function mapProductData(item: ProductDropdown): Product {
     uomId: item.uomId,    // â† BARU
     tipe: item.productType,
     kategori: item.categoryName,
+    stock: item.stock ?? 0,
   };
 }
 
@@ -384,8 +389,9 @@ export const salesOrderService = {
     await api.delete(`/sales-order/${id}`);
   },
 
-  async confirm(id: number | string): Promise<void> {
-    await api.patch(`/sales-order/${id}/confirm`);
+  /** Batalkan Sales Order — melepas reservasi stok untuk bagian yang belum dikirim */
+  async cancel(id: number | string): Promise<void> {
+    await api.patch(`/sales-order/${id}/cancel`);
   },
 
   /** Ambil daftar Sales Order berdasarkan customer â€” untuk "Ambil dari Pesanan Penjualan" */
