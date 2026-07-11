@@ -4,71 +4,86 @@ import { useState, useEffect, useMemo } from "react";
 import { X, Search, FileDown, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  salesOrderService,
-  type SalesOrder,
-  type SalesOrderDetailItem,
-} from "@/lib/services/penjualan.service";
+  pengirimanPenjualanService,
+  type PengirimanPenjualan,
+  type PengirimanDetailItem,
+} from "@/lib/services/pengiriman-penjualan.service";
+import { salesReturnService } from "@/lib/services/sales-return.service";
+import { normalizeSalesStatus } from "@/lib/sales-status";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
-export interface PengirimanSOPickerResultItem {
+export interface SalesReturnPickerResultItem {
   productId: number;
   productCode: string;
   productName: string;
+  warehouseId: number;
+  warehouseName: string;
   uomId?: number;
   satuan: string;
-  qtyDipesan: number;
-  qtyDikirim: number;
-  warehouseId?: number;
-  warehouseName?: string;
+  maxReturnable: number;
+  qtyReturn: number;
 }
 
-interface PengirimanSOPickerModalProps {
+interface SalesReturnDOPickerModalProps {
   open: boolean;
   onClose: () => void;
   customerId: number;
   customerName: string;
   onConfirm: (
-    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
-    items: PengirimanSOPickerResultItem[]
+    delivery: PengirimanPenjualan,
+    items: SalesReturnPickerResultItem[]
   ) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function PengirimanSOPickerModal({
+export function SalesReturnDOPickerModal({
   open,
   onClose,
   customerId,
   customerName,
   onConfirm,
-}: PengirimanSOPickerModalProps) {
-  const [soList, setSoList] = useState<SalesOrder[]>([]);
+}: SalesReturnDOPickerModalProps) {
+  const [doList, setDoList] = useState<PengirimanPenjualan[]>([]);
   const [loadingList, setLoadingList] = useState(false);
 
-  const [selectedSoId, setSelectedSoId] = useState<number | string | null>(null);
-  const [detailItems, setDetailItems] = useState<SalesOrderDetailItem[]>([]);
+  const [selectedDoId, setSelectedDoId] = useState<number | null>(null);
+  const [detailItems, setDetailItems] = useState<PengirimanDetailItem[]>([]);
+  const [returnableMap, setReturnableMap] = useState<Record<number, number>>({});
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const [searchSo, setSearchSo] = useState("");
+  const [searchDo, setSearchDo] = useState("");
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
-  const [qtyKirim, setQtyKirim] = useState<Record<number, number>>({});
+  const [qtyReturn, setQtyReturn] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (!open || !customerId) return;
 
-    setSelectedSoId(null);
+    setSelectedDoId(null);
     setDetailItems([]);
-    setSearchSo("");
+    setReturnableMap({});
+    setSearchDo("");
     setCheckedIds(new Set());
-    setQtyKirim({});
+    setQtyReturn({});
 
     const load = async () => {
       setLoadingList(true);
       try {
-        const data = await salesOrderService.getByCustomerId(customerId);
-        setSoList(data);
+        const all = await pengirimanPenjualanService.getAll();
+        setDoList(
+          // Retur bisa terjadi kapan pun setelah barang keluar gudang — termasuk
+          // setelah DO itu sudah di-invoice (bahkan sudah dibayar). Stok sudah
+          // dipotong sejak DO dibuat, jadi satu-satunya status yang benar-benar
+          // tidak boleh diretur adalah Cancelled (dianggap barang tidak pernah
+          // jadi dikirim).
+          all.filter(
+            (item) =>
+              item.customerId === customerId &&
+              normalizeSalesStatus("delivery-order", item.status) !== "Cancelled"
+          )
+        );
       } catch (err) {
-        console.error("Gagal memuat pesanan penjualan:", err);
-        setSoList([]);
+        console.error("Gagal memuat delivery order:", err);
+        setDoList([]);
       } finally {
         setLoadingList(false);
       }
@@ -77,93 +92,94 @@ export function PengirimanSOPickerModal({
   }, [open, customerId]);
 
   useEffect(() => {
-    if (!selectedSoId) {
+    if (!selectedDoId) {
       setDetailItems([]);
+      setReturnableMap({});
       setCheckedIds(new Set());
-      setQtyKirim({});
+      setQtyReturn({});
       return;
     }
 
     const load = async () => {
       setLoadingDetail(true);
       try {
-        const items = await salesOrderService.getDetailItems(selectedSoId);
-        console.log("🔍 [SO Picker] Detail items mentah dari API /sales-order/{id}:", items);
+        const [items, returnable] = await Promise.all([
+          pengirimanPenjualanService.getDetailItems(selectedDoId),
+          salesReturnService.getReturnableQty(selectedDoId),
+        ]);
         setDetailItems(items);
-        setCheckedIds(new Set(items.map((_, i) => i)));
-        const initialQty: Record<number, number> = {};
-        items.forEach((it, i) => { initialQty[i] = it.productQty; });
-        setQtyKirim(initialQty);
+        setReturnableMap(returnable);
+        setCheckedIds(new Set());
+        setQtyReturn({});
       } catch (err) {
-        console.error("Gagal memuat detail pesanan:", err);
+        console.error("Gagal memuat detail delivery order:", err);
         setDetailItems([]);
+        setReturnableMap({});
       } finally {
         setLoadingDetail(false);
       }
     };
     load();
-  }, [selectedSoId]);
+  }, [selectedDoId]);
 
-  const filteredSo = useMemo(() => {
-    if (!searchSo) return soList;
-    const q = searchSo.toLowerCase();
-    return soList.filter((s: SalesOrder) => s.nomor.toLowerCase().includes(q));
-  }, [soList, searchSo]);
+  const filteredDo = useMemo(() => {
+    if (!searchDo) return doList;
+    const q = searchDo.toLowerCase();
+    return doList.filter((d) => d.noSuratJalan.toLowerCase().includes(q));
+  }, [doList, searchDo]);
 
-  const selectedSo = soList.find((s: SalesOrder) => s.id === selectedSoId);
+  const selectedDo = doList.find((d) => d.id === selectedDoId);
 
-  const allChecked = detailItems.length > 0 && checkedIds.size === detailItems.length;
+  const returnableItems = detailItems.map((item, idx) => ({
+    item,
+    idx,
+    max: returnableMap[item.productId] ?? 0,
+  }));
+
+  const allChecked = returnableItems.length > 0 && checkedIds.size === returnableItems.filter((r) => r.max > 0).length;
   const someChecked = checkedIds.size > 0;
 
   const toggleAll = () => {
-    setCheckedIds(allChecked ? new Set() : new Set(detailItems.map((_, i) => i)));
+    if (allChecked) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(returnableItems.filter((r) => r.max > 0).map((r) => r.idx)));
+    }
   };
 
-  const toggleItem = (index: number) => {
+  const toggleItem = (idx: number, max: number) => {
+    if (max <= 0) return;
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
       return next;
     });
   };
 
-  const handleQtyChange = (index: number, value: number, max: number) => {
+  const handleQtyChange = (idx: number, value: number, max: number) => {
     const clamped = Math.max(0, Math.min(value, max));
-    setQtyKirim((prev) => ({ ...prev, [index]: clamped }));
+    setQtyReturn((prev) => ({ ...prev, [idx]: clamped }));
   };
 
   const handleConfirm = () => {
-    if (!selectedSo) return;
-    const selectedSoRecord = selectedSo as SalesOrder & { alamat?: string };
+    if (!selectedDo) return;
 
-    const items: PengirimanSOPickerResultItem[] = detailItems
-      .map((it, idx) => ({ it, idx }))
+    const items: SalesReturnPickerResultItem[] = returnableItems
       .filter(({ idx }) => checkedIds.has(idx))
-      .map(({ it, idx }) => ({
-        productId: it.productId ?? 0,
-        productCode: it.productCode ?? "",
-        productName: it.productName,
-        uomId: it.uomId,
-        satuan: it.satuan ?? "",
-        qtyDipesan: it.productQty,
-        qtyDikirim: qtyKirim[idx] ?? it.productQty,
-        warehouseId: it.wareHouseId,
-        warehouseName: it.warehouseName,
+      .map(({ item, idx, max }) => ({
+        productId: item.productId,
+        productCode: item.productCode,
+        productName: item.productName,
+        warehouseId: item.warehouseId ?? 0,
+        warehouseName: item.warehouseName ?? "",
+        uomId: item.uomId,
+        satuan: item.satuan ?? "",
+        maxReturnable: max,
+        qtyReturn: qtyReturn[idx] ?? max,
       }));
 
-    console.log("🔍 [SO Picker] Items yang dikirim ke onConfirm:", items);
-
-    onConfirm(
-      {
-        id: Number(selectedSo.id),
-        nomor: selectedSo.nomor,
-        poNumber: selectedSo.poNumber ?? "",
-        alamat: selectedSoRecord.alamat ?? "",
-        tanggalKirim: selectedSo.tanggalKirim,
-      },
-      items
-    );
+    onConfirm(selectedDo, items);
   };
 
   useEffect(() => {
@@ -190,21 +206,21 @@ export function PengirimanSOPickerModal({
           className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh]
                      flex flex-col border border-slate-200 overflow-hidden"
         >
-          <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-sky-600 to-sky-500 shrink-0">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-500 shrink-0">
             <div className="flex items-center gap-2">
               <FileDown size={15} className="text-white/80" />
               <div>
                 <h2 className="text-white font-semibold text-sm tracking-tight">
-                  Ambil dari Pesanan Penjualan
+                  Pilih Delivery Order untuk Diretur
                 </h2>
-                <p className="text-sky-100 text-[11px] mt-0.5">
+                <p className="text-emerald-100 text-[11px] mt-0.5">
                   Pelanggan: <span className="font-semibold">{customerName}</span>
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-sky-200 hover:text-white hover:bg-white/10 transition-colors"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-emerald-100 hover:text-white hover:bg-white/10 transition-colors"
             >
               <X size={15} />
             </button>
@@ -213,16 +229,16 @@ export function PengirimanSOPickerModal({
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                Pilih Pesanan Penjualan
+                Pilih Delivery Order
               </label>
 
-              {selectedSo && (
+              {selectedDo && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100 text-sky-700 text-xs font-semibold">
-                    {selectedSo.nomor}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                    {selectedDo.noSuratJalan}
                     <button
-                      onClick={() => setSelectedSoId(null)}
-                      className="hover:text-sky-900 transition-colors"
+                      onClick={() => setSelectedDoId(null)}
+                      className="hover:text-emerald-900 transition-colors"
                     >
                       <X size={11} />
                     </button>
@@ -230,7 +246,7 @@ export function PengirimanSOPickerModal({
                 </div>
               )}
 
-              {!selectedSoId && (
+              {!selectedDoId && (
                 <>
                   <div className="relative">
                     <Search
@@ -239,13 +255,13 @@ export function PengirimanSOPickerModal({
                     />
                     <input
                       type="text"
-                      value={searchSo}
-                      onChange={(e) => setSearchSo(e.target.value)}
-                      placeholder={loadingList ? "Memuat pesanan..." : "Cari/Pilih Pesanan Penjualan..."}
+                      value={searchDo}
+                      onChange={(e) => setSearchDo(e.target.value)}
+                      placeholder={loadingList ? "Memuat delivery order..." : "Cari/Pilih Delivery Order..."}
                       disabled={loadingList}
                       className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-slate-200
                                  bg-white text-slate-700 placeholder-slate-400
-                                 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400
+                                 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400
                                  disabled:opacity-50 transition-all"
                     />
                   </div>
@@ -255,30 +271,30 @@ export function PengirimanSOPickerModal({
                       <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
                         <Loader2 size={14} className="animate-spin" /> Memuat...
                       </div>
-                    ) : filteredSo.length === 0 ? (
+                    ) : filteredDo.length === 0 ? (
                       <div className="py-6 text-center text-xs text-slate-400">
-                        {soList.length === 0
-                          ? "Belum ada pesanan penjualan untuk pelanggan ini"
-                          : "Pesanan tidak ditemukan"}
+                        {doList.length === 0
+                          ? "Belum ada delivery order untuk pelanggan ini"
+                          : "Delivery order tidak ditemukan"}
                       </div>
                     ) : (
-                      filteredSo.map((so) => (
+                      filteredDo.map((d) => (
                         <button
-                          key={so.id}
+                          key={d.id}
                           type="button"
                           onClick={() => {
-                            setSelectedSoId(so.id);
-                            setSearchSo("");
+                            setSelectedDoId(d.id);
+                            setSearchDo("");
                           }}
                           className="w-full flex items-center justify-between gap-3 px-4 py-2.5
                                      text-left text-xs hover:bg-slate-50 border-b border-slate-100
                                      last:border-b-0 transition-colors"
                         >
                           <span className="font-mono font-semibold text-slate-700">
-                            {so.nomor}
+                            {d.noSuratJalan}
                           </span>
                           <span className="text-slate-400">
-                            {so.tanggal ? new Date(so.tanggal).toLocaleDateString("id-ID") : ""}
+                            {d.noSo || "Tanpa SO"}
                           </span>
                         </button>
                       ))
@@ -288,19 +304,19 @@ export function PengirimanSOPickerModal({
               )}
             </div>
 
-            {selectedSoId && (
+            {selectedDoId && (
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  Pilih Barang & Qty Kirim
+                  Pilih Barang & Qty Retur
                 </label>
 
                 {loadingDetail ? (
                   <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-400">
                     <Loader2 size={14} className="animate-spin" /> Memuat detail...
                   </div>
-                ) : detailItems.length === 0 ? (
+                ) : returnableItems.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-400">
-                    Tidak ada produk pada pesanan ini
+                    Tidak ada produk pada delivery order ini
                   </div>
                 ) : (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -312,10 +328,10 @@ export function PengirimanSOPickerModal({
                               className={cn(
                                 "w-4.5 h-4.5 rounded border flex items-center justify-center transition-all",
                                 allChecked
-                                  ? "bg-sky-600 border-sky-600"
+                                  ? "bg-emerald-600 border-emerald-600"
                                   : someChecked
-                                    ? "bg-sky-200 border-sky-400"
-                                    : "bg-white border-slate-300 hover:border-sky-400"
+                                    ? "bg-emerald-200 border-emerald-400"
+                                    : "bg-white border-slate-300 hover:border-emerald-400"
                               )}>
                               {(allChecked || someChecked) && (
                                 <Check size={10} className="text-white" strokeWidth={3} />
@@ -325,32 +341,37 @@ export function PengirimanSOPickerModal({
                           <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">
                             Nama Barang
                           </th>
-                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[16%]">
-                            Qty Dipesan
+                          <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">
+                            Gudang
                           </th>
-                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[20%]">
-                            Qty Dikirim
+                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">
+                            Sisa Bisa Retur
+                          </th>
+                          <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[16%]">
+                            Qty Retur
                           </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {detailItems.map((item, idx) => {
+                        {returnableItems.map(({ item, idx, max }) => {
                           const isChecked = checkedIds.has(idx);
+                          const disabled = max <= 0;
                           return (
                             <tr
                               key={idx}
                               className={cn(
                                 "transition-colors",
-                                isChecked ? "bg-sky-50/60" : "hover:bg-slate-50"
+                                disabled ? "opacity-40" : isChecked ? "bg-emerald-50/60" : "hover:bg-slate-50"
                               )}
                             >
                               <td className="px-3 py-2.5">
-                                <button type="button" onClick={() => toggleItem(idx)}
+                                <button type="button" onClick={() => toggleItem(idx, max)} disabled={disabled}
                                   className={cn(
                                     "w-4.5 h-4.5 rounded border flex items-center justify-center transition-all",
                                     isChecked
-                                      ? "bg-sky-600 border-sky-600"
-                                      : "bg-white border-slate-300"
+                                      ? "bg-emerald-600 border-emerald-600"
+                                      : "bg-white border-slate-300",
+                                    disabled && "cursor-not-allowed"
                                   )}>
                                   {isChecked && <Check size={10} className="text-white" strokeWidth={3} />}
                                 </button>
@@ -361,19 +382,22 @@ export function PengirimanSOPickerModal({
                                   <span className="text-slate-400 ml-1 font-normal">({item.satuan})</span>
                                 )}
                               </td>
+                              <td className="px-3 py-2.5 text-slate-500">
+                                {item.warehouseName || "—"}
+                              </td>
                               <td className="px-3 py-2.5 text-right text-slate-500">
-                                {item.productQty}
+                                {max}
                               </td>
                               <td className="px-3 py-2.5 text-right">
                                 <input
                                   type="number"
                                   min={0}
-                                  max={item.productQty}
-                                  value={qtyKirim[idx] ?? item.productQty}
+                                  max={max}
+                                  value={qtyReturn[idx] ?? max}
                                   disabled={!isChecked}
-                                  onChange={(e) => handleQtyChange(idx, Number(e.target.value), item.productQty)}
+                                  onChange={(e) => handleQtyChange(idx, Number(e.target.value), max)}
                                   className="w-20 px-2 py-1 text-right text-xs rounded-md border border-slate-200
-                                             focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400
+                                             focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400
                                              disabled:bg-slate-50 disabled:text-slate-400"
                                 />
                               </td>
@@ -390,7 +414,7 @@ export function PengirimanSOPickerModal({
 
           <div className="flex items-center justify-between px-5 py-3.5 border-t border-slate-100 bg-slate-50/60 shrink-0">
             <span className="text-xs text-slate-400">
-              {checkedIds.size > 0 ? `${checkedIds.size} barang dipilih` : "Pilih pesanan & barang untuk dilanjutkan"}
+              {checkedIds.size > 0 ? `${checkedIds.size} barang dipilih` : "Pilih delivery order & barang untuk dilanjutkan"}
             </span>
 
             <div className="flex items-center gap-2">
@@ -402,10 +426,10 @@ export function PengirimanSOPickerModal({
               </button>
               <button
                 onClick={handleConfirm}
-                disabled={!selectedSo || checkedIds.size === 0}
-                className="px-5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                disabled={!selectedDo || checkedIds.size === 0}
+                className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
               >
-                <Check size={12} /> Gunakan Pesanan Ini
+                <Check size={12} /> Gunakan Delivery Order Ini
               </button>
             </div>
           </div>

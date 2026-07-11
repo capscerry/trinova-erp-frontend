@@ -129,39 +129,23 @@ export function SalesOrderHeaderForm({
           )}
         </FormField>
 
-        {/* No PO */}
-        <FormField label="No PO" icon={<Hash size={13} />}>
-          <input type="text" 
-            value={form.noPO || ""}
-            onChange={(e) => setField("noPO", e.target.value)}
-            placeholder="Nomor Purchase Order..."
-            className={inputBase} />
-        </FormField>
-      </div>
-
-      {/* Tanggal */}
-      <div className="grid grid-cols-2 gap-4">
+        {/* Tanggal */}
         <FormField label="Tanggal" icon={<Calendar size={13} />} required>
           <input type="date" value={form.tanggal}
             onChange={(e) => setField("tanggal", e.target.value)}
             className={inputBase} />
         </FormField>
-        <FormField label="Tanggal Kirim" icon={<Calendar size={13} />}>
-          <input type="date" value={form.tanggalKirim}
-            onChange={(e) => setField("tanggalKirim", e.target.value)}
-            className={inputBase} />
-        </FormField>
       </div>
 
-      {/* Pelanggan + Dipesan Oleh */}
+      {/* Customer + Tanggal Kirim */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Dipesan Oleh" icon={<Users size={13} />} required
+        <FormField label="Customer" icon={<Users size={13} />} required
           hint={isEdit ? (
             <span className="text-[10px] text-slate-400">Tidak dapat diubah</span>
           ) : undefined}>
           <DropdownField
             value={form.pelanggan}
-            placeholder="Pilih sales / staff..."
+            placeholder="Pilih customer..."
             options={customerOptions.map((s) => s.name)}
             disabled={isEdit}
             onChange={(v) => {
@@ -179,6 +163,22 @@ export function SalesOrderHeaderForm({
             });
             }}
           />
+        </FormField>
+        <FormField label="Tanggal Kirim" icon={<Calendar size={13} />}>
+          <input type="date" value={form.tanggalKirim}
+            onChange={(e) => setField("tanggalKirim", e.target.value)}
+            className={inputBase} />
+        </FormField>
+      </div>
+
+      {/* No PO */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="No PO" icon={<Hash size={13} />}>
+          <input type="text"
+            value={form.noPO || ""}
+            onChange={(e) => setField("noPO", e.target.value)}
+            placeholder="Nomor Purchase Order..."
+            className={inputBase} />
         </FormField>
       </div>
 

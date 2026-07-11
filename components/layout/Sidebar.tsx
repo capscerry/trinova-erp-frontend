@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, LogOut } from "lucide-react";
+import { Brain, Building2, ChevronRight, LayoutDashboard, LogOut, Package, Shield, ShoppingCart, type LucideIcon } from "lucide-react";
 import { getNavForRole } from "@/lib/nav";
 import { useAuth } from "@/lib/AuthContext";
 import { cn } from "@/lib/utils";
 import type { NavModule } from "@/types";
+
+const moduleIcons: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  user: Shield,
+  penjualan: ShoppingCart,
+  pembelian: ShoppingCart,
+  persediaan: Package,
+  rekomendasi: Brain,
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -42,6 +51,7 @@ export function Sidebar() {
             ? pathname === module.href || pathname.startsWith("/" + module.id)
             : pathname.startsWith("/" + module.id);
           const isOpen = openModule === module.id;
+          const ModuleIcon = moduleIcons[module.id] ?? Building2;
 
           if (isDirectLink) {
             return (
@@ -51,11 +61,11 @@ export function Sidebar() {
                 className={cn(
                   "mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
-                    ? "bg-white/10 text-gold-400"
+                    ? "bg-white/10 text-gold-400 shadow-sm ring-1 ring-white/10"
                     : "text-slate-400 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                <ModuleIcon size={16} className="shrink-0" />
                 {module.label}
               </Link>
             );
@@ -68,12 +78,12 @@ export function Sidebar() {
                 className={cn(
                   "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
                   isActive
-                    ? "bg-white/10 text-gold-400"
+                    ? "bg-white/10 text-gold-400 shadow-sm ring-1 ring-white/10"
                     : "text-slate-400 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <span className="flex items-center gap-3">
-                  <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                  <ModuleIcon size={16} className="shrink-0" />
                   {module.label}
                 </span>
                 <ChevronRight
@@ -138,4 +148,7 @@ export function Sidebar() {
     </aside>
   );
 }
+
+
+
 

@@ -103,12 +103,14 @@ export default function SalesInvoicePage() {
   useEffect(() => {
     const customerIdParam = searchParams.get("customerId");
     const pelanggan = searchParams.get("pelanggan") ?? "";
+    const deliveryOrderIdParam = searchParams.get("deliveryOrderId");
 
-    if (!customerIdParam && !pelanggan) return;
+    if (!customerIdParam && !pelanggan && !deliveryOrderIdParam) return;
 
     setInitialFormData({
       customerId: customerIdParam ? Number(customerIdParam) : undefined,
       pelanggan,
+      deliveryOrderId: deliveryOrderIdParam ? Number(deliveryOrderIdParam) : undefined,
     });
     setModalOpen(true);
     router.replace("/penjualan/invoice");

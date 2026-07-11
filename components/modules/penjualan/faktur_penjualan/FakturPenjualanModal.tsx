@@ -31,6 +31,7 @@ import {
   type PengirimanPenjualan,
   type PengirimanDetailItem,
 } from "@/lib/services/pengiriman-penjualan.service";
+import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
 import {
   EMPTY_FORM,
   addDays,
@@ -79,6 +80,12 @@ export function FakturPenjualanModal({
   const [showDeliveryPicker, setShowDeliveryPicker] = useState(false);
   const [loadingDelivery, setLoadingDelivery] = useState(false);
   const [uangMukaNote, setUangMukaNote] = useState("Belum ada SO yang dipilih");
+  const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+
+  // Baris cash sale (tanpa SO/DO) butuh gudang per baris supaya stoknya bisa
+  // dipotong — item yang berasal dari SO/DO sudah ditangani di sana.
+  const isDirectSale = !form.salesOrderId && !form.deliveryOrderId;
 
   const totals = useMemo(() => calculateFakturTotals(form), [form]);
 
@@ -105,6 +112,20 @@ export function FakturPenjualanModal({
       }
     };
     load();
+
+    const loadWarehouses = async () => {
+      try {
+        setLoadingWarehouses(true);
+        const data = await getWarehouses();
+        setWarehouseOptions(data ?? []);
+      } catch (err) {
+        console.error("Gagal memuat data gudang:", err);
+        setWarehouseOptions([]);
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+    loadWarehouses();
   }, [open]);
 
   useEffect(() => {
@@ -264,46 +285,50 @@ export function FakturPenjualanModal({
     return priceMap;
   };
 
+  const loadFromDelivery = async (delivery: PengirimanPenjualan) => {
+    const [detail, priceMap] = await Promise.all([
+      pengirimanPenjualanService.getDetailItems(delivery.id),
+      getSalesOrderPriceMap(delivery.soId),
+    ]);
+    const uangMuka = await getUangMukaBySalesOrder(delivery.noSo, delivery.customerId);
+
+    const items: FakturPenjualanItem[] = detail.map((item: PengirimanDetailItem) => {
+      const price = item.productId ? priceMap.get(item.productId) : undefined;
+      return {
+        id: crypto.randomUUID(),
+        productId: item.productId,
+        productCode: item.productCode ?? "",
+        productName: item.productName,
+        uomId: item.uomId,
+        satuan: item.satuan ?? "",
+        qty: Number(item.qtyDikirim || 0),
+        harga: price?.harga ?? 0,
+        diskon: price?.diskon ?? 0,
+      };
+    });
+
+    patchForm({
+      deliveryOrderId: delivery.id,
+      noPengiriman: delivery.noSuratJalan,
+      salesOrderId: delivery.soId,
+      noSo: delivery.noSo ?? "",
+      noPO: delivery.noPO ?? "",
+      alamat: delivery.alamatPengiriman || form.alamat,
+      keterangan: delivery.keterangan || form.keterangan,
+      uangMuka: uangMuka.amount,
+      items,
+    });
+    setUangMukaNote(
+      uangMuka.count > 0
+        ? `${uangMuka.count} uang muka terpakai dari SO pengiriman ini`
+        : "Tidak ada uang muka untuk SO pengiriman ini"
+    );
+  };
+
   const handleSelectDelivery = async (delivery: PengirimanPenjualan) => {
     try {
       setLoadingDelivery(true);
-      const [detail, priceMap] = await Promise.all([
-        pengirimanPenjualanService.getDetailItems(delivery.id),
-        getSalesOrderPriceMap(delivery.soId),
-      ]);
-      const uangMuka = await getUangMukaBySalesOrder(delivery.noSo, delivery.customerId);
-
-      const items: FakturPenjualanItem[] = detail.map((item: PengirimanDetailItem) => {
-        const price = item.productId ? priceMap.get(item.productId) : undefined;
-        return {
-          id: crypto.randomUUID(),
-          productId: item.productId,
-          productCode: item.productCode ?? "",
-          productName: item.productName,
-          uomId: item.uomId,
-          satuan: item.satuan ?? "",
-          qty: Number(item.qtyDikirim || 0),
-          harga: price?.harga ?? 0,
-          diskon: price?.diskon ?? 0,
-        };
-      });
-
-      patchForm({
-        deliveryOrderId: delivery.id,
-        noPengiriman: delivery.noSuratJalan,
-        salesOrderId: delivery.soId,
-        noSo: delivery.noSo ?? "",
-        noPO: delivery.noPO ?? "",
-        alamat: delivery.alamatPengiriman || form.alamat,
-        keterangan: delivery.keterangan || form.keterangan,
-        uangMuka: uangMuka.amount,
-        items,
-      });
-      setUangMukaNote(
-        uangMuka.count > 0
-          ? `${uangMuka.count} uang muka terpakai dari SO pengiriman ini`
-          : "Tidak ada uang muka untuk SO pengiriman ini"
-      );
+      await loadFromDelivery(delivery);
       setShowDeliveryPicker(false);
     } catch (err) {
       console.error("Gagal memuat detail pengiriman:", err);
@@ -313,11 +338,34 @@ export function FakturPenjualanModal({
     }
   };
 
+  // Auto-load saat modal dibuka dari tombol "Process to Sales Invoice" di
+  // Delivery Order — initialData.deliveryOrderId sudah ada tapi items masih
+  // kosong (cuma customerId/pelanggan yang dioper lewat query param).
+  useEffect(() => {
+    if (!open || !initialData?.deliveryOrderId || form.items.length > 0) return;
+
+    const load = async () => {
+      try {
+        setLoadingDelivery(true);
+        const delivery = await pengirimanPenjualanService.getById(initialData.deliveryOrderId!);
+        await loadFromDelivery(delivery);
+      } catch (err) {
+        console.error("Gagal memuat pengiriman otomatis:", err);
+      } finally {
+        setLoadingDelivery(false);
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialData?.deliveryOrderId]);
+
   const addItem = () => patchForm({ items: [...form.items, newFakturItem()] });
   const updateItem = (id: string, patch: Partial<FakturPenjualanItem>) =>
     patchForm({ items: form.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) });
   const removeItem = (id: string) =>
     patchForm({ items: form.items.filter((it) => it.id !== id) });
+  const selectWarehouse = (id: string, warehouseId: number, warehouseName: string) =>
+    updateItem(id, { warehouseId, warehouseName });
 
   const handleSubmit = async () => {
     if (!form.customerId) return alert("Pelanggan wajib dipilih");
@@ -492,11 +540,14 @@ export function FakturPenjualanModal({
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
                         <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Barang</th>
-                        <th className="w-[12%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Satuan</th>
-                        <th className="w-[12%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Qty</th>
-                        <th className="w-[18%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Harga</th>
-                        <th className="w-[12%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Diskon %</th>
-                        <th className="w-[18%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Subtotal</th>
+                        <th className="w-[10%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Satuan</th>
+                        {isDirectSale && (
+                          <th className="w-[16%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Gudang</th>
+                        )}
+                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Qty</th>
+                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Harga</th>
+                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Diskon %</th>
+                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Subtotal</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -510,6 +561,29 @@ export function FakturPenjualanModal({
                               <input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} />
                             </td>
                             <td className="px-3 py-2"><input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
+                            {isDirectSale && (
+                              <td className="px-3 py-2">
+                                <select
+                                  value={item.warehouseId ?? ""}
+                                  disabled={loadingWarehouses}
+                                  onChange={(e) => {
+                                    const found = warehouseOptions.find(
+                                      (w) => String(w.warehouse_id) === e.target.value
+                                    );
+                                    if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                                    else updateItem(item.id, { warehouseId: undefined, warehouseName: "" });
+                                  }}
+                                  className={cn(inputClass, "py-1.5")}
+                                >
+                                  <option value="">Jasa (tanpa stok)</option>
+                                  {warehouseOptions.map((w) => (
+                                    <option key={w.warehouse_id} value={w.warehouse_id}>
+                                      {w.warehouse_name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            )}
                             <td className="px-3 py-2"><input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
                             <td className="px-3 py-2"><input type="number" min={0} value={item.harga} onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
                             <td className="px-3 py-2"><input type="number" min={0} max={100} value={item.diskon} onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>

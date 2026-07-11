@@ -83,16 +83,29 @@ export function Topbar({ title, subtitle }: TopbarProps) {
         </div>
 
         {user && (
-          <button
-            type="button"
-            onClick={logout}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
-            title="Logout"
-          >
-            <LogOut size={15} />
-          </button>
+          <>
+            <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 md:flex">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-navy-700 text-xs font-bold text-white">
+                {user.initials ?? user.name?.charAt(0) ?? user.username?.charAt(0) ?? "U"}
+              </div>
+              <div className="leading-tight">
+                <p className="max-w-28 truncate text-xs font-semibold text-slate-800">{user.name ?? user.username}</p>
+                <p className="text-[11px] capitalize text-slate-500">{user.role}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+              title="Logout"
+            >
+              <LogOut size={15} />
+            </button>
+          </>
         )}
       </div>
     </header>
   );
 }
+
+

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
-import { DataTable } from "@/components/ui";
+import { DataTable, StatusBadge } from "@/components/ui";
 import { KategoriPenjualanModal, type KategoriPenjualanFormData } from "@/components/modules/penjualan/CategorySalesModal";
 import type { Column } from "@/components/ui";
 import {
@@ -27,15 +27,10 @@ const COLUMNS: Column<KategoriPenjualan>[] = [
     label: "Status",
     width: "150px",
     render: (_value: unknown, row: KategoriPenjualan) => (
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-          row.isActive
-            ? "bg-green-100 text-green-800"
-            : "bg-red-100 text-red-800"
-        }`}
-      >
-        {row.isActive ? "Aktif" : "Tidak Aktif"}
-      </span>
+      <StatusBadge
+        status={row.isActive ? "Active" : "Inactive"}
+        variant={row.isActive ? "success" : "danger"}
+      />
     ),
   },
 ];

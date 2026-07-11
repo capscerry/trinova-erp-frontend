@@ -112,6 +112,8 @@ export interface DeliveryOrderDetailApi {
   uomName?: string;
   qtyDikirim: number;
   qtyDipesan: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface PengirimanDetailItem {
@@ -122,6 +124,8 @@ export interface PengirimanDetailItem {
   satuan: string;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface PengirimanPenjualanFullDetail extends PengirimanPenjualan {
@@ -137,6 +141,8 @@ export function mapPengirimanDetailItem(item: DeliveryOrderDetailApi): Pengirima
     satuan: item.uomName ?? "",
     qtyDipesan: item.qtyDipesan,
     qtyDikirim: item.qtyDikirim,
+    warehouseId: item.warehouseId ?? undefined,
+    warehouseName: item.warehouseName ?? undefined,
   };
 }
 
@@ -162,6 +168,7 @@ export interface DeliveryOrderDetailPayload {
   uomId?: number;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number | null;
 }
 
 export interface PengirimanPenjualanPayload {

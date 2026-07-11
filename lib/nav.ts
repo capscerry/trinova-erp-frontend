@@ -41,7 +41,7 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
           { id: "penjualan.order", label: "Sales Quotations", href: "/penjualan/quotation" },
           { id: "penjualan.order_list", label: "Sales Orders", href: "/penjualan/order" },
           { id: "penjualan.invoice", label: "Sales Invoices", href: "/penjualan/invoice" },
-          // { id: "penjualan.retur", label: "Sales Returns", href: "/penjualan/retur" },
+          { id: "penjualan.retur", label: "Sales Returns", href: "/penjualan/retur" },
           { id: "penjualn.uang_muka", label: "Sales Down Payments", href: "/penjualan/uang-muka" },
           { id: "penjualan.pengiriman_penjualan", label: "Delivery Orders", href: "/penjualan/pengiriman-penjualan" },
           { id: "penjualan.penerimaan_penjualan", label: "Sales Receipts", href: "/penjualan/penerimaan-penjualan" }
