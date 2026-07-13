@@ -326,25 +326,6 @@ export default function PurchaseDownPaymentPage() {
             </Button>
         </div>
 
-        <div className="flex justify-end mb-4">
-            <button
-            onClick={() => {
-                setEditRow(null);
-                setOpenModal(true);
-            }}
-            className="
-                px-4
-                py-2
-                rounded-lg
-                bg-navy-900
-                text-gold-400
-                text-sm
-                font-semibold
-            "
-            >
-            + Tambah DP
-            </button>
-        </div>
 
         <DataTable
             title="Daftar Purchase Down Payment"
@@ -354,6 +335,13 @@ export default function PurchaseDownPaymentPage() {
             dateField="payment_date"
             createdAtField="created_at"
             nameField="supplier_name"
+
+            addLabel="Tambah DP"
+
+            onAdd={() => {
+                setEditRow(null);
+                setOpenModal(true);
+            }}
 
             renderActions={(row: any) => (
 

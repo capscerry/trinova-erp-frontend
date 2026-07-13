@@ -1025,7 +1025,7 @@ export default function PurchaseOrderPage() {
       </div>
 
       <DataTable<PurchaseOrder>
-        title="Daftar Order Fulfillment"
+        title="Daftar Purchase Order"
         columns={COLUMNS}
         data={purchaseOrders}
         keyField="id"
@@ -1041,7 +1041,7 @@ export default function PurchaseOrderPage() {
           "Completed",
         ]}
 
-        addLabel="Tambah Fulfillment"
+        addLabel="Tambah PO"
 
         onAdd={() => {
           setEditingPO(null);
