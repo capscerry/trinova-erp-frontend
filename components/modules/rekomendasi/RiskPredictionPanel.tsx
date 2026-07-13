@@ -249,18 +249,13 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 6);
 
-  const f = result.features ?? {} as any;
-  // Safely coerce all feature values — backend may omit some fields
-  const onTimeRate     = Number(f.on_time_rate    ?? 0);
-  const avgLeadTime    = Number(f.avg_lead_time   ?? 0);
-  const orderCount     = Number(f.order_count     ?? 0);
-  const leadTimeCv     = Number(f.lead_time_cv    ?? 0);
-  const deliveryMargin = Number(f.delivery_margin ?? 0);
-  const lowStockRatio  = Number(f.low_stock_ratio ?? 0);
-  const avgStockLevel  = Number(f.avg_stock_level ?? 0);
-  const daysSinceGr    = Number(f.days_since_last_gr ?? 0);
-  const catalogSku     = Number(f.catalog_sku_count  ?? 0);
-  const avgPrice       = Number(f.avg_price       ?? 0);
+const f = result.features ?? ({} as any);
+
+const supplierPrice = Number(f.supplier_price ?? 0);
+const avgLeadTime = Number(f.lead_time_days ?? 0);
+const claimRate = Number(f.claim_rate ?? 0);
+const onTimeRate = Number(f.on_time_rate ?? 0);
+const orderFrequency = Number(f.order_frequency ?? 0);
 
   return (
     <>
@@ -318,17 +313,39 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
               Nilai Fitur
             </p>
             <div className="flex flex-wrap gap-2">
-              <FeatureChip label="Order Count" value={String(orderCount)}             warn={orderCount < 3}          tip="Order Count"      />
-              <FeatureChip label="LT CV"       value={leadTimeCv.toFixed(2)}          warn={leadTimeCv > 0.5}        tip="Lead Time CV"     />
-              <FeatureChip label="Margin"      value={`${(deliveryMargin * 100).toFixed(1)}%`} warn={deliveryMargin < -0.1} tip="Delivery Margin"  />
-              <FeatureChip label="Low Stock"   value={`${(lowStockRatio * 100).toFixed(0)}%`}  warn={lowStockRatio > 0.4}   tip="Low Stock Ratio"  />
-              <FeatureChip label="Avg Stok"    value={avgStockLevel.toFixed(1)}        warn={avgStockLevel < 3}       tip="Avg Stok"         />
-              <FeatureChip label="Hari Inaktif" value={String(Math.round(daysSinceGr))} warn={daysSinceGr > 90}       tip="Hari Inaktif"     />
-              <FeatureChip label="SKU Katalog" value={String(catalogSku)}                                             tip="SKU Katalog"      />
-              <FeatureChip
-                label="Harga Avg"
-                value={avgPrice > 0 ? `${(avgPrice / 1000).toFixed(0)}k` : "—"}
-              />
+<FeatureChip
+  label="Order Frequency"
+  value={String(orderFrequency)}
+  warn={orderFrequency < 3}
+  tip="Order Frequency"
+/>
+
+<FeatureChip
+  label="Lead Time"
+  value={`${avgLeadTime} hari`}
+  warn={avgLeadTime > 7}
+  tip="Lead Time"
+/>
+
+<FeatureChip
+  label="Return Rate"
+  value={`${(claimRate * 100).toFixed(0)}%`}
+  warn={claimRate > 0.2}
+  tip="Return Rate"
+/>
+
+<FeatureChip
+  label="On-Time Rate"
+  value={`${(onTimeRate * 100).toFixed(0)}%`}
+  warn={onTimeRate < 0.8}
+  tip="On-Time Rate"
+/>
+
+<FeatureChip
+  label="Supplier Price"
+  value={supplierPrice > 0 ? `${(supplierPrice / 1000).toFixed(0)}k` : "—"}
+  tip="Supplier Price"
+/>
             </div>
           </div>
 

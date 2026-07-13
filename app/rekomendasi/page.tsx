@@ -468,18 +468,14 @@ export default function RekomendasiPage() {
             risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
             contributions: {},
             features: {
-              supplier_id:        sid,
-              supplier_name:      v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
-              on_time_rate:       Number(altValues.on_time_rate         ?? 0),
-              avg_lead_time:      Number(altValues.lead_time            ?? 0),
-              delivery_margin:    Number(altValues.delivery_punctuality ?? 0),
-              order_count:        0,
-              lead_time_cv:       0,
-              low_stock_ratio:    0,
-              avg_stock_level:    0,
-              days_since_last_gr: 0,
-              catalog_sku_count:  0,
-              avg_price:          Number(altValues.avg_price            ?? 0),
+              supplier_id: sid,
+              supplier_name: v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
+
+              supplier_price: Number(v.supplier_price ?? 0),
+              lead_time_days: Number(v.lead_time_days ?? 0),
+              claim_rate: Number(v.claim_rate ?? 0),
+              on_time_rate: Number(v.on_time_rate ?? 0),
+              order_frequency: Number(v.order_frequency ?? 0),
             },
           };
         });
@@ -507,18 +503,14 @@ export default function RekomendasiPage() {
               risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
               contributions: {},
               features: {
-                supplier_id:        sid,
-                supplier_name:      supplierNameMap.get(sid) ?? `Supplier ${sid}`,
-                on_time_rate:       Number(altValues.on_time_rate         ?? 0),
-                avg_lead_time:      Number(altValues.lead_time            ?? 0),
-                delivery_margin:    Number(altValues.delivery_punctuality ?? 0),
-                order_count:        0,
-                lead_time_cv:       0,
-                low_stock_ratio:    0,
-                avg_stock_level:    0,
-                days_since_last_gr: 0,
-                catalog_sku_count:  0,
-                avg_price:          Number(altValues.avg_price            ?? 0),
+                  supplier_id: sid,
+                  supplier_name: v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
+
+                  supplier_price: Number(v.supplier_price ?? 0),
+                  lead_time_days: Number(v.lead_time_days ?? 0),
+                  claim_rate: Number(v.claim_rate ?? 0),
+                  on_time_rate: Number(v.on_time_rate ?? 0),
+                  order_frequency: Number(v.order_frequency ?? 0),
               },
             };
           });

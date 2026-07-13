@@ -217,13 +217,19 @@ export const rankWithAhpTopsis = async (
 // Returns ML scores for every supplier the backend knows about.
 
 export interface BatchPredictItem {
-  supplier_id:       number;
-  supplier_name?:    string;
-  risk_level:        string;        // "LOW" | "MEDIUM" | "HIGH"
-  delay_probability: number;        // 0–1
-  late_probability:  number;        // 0–100 (backend field)
-}
+    supplier_id: number;
+    supplier_name?: string;
 
+    supplier_price: number;
+    lead_time_days: number;
+    claim_rate: number;
+    on_time_rate: number;
+    order_frequency: number;
+
+    risk_level: string;
+    delay_probability: number;
+    late_probability: number;
+}
 export interface BatchPredictResponse {
   results: BatchPredictItem[];
   total:   number;

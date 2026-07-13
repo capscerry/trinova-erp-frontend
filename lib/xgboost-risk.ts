@@ -18,18 +18,14 @@
 // ─── Public types ─────────────────────────────────────────────────────────────
 
 export interface SupplierFeatures {
-  supplier_id:        number;
-  supplier_name:      string;
-  avg_price:          number;
-  avg_lead_time:      number;
-  on_time_rate:       number;
-  delivery_margin:    number;
-  order_count:        number;
-  catalog_sku_count:  number;
-  low_stock_ratio:    number;
-  avg_stock_level:    number;
-  days_since_last_gr: number;
-  lead_time_cv:       number;
+  supplier_id: number;
+  supplier_name: string;
+
+  supplier_price: number;
+  lead_time_days: number;
+  claim_rate: number;
+  on_time_rate: number;
+  order_frequency: number;
 }
 
 export interface RiskResult {
