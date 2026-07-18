@@ -81,6 +81,20 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
     ],
   },
   {
+    id: "pembelian",
+    label: "Pembelian",
+    allowedRoles: ["procurement_manager"],
+    children: [
+      {
+        group: "Persetujuan PO",
+        items: [
+          { id: "pembelian.track_po_status",  label: "Track PO Status",   href: "/pembelian/track-po-status" },
+          { id: "pembelian.po_approval_list", label: "PO Approval List",  href: "/pembelian/po-approval-list" },
+        ],
+      },
+    ],
+  },
+  {
     id: "rekomendasi",
     label: "Rekomendasi AI",
     href: "/rekomendasi",
@@ -119,7 +133,7 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
 
 // Helper: filter nav berdasarkan role
 export function getNavForRole(role: Role) {
-  if (role === "admin") return NAV_CONFIG;
+  if (role === "admin") return NAV_CONFIG.filter((m) => m.allowedRoles.includes("admin") && !m.allowedRoles.includes("procurement_manager"));
   return NAV_CONFIG.filter((m) => m.allowedRoles.includes(role));
 }
 

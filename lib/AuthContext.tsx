@@ -41,6 +41,8 @@ function getRedirectPath(role: AuthUser["role"]) {
       return "/penjualan";
     case "pembelian":
       return "/pembelian";
+    case "procurement_manager":
+      return "/pembelian";
     case "persediaan":
       return "/persediaan";
     case "admin":
@@ -50,14 +52,14 @@ function getRedirectPath(role: AuthUser["role"]) {
 }
 
 function getAllowedRolesForPath(pathname: string): Role[] {
-  if (pathname === "/login") return ["admin", "penjualan", "pembelian", "persediaan"];
+  if (pathname === "/login") return ["admin", "penjualan", "pembelian", "persediaan", "procurement_manager"];
   if (pathname === "/dashboard") return ["admin"];
   if (pathname.startsWith("/user")) return ["admin"];
   if (pathname.startsWith("/penjualan")) return ["admin", "penjualan"];
-  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian"];
+  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian", "procurement_manager"];
   if (pathname.startsWith("/persediaan")) return ["admin", "persediaan"];
 
-  return ["admin", "penjualan", "pembelian", "persediaan"];
+  return ["admin", "penjualan", "pembelian", "persediaan", "procurement_manager"];
 }
 
 function canAccessPath(role: Role, pathname: string) {
@@ -98,16 +100,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [pathname, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    if (isLoading || !user) return;
+    if (isLoading) return;
 
-    if (pathname === "/login") {
-      router.replace(getRedirectPath(user.role));
+    // Not logged in — send to login on every navigation
+    if (!user) {
+      if (pathname !== "/login") {
+        router.replace("/login");
+      }
       return;
     }
 
+    // Logged in but trying to access a forbidden path
     if (!canAccessPath(user.role, pathname)) {
       router.replace(getRedirectPath(user.role));
     }

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
+import { useAuth } from "@/lib/AuthContext";
+import { requestPurchaseOrderApproval } from "@/lib/services/po.service";
 import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
@@ -206,8 +208,8 @@ const PRESET_ICONS: Record<string, { icon: React.ElementType; color: string; bor
 const PROSES_LINKS = [
   {
     key: "persetujuan" as const,
-    label: "Persetujuan PO",
-    desc: "Setujui Purchase Order ini",
+    label: "Permohonan Persetujuan PO",
+    desc: "Ajukan permohonan persetujuan Purchase Order ini",
     icon: ShieldCheck,
     color: "text-amber-600",
     bg: "bg-amber-50 hover:bg-amber-100 border-amber-200",
@@ -269,6 +271,9 @@ export default function PurchaseOrderFormModal({
 
   const isEdit = !!initialData;
 
+  const { user } = useAuth();
+  const isPembelianUser = user?.role === "pembelian";
+
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [savedPO, setSavedPO] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -277,6 +282,7 @@ export default function PurchaseOrderFormModal({
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   const [dpOpen, setDpOpen] = useState(false);
   const [dpDone, setDpDone] = useState(false);
@@ -331,6 +337,7 @@ export default function PurchaseOrderFormModal({
   const seedFromExisting = useCallback((poId: number) => {
     const approved = initialData?.status === "Approved" || initialData?.status === "Completed";
     setIsApproved(approved);
+    setIsPendingApproval(initialData?.status === "Pending Approval");
 
     const existingGR = existingGoodsReceipts.find(
       (gr: any) => Number(gr.purchase_order_id) === poId
@@ -359,6 +366,7 @@ export default function PurchaseOrderFormModal({
       wasOpenRef.current = true;
       setIsSubmitted(false); setSavedPO(null); setIsSubmitting(false); setPoNumberLoading(false);
       setApprovalOpen(false); setIsApproving(false);
+      setIsPendingApproval(false);
       setDpOpen(false); setDpSaving(false);
       setDpForm({ payment_date: todayStr(), amount: 0, payment_type: "Partial", notes: "" });
       setGrOpen(false); setGrSaving(false);
@@ -438,6 +446,7 @@ export default function PurchaseOrderFormModal({
         seedFromExisting(initialData.purchase_order_id ?? 0);
       } else {
         setIsApproved(false);
+        setIsPendingApproval(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
         setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "", nomor_faktur_pajak: "" });
         setFilteredProducts([]);
@@ -515,6 +524,8 @@ export default function PurchaseOrderFormModal({
   const isCompleted = form.status === "Completed";
   // Treat as approved if the status field is Approved/Completed, or if approved in this session
   const effectivelyApproved = isApproved || form.status === "Approved" || form.status === "Completed";
+  // Treat as pending approval if the status is Pending Approval (awaiting Procurement Manager)
+  const effectivelyPending = isPendingApproval || form.status === "Pending Approval";
 
   // Find the invoice that belongs to this PO.
   const poGrIds = existingGoodsReceipts
@@ -655,16 +666,26 @@ export default function PurchaseOrderFormModal({
   };
 
   const handleApprove = async () => {
-    if (!onApprove || !poId) return;
+    if (!poId) return;
     setIsApproving(true);
     try {
-      await onApprove(poId, { ...form, total_amount: grandTotal });
-      setIsApproved(true);
-      setForm(prev => ({ ...prev, status: "Approved" }));
-      setApprovalOpen(false);
+      if (isPembelianUser) {
+        // Pembelian user: submit an approval REQUEST to Procurement Manager
+        await requestPurchaseOrderApproval(poId);
+        setIsPendingApproval(true);
+        setForm(prev => ({ ...prev, status: "Pending Approval" }));
+        setApprovalOpen(false);
+      } else {
+        // Admin or any role that can directly approve
+        if (!onApprove) return;
+        await onApprove(poId, { ...form, total_amount: grandTotal });
+        setIsApproved(true);
+        setForm(prev => ({ ...prev, status: "Approved" }));
+        setApprovalOpen(false);
+      }
     } catch (err: any) {
-      notify.error(err?.message ?? "Persetujuan gagal");
-      toast.error(err?.message ?? "Persetujuan gagal");
+      notify.error(err?.message ?? "Permohonan gagal");
+      toast.error(err?.message ?? "Permohonan gagal");
     } finally { setIsApproving(false); }
   };
 
@@ -1182,16 +1203,16 @@ export default function PurchaseOrderFormModal({
 
               <div className="grid grid-cols-2 gap-3">
                 {PROSES_LINKS.filter(l => l.key === "persetujuan" || l.key === "uang-muka").map(({ key, label, desc, icon: Icon, color, bg }) => {
-                  // Persetujuan: active as soon as PO is saved/editing but not if Completed
-                  // Uang Muka: only active after Approved, not if Completed, and not if a DP already exists
+                  // Persetujuan: active as soon as PO is saved/editing but not if Completed or pending/approved already
+                  // Uang Muka: only active after truly Approved (not just Pending Approval), not if Completed, not if DP exists
                   const isActive = !isCompleted && (
                     key === "persetujuan"
-                      ? prosesActive && !effectivelyApproved
+                      ? prosesActive && !effectivelyApproved && !effectivelyPending
                       : prosesActive && effectivelyApproved && !dpDone
                   );
 
                   const isDone =
-                    (key === "persetujuan" && effectivelyApproved) ||
+                    (key === "persetujuan" && (effectivelyApproved || effectivelyPending)) ||
                     (key === "uang-muka" && dpDone) ||
                     (key === "goods-receipt" && grDone) ||
                     (key === "purchase-invoice" && invoiceDone);
@@ -1220,12 +1241,23 @@ export default function PurchaseOrderFormModal({
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", isActive ? "bg-white/70" : "bg-slate-100")}>
                           <Icon size={15} className={isActive ? color : "text-slate-400"} />
                         </div>
-                        {isDone && <Check size={13} className={color} />}
-                        {isActive && !isDone && <ArrowRight size={13} className={color} />}
+                        {/* For persetujuan: show clock icon if pending, check if approved */}
+                        {key === "persetujuan" && effectivelyPending && !effectivelyApproved
+                          ? <Clock size={13} className="text-amber-500" />
+                          : isDone
+                            ? <Check size={13} className={color} />
+                            : isActive
+                              ? <ArrowRight size={13} className={color} />
+                              : null
+                        }
                       </div>
                       <div>
                         <p className={cn("text-xs font-bold", isActive ? "text-slate-800" : "text-slate-500")}>{label}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                        {/* Show "Menunggu persetujuan" hint when pending */}
+                        {key === "persetujuan" && effectivelyPending && !effectivelyApproved
+                          ? <p className="text-[10px] text-amber-600 mt-0.5 leading-snug font-semibold">Menunggu persetujuan PO</p>
+                          : <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                        }
                       </div>
                     </button>
                   );
@@ -1387,8 +1419,12 @@ export default function PurchaseOrderFormModal({
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
                 <div>
-                  <h2 className="text-white font-semibold text-[15px]">Persetujuan Purchase Order</h2>
-                  <p className="text-slate-400 text-xs mt-0.5">Ubah status PO menjadi Approved</p>
+                  <h2 className="text-white font-semibold text-[15px]">
+                    {isPembelianUser ? "Permohonan Persetujuan PO" : "Persetujuan Purchase Order"}
+                  </h2>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    {isPembelianUser ? "Ajukan PO ke Procurement Manager" : "Ubah status PO menjadi Approved"}
+                  </p>
                 </div>
                 <button onClick={() => setApprovalOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                   <X size={16} />
@@ -1398,9 +1434,14 @@ export default function PurchaseOrderFormModal({
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
                   <ShieldCheck size={18} className="text-amber-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Konfirmasi Persetujuan</p>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {isPembelianUser ? "Konfirmasi Permohonan" : "Konfirmasi Persetujuan"}
+                    </p>
                     <p className="text-xs text-amber-700 mt-1">
-                      Menyetujui PO <span className="font-bold">{form.po_number}</span> akan mengaktifkan proses Uang Muka, Goods Receipt, dan Purchase Invoice.
+                      {isPembelianUser
+                        ? <>Mengajukan PO <span className="font-bold">{form.po_number}</span> ke Procurement Manager untuk disetujui. PO tidak dapat dilanjutkan ke Down Payment sebelum disetujui.</>
+                        : <>Menyetujui PO <span className="font-bold">{form.po_number}</span> akan mengaktifkan proses Uang Muka, Goods Receipt, dan Purchase Invoice.</>
+                      }
                     </p>
                   </div>
                 </div>
@@ -1424,7 +1465,7 @@ export default function PurchaseOrderFormModal({
                 <button onClick={handleApprove} disabled={isApproving}
                   className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 rounded-lg disabled:opacity-60 transition-colors">
                   {isApproving ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />}
-                  Setujui PO
+                  {isPembelianUser ? "Ajukan Permohonan" : "Setujui PO"}
                 </button>
               </div>
             </div>

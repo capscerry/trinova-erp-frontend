@@ -514,13 +514,21 @@ export default function PurchasePaymentPage() {
               Detail
             </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEdit(row)}
-            >
-              Edit
-            </Button>
+            {(() => {
+              const linkedInvoice = purchaseInvoices.find(
+                (inv) => inv.purchase_invoice_id === row.purchase_invoice_id
+              );
+              const invoiceIsPaid = linkedInvoice?.status === "Paid";
+              return !invoiceIsPaid ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEdit(row)}
+                >
+                  Edit
+                </Button>
+              ) : null;
+            })()}
 
             <Button
               variant="danger"

@@ -57,7 +57,9 @@ api.interceptors.response.use(
 
     // If the server returns 401, the token is missing or expired.
     // Clear the stale session and redirect to login so the user can re-authenticate.
-    if (err.response?.status === 401 && typeof window !== "undefined") {
+    // Skip this for the login endpoint itself — a 401 there means wrong credentials,
+    // not an expired session, so we let the error propagate normally to the login form.
+    if (err.response?.status === 401 && typeof window !== "undefined" && !err.config?.url?.includes("/auth/login")) {
       sessionStorage.removeItem("trinova_token");
       sessionStorage.removeItem("trinova_user");
       // Clear the session/role cookies set by AuthContext

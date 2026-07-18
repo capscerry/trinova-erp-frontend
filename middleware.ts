@@ -7,16 +7,17 @@ const ROLE_REDIRECTS: Record<string, string> = {
   penjualan: "/penjualan",
   pembelian: "/pembelian",
   persediaan: "/persediaan",
+  procurement_manager: "/pembelian",
 };
 
 function getAllowedRoles(pathname: string) {
   if (pathname === "/dashboard") return ["admin"];
   if (pathname.startsWith("/user")) return ["admin"];
   if (pathname.startsWith("/penjualan")) return ["admin", "penjualan"];
-  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian"];
+  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian", "procurement_manager"];
   if (pathname.startsWith("/persediaan")) return ["admin", "persediaan"];
 
-  return ["admin", "penjualan", "pembelian", "persediaan"];
+  return ["admin", "penjualan", "pembelian", "persediaan", "procurement_manager"];
 }
 
 export function middleware(request: NextRequest) {

@@ -214,9 +214,151 @@ const getActivityHref = (refTable?: string | null, refId?: number | null) => {
 
   return routeMap[refTable] ?? null;
 };
+// ─────────────────────────────────────────────────────────────
+// Procurement Manager Dashboard
+// ─────────────────────────────────────────────────────────────
+
+function ProcurementManagerDashboard() {
+  return (
+    <AppShell
+      title="Purchasing Dashboard"
+      subtitle="Kelola dan pantau persetujuan Purchase Order"
+    >
+      {/* Quick-access cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link
+          href="/pembelian/track-po-status"
+          className="group rounded-2xl border border-amber-200 bg-amber-50 p-6 hover:bg-amber-100 transition-colors"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-200 flex items-center justify-center shrink-0">
+              <ShoppingCart size={22} className="text-amber-700" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-amber-900">Track PO Status</p>
+              <p className="text-sm text-amber-700 mt-1">
+                Setujui atau tolak permohonan persetujuan Purchase Order dari tim Pembelian.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-1.5 text-amber-700 text-sm font-semibold group-hover:gap-2.5 transition-all">
+                Buka <ArrowRight size={14} />
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/pembelian/po-approval-list"
+          className="group rounded-2xl border border-indigo-200 bg-indigo-50 p-6 hover:bg-indigo-100 transition-colors"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-indigo-200 flex items-center justify-center shrink-0">
+              <Clock3 size={22} className="text-indigo-700" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-indigo-900">PO Approval List</p>
+              <p className="text-sm text-indigo-700 mt-1">
+                Riwayat seluruh Purchase Order yang telah disetujui beserta status prosesnya.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-1.5 text-indigo-700 text-sm font-semibold group-hover:gap-2.5 transition-all">
+                Buka <ArrowRight size={14} />
+              </div>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* AI INSIGHT CTA */}
+      <Link href="/pembelian/insight" className="block mt-6 group">
+        <div className="rounded-2xl border border-navy-800 bg-gradient-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
+
+          <div className="flex items-start justify-between gap-6">
+
+            {/* Left — text */}
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-400/15 text-gold-400 text-[11px] font-bold uppercase tracking-widest mb-3">
+                <Brain size={11} />
+                AI Purchasing Insight
+              </div>
+
+              <h2 className="text-xl font-bold text-white font-serif leading-tight">
+                Lihat analisis penuh performa pembelian
+              </h2>
+
+              <p className="mt-2 text-slate-300 text-[13px] max-w-xl leading-relaxed">
+                Skor supplier AHP + TOPSIS, spend bulanan, lead time aktual vs katalog,
+                kesehatan pembayaran, konsentrasi HHI, dan kandidat reorder — semua dari
+                data transaksi nyata.
+              </p>
+
+              <div className="mt-4 inline-flex items-center gap-2 text-gold-400 text-[13px] font-semibold group-hover:gap-3 transition-all duration-150">
+                Buka AI Insight Lebih Lanjut
+                <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform duration-150" />
+              </div>
+
+              <AhpTopsisBestPreview enabled={false} />
+            </div>
+
+            {/* Right — static preview pills (no API calls for this role) */}
+            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-[220px]">
+
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400">
+                  Supplier Terbaik · AHP+TOPSIS
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-gold-400/15 flex items-center justify-center shrink-0">
+                  <Trophy size={13} className="text-gold-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">Supplier Terbaik</p>
+                  <p className="text-white text-[13px] font-semibold font-serif">Skor AHP + TOPSIS</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-green-400/15 flex items-center justify-center shrink-0">
+                  <TrendingUp size={13} className="text-green-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">Spend Bulanan</p>
+                  <p className="text-white text-[13px] font-semibold font-serif">Trend & Pareto HHI</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-blue-400/15 flex items-center justify-center shrink-0">
+                  <Clock size={13} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">Lead Time</p>
+                  <p className="text-white text-[13px] font-semibold font-serif">Aktual vs Katalog</p>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      </Link>
+    </AppShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main page
+// ─────────────────────────────────────────────────────────────
+
 export default function PembelianPage() {
   const { user, isLoading: authLoading } = useAuth();
-  const module = NAV_CONFIG.find((n) => n.id === "pembelian")!;
+  const module = NAV_CONFIG.find((n) => n.id === "pembelian" && n.allowedRoles.includes("admin"))!;
+
+  // ── Procurement Manager: render their own dashboard ──────────────────────
+  if (!authLoading && user?.role === "procurement_manager") {
+    return <ProcurementManagerDashboard />;
+  }
 
   const [dashboard, setDashboard] = useState<PurchasingDashboard>(EMPTY_PURCHASING_DASHBOARD);
   const [activityLoading, setActivityLoading] = useState(true);

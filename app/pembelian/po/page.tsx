@@ -73,6 +73,7 @@ type POStatus =
   | "Cancelled"
   | "Draft"
   | "Approved"
+  | "Pending Approval"
   | "Completed";
 
 interface PurchaseOrder {
@@ -156,6 +157,9 @@ const STATUS_STYLE: Record<string, string> = {
 
   Approved:
     "bg-indigo-50 text-indigo-700 border border-indigo-200",
+
+  "Pending Approval":
+    "bg-amber-50 text-amber-600 border border-amber-300",
 
   Completed:
     "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -1037,6 +1041,7 @@ export default function PurchaseOrderPage() {
           "Partially processed",
           "Cancelled",
           "Draft",
+          "Pending Approval",
           "Approved",
           "Completed",
         ]}

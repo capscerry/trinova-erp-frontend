@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/layout";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
@@ -135,6 +135,10 @@ export default function PurchaseDownPaymentPage() {
 
     const [openDetail, setOpenDetail] =
     useState(false);
+
+  // Tracks which PO was used in the most recent successful create,
+  // so onNavigateToGR can pass the correct po_id to the GR route.
+  const lastCreatedPORef = useRef<{ purchase_order_id: number; po_number: string } | null>(null);
 
     const fetchDownPayments =
     async () => {
@@ -437,6 +441,16 @@ export default function PurchaseDownPaymentPage() {
             setOpenModal(false);
             setEditRow(null);
         }}
+        onNavigateToGR={() => {
+          const po = lastCreatedPORef.current;
+          if (po) {
+            router.push(
+              `/pembelian/gr?po_id=${po.purchase_order_id}&po_number=${encodeURIComponent(po.po_number)}`
+            );
+          } else {
+            router.push("/pembelian/gr");
+          }
+        }}
         purchaseOrders={eligiblePurchaseOrders}
         editId={editRow?.purchase_down_payment_id ?? null}
         initialData={
@@ -486,18 +500,31 @@ export default function PurchaseDownPaymentPage() {
                 data
             );
 
+            await fetchDownPayments();
+
+            setOpenModal(false);
+            setEditRow(null);
+
             } else {
 
             await createPurchaseDownPayment(
                 data
             );
 
-            }
+            // Remember the linked PO so onNavigateToGR can pass po_id.
+            const linkedPO =
+              allPurchaseOrders.find(
+                (po: any) => Number(po.purchase_order_id) === Number(data.purchase_order_id)
+              ) ?? purchaseOrders.find(
+                (po: any) => Number(po.purchase_order_id) === Number(data.purchase_order_id)
+              );
+            lastCreatedPORef.current = linkedPO
+              ? { purchase_order_id: linkedPO.purchase_order_id, po_number: linkedPO.po_number }
+              : null;
 
             await fetchDownPayments();
 
-            setOpenModal(false);
-            setEditRow(null);
+            }
 
         } catch (error) {
 

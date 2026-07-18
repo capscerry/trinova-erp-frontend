@@ -23,6 +23,7 @@ interface AhpTopsisBestPreviewProps {
   variant?: PreviewVariant;
   className?: string;
   showTitle?: boolean;
+  enabled?: boolean;
 }
 
 interface PresetWinner {
@@ -289,12 +290,17 @@ function SkeletonCard({ variant }: { variant: PreviewVariant }) {
   );
 }
 
-export function AhpTopsisBestPreview({ variant = "dark", className, showTitle = true }: AhpTopsisBestPreviewProps) {
+export function AhpTopsisBestPreview({ variant = "dark", className, showTitle = true, enabled = true }: AhpTopsisBestPreviewProps) {
   const [winners, setWinners] = useState<PresetWinner[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {

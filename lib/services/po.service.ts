@@ -6,6 +6,20 @@ export const getPurchaseOrders = async () => {
   return res.data;
 };
 
+// Procurement Manager view: POs awaiting approval (status = "Waiting for Approval").
+// Uses the scoped endpoint so Procurement Manager is not rejected with 403.
+export const getPendingApprovalPOs = async () => {
+  const res = await api.get("/purchase-order/pending-approval");
+  return res.data;
+};
+
+// Procurement Manager view: POs that have been approved and are in progress.
+// Uses the scoped endpoint so Procurement Manager is not rejected with 403.
+export const getApprovedPOs = async () => {
+  const res = await api.get("/purchase-order/approved");
+  return res.data;
+};
+
 export const getNextPONumber = async () => {
   const res = await api.get("/purchase-order/next-number");
   return res.data;
@@ -52,6 +66,24 @@ export const deletePurchaseOrder = async (
  */
 export const approvePurchaseOrder = async (id: number) => {
   const res = await api.patch(`/purchase-order/${id}/approve`);
+  return res.data;
+};
+
+/**
+ * Submit a PO approval request (pembelian user → Procurement Manager).
+ * Transitions status Draft → Pending Approval.
+ */
+export const requestPurchaseOrderApproval = async (id: number) => {
+  const res = await api.patch(`/purchase-order/${id}/request-approval`);
+  return res.data;
+};
+
+/**
+ * Reject a PO approval request (Procurement Manager action).
+ * Transitions status Pending Approval → Draft, optionally with a reason.
+ */
+export const rejectPurchaseOrderApproval = async (id: number, reason?: string) => {
+  const res = await api.patch(`/purchase-order/${id}/reject`, { reason: reason ?? "" });
   return res.data;
 };
 
