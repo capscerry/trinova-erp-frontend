@@ -32,7 +32,8 @@ import GoodsReceiptDetailModal from "@/components/modules/pembelian/GoodsReceipt
 type GRStatus =
   | "Received"
   | "Partial"
-  | "Cancelled";
+  | "Cancelled"
+  | "Returned";
 
 interface GoodsReceipt {
   id: string;
@@ -91,6 +92,9 @@ const STATUS_STYLE: Record<string, string> = {
 
   Cancelled:
     "bg-rose-50 text-rose-600 border border-rose-200",
+
+  Returned:
+    "bg-purple-50 text-purple-700 border border-purple-200",
 };
 
 function GRStatusBadge({
@@ -544,7 +548,7 @@ export default function GoodsReceiptPage() {
         keyField="id"
         dateField="receipt_date"
         createdAtField="created_at"
-        statusOptions={["Received", "Partial", "Cancelled"]}
+        statusOptions={["Received", "Partial", "Cancelled", "Returned"]}
 
         addLabel="Tambah GR"
 

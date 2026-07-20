@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import { isApprovedForPicker } from "@/lib/sales-status";
 import { customerService } from "@/lib/services/customer.service";
 import {
@@ -216,7 +217,7 @@ export function FakturPenjualanModal({
       setShowSoPicker(false);
     } catch (err) {
       console.error("Gagal memuat detail SO:", err);
-      alert("Gagal memuat detail Sales Order");
+      notify.error("Gagal memuat detail Sales Order");
     } finally {
       setLoadingSo(false);
     }
@@ -306,7 +307,7 @@ export function FakturPenjualanModal({
       setShowDeliveryPicker(false);
     } catch (err) {
       console.error("Gagal memuat detail pengiriman:", err);
-      alert("Gagal memuat detail Pengiriman Penjualan");
+      notify.error("Gagal memuat detail Pengiriman Penjualan");
     } finally {
       setLoadingDelivery(false);
     }
@@ -319,12 +320,13 @@ export function FakturPenjualanModal({
     patchForm({ items: form.items.filter((it) => it.id !== id) });
 
   const handleSubmit = async () => {
-    if (!form.customerId) return alert("Pelanggan wajib dipilih");
-    if (!form.noFaktur.trim()) return alert("Nomor faktur wajib diisi");
-    if (!form.jatuhTempo) return alert("Tanggal jatuh tempo wajib diisi");
-    if (form.items.length === 0) return alert("Tambahkan minimal 1 barang");
+    if (!form.customerId) { notify.warning("Pelanggan wajib dipilih"); return; }
+    if (!form.noFaktur.trim()) { notify.warning("Nomor faktur wajib diisi"); return; }
+    if (!form.jatuhTempo) { notify.warning("Tanggal jatuh tempo wajib diisi"); return; }
+    if (form.items.length === 0) { notify.warning("Tambahkan minimal 1 barang"); return; }
     if (form.items.some((item) => !item.productName || Number(item.qty) <= 0)) {
-      return alert("Nama barang dan qty harus valid");
+      notify.warning("Nama barang dan qty harus valid");
+      return;
     }
 
     try {
@@ -350,7 +352,10 @@ export function FakturPenjualanModal({
       onSubmit(savedForm);
     } catch (err: unknown) {
       console.error("Gagal menyimpan faktur penjualan:", err);
-      alert("Gagal menyimpan faktur: " + (err instanceof Error ? err.message : "Terjadi kesalahan"));
+      notify.error(
+        "Gagal menyimpan faktur",
+        err instanceof Error ? err.message : "Terjadi kesalahan"
+      );
     } finally {
       setIsSubmitting(false);
     }

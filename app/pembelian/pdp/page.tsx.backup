@@ -1,12 +1,10 @@
-﻿"use client";
+"use client";
 
 import { AppShell } from "@/components/layout";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
-import { notify } from "@/lib/notify";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 import {
   getPurchaseOrders,
@@ -29,7 +27,7 @@ import { Button } from "@/components/ui/Button";
 
 import { DataTable } from "@/components/ui/DataTable";
 
-// â”€â”€â”€ Status Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Status Badge ─────────────────────────────────────────────────────────────
 
 type DPStatus = "Paid" | "Unpaid" | "Cancelled";
 
@@ -61,11 +59,11 @@ function DPStatusBadge({ status }: { status: string }) {
   );
 }
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Normalises any DP number to the canonical DP-0000000000 format.
- * e.g. "DP000003", "DP-3", "3" â†’ "DP-0000000003"
+ * e.g. "DP000003", "DP-3", "3" → "DP-0000000003"
  */
 const formatDPNumber = (raw: string | number): string => {
   const str = String(raw ?? "");
@@ -74,7 +72,7 @@ const formatDPNumber = (raw: string | number): string => {
   return `DP-${digits.padStart(10, "0")}`;
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 const COLUMNS = [
   {
@@ -127,7 +125,7 @@ export default function PurchaseDownPaymentPage() {
     const [purchaseOrders, setPurchaseOrders] =
     useState<any[]>([]);
 
-    // Full unfiltered PO list â€” used for nomor_faktur_pajak lookups
+    // Full unfiltered PO list — used for nomor_faktur_pajak lookups
     // (the DP's PO may have advanced to Completed by the time Detail is opened)
     const [allPurchaseOrders, setAllPurchaseOrders] =
     useState<any[]>([]);
@@ -232,7 +230,7 @@ export default function PurchaseDownPaymentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [purchaseOrders]);
 
-  // â”€â”€ Derived: POs eligible to receive a new DP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Derived: POs eligible to receive a new DP ─────────────────────────────
   // Each PO may only be associated with ONE down payment. When creating a new
   // DP, exclude any approved PO that already has an existing (non-cancelled) DP.
   // When editing an existing DP, also include the PO it is currently linked to
@@ -250,41 +248,6 @@ export default function PurchaseDownPaymentPage() {
         Number(po.purchase_order_id) === editPoId
     );
   })();
-
-  // -- Stable initialData for the modal --------------------------------------
-  // Computed with useMemo so the object reference only changes when the actual
-  // source data changes — not on every render.
-  const modalInitialData = useMemo(() => {
-  if (editRow) {
-    return {
-      purchase_order_id: editRow.purchase_order_id,
-      supplier_id: editRow.supplier_id,
-      payment_date: editRow.payment_date?.slice(0, 10) ?? "",
-      amount: editRow.amount,
-      payment_type: editRow.payment_type ?? "Partial",
-      notes: editRow.notes ?? "",
-      status: editRow.status ?? "Paid",
-      transaction_name: editRow.transaction_name ?? "",
-      transaction_detail: editRow.transaction_detail ?? "",
-    };
-  }
-  const poId = searchParams.get("po_id");
-  if (!poId) return null;
-  const po = purchaseOrders.find((p: any) => String(p.purchase_order_id) === poId);
-  if (!po) return null;
-  return {
-    purchase_order_id: po.purchase_order_id,
-    supplier_id: Number(po.supplier_id ?? po.supplier?.supplier_id ?? 0),
-    payment_date: new Date().toISOString().split("T")[0],
-    amount: 0,
-    payment_type: "Partial",
-    notes: "",
-    status: "Paid",
-    transaction_name: po.transaction_name ?? "",
-    transaction_detail: po.transaction_detail ?? "",
-  };
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, [editRow?.purchase_down_payment_id, searchParams.get("po_id"), purchaseOrders.length]);
 
   return (
     <AppShell
@@ -338,8 +301,8 @@ export default function PurchaseDownPaymentPage() {
                   const r = 4 + i;
                   ws[C(r, 0)] = { v: i + 1,                              t: "n", s: sCell };
                   ws[C(r, 1)] = { v: formatDPNumber(dp.dp_number),       t: "s", s: sCell };
-                  ws[C(r, 2)] = { v: dp.supplier_name ?? "â€”",            t: "s", s: sCellLeft };
-                  ws[C(r, 3)] = { v: dp.payment_date ? formatDateCell(dp.payment_date) : "â€”", t: "s", s: sCell };
+                  ws[C(r, 2)] = { v: dp.supplier_name ?? "—",            t: "s", s: sCellLeft };
+                  ws[C(r, 3)] = { v: dp.payment_date ? formatDateCell(dp.payment_date) : "—", t: "s", s: sCell };
                   ws[C(r, 4)] = { v: Number(dp.amount ?? 0),             t: "n", s: sNum };
                   grandTotal += Number(dp.amount ?? 0);
                 });
@@ -490,7 +453,42 @@ export default function PurchaseDownPaymentPage() {
         }}
         purchaseOrders={eligiblePurchaseOrders}
         editId={editRow?.purchase_down_payment_id ?? null}
-        initialData={modalInitialData}
+        initialData={
+            editRow
+            ? {
+                purchase_order_id: editRow.purchase_order_id,
+                supplier_id:       editRow.supplier_id,
+                payment_date:      editRow.payment_date?.slice(0, 10) ?? "",
+                amount:            editRow.amount,
+                payment_type:      editRow.payment_type ?? "Partial",
+                notes:             editRow.notes ?? "",
+                status:            editRow.status ?? "Paid",
+                transaction_name:  editRow.transaction_name ?? "",
+                transaction_detail: editRow.transaction_detail ?? "",
+              }
+            : (() => {
+                const poId = searchParams.get("po_id");
+                if (!poId) return null;
+                const po = purchaseOrders.find(
+                  (p: any) => String(p.purchase_order_id) === poId
+                );
+                if (!po) return null;
+                const supplierId = Number(
+                  po.supplier_id ?? po.supplier?.supplier_id ?? 0
+                );
+                return {
+                  purchase_order_id:  po.purchase_order_id,
+                  supplier_id:        supplierId,
+                  payment_date:       new Date().toISOString().split("T")[0],
+                  amount:             0,
+                  payment_type:       "Partial",
+                  notes:              "",
+                  status:             "Paid",
+                  transaction_name:   po.transaction_name ?? "",
+                  transaction_detail: po.transaction_detail ?? "",
+                };
+              })()
+        }
         onSubmit={async (data) => {
 
         try {
@@ -502,20 +500,10 @@ export default function PurchaseDownPaymentPage() {
                 data
             );
 
-            // Remember the linked PO so onNavigateToGR works from edit mode too.
-            const linkedPO =
-              allPurchaseOrders.find(
-                (po: any) => Number(po.purchase_order_id) === Number(data.purchase_order_id)
-              ) ?? purchaseOrders.find(
-                (po: any) => Number(po.purchase_order_id) === Number(data.purchase_order_id)
-              );
-            lastCreatedPORef.current = linkedPO
-              ? { purchase_order_id: linkedPO.purchase_order_id, po_number: linkedPO.po_number }
-              : null;
-
             await fetchDownPayments();
 
-            // Modal stays open to show "LANJUTKAN KE" — user closes via Tutup.
+            setOpenModal(false);
+            setEditRow(null);
 
             } else {
 

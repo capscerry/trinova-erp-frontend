@@ -62,24 +62,25 @@ export const getReturnDetails = async (returnId: number) => {
 
 /**
  * Option A — Accept Loss.
- * Closes the return as "Closed". The backend's PUT /purchase-return/{id}
- * handler detects settlement_option = "Accept Loss" and restores inventory
- * stock automatically for the exact items and quantities that were returned
- * (read from transaction_detail) — no frontend stock call needed.
+ * Closes the return as "Closed". The backend atomically marks the linked
+ * GR as "Returned" and reduces remaining_qty.
  */
 export const resolveAcceptLoss = async (
   returnId: number,
   returnItems: ReturnLineItem[],
-  returnAmount: number
+  returnAmount: number,
+  _goodsReceiptId: number   // kept for call-site compatibility; unused
 ) => {
   const itemSummary = returnItems
     .map((i) => `${i.product_name} x${i.qty_return}`)
     .join(", ");
 
-  return updatePurchaseReturn(returnId, {
+  const result = await updatePurchaseReturn(returnId, {
     status: "Closed",
     notes: `Accept Loss settled. Supplier returned fixed goods: ${itemSummary}. Total value: Rp ${returnAmount}. Stock restored.`,
   });
+
+  return result;
 };
 
 // Fetches the full PO record and patches only total_amount.
@@ -103,37 +104,41 @@ async function patchPOTotal(poId: number, newTotal: number): Promise<void> {
 
 /**
  * Option B — Next PO Deduction.
- * Deducts the return total from the selected PO's total_amount,
- * then locks the return as "Deduction Locked".
+ * Deducts the return total from the selected PO's total_amount and locks
+ * the return as "Deduction Locked". The backend atomically marks the linked
+ * GR as "Returned" and reduces remaining_qty.
  */
 export const resolveNextPODeduction = async (
   returnId: number,
   targetPOId: number,
   targetPONumber: string,
   deductionAmount: number,
-  newPOTotal: number
+  newPOTotal: number,
+  _goodsReceiptId: number   // kept for call-site compatibility; unused
 ) => {
   await patchPOTotal(targetPOId, newPOTotal);
 
-  return updatePurchaseReturn(returnId, {
+  const result = await updatePurchaseReturn(returnId, {
     status: "Deduction Locked",
     notes: `Deduction of Rp ${deductionAmount} applied to PO ${targetPONumber}. PO new total: Rp ${newPOTotal}.`,
   });
+
+  return result;
 };
 
 /**
  * Option C — Cash Refund.
- * Posts a "Return Credit" payment against the invoice equal to the return
- * amount. This reduces the invoice's outstanding_amount via the payment
- * system (the backend blocks direct total_amount edits on invoices).
- * Then closes the return as "Closed".
+ * Posts a "Return Credit" payment against the invoice, then closes the
+ * return as "Closed". The backend atomically marks the linked GR as
+ * "Returned" and reduces remaining_qty.
  */
 export const confirmCashRefund = async (
   returnId: number,
   targetInvoiceId: number,
   targetInvoiceNumber: string,
   deductionAmount: number,
-  returnDate: string
+  returnDate: string,
+  _goodsReceiptId: number   // kept for call-site compatibility; unused
 ) => {
   // Create a Return Credit payment against the invoice
   await createPurchasePayment({
@@ -148,9 +153,11 @@ export const confirmCashRefund = async (
   });
 
   // Close the return, recording the linked invoice id
-  return updatePurchaseReturn(returnId, {
+  const result = await updatePurchaseReturn(returnId, {
     status:            "Closed",
     target_invoice_id: targetInvoiceId,
     notes:             `Cash refund confirmed. Rp ${deductionAmount} credited against invoice ${targetInvoiceNumber}.`,
   });
+
+  return result;
 };

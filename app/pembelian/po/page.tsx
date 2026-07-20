@@ -3,6 +3,7 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -292,6 +293,12 @@ export default function PurchaseOrderPage() {
 
   const [editingPO, setEditingPO] =
     useState<any>(null);
+
+  // ── Confirm delete ──────────────────────────────────────────────────────────
+  const [confirmDeletePO, setConfirmDeletePO] = useState<{ open: boolean; row: any }>({
+    open: false, row: null,
+  });
+  const [deletePOLoading, setDeletePOLoading] = useState(false);
 
   // ─────────────────────────────────────────────────────────
   // FETCH PO
@@ -1011,6 +1018,23 @@ export default function PurchaseOrderPage() {
     XLSX.writeFile(wb, `Purchase_Order_${today}.xlsx`);
   };
 
+  // ── Execute PO delete (called after ConfirmDialog confirms) ────────────────
+  const executeDeletePO = async () => {
+    if (!confirmDeletePO.row) return;
+    setDeletePOLoading(true);
+    try {
+      await deletePurchaseOrder(Number(confirmDeletePO.row.id));
+      await fetchPurchaseOrders();
+      notify.success("Purchase Order berhasil dihapus");
+    } catch (error) {
+      console.error(error);
+      notify.error("Gagal menghapus Purchase Order");
+    } finally {
+      setDeletePOLoading(false);
+      setConfirmDeletePO({ open: false, row: null });
+    }
+  };
+
   // ─────────────────────────────────────────────────────────
   // RETURN
   // ─────────────────────────────────────────────────────────
@@ -1291,7 +1315,7 @@ export default function PurchaseOrderPage() {
             <Button
               variant="danger"
               size="sm"
-              onClick={async () => {
+              onClick={() => {
 
                 if (row.status === "Approved" || row.status === "Completed") {
                   toast.error("Tidak bisa menghapus PO", {
@@ -1300,29 +1324,7 @@ export default function PurchaseOrderPage() {
                   return;
                 }
 
-                const confirmed =
-                  confirm(
-                    `Hapus Purchase Order ${row.nomor}?`
-                  );
-
-                if (!confirmed) return;
-
-                try {
-
-                  await deletePurchaseOrder(
-                    Number(row.id)
-                  );
-
-                  await fetchPurchaseOrders();
-
-                  notify.success("Purchase Order berhasil dihapus");
-
-                } catch (error) {
-
-                  console.error(error);
-
-                  notify.error("Gagal menghapus Purchase Order");
-                }
+                setConfirmDeletePO({ open: true, row });
               }}
             >
               Hapus
@@ -1370,6 +1372,18 @@ export default function PurchaseOrderPage() {
           setOpenDetail(false)
         }
         data={selectedPO}
+      />
+
+      {/* CONFIRM DELETE PO */}
+      <ConfirmDialog
+        open={confirmDeletePO.open}
+        title="Hapus Purchase Order"
+        message={`Yakin ingin menghapus Purchase Order ${confirmDeletePO.row?.nomor}?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deletePOLoading}
+        onConfirm={executeDeletePO}
+        onCancel={() => setConfirmDeletePO({ open: false, row: null })}
       />
 
     </AppShell>
