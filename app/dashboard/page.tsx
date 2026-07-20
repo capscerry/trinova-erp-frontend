@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAuth } from "@/lib/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState ,useMemo} from "react";
 import {
   getPurchaseOrders,
   getGoodsReceipts,
@@ -50,6 +50,9 @@ import {
   Trophy,
   Brain,
   Zap,
+  ChevronRight,
+  X,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +87,19 @@ const formatAlertTime = (value: string) => {
   });
 };
 
+const formatRelativeTime = (value: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diffSec < 45) return "Baru saja";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} menit lalu`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} jam lalu`;
+  if (diffSec < 604800) return `${Math.floor(diffSec / 86400)} hari lalu`;
+  return formatAlertTime(value);
+};
+
 // â”€â”€â”€ types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface StatCard {
@@ -106,34 +122,44 @@ interface ModuleStat {
   label: string;
 }
 
+type AlertTier = "critical" | "warning" | "info";
+
 const getSecurityMeta = (activityType: string) => {
   switch (activityType) {
     case "unauthorized_access":
       return {
+        tier: "critical" as AlertTier,
         label: "Forbidden Access",
         badge: "bg-red-50 text-red-600 border-red-100",
         iconWrap: "bg-red-50 text-red-600 border-red-100",
+        accentBar: "bg-red-500",
         icon: ShieldAlert,
       };
     case "login_failed":
       return {
+        tier: "critical" as AlertTier,
         label: "Failed Login",
         badge: "bg-red-50 text-red-700 border-red-200",
         iconWrap: "bg-red-50 text-red-700 border-red-200",
+        accentBar: "bg-red-500",
         icon: AlertTriangle,
       };
     case "authentication_required":
       return {
+        tier: "warning" as AlertTier,
         label: "Missing Token",
         badge: "bg-amber-50 text-amber-700 border-amber-200",
         iconWrap: "bg-amber-50 text-amber-700 border-amber-200",
+        accentBar: "bg-amber-400",
         icon: KeyRound,
       };
     default:
       return {
+        tier: "info" as AlertTier,
         label: activityType.replaceAll("_", " "),
         badge: "bg-slate-50 text-slate-600 border-slate-100",
         iconWrap: "bg-slate-50 text-slate-600 border-slate-100",
+        accentBar: "bg-slate-300",
         icon: ShieldAlert,
       };
   }
@@ -468,7 +494,28 @@ export default function AdminDashboardPage() {
   // recent SO / PO
   const [recentSO, setRecentSO] = useState<{ nomor: string; pelanggan: string; total: number; status: string }[]>([]);
   const [recentPO, setRecentPO] = useState<{ nomor: string; supplier: string; total: number; status: string }[]>([]);
-  const [securityAlerts, setSecurityAlerts] = useState<SecurityActivityItem[]>([]);
+    const [securityAlerts, setSecurityAlerts] = useState<SecurityActivityItem[]>([]);
+  const [selectedAlert, setSelectedAlert] = useState<SecurityActivityItem | null>(null);
+
+  useEffect(() => {
+    if (!selectedAlert) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedAlert(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedAlert]);
+
+  const severityCounts = useMemo(() => {
+    return securityAlerts.reduce(
+      (acc, alert) => {
+        const tier = getSecurityMeta(alert.activityType).tier;
+        acc[tier] += 1;
+        return acc;
+      },
+      { critical: 0, warning: 0, info: 0 } as Record<AlertTier, number>
+    );
+  }, [securityAlerts]);
 
   // AI rankings
   const [riskRows, setRiskRows]         = useState<RiskRow[]>([]);
@@ -683,79 +730,192 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* â”€â”€ Bottom row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center">
+            <div className="relative w-10 h-10 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center">
               <ShieldAlert size={18} />
+              {securityAlerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:animate-none" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-white bg-red-500" />
+                </span>
+              )}
             </div>
             <div>
               <p className="text-sm font-bold text-slate-800">Security Alerts</p>
               <p className="text-[11px] text-slate-400">Monitoring login gagal dan percobaan akses tidak sah</p>
             </div>
           </div>
-          <div className="inline-flex w-fit items-center rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
-            {securityAlerts.length} alert terbaru
+
+          <div className="flex flex-wrap items-center gap-2">
+            {severityCounts.critical > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                {severityCounts.critical} Critical
+              </span>
+            )}
+            {severityCounts.warning > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                {severityCounts.warning} Warning
+              </span>
+            )}
+            <span className="inline-flex w-fit items-center rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
+              {securityAlerts.length} alert terbaru
+            </span>
           </div>
         </div>
 
         {loading ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-20 rounded-xl bg-slate-100 animate-pulse" />
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-11 rounded-lg bg-slate-100 animate-pulse" />
             ))}
           </div>
         ) : securityAlerts.length === 0 ? (
-          <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-5 text-center">
-            <p className="text-sm font-semibold text-green-700">Tidak ada security alert terbaru</p>
-            <p className="mt-1 text-xs text-green-600">Belum ada login gagal atau percobaan akses role yang ditolak.</p>
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 text-emerald-600">
+              <ShieldCheck size={22} />
+            </div>
+            <p className="mt-1 text-sm font-bold text-slate-700">Semua Aman</p>
+            <p className="max-w-xs text-xs text-slate-400">
+              Belum ada login gagal atau percobaan akses role yang ditolak.
+            </p>
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {securityAlerts.map((alert) => {
+          <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+            {securityAlerts.map((alert, index) => {
               const meta = getSecurityMeta(alert.activityType);
               const Icon = meta.icon;
 
               return (
-                <div
+                <button
                   key={alert.id}
-                  className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 hover:border-slate-200 hover:bg-white transition-colors"
+                  type="button"
+                  onClick={() => setSelectedAlert(alert)}
+                  aria-label={`Lihat detail alert: ${meta.label} — ${alert.title}`}
+                  style={{ animationDelay: `${index * 30}ms` }}
+                  className="alert-card-enter group flex w-full items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/60 py-2 pl-3 pr-2.5 text-left transition-colors duration-150 hover:border-slate-200 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-navy-500"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${meta.iconWrap}`}>
-                      <Icon size={16} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${meta.badge}`}>
-                          {meta.label}
-                        </span>
-                        <span className="shrink-0 text-xs text-slate-500">
-                          {formatAlertTime(alert.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-2 truncate text-xs font-semibold text-slate-800">
-                        {alert.title}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                        {alert.description || "Tidak ada detail tambahan"}
-                      </p>
-                      {alert.refNumber && (
-                        <code className="mt-2 inline-flex rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
-                          {alert.refNumber}
-                        </code>
-                      )}
-                      <p className="mt-2 text-[10px] text-slate-400">
-                        Actor: <span className="font-semibold text-slate-500">{alert.userName || "SYSTEM"}</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  <span className={`h-7 w-1 shrink-0 rounded-full ${meta.accentBar}`} />
+
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${meta.iconWrap}`}
+                    aria-hidden="true"
+                  >
+                    <Icon size={14} />
+                  </span>
+
+                  <span className={`hidden shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold sm:inline-flex ${meta.badge}`}>
+                    {meta.label}
+                  </span>
+
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
+                    {alert.title}
+                  </span>
+
+                  <span
+                    className="shrink-0 text-[11px] text-slate-400"
+                    title={formatAlertTime(alert.createdAt)}
+                  >
+                    {formatRelativeTime(alert.createdAt)}
+                  </span>
+
+                  <ChevronRight
+                    size={14}
+                    className="shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-400"
+                    aria-hidden="true"
+                  />
+                </button>
               );
             })}
           </div>
         )}
       </div>
+
+      {selectedAlert && (() => {
+        const meta = getSecurityMeta(selectedAlert.activityType);
+        const Icon = meta.icon;
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setSelectedAlert(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Detail alert: ${meta.label}`}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className={`flex items-start justify-between gap-3 border-b px-5 py-4 ${meta.iconWrap}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/60 bg-white/50">
+                    <Icon size={16} />
+                  </div>
+                  <div>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${meta.badge}`}>
+                      {meta.label}
+                    </span>
+                    <p className="mt-1 text-[11px] text-slate-500" title={formatAlertTime(selectedAlert.createdAt)}>
+                      {formatRelativeTime(selectedAlert.createdAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedAlert(null)}
+                  aria-label="Tutup"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white/60"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              <div className="space-y-3 px-5 py-4">
+                <p className="text-sm font-bold text-slate-800">{selectedAlert.title}</p>
+                <p className="text-xs leading-relaxed text-slate-600">
+                  {selectedAlert.description || "Tidak ada detail tambahan"}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                    <Users size={12} />
+                    <span className="font-semibold text-slate-700">{selectedAlert.userName || "SYSTEM"}</span>
+                  </span>
+                  {selectedAlert.ipAddress && (
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                      <Globe size={12} />
+                      <code className="font-mono font-semibold text-slate-700">{selectedAlert.ipAddress}</code>
+                    </span>
+                  )}
+                  {selectedAlert.refNumber && (
+                    <code className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">
+                      {selectedAlert.refNumber}
+                    </code>
+                  )}
+                  <span className="ml-auto text-[11px] text-slate-400">
+                    {formatAlertTime(selectedAlert.createdAt)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-right">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAlert(null)}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 

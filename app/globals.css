@@ -39,6 +39,21 @@ body {
 ::-webkit-scrollbar-thumb { background: #2a4a6a; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #c9a84c; }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.alert-card-enter {
+  animation: fadeInUp 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-card-enter {
+    animation: none;
+  }
+}
+
 @media print {
   body.printing > * {
     display: none !important;

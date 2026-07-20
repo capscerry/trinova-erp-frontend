@@ -89,8 +89,26 @@ api.interceptors.response.use(
 
     if (status === 401 && !isLoginRequest) {
       clearAuthSessionAndRedirect();
+<<<<<<< Updated upstream
     }
 
+=======
+      return Promise.reject(new Error("Sesi habis. Silakan login kembali."));
+    }
+
+    // // If the server returns 401, the token is missing or expired.
+    // // Clear the stale session and redirect to login so the user can re-authenticate.
+    // if (err.response?.status === 401 && typeof window !== "undefined") {
+    //   sessionStorage.removeItem("trinova_token");
+    //   sessionStorage.removeItem("trinova_user");
+    //   // Clear the session/role cookies set by AuthContext
+    //   document.cookie = "trinova_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    //   document.cookie = "trinova_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    //   window.location.href = "/login";
+    //   return Promise.reject(new Error("Sesi habis. Silakan login kembali."));
+    // }
+
+>>>>>>> Stashed changes
     if (data?.errors && typeof data.errors === "object") {
       const fieldErrors = Object.entries(data.errors as Record<string, string[]>)
         .map(([field, msgs]) => `${field}: ${msgs.join(", ")}`)
