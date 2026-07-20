@@ -384,16 +384,19 @@ export function DataTable<T extends object>({
                   )}
                 </tr>
               ))
-            ) : paged.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length + (renderActions ? 1 : 0)}
-                  className="px-4 py-10 text-center text-sm text-slate-400"
-                >
-                  No data available
-                </td>
-              </tr>
-            ) : (
+              ) : paged.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length + (renderActions ? 1 : 0)}
+                    className="py-16 text-center"
+                  >
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Search size={28} className="text-slate-300" />
+                      <span className="text-sm">No data yet</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
               paged.map((row) => (
                 <tr key={String(row[keyField] ?? row.__idx)} className="transition-colors hover:bg-slate-50">
                   {columns.map((column) => {
