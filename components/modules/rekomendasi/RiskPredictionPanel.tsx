@@ -42,9 +42,9 @@ const GLOSSARY: Record<string, string> = {
   "SHAP":             "SHapley Additive exPlanations — metode matematis untuk menghitung kontribusi tiap fitur terhadap prediksi model. Nilai positif = menambah risiko.",
   "Risk Score":       "Skor risiko supplier ∈ [0, 1]. Dihitung dari sigmoid output XGBoost. Semakin mendekati 1 = semakin berisiko.",
   "Log-Loss":         "Binary cross-entropy loss — mengukur seberapa 'yakin' model terhadap prediksinya. Nilai lebih kecil = model lebih akurat.",
-  "MSE":              "Mean Squared Error — rata-rata kuadrat selisih prediksi dan label. Sensitif terhadap outlier.",
-  "MAE":              "Mean Absolute Error — rata-rata nilai mutlak selisih prediksi dan label. Lebih robust terhadap outlier dibanding MSE.",
-  "R²":               "Coefficient of Determination — proporsi variansi label yang dijelaskan model. R²=1 sempurna, R²=0 sama dengan mean baseline.",
+  "Precision": "Precision = TP / (TP + FP). Mengukur seberapa banyak prediksi positif yang benar.",
+  "Recall": "Recall = TP / (TP + FN). Mengukur seberapa banyak kasus positif berhasil dideteksi.",
+  "F1 Score": "Harmonic mean antara Precision dan Recall. Cocok digunakan pada dataset yang tidak seimbang.",
   "AUC-ROC":          "Area Under the ROC Curve — mengukur kemampuan model memisahkan kelas risiko tinggi vs rendah. AUC=1 sempurna, AUC=0.5 acak.",
   "Accuracy":         "Proporsi prediksi kelas yang benar pada threshold 0.5. Kurang informatif jika label tidak seimbang.",
   "Early Stopping":   "Pelatihan dihentikan lebih awal saat val loss tidak membaik selama N round (patience). Mencegah overfitting.",
@@ -481,14 +481,14 @@ function SplitMetricsRow({
         {label}
         <span className="font-normal opacity-70">n={m.n}</span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        <MetricCell label="Log-Loss" value={m.logloss}  bad={m.logloss > 0.5}  good={m.logloss < 0.2}  tip="Log-Loss" />
-        <MetricCell label="MSE"      value={m.mse}      bad={m.mse > 0.05}     good={m.mse < 0.01}     tip="MSE"      />
-        <MetricCell label="MAE"      value={m.mae}      bad={m.mae > 0.15}     good={m.mae < 0.08}     tip="MAE"      />
-        <MetricCell label="R²"       value={m.r2}       good={m.r2 > 0.85}     bad={m.r2 < 0.5}        tip="R²"       />
-        <MetricCell label="Accuracy" value={`${(m.accuracy * 100).toFixed(1)}%`} good={m.accuracy > 0.85} bad={m.accuracy < 0.65} tip="Accuracy" />
-        <MetricCell label="AUC-ROC"  value={m.auc}      good={m.auc > 0.85}    bad={m.auc < 0.65}      tip="AUC-ROC"  />
-      </div>
+        <div className="flex flex-wrap gap-1.5">
+          <MetricCell label="Log-Loss"  value={m.logloss} bad={m.logloss > 0.5} good={m.logloss < 0.2} tip="Log-Loss" />
+          <MetricCell label="Precision" value={`${(m.precision * 100).toFixed(1)}%`} good={m.precision > 0.85} bad={m.precision < 0.65} tip="Precision" />
+          <MetricCell label="Recall"    value={`${(m.recall * 100).toFixed(1)}%`}    good={m.recall > 0.85}    bad={m.recall < 0.65}    tip="Recall" />
+          <MetricCell label="F1 Score"  value={`${(m.f1_score * 100).toFixed(1)}%`}  good={m.f1_score > 0.85}  bad={m.f1_score < 0.65}  tip="F1 Score" />
+          <MetricCell label="Accuracy"  value={`${(m.accuracy * 100).toFixed(1)}%`}  good={m.accuracy > 0.85}  bad={m.accuracy < 0.65}  tip="Accuracy" />
+          <MetricCell label="AUC-ROC"   value={m.auc} good={m.auc > 0.85} bad={m.auc < 0.65} tip="AUC-ROC" />
+        </div>
     </div>
   );
 }
@@ -549,12 +549,12 @@ function CVFoldsTable({ folds, mean, std }: {
   folds: BackendFoldResult[]; mean: BackendSplitMetrics; std: BackendSplitMetrics;
 }) {
   const metrics: { key: keyof BackendSplitMetrics; label: string; tip: string }[] = [
-    { key: "logloss",  label: "Log-Loss",  tip: "Log-Loss"  },
-    { key: "mse",      label: "MSE",       tip: "MSE"       },
-    { key: "mae",      label: "MAE",       tip: "MAE"       },
-    { key: "r2",       label: "R²",        tip: "R²"        },
-    { key: "accuracy", label: "Accuracy",  tip: "Accuracy"  },
-    { key: "auc",      label: "AUC",       tip: "AUC-ROC"   },
+    { key: "logloss",   label: "Log-Loss",  tip: "Log-Loss" },
+    { key: "precision", label: "Precision", tip: "Precision" },
+    { key: "recall",    label: "Recall",    tip: "Recall" },
+    { key: "f1_score",  label: "F1 Score",  tip: "F1 Score" },
+    { key: "accuracy",  label: "Accuracy",  tip: "Accuracy" },
+    { key: "auc",       label: "AUC-ROC",   tip: "AUC-ROC" },
   ];
 
   return (
@@ -573,31 +573,55 @@ function CVFoldsTable({ folds, mean, std }: {
         <tbody className="divide-y divide-slate-50">
           {folds.map(({ fold, metrics: fm }) => (
             <tr key={fold} className="hover:bg-slate-50 transition-colors">
-              <td className="px-3 py-1.5 font-semibold text-slate-600">Fold {fold}</td>
-              {metrics.map(({ key }) => (
-                <td key={key} className="px-3 py-1.5 text-center tabular-nums text-slate-600 font-mono">
-                  {key === "accuracy" ? `${((fm[key] as number) * 100).toFixed(1)}%` : (fm[key] as number).toFixed(4)}
-                </td>
-              ))}
+              <td className="px-3 py-1.5 font-semibold text-slate-600">
+                Fold {fold}
+              </td>
+
+              {metrics.map(({ key }) => {
+                const value = Number(fm[key] ?? 0);
+
+                return (
+                  <td
+                    key={key}
+                    className="px-3 py-1.5 text-center tabular-nums text-slate-600 font-mono"
+                  >
+                    {key === "accuracy"
+                      ? `${(value * 100).toFixed(1)}%`
+                      : value.toFixed(4)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
           {/* Mean row */}
           <tr className="bg-navy-900/5 border-t border-navy-900/10">
             <td className="px-3 py-1.5 font-bold text-navy-900">Mean</td>
-            {metrics.map(({ key }) => (
-              <td key={key} className="px-3 py-1.5 text-center tabular-nums font-bold text-navy-900 font-mono">
-                {key === "accuracy" ? `${((mean[key] as number) * 100).toFixed(1)}%` : (mean[key] as number).toFixed(4)}
-              </td>
-            ))}
+            {metrics.map(({ key }) => {
+              const value = Number(mean[key] ?? 0);
+
+              return (
+                <td key={key} className="px-3 py-1.5 text-center tabular-nums font-bold text-navy-900 font-mono">
+                  {key === "accuracy"
+                    ? `${(value * 100).toFixed(1)}%`
+                    : value.toFixed(4)}
+                </td>
+              );
+            })}
           </tr>
           {/* Std row */}
           <tr className="bg-slate-50/60">
             <td className="px-3 py-1.5 font-semibold text-slate-400">±Std</td>
-            {metrics.map(({ key }) => (
-              <td key={key} className="px-3 py-1.5 text-center tabular-nums text-slate-400 font-mono">
-                ±{key === "accuracy" ? `${((std[key] as number) * 100).toFixed(1)}%` : (std[key] as number).toFixed(4)}
-              </td>
-            ))}
+              {metrics.map(({ key }) => {
+              const value = Number(std[key] ?? 0);
+
+              return (
+                <td key={key} className="px-3 py-1.5 text-center tabular-nums text-slate-400 font-mono">
+                  ±{key === "accuracy"
+                    ? `${(value * 100).toFixed(1)}%`
+                    : value.toFixed(4)}
+                </td>
+              );
+            })}
           </tr>
         </tbody>
       </table>
@@ -606,6 +630,13 @@ function CVFoldsTable({ folds, mean, std }: {
 }
 
 function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
+
+  console.log("CV Mean", m.cvMean);
+  console.log("CV Std", m.cvStd);
+  console.log("CV Folds", m.cvFolds);
+  console.log("BackendMetrics", m);
+  console.log("TrainMetrics", m.trainMetrics);
+  console.log("TestMetrics", m.testMetrics);
   const [open, setOpen] = useState(true);
   const hasCurve = m.learningCurve.length >= 2;
   const hasCv    = m.cvFolds.length > 0;

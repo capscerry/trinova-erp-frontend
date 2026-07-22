@@ -55,6 +55,7 @@ interface PurchaseOrder {
   transaction_name?: string;
   transaction_detail?: string;
   status?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetail {

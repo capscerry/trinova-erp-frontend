@@ -26,32 +26,40 @@ export interface SupplierRiskPredictResponse {
 // Controller wraps: { status, message, data: SupplierRiskTrainResponse }
 
 export interface TrainSplitMetrics {
-  log_loss: number;
-  mse:      number;
-  mae:      number;
-  r2:       number;
   accuracy: number;
-  auc_roc:  number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  auc_roc: number;
+  log_loss: number;
 }
 
 export interface TrainFoldMetrics {
-  fold:     number;
-  log_loss: number;
-  mse:      number;
-  mae:      number;
-  r2:       number;
+  fold: number;
   accuracy: number;
-  auc_roc:  number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  auc_roc: number;
+  log_loss: number;
 }
 
 export interface TrainCVResults {
-  fold_metrics:  TrainFoldMetrics[];
-  avg_log_loss?: number | null;
-  avg_mse?:      number | null;
-  avg_mae?:      number | null;
-  avg_r2?:       number | null;
+  fold_metrics: TrainFoldMetrics[];
+
   avg_accuracy?: number | null;
-  avg_auc_roc?:  number | null;
+  avg_precision?: number | null;
+  avg_recall?: number | null;
+  avg_f1_score?: number | null;
+  avg_auc_roc?: number | null;
+  avg_log_loss?: number | null;
+
+  std_accuracy?: number | null;
+  std_precision?: number | null;
+  std_recall?: number | null;
+  std_f1_score?: number | null;
+  std_auc_roc?: number | null;
+  std_log_loss?: number | null;
 }
 
 export interface TrainResponse {
@@ -86,13 +94,13 @@ export interface TrainRow {
 // from the train response fields (accuracy, roc_auc, etc.)
 
 export interface BackendSplitMetrics {
-  logloss:  number;
-  mse:      number;
-  mae:      number;
-  r2:       number;
+  logloss: number;
   accuracy: number;
-  auc:      number;
-  n:        number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  auc: number;
+  n: number;
 }
 
 export interface BackendRoundMetrics {
@@ -161,9 +169,34 @@ export const trainFromServerCsv = async (): Promise<TrainResponse> => {
 
 // ─── Train — live ERP data ────────────────────────────────────────────────────
 
-export const trainFromErp = async (appendToExisting = true): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train/from-erp", { append_to_existing: appendToExisting });
-  return unwrap<TrainResponse>(res);
+export const trainFromErp = async (
+  appendToExisting = true,
+): Promise<TrainResponse> => {
+  const res = await api.post("/supplier-risk/train/from-erp", {
+    append_to_existing: appendToExisting,
+  });
+
+  console.log("========== AXIOS RESPONSE ==========");
+  console.log(res);
+
+  console.log("========== AXIOS DATA ==========");
+  console.log(res.data);
+
+  const data = unwrap<TrainResponse>(res);
+
+  console.log("========== UNWRAPPED ==========");
+  console.log(data);
+
+  console.log("========== TRAIN METRICS ==========");
+  console.log(data.train_metrics);
+
+  console.log("========== TEST METRICS ==========");
+  console.log(data.test_metrics);
+
+  console.log("========== CV RESULTS ==========");
+  console.log(data.cv_results);
+
+  return data;
 };
 
 // ─── Train — pre-labeled JSON rows ───────────────────────────────────────────
@@ -294,27 +327,47 @@ export function buildMetricsFromTrainResponse(
   res: TrainResponse,
 ): BackendModelMetrics {
   // FastAPI now returns train_metrics and test_metrics as separate objects,
-  // each containing: log_loss, mse, mae, r2, accuracy, auc_roc.
+  // each containing: accuracy, precision, recall, f1_score, auc_roc, log_loss
   // Map them directly to BackendSplitMetrics — no approximation needed.
 
   const n  = res.samples_trained ?? 0;
   const nt = res.samples_tested  ?? 0;
 
-  function toSplitMetrics(
-    m: TrainSplitMetrics | undefined,
-    sampleCount: number,
-  ): BackendSplitMetrics {
-    if (!m) return { logloss: 0, mse: 0, mae: 0, r2: 0, accuracy: 0, auc: 0, n: 0 };
+function toSplitMetrics(
+  m: TrainSplitMetrics | undefined,
+  sampleCount: number,
+): BackendSplitMetrics {
+
+  if (!m) {
     return {
-      logloss:  m.log_loss,
-      mse:      m.mse,
-      mae:      m.mae,
-      r2:       m.r2,
-      accuracy: m.accuracy,
-      auc:      m.auc_roc,
-      n:        sampleCount,
+      logloss: 0,
+      accuracy: 0,
+      precision: 0,
+      recall: 0,
+      f1_score: 0,
+      auc: 0,
+      n: 0,
     };
   }
+
+  return {
+    logloss: m.log_loss,
+    accuracy: m.accuracy,
+    precision: m.precision,
+    recall: m.recall,
+    f1_score: m.f1_score,
+    auc: m.auc_roc,
+    n: sampleCount,
+  };
+}
+
+  console.log("RAW RESPONSE", res);
+  console.log("RAW TRAIN", res.train_metrics);
+  console.log("RAW TEST", res.test_metrics);
+  console.log("FULL RES", res);
+  console.log("RAW train_metrics", res.train_metrics);
+  console.log("RAW test_metrics", res.test_metrics);
+  console.log("RAW cv_results", res.cv_results);
 
   const trainM = toSplitMetrics(res.train_metrics, n);
   const testM  = toSplitMetrics(res.test_metrics,  nt);
@@ -323,27 +376,27 @@ export function buildMetricsFromTrainResponse(
   // into the BackendFoldResult[] shape the RiskPredictionPanel expects.
   const cvFolds: BackendFoldResult[] = (res.cv_results?.fold_metrics ?? []).map((f) => ({
     fold: f.fold,
-    metrics: {
-      logloss:  f.log_loss,
-      mse:      f.mse,
-      mae:      f.mae,
-      r2:       f.r2,
-      accuracy: f.accuracy,
-      auc:      f.auc_roc,
-      n:        0,
+    metrics:{
+        logloss: f.log_loss,
+        accuracy: f.accuracy,
+        precision: f.precision,
+        recall: f.recall,
+        f1_score: f.f1_score,
+        auc: f.auc_roc,
+        n: 0,
     },
   }));
 
   // CV mean across folds — use avg_* fields from the backend when available
   const cv = res.cv_results;
   const cvMeanMetrics: BackendSplitMetrics = cvFolds.length > 0 ? {
-    logloss:  cv?.avg_log_loss  ?? testM.logloss,
-    mse:      cv?.avg_mse       ?? testM.mse,
-    mae:      cv?.avg_mae       ?? testM.mae,
-    r2:       cv?.avg_r2        ?? testM.r2,
-    accuracy: cv?.avg_accuracy  ?? testM.accuracy,
-    auc:      cv?.avg_auc_roc   ?? testM.auc,
-    n:        cvFolds.length,
+    logloss: cv?.avg_log_loss ?? testM.logloss,
+    accuracy: cv?.avg_accuracy ?? testM.accuracy,
+    precision: cv?.avg_precision ?? testM.precision,
+    recall: cv?.avg_recall ?? testM.recall,
+    f1_score: cv?.avg_f1_score ?? testM.f1_score,
+    auc: cv?.avg_auc_roc ?? testM.auc,
+    n: cvFolds.length,
   } : testM;
 
   // Summary values for the top-level metrics strip (accuracy + AUC from test split)
@@ -352,12 +405,20 @@ export function buildMetricsFromTrainResponse(
 
   return {
     trainMetrics:  trainM,
-    valMetrics:    { logloss: 0, mse: 0, mae: 0, r2: 0, accuracy: 0, auc: 0, n: 0 },
+    valMetrics:    { logloss: 0, accuracy:0, precision:0, recall:0, f1_score:0, auc: 0, n: 0 },
     testMetrics:   testM,
     learningCurve: [],
     cvFolds,
     cvMean:        cvMeanMetrics,
-    cvStd:         { logloss: 0, mse: 0, mae: 0, r2: 0, accuracy: 0, auc: 0, n: 0 },
+    cvStd: {
+        logloss: cv?.std_log_loss ?? 0,
+        accuracy: cv?.std_accuracy ?? 0,
+        precision: cv?.std_precision ?? 0,
+        recall: cv?.std_recall ?? 0,
+        f1_score: cv?.std_f1_score ?? 0,
+        auc: cv?.std_auc_roc ?? 0,
+        n: cvFolds.length,
+    },
     bestRound:     res.best_round ?? 0,
     totalRounds:   0,
     splitSizes:    { train: n, val: 0, test: nt },
