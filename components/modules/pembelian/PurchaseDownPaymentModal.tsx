@@ -135,7 +135,7 @@ export default function PurchaseDownPaymentModal({
               justify-between
               px-6
               py-4
-              bg-gradient-to-r
+              bg-linear-to-r
               from-navy-900
               to-navy-600
             "

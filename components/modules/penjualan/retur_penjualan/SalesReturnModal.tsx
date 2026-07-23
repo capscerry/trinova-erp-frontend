@@ -246,7 +246,7 @@ export function SalesReturnModal({ open, onClose, onSubmit }: SalesReturnModalPr
           onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]"
         >
-          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">Tambah Retur Penjualan</h2>
               <p className="text-slate-400 text-xs mt-0.5">Kembalikan barang dari pelanggan berdasarkan Delivery Order</p>

@@ -412,7 +412,7 @@ export function FakturPenjualanModal({
       <div onClick={onClose} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div onClick={(e) => e.stopPropagation()} className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between bg-gradient-to-r from-navy-900 to-navy-600 px-6 py-4">
+          <div className="flex items-center justify-between bg-linear-to-r from-navy-900 to-navy-600 px-6 py-4">
             <div>
               <h2 className="text-[15px] font-semibold tracking-tight text-white">Tambah Faktur Penjualan</h2>
               <p className="mt-0.5 text-xs text-slate-400">Buat tagihan dari Sales Order atau input manual</p>

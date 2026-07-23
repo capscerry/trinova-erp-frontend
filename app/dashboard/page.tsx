@@ -315,7 +315,7 @@ function RiskRankingWidget({ rows, loading }: { rows: RiskRow[]; loading: boolea
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
       {/* header */}
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-slate-800">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-linear-to-r from-slate-900 to-slate-800">
         <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
           <Brain size={13} className="text-rose-300" />
         </div>
@@ -394,7 +394,7 @@ function AhpPresetCard({ preset, loading }: { preset: AhpPresetRanking; loading:
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
       {/* header */}
-      <div className={cn("flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r", style.header)}>
+      <div className={cn("flex items-center gap-2.5 px-5 py-3.5 bg-linear-to-r", style.header)}>
         <span className="text-lg leading-none">{preset.icon}</span>
         <div>
           <p className="text-[13px] font-bold text-white leading-none">{preset.label}</p>

@@ -28,6 +28,7 @@ import {
 } from "@/lib/services/subcategory.service";
 
 import { toast } from "sonner";
+import SubcategoryFormModal from "@/components/modules/persediaan/subcategories/SubcategoryFormModal";
 
 export default function SubcategoryPage() {
   const [subcategories, setSubcategories] =
@@ -251,34 +252,31 @@ export default function SubcategoryPage() {
         onDelete={handleDeleteClick}
       />
 
-      {/* Modal Create/Edit */}
-      <Modal
-        isOpen={openModal}
+      <SubcategoryFormModal
+        open={openModal}
         onClose={() => {
           setOpenModal(false);
-
-          setSelectedSubcategory(
-            null
-          );
+          setSelectedSubcategory(null);
         }}
-        title={
+        onSubmit={
           isEdit
-            ? "Edit Subcategory"
-            : "Tambah Subcategory"
+            ? handleUpdateSubcategory
+            : handleCreateSubcategory
         }
-      >
-        <SubcategoryForm
-          onSubmit={
-            isEdit
-              ? handleUpdateSubcategory
-              : handleCreateSubcategory
-          }
-          loading={saving}
-          initialData={
-            selectedSubcategory
-          }
-        />
-      </Modal>
+        loading={saving}
+        initialData={
+          selectedSubcategory
+            ? {
+                category_id:
+                  selectedSubcategory.category_id,
+                code:
+                  selectedSubcategory.code,
+                name:
+                  selectedSubcategory.name,
+              }
+            : null
+        }
+      />
 
       {/* Delete Modal */}
       <DeleteSubcategoryModal

@@ -40,7 +40,7 @@ function ScoreBar({ score }: { score: number }) {
     <div className="flex items-center gap-2 min-w-0">
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[50px]">
         <div
-          className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-700", color)}
+          className={cn("h-full rounded-full bg-linear-to-r transition-all duration-700", color)}
           style={{ width: `${pct}%` }}
         />
       </div>

@@ -334,7 +334,7 @@ export default function PembelianPage() {
 
       {/* AI INSIGHT CTA */}
       <Link href="/pembelian/insight" className="block mt-6 group">
-        <div className="rounded-2xl border border-navy-800 bg-gradient-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
+        <div className="rounded-2xl border border-navy-800 bg-linear-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
 
           <div className="flex items-start justify-between gap-6">
 

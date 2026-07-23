@@ -181,7 +181,7 @@ export function QuotationPickerModal({
 
           {/* ── Header ────────────────────────────────── */}
           <div className="flex items-center justify-between px-5 py-3.5
-                          bg-gradient-to-r from-sky-600 to-sky-500 shrink-0">
+                          bg-linear-to-r from-sky-600 to-sky-500 shrink-0">
             <div className="flex items-center gap-2">
               <FileDown size={15} className="text-white/80" />
               <div>

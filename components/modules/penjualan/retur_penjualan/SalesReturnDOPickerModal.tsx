@@ -206,7 +206,7 @@ export function SalesReturnDOPickerModal({
           className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh]
                      flex flex-col border border-slate-200 overflow-hidden"
         >
-          <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-500 shrink-0">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-linear-to-r from-emerald-600 to-emerald-500 shrink-0">
             <div className="flex items-center gap-2">
               <FileDown size={15} className="text-white/80" />
               <div>

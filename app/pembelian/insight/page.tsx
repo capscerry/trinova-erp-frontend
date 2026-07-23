@@ -890,7 +890,7 @@ export default function PurchasingInsightPage() {
     <AppShell title="AI Purchasing Insight" subtitle="Analitik pembelian berbasis AHP & TOPSIS">
 
       {/* ── Hero header ──────────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-6 mb-6">
+      <div className="bg-linear-to-r from-navy-900 to-navy-700 rounded-2xl p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-400/15 text-gold-400 text-[11px] font-bold uppercase tracking-widest mb-3">
