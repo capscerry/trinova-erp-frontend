@@ -175,28 +175,7 @@ export const trainFromErp = async (
   const res = await api.post("/supplier-risk/train/from-erp", {
     append_to_existing: appendToExisting,
   });
-
-  console.log("========== AXIOS RESPONSE ==========");
-  console.log(res);
-
-  console.log("========== AXIOS DATA ==========");
-  console.log(res.data);
-
-  const data = unwrap<TrainResponse>(res);
-
-  console.log("========== UNWRAPPED ==========");
-  console.log(data);
-
-  console.log("========== TRAIN METRICS ==========");
-  console.log(data.train_metrics);
-
-  console.log("========== TEST METRICS ==========");
-  console.log(data.test_metrics);
-
-  console.log("========== CV RESULTS ==========");
-  console.log(data.cv_results);
-
-  return data;
+  return unwrap<TrainResponse>(res);
 };
 
 // ─── Train — pre-labeled JSON rows ───────────────────────────────────────────
@@ -360,14 +339,6 @@ function toSplitMetrics(
     n: sampleCount,
   };
 }
-
-  console.log("RAW RESPONSE", res);
-  console.log("RAW TRAIN", res.train_metrics);
-  console.log("RAW TEST", res.test_metrics);
-  console.log("FULL RES", res);
-  console.log("RAW train_metrics", res.train_metrics);
-  console.log("RAW test_metrics", res.test_metrics);
-  console.log("RAW cv_results", res.cv_results);
 
   const trainM = toSplitMetrics(res.train_metrics, n);
   const testM  = toSplitMetrics(res.test_metrics,  nt);

@@ -350,7 +350,7 @@ function RiskRow({ result, rank }: { result: RiskResult; rank: number }) {
           {/* Risk score breakdown */}
           <div className="flex gap-3">
             <div className={cn("flex-1 rounded-xl border p-3 text-center", cfg.border, cfg.bg)}>
-              <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mb-1">Risk Score</p>
+              <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mb-1">Probabilitas Keterlambatan</p>
               <p className={cn("text-xl font-bold font-mono", cfg.text)}>{Number(result.risk_score ?? 0).toFixed(3)}</p>
               <p className="text-[9px] text-slate-400 mt-0.5">0 = aman · 1 = kritis</p>
             </div>
@@ -482,7 +482,6 @@ function SplitMetricsRow({
         <span className="font-normal opacity-70">n={m.n}</span>
       </div>
         <div className="flex flex-wrap gap-1.5">
-          <MetricCell label="Log-Loss"  value={m.logloss} bad={m.logloss > 0.5} good={m.logloss < 0.2} tip="Log-Loss" />
           <MetricCell label="Precision" value={`${(m.precision * 100).toFixed(1)}%`} good={m.precision > 0.85} bad={m.precision < 0.65} tip="Precision" />
           <MetricCell label="Recall"    value={`${(m.recall * 100).toFixed(1)}%`}    good={m.recall > 0.85}    bad={m.recall < 0.65}    tip="Recall" />
           <MetricCell label="F1 Score"  value={`${(m.f1_score * 100).toFixed(1)}%`}  good={m.f1_score > 0.85}  bad={m.f1_score < 0.65}  tip="F1 Score" />
@@ -549,7 +548,6 @@ function CVFoldsTable({ folds, mean, std }: {
   folds: BackendFoldResult[]; mean: BackendSplitMetrics; std: BackendSplitMetrics;
 }) {
   const metrics: { key: keyof BackendSplitMetrics; label: string; tip: string }[] = [
-    { key: "logloss",   label: "Log-Loss",  tip: "Log-Loss" },
     { key: "precision", label: "Precision", tip: "Precision" },
     { key: "recall",    label: "Recall",    tip: "Recall" },
     { key: "f1_score",  label: "F1 Score",  tip: "F1 Score" },
@@ -630,13 +628,6 @@ function CVFoldsTable({ folds, mean, std }: {
 }
 
 function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
-
-  console.log("CV Mean", m.cvMean);
-  console.log("CV Std", m.cvStd);
-  console.log("CV Folds", m.cvFolds);
-  console.log("BackendMetrics", m);
-  console.log("TrainMetrics", m.trainMetrics);
-  console.log("TestMetrics", m.testMetrics);
   const [open, setOpen] = useState(true);
   const hasCurve = m.learningCurve.length >= 2;
   const hasCv    = m.cvFolds.length > 0;
@@ -968,39 +959,6 @@ function TrainControls({
   );
 }
 
-// ─── Method footer (backend-aware) ───────────────────────────────────────────
-
-function MethodFooter({ m }: { m?: BackendModelMetrics | null }) {
-  const earlyStop = m && m.bestRound < m.totalRounds;
-  const chips: { label: string; sub: string; tip?: string }[] = [
-    { label: m ? `${m.bestRound} Rounds` : "—", sub: earlyStop ? "early stopped" : "boosting rounds", tip: "Early Stopping" },
-    { label: "60/20/20 Split", sub: "train/val/test", tip: "Stratified Split" },
-    { label: m ? `${m.cvFolds.length}-Fold CV` : "5-Fold CV", sub: "cross-validation", tip: "5-Fold CV" },
-    { label: "SHAP",           sub: "feature attribution", tip: "SHAP"          },
-    { label: "10 Features",    sub: "dari data ERP"                             },
-  ];
-  return (
-    <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-        Konfigurasi <TermTip term="XGBoost">XGBoost</TermTip> Pipeline — Backend FastAPI
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {chips.map(({ label, sub, tip }) => (
-          <div key={label} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-            <Zap size={9} className="text-gold-500 shrink-0" />
-            <div>
-              <p className="text-[10px] font-bold text-navy-900">
-                {tip ? <TermTip term={tip}>{label}</TermTip> : label}
-              </p>
-              <p className="text-[9px] text-slate-400">{sub}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function RiskPredictionPanel({
@@ -1028,12 +986,11 @@ export function RiskPredictionPanel({
           </div>
           <div>
             <h2 className="font-serif font-bold text-white text-[15px] leading-none">
-              Prediksi Risiko Supplier
+              Prediksi Risiko ML
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
+              Probabilitas keterlambatan pengiriman per supplier —{" "}
               <TermTip term="XGBoost">XGBoost</TermTip>
-              {" · "}
-              <TermTip term="Gradient Boosting">Gradient Boosted Trees</TermTip>
               {" · "}
               <TermTip term="SHAP">SHAP</TermTip>
               {" Attribution"}
@@ -1062,25 +1019,32 @@ export function RiskPredictionPanel({
       {showInfo && (
         <div className="px-5 py-3 bg-blue-50 border-b border-blue-100 text-[12px] text-blue-700 leading-relaxed space-y-1">
           <p>
-            <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih{" "}
-            {backendMetrics ? backendMetrics.totalRounds : "N"} pohon{" "}
+            <strong>Panel ini menampilkan Prediksi Risiko ML</strong> — seberapa besar kemungkinan
+            setiap supplier mengalami keterlambatan pengiriman, berdasarkan data historis ERP.
+            Skor mendekati 1 = risiko tinggi.
+          </p>
+          <p>
+            <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih pohon{" "}
             <TermTip term="Gradient Boosting">CART secara berurutan</TermTip>.
             Split <TermTip term="Stratified Split"><strong>60/20/20</strong></TermTip> (train/val/test) —
             scaler difit hanya pada train set untuk menghindari{" "}
             <TermTip term="Data Leakage">data leakage</TermTip>.
           </p>
           <p>
-            <TermTip term="Early Stopping"><strong>Early stopping</strong></TermTip> memantau val{" "}
-            <TermTip term="Log-Loss">log-loss</TermTip> setiap round (patience 8).
+            <TermTip term="Early Stopping"><strong>Early stopping</strong></TermTip> memantau val loss setiap round (patience 8).
             Model terbaik disimpan saat val loss minimum.
           </p>
           <p>
-            <TermTip term="5-Fold CV"><strong>5-Fold CV</strong></TermTip> mengevaluasi generalisasi model secara lebih robust.
+            <TermTip term="5-Fold CV"><strong>5-Fold CV</strong></TermTip> mengevaluasi generalisasi model secara robust.
             Setiap fold melatih model independen dengan scaler-nya sendiri.
           </p>
           <p>
             <TermTip term="SHAP"><strong>SHAP</strong></TermTip> menghitung kontribusi tiap fitur.
-            Merah = menambah risiko, Hijau = mengurangi.
+            Merah = menambah risiko keterlambatan, Hijau = mengurangi.
+          </p>
+          <p className="border-t border-blue-200 pt-1 text-blue-600">
+            Hasil prediksi ini <strong>berbeda dari Perankingan TOPSIS</strong> — TOPSIS menggabungkan
+            berbagai kriteria (harga, lead time, on-time rate, retur) untuk ranking keseluruhan.
           </p>
         </div>
       )}
@@ -1094,7 +1058,7 @@ export function RiskPredictionPanel({
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">#</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <TermTip term="Risk Score">Risk Score</TermTip>
+            <TermTip term="Risk Score">Probabilitas Keterlambatan</TermTip>
           </span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">Indikator</span>
           <span />
@@ -1139,9 +1103,6 @@ export function RiskPredictionPanel({
         onTrainFromServerCsv={onTrainFromServerCsv}
         onTrainFromCsvUpload={onTrainFromCsvUpload}
       />
-
-      {/* Footer */}
-      {results.length > 0 && !isLoading && <MethodFooter m={backendMetrics} />}
     </div>
   );
 }

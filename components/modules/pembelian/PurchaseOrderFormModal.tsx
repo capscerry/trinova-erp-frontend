@@ -18,19 +18,7 @@ import { AhpTopsisBestPreview } from "./AhpTopsisBestPreview";
 import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
-import { getPurchaseOrders }   from "@/lib/services/po.service";
-import { getGoodsReceipts }    from "@/lib/services/gr.service";
-import { getSuppliers }        from "@/lib/services/supplier.service";
-import { getSupplierProducts } from "@/lib/services/supplier-product.service";
-import { getPurchaseReturns }  from "@/lib/services/purchase-return.service";
-import {
-  topsis,
-  applyPreset,
-  calcOnTimeRates,
-  calcDeliveryPunctuality,
-  PRIORITY_PRESETS,
-} from "@/lib/ahp-topsis";
-import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
+import { useSupplierRecommendations } from "@/lib/hooks/useSupplierRecommendations";
 
 interface Supplier { id: string; nama: string; status?: string; }
 interface Product {
@@ -79,124 +67,8 @@ interface PurchaseOrderFormModalProps {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AHP criteria (must match preset matrix column order)
+// Per-preset visual config (display only — no calculations here)
 // ─────────────────────────────────────────────────────────────
-
-const AHP_CRITERIA = [
-  { id: "avg_price",            label: "Harga Rata-rata",  description: "", weight: 0.2, benefit: false },
-  { id: "lead_time",            label: "Lead Time",        description: "", weight: 0.2, benefit: false },
-  { id: "on_time_rate",         label: "On-Time Rate",     description: "", weight: 0.2, benefit: true  },
-  { id: "delivery_punctuality", label: "Ketepatan Waktu",  description: "", weight: 0.2, benefit: true  },
-  { id: "return_rate",          label: "Tingkat Retur",    description: "", weight: 0.2, benefit: false },
-];
-
-// ─────────────────────────────────────────────────────────────
-// Build TOPSIS alternatives from raw ERP data
-// ─────────────────────────────────────────────────────────────
-
-function buildAlternatives(
-  suppliers: any[], pos: any[], grs: any[], returns: any[], sps: any[],
-): Alternative[] {
-  const normPos = pos.map((p: any) => ({
-    purchase_order_id: Number(p.purchase_order_id),
-    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
-    order_date:        p.order_date    ?? null,
-    expected_date:     p.expected_date ?? null,
-  }));
-  const normGrs = grs.map((g: any) => ({
-    goods_receipt_id:  Number(g.goods_receipt_id),
-    purchase_order_id: Number(g.purchase_order_id),
-    receipt_date:      g.receipt_date ?? null,
-  }));
-  const normReturns = returns.map((r: any) => ({
-    supplier_id:      Number(r.supplier_id ?? 0),
-    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
-  }));
-  const normSps = sps.map((sp: any) => ({
-    supplier_id:    Number(sp.supplier_id),
-    supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
-    lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
-  }));
-  const normSuppliers = suppliers.map((s: any) => ({
-    supplier_id:   Number(s.supplier_id ?? s.id),
-    supplier_name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
-    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
-  }));
-
-  type Agg = { name: string; code: string; orderCount: number; actualDays: number[]; catalogDays: number[]; prices: number[]; grIds: Set<number> };
-  const agg = new Map<number, Agg>();
-  for (const s of normSuppliers)
-    agg.set(s.supplier_id, { name: s.supplier_name, code: s.supplier_code, orderCount: 0, actualDays: [], catalogDays: [], prices: [], grIds: new Set() });
-
-  for (const po of normPos) { const a = agg.get(po.supplier_id); if (a) a.orderCount++; }
-
-  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
-  const onTimeMap      = calcOnTimeRates(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-  const punctualityMap = calcDeliveryPunctuality(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-
-  for (const gr of normGrs) {
-    const po = poMap.get(gr.purchase_order_id);
-    if (!po?.order_date || !gr.receipt_date) continue;
-    const days = (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
-    if (days < 0 || days > 365) continue;
-    const a = agg.get(po.supplier_id);
-    if (!a) continue;
-    a.actualDays.push(days);
-    a.grIds.add(gr.goods_receipt_id);
-  }
-  for (const sp of normSps) {
-    const a = agg.get(sp.supplier_id);
-    if (!a) continue;
-    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
-    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
-  }
-  const returnCountMap = new Map<number, number>();
-  for (const ret of normReturns) {
-    if (ret.supplier_id === 0) continue;
-    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
-  }
-
-  const alternatives: Alternative[] = [];
-  for (const [sid, a] of agg.entries()) {
-    if (a.orderCount === 0) continue;
-    const avgPrice   = a.prices.length > 0 ? a.prices.reduce((s, v) => s + v, 0) / a.prices.length : 0;
-    const avgLead    = a.actualDays.length > 0
-      ? a.actualDays.reduce((s, v) => s + v, 0) / a.actualDays.length
-      : a.catalogDays.length > 0 ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length : 14;
-    const grCount    = a.grIds.size;
-    const retCount   = returnCountMap.get(sid) ?? 0;
-    const returnRate = grCount > 0 ? retCount / grCount : 0;
-    alternatives.push({
-      id: String(sid), name: a.name, code: a.code,
-      values: {
-        avg_price:            Math.round(avgPrice * 100) / 100,
-        lead_time:            Math.round(avgLead * 10) / 10,
-        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
-        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
-        return_rate:          Math.round(returnRate * 1000) / 1000,
-      },
-    });
-  }
-  return alternatives;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Per-preset visual config
-// ─────────────────────────────────────────────────────────────
-
-interface PresetBest {
-  key: string;
-  label: string;
-  supplierName: string;
-  supplierId: string;
-  score: number;
-}
 
 const PRESET_ICONS: Record<string, { icon: React.ElementType; color: string; border: string }> = {
   balanced:        { icon: BarChart2,  color: "text-slate-600",  border: "border-slate-200 hover:border-slate-300"  },
@@ -319,9 +191,9 @@ export default function PurchaseOrderFormModal({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [deletedItems, setDeletedItems] = useState<number[]>([]);
 
-  // ── AHP-TOPSIS best supplier recommendations ───────────────────────────────
-  const [presetBests, setPresetBests] = useState<PresetBest[]>([]);
-  const [rankLoading, setRankLoading] = useState(false);
+  // ── Shared AHP+TOPSIS recommendation dataset ──────────────────────────────
+  // Consumed from the singleton hook — no independent fetch or recalculation.
+  const { loading: rankLoading, dataset: recommendationDataset } = useSupplierRecommendations();
 
   // ── PR (Purchase Requisition) picker state ─────────────────────────────────
   const [prPickerOpen, setPrPickerOpen] = useState(false);
@@ -377,55 +249,8 @@ export default function PurchaseOrderFormModal({
       setDeletedItems([]);
       setPrPickerOpen(false); setPrSearch(""); setSelectedPR(null);
 
-      // ── Fetch AHP-TOPSIS rankings in parallel when modal opens (new PO only) ──
-      if (!initialData) {
-        setRankLoading(true);
-        (async () => {
-          try {
-            const norm = (r: PromiseSettledResult<any>) =>
-              r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : r.value?.data ?? []) : [];
-
-            const [suppRes, poRes, grRes, retRes, spRes] = await Promise.allSettled([
-              getSuppliers(),
-              getPurchaseOrders(),
-              getGoodsReceipts(),
-              getPurchaseReturns(),
-              getSupplierProducts(),
-            ]);
-
-            const suppliers = norm(suppRes);
-            if (suppliers.length === 0) return;
-
-            const alts = buildAlternatives(
-              suppliers,
-              norm(poRes),
-              norm(grRes),
-              norm(retRes),
-              norm(spRes),
-            );
-            if (alts.length === 0) return;
-
-            const bests: PresetBest[] = PRIORITY_PRESETS.map((preset) => {
-              const { result } = applyPreset(preset.key as any);
-              const criteria   = AHP_CRITERIA.map((c, i) => ({ ...c, weight: result.weights[i] }));
-              const ranked     = topsis(alts, criteria).sort((a, b) => b.score - a.score);
-              const top        = ranked[0];
-              return {
-                key:          preset.key,
-                label:        preset.label,
-                supplierName: top?.name  ?? "—",
-                supplierId:   top?.alternativeId ?? "",
-                score:        top?.score ?? 0,
-              };
-            });
-            setPresetBests(bests);
-          } catch (e) {
-            console.error("PO Modal AHP rankings error:", e);
-          } finally {
-            setRankLoading(false);
-          }
-        })();
-      }
+      // ── Fetch AHP-TOPSIS rankings: now provided by the shared hook —
+      // No independent fetch or calculation on modal open.
 
       if (initialData) {
         // Normalize items and recompute tax_amount + subtotal so the grand total
@@ -1012,7 +837,7 @@ export default function PurchaseOrderFormModal({
               </div>
 
               {/* ── AHP-TOPSIS Supplier Recommendations (new PO only) ─────────── */}
-              {!isEdit && !rankLoading && presetBests.length > 0 && (
+              {!isEdit && !rankLoading && recommendationDataset && recommendationDataset.presets.length > 0 && (
                 <div className="rounded-xl border border-gold-200 bg-gradient-to-br from-gold-50 to-amber-50 p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-gold-400/20 flex items-center justify-center shrink-0">
@@ -1029,18 +854,20 @@ export default function PurchaseOrderFormModal({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {presetBests.map((p) => {
-                      const cfg = PRESET_ICONS[p.key] ?? PRESET_ICONS.balanced;
+                    {recommendationDataset.presets.map((preset) => {
+                      const top = preset.rankedSuppliers[0];
+                      const supplierId = top?.alternativeId ?? "";
+                      const cfg = PRESET_ICONS[preset.key] ?? PRESET_ICONS.balanced;
                       const Icon = cfg.icon;
-                      const isSelected = form.supplier_id === p.supplierId;
+                      const isSelected = form.supplier_id === supplierId;
                       return (
                         <button
-                          key={p.key}
+                          key={preset.key}
                           type="button"
                           onClick={() => {
-                            if (p.supplierId) {
-                              setField("supplier_id", p.supplierId);
-                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === p.supplierId));
+                            if (supplierId) {
+                              setField("supplier_id", supplierId);
+                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === supplierId));
                             }
                           }}
                           className={cn(
@@ -1055,14 +882,14 @@ export default function PurchaseOrderFormModal({
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={cn("text-[10px] uppercase tracking-widest font-bold truncate", isSelected ? "text-gold-700" : "text-slate-400")}>
-                              {p.label}
+                              {preset.label}
                             </p>
                             <p className={cn("text-[12px] font-semibold truncate leading-tight mt-0.5", isSelected ? "text-navy-900" : "text-slate-700")}>
-                              {p.supplierName}
+                              {top?.name ?? "—"}
                             </p>
                           </div>
                           <span className={cn("text-[10px] font-bold tabular-nums shrink-0", isSelected ? "text-gold-600" : "text-slate-400")}>
-                            {p.score.toFixed(3)}
+                            {(top?.score ?? 0).toFixed(3)}
                           </span>
                         </button>
                       );
