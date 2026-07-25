@@ -23,6 +23,7 @@ import * as XLSX from "xlsx-js-style";
 import {
   getPurchaseInvoices,
   getGoodsReceipts,
+  getPurchaseOrders,
   createPurchaseInvoice,
   updatePurchaseInvoice,
   deletePurchaseInvoice,
@@ -247,6 +248,9 @@ export default function PurchaseInvoicePage() {
   const [goodsReceipts, setGoodsReceipts] =
     useState<any[]>([]);
 
+  const [allPurchaseOrders, setAllPurchaseOrders] =
+    useState<any[]>([]);
+
   const [purchaseOrderDetails, setPurchaseOrderDetails] =
     useState<any[]>([]);
 
@@ -364,19 +368,33 @@ export default function PurchaseInvoicePage() {
     }
   };
 
-  const fetchGoodsReceipt = async () => {
+  const fetchGoodsReceipt = async (poList?: any[]) => {
     try {
       const res = await getGoodsReceipts();
       const list = Array.isArray(res) ? res : res.data;
-      // Enrich each GR with the linked PO's nomor_faktur_pajak so the
-      // invoice form modal can display it read-only after a GR is selected.
-      const enriched = list.map((gr: any) => ({
-        ...gr,
-        nomor_faktur_pajak:
-          gr.nomor_faktur_pajak ??
-          gr.purchase_order?.nomor_faktur_pajak ??
-          "",
-      }));
+      // Resolve po list: use the passed-in snapshot (from init) or fall back
+      // to whatever is already in state (for standalone re-fetches).
+      const pos = poList ?? allPurchaseOrders;
+      const enriched = list.map((gr: any) => {
+        const matchedPO = pos.find(
+          (po: any) => po.purchase_order_id === Number(gr.purchase_order_id)
+        );
+        return {
+          ...gr,
+          nomor_faktur_pajak:
+            gr.nomor_faktur_pajak ??
+            matchedPO?.nomor_faktur_pajak ??
+            "",
+          transaction_name:
+            matchedPO?.transaction_name ||
+            gr.transaction_name ||
+            "",
+          transaction_detail:
+            matchedPO?.transaction_detail ||
+            gr.transaction_detail ||
+            "",
+        };
+      });
       setGoodsReceipts(enriched);
     } catch (error) {
       console.error(error);
@@ -419,9 +437,20 @@ export default function PurchaseInvoicePage() {
       // by a previous payment. Runs silently — failures are non-fatal.
       try { await syncAllInvoiceStatuses(); } catch { /* ignore */ }
       fetchInvoices();
+
+      // Fetch POs first so the GR enrichment (transaction_name / nomor_faktur_pajak)
+      // has the PO list available when it runs.
+      try {
+        const poRes = await getPurchaseOrders();
+        const poList = Array.isArray(poRes) ? poRes : poRes.data ?? [];
+        setAllPurchaseOrders(poList);
+        await fetchGoodsReceipt(poList);
+      } catch (error) {
+        console.error(error);
+        fetchGoodsReceipt();
+      }
     };
     init();
-    fetchGoodsReceipt();
     fetchPurchaseOrderDetails();
     fetchProducts();
     fetchDownPayments();
@@ -646,23 +675,25 @@ export default function PurchaseInvoicePage() {
       Detail
     </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
+      {row.status !== "Paid" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
 
-          setSelectedInvoice(row);
+            setSelectedInvoice(row);
 
-          setSelectedStatus(
-            row.status
-          );
+            setSelectedStatus(
+              row.status
+            );
 
-          setOpenStatusModal(true);
+            setOpenStatusModal(true);
 
-        }}
-      >
-        Edit
-      </Button>
+          }}
+        >
+          Edit
+        </Button>
+      )}
 
       <Button
         variant="danger"

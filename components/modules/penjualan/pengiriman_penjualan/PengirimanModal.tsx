@@ -6,6 +6,7 @@ import {
   RefreshCw, PenLine, FileDown, Package, Trash2, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 import {
   type PengirimanFormData,
@@ -272,19 +273,19 @@ export function PengirimanModal({
   // ── Submit ───────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.customerId) {
-      alert("⚠️ Pelanggan wajib dipilih");
+      notify.warning("Pelanggan wajib dipilih");
       return;
     }
     if (!form.shippingTypeId) {
-      alert("⚠️ Tipe Pengiriman wajib dipilih");
+      notify.warning("Tipe Pengiriman wajib dipilih");
       return;
     }
     if (!form.noSuratJalan.trim()) {
-      alert("⚠️ No Surat Jalan wajib diisi");
+      notify.warning("No Surat Jalan wajib diisi");
       return;
     }
     if (form.items.length === 0) {
-      alert("⚠️ Tambahkan minimal 1 barang untuk dikirim");
+      notify.warning("Tambahkan minimal 1 barang untuk dikirim");
       return;
     }
     if (form.items.some((it) => !it.warehouseId)) {
@@ -316,7 +317,7 @@ export function PengirimanModal({
       onSubmit(savedForm);
     } catch (err: unknown) {
       console.error("❌ Gagal menyimpan pengiriman:", err);
-      alert("Gagal menyimpan data: " + getErrorMessage(err));
+      notify.error("Gagal menyimpan pengiriman", getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

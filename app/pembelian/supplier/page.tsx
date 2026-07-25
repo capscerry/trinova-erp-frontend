@@ -3,6 +3,8 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { notify } from "@/lib/notify";
 
 import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
 
@@ -113,6 +115,14 @@ export default function SupplierPage() {
       useState<File | null>(
         null
       );
+
+  // ─── Delete confirmation ─────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState<{
+    open: boolean;
+    id: string;
+    name: string;
+  }>({ open: false, id: "", name: "" });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [formData, setFormData] =
     useState({
@@ -272,9 +282,7 @@ export default function SupplierPage() {
             }
           );
 
-          alert(
-            "Supplier berhasil diupdate"
-          );
+          notify.success("Supplier berhasil diupdate");
 
         } else {
 
@@ -316,9 +324,7 @@ export default function SupplierPage() {
             );
           }
 
-          alert(
-            "Supplier berhasil ditambahkan"
-          );
+          notify.success("Supplier berhasil ditambahkan");
         }
 
         fetchSuppliers();
@@ -345,45 +351,31 @@ export default function SupplierPage() {
 
         console.error(err);
 
-        alert(
-          err.message ||
-          "Gagal simpan supplier"
-        );
+        notify.error("Gagal simpan supplier", err.message);
       }
     };
 
   // ─── Delete ─────────────────────────────────────────────────────────────────
 
-  const handleDelete =
-    async (id: string) => {
+  const handleDelete = (id: string) => {
+    const row = suppliers.find((s) => s.id === id);
+    setConfirmDelete({ open: true, id, name: row?.nama ?? id });
+  };
 
-      const confirmDelete =
-        confirm(
-          "Yakin ingin menghapus supplier ini?"
-        );
-
-      if (!confirmDelete)
-        return;
-
-      try {
-
-        await deleteSupplier(id);
-
-        alert(
-          "Supplier berhasil dihapus"
-        );
-
-        fetchSuppliers();
-
-      } catch (error) {
-
-        console.error(error);
-
-        alert(
-          "Gagal hapus supplier"
-        );
-      }
-    };
+  const executeDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await deleteSupplier(confirmDelete.id);
+      notify.success("Supplier berhasil dihapus");
+      fetchSuppliers();
+    } catch (error) {
+      console.error(error);
+      notify.error("Gagal hapus supplier");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete({ open: false, id: "", name: "" });
+    }
+  };
 
   // ─── Edit ───────────────────────────────────────────────────────────────────
 
@@ -507,6 +499,19 @@ export default function SupplierPage() {
 
           </div>
         )}
+      />
+
+      {/* ─── Confirm Delete ──────────────────────────────── */}
+
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus Supplier"
+        message={`Yakin ingin menghapus supplier "${confirmDelete.name}"?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deleteLoading}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete({ open: false, id: "", name: "" })}
       />
 
       {/* ─── Modal Form ───────────────────────────────────── */}

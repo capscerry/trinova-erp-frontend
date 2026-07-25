@@ -5,25 +5,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 
-function getRedirectPath(role: string) {
-  const normalizedRole = role.toLowerCase().trim();
-  console.log("User role:", role, "-> Normalized:", normalizedRole);
-  switch (normalizedRole) {
-    case "penjualan":
-      return "/penjualan";
-
-    case "pembelian":  
-      return "/pembelian";
-
-    // case "inventory":
-    case "persediaan":
-      return "/persediaan";
-
+function getRedirectPath(role: string): string {
+  switch (role) {
+    case "penjualan":   return "/penjualan";
+    case "pembelian":   return "/pembelian";
+    case "procurement_manager": return "/pembelian";
+    case "persediaan":  return "/persediaan";
     case "admin":
-      return "/dashboard";
-
-    default:
-      return "/dashboard";
+    default:            return "/dashboard";
   }
 }
 
@@ -50,11 +39,7 @@ export default function LoginPage() {
 
     try {
       const user = await login(email.trim(), password);
-
-      const redirectPath = getRedirectPath(user.role);
-
-      router.replace(redirectPath);
-      router.refresh();
+      router.replace(getRedirectPath(user.role));
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Email atau password salah.";

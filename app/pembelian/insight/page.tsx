@@ -190,9 +190,22 @@ function SpendBarChart({ data }: { data: SpendSummary["spendByMonth"] }) {
 }
 
 // ─── Supplier ranking table ───────────────────────────────────────────────────
+//
+// Single source of truth contract:
+//   • rank, score, and progress bar    → TopsisResult (from topsis() output)
+//   • contextual display columns       → SupplierScore lookup (invoice count,
+//     lead time, on-time rate, spend, orders) — never used for ranking
+//
+// No re-sorting or re-calculation happens inside this component.
 
-function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
-  if (scores.length === 0)
+function SupplierRankTable({
+  topsisResults,
+  statsMap,
+}: {
+  topsisResults: TopsisResult[];
+  statsMap: Map<number, SupplierScore>;
+}) {
+  if (topsisResults.length === 0)
     return <p className="text-[12px] text-slate-400 text-center py-8">Belum ada data supplier</p>;
 
   const fmtPct  = (v: number) => `${Math.round(v * 100)}%`;
@@ -201,6 +214,7 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
     v != null
       ? new Intl.NumberFormat("id-ID", { notation: "compact", compactDisplay: "short", maximumFractionDigits: 1 }).format(v)
       : "—";
+  const fmtInvoice = (n: number) => `${n} ${n === 1 ? "invoice" : "invoices"}`;
 
   return (
     <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
@@ -208,13 +222,13 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
         <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50 border-b border-slate-100">
             {[
-              { h: "#",                 tip: null },
-              { h: "Supplier",          tip: null },
-              { h: "Nilai Kecocokan",   tip: "Ci — seberapa dekat supplier ke kondisi ideal terbaik. Mendekati 1 = terbaik." },
-              { h: "Estimasi Pengiriman", tip: "Lead Time — rata-rata hari dari tanggal pesanan hingga barang diterima." },
-              { h: "Ketepatan Kirim",   tip: "On-Time Rate — persentase pengiriman yang tiba sesuai target waktu katalog." },
-              { h: "Total Pembelian",   tip: "Spend — total nilai Purchase Order yang ditempatkan ke supplier ini." },
-              { h: "Pesanan",           tip: "Order Count — jumlah Purchase Order historis." },
+              { h: "#",                   tip: null },
+              { h: "Supplier",            tip: null },
+              { h: "Skor TOPSIS",       tip: "Skor TOPSIS (Closeness Coefficient) — seberapa dekat supplier ke solusi ideal. Mendekati 1 = peringkat terbaik. Urutan ini adalah hasil langsung dari kalkulasi TOPSIS, bukan skor risiko." },
+              { h: "Estimasi Pengiriman", tip: "Lead Time — rata-rata hari aktual dari tanggal PO hingga GR diterima." },
+              { h: "Ketepatan Kirim",     tip: "On-Time Rate — proporsi GR yang tiba sesuai atau sebelum expected_date." },
+              { h: "Total Pembelian",     tip: "Spend — total nilai Purchase Order yang ditempatkan ke supplier ini." },
+              { h: "Pesanan",             tip: "Order Count — jumlah Purchase Order historis." },
             ].map(({ h, tip }) => (
               <th key={h} className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 font-serif whitespace-nowrap">
                 {tip ? <Tooltip term={h} label={tip} /> : h}
@@ -223,67 +237,102 @@ function SupplierRankTable({ scores }: { scores: SupplierScore[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {scores.map((s) => (
-            <tr key={s.supplierId}
-              className={cn("transition-colors", s.rank === 1 && "bg-gold-300/10", s.rank !== 1 && "hover:bg-slate-50")}
-            >
-              <td className="px-3 py-3">
-                {s.rank <= 3 ? (
-                  <span className={cn(
-                    "inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-extrabold",
-                    s.rank === 1 && "bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900",
-                    s.rank === 2 && "bg-slate-200 text-slate-600",
-                    s.rank === 3 && "bg-amber-100 text-amber-700",
-                  )}>{s.rank}</span>
-                ) : (
-                  <span className="text-slate-400 font-semibold">{s.rank}</span>
+          {/* topsisResults is already sorted rank-ascending by fetchRankings — no re-sort here */}
+          {topsisResults.map((r) => {
+            const sid   = Number(r.alternativeId);
+            const stats = statsMap.get(sid);
+
+            return (
+              <tr
+                key={r.alternativeId}
+                className={cn(
+                  "transition-colors",
+                  r.rank === 1 ? "bg-gold-300/10" : "hover:bg-slate-50",
                 )}
-              </td>
-              <td className="px-3 py-3">
-                <p className="font-semibold text-navy-900 font-serif">{s.supplierName}</p>
-                <p className="text-[10px] text-slate-400">{s.invoiceCount} invoice</p>
-              </td>
-              <td className="px-3 py-3">
-                <div className="flex items-center gap-2">
-                  <MiniBar value={s.ahpScore} max={1}
-                    color={s.ahpScore >= 0.6 ? "bg-green-500" : s.ahpScore >= 0.4 ? "bg-amber-400" : "bg-rose-400"} />
-                  <Tooltip
-                    term={s.ahpScore.toFixed(4)}
-                    label="Nilai Kecocokan (Ci) — mendekati 1 berarti supplier paling mendekati kondisi ideal di semua kriteria."
-                    className="tabular-nums font-bold text-slate-700 w-12 shrink-0"
-                  />
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <span className={cn(
-                  "font-semibold tabular-nums",
-                  s.avgLeadTimeDays == null ? "text-slate-400"
-                    : s.avgLeadTimeDays <= 7 ? "text-green-600"
-                    : s.avgLeadTimeDays <= 14 ? "text-amber-600"
-                    : "text-rose-600"
-                )}>
-                  {fmtDays(s.avgLeadTimeDays)}
-                </span>
-                {s.catalogLeadTime != null && (
+              >
+                {/* ── Rank: taken directly from TopsisResult.rank ── */}
+                <td className="px-3 py-3">
+                  {r.rank <= 3 ? (
+                    <span className={cn(
+                      "inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-extrabold",
+                      r.rank === 1 && "bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900",
+                      r.rank === 2 && "bg-slate-200 text-slate-600",
+                      r.rank === 3 && "bg-amber-100 text-amber-700",
+                    )}>{r.rank}</span>
+                  ) : (
+                    <span className="text-slate-400 font-semibold">{r.rank}</span>
+                  )}
+                </td>
+
+                {/* ── Name + invoice count ── */}
+                <td className="px-3 py-3">
+                  <p className="font-semibold text-navy-900 font-serif">{r.name}</p>
+                  {/* Invoice count from stats lookup — display-only, does not affect ranking */}
                   <p className="text-[10px] text-slate-400">
-                    <Tooltip term="katalog" label="Target Lead Time dari data katalog supplier (hari)." />: {s.catalogLeadTime}h
+                    {stats != null ? fmtInvoice(stats.invoiceCount) : "—"}
                   </p>
-                )}
-              </td>
-              <td className="px-3 py-3">
-                <span className={cn(
-                  "font-semibold",
-                  s.onTimeRate >= 0.8 ? "text-green-600" : s.onTimeRate >= 0.5 ? "text-amber-600" : "text-rose-500"
-                )}>
-                  {fmtPct(s.onTimeRate)}
-                </span>
-              </td>
-              <td className="px-3 py-3 tabular-nums text-slate-700 font-semibold">
-                Rp {fmtRp(s.totalSpend)}
-              </td>
-              <td className="px-3 py-3 tabular-nums text-slate-600">{s.orderCount}</td>
-            </tr>
-          ))}
+                </td>
+
+                {/* ── Score bar + numeric: both from TopsisResult.score ── */}
+                <td className="px-3 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-700",
+                          r.score >= 0.6 ? "bg-green-500" : r.score >= 0.4 ? "bg-amber-400" : "bg-rose-400",
+                        )}
+                        style={{ width: `${Math.round(r.score * 100)}%` }}
+                      />
+                    </div>
+                    <Tooltip
+                      term={r.score.toFixed(4)}
+                      label="Skor TOPSIS — mendekati 1 berarti supplier paling mendekati kondisi ideal di semua kriteria. Bukan skor risiko."
+                      className="tabular-nums font-bold text-slate-700 w-12 shrink-0 text-right"
+                    />
+                  </div>
+                </td>
+
+                {/* ── Contextual display columns — from stats lookup only ── */}
+                <td className="px-3 py-3">
+                  <span className={cn(
+                    "font-semibold tabular-nums",
+                    stats?.avgLeadTimeDays == null ? "text-slate-400"
+                      : stats.avgLeadTimeDays <= 7  ? "text-green-600"
+                      : stats.avgLeadTimeDays <= 14 ? "text-amber-600"
+                      : "text-rose-600",
+                  )}>
+                    {fmtDays(stats?.avgLeadTimeDays ?? null)}
+                  </span>
+                  {stats?.catalogLeadTime != null && (
+                    <p className="text-[10px] text-slate-400">
+                      <Tooltip term="katalog" label="Target Lead Time dari data katalog supplier (hari)." />
+                      : {stats.catalogLeadTime}h
+                    </p>
+                  )}
+                </td>
+
+                <td className="px-3 py-3">
+                  <span className={cn(
+                    "font-semibold",
+                    (stats?.onTimeRate ?? 0) >= 0.8 ? "text-green-600"
+                      : (stats?.onTimeRate ?? 0) >= 0.5 ? "text-amber-600"
+                      : "text-rose-500",
+                  )}>
+                    {stats != null ? fmtPct(stats.onTimeRate) : "—"}
+                  </span>
+                </td>
+
+                <td className="px-3 py-3 tabular-nums text-slate-700 font-semibold">
+                  {stats != null ? `Rp ${fmtRp(stats.totalSpend)}` : "—"}
+                </td>
+
+                <td className="px-3 py-3 tabular-nums text-slate-600">
+                  {stats?.orderCount ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -590,7 +639,7 @@ function AhpPresetTable({ preset, loading }: { preset: AhpPresetRanking; loading
         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-          <Tooltip term="Skor Ci" label="Closeness Coefficient (Ci) — mendekati 1 = paling dekat ke kondisi ideal di semua kriteria." />
+          <Tooltip term="Skor TOPSIS" label="Skor TOPSIS (Closeness Coefficient) — seberapa dekat supplier ke kondisi ideal. Mendekati 1 = peringkat terbaik." />
         </span>
       </div>
       {/* body */}
@@ -699,23 +748,55 @@ function PaymentGauge({ rate }: { rate: number }) {
 }
 
 // ─── AHP weight explanation panel ─────────────────────────────────────────────
+//
+// Criteria labels and types match AHP_CRITERIA exactly.
+// The ranking table above uses the "balanced" preset (equal ~20% weights).
 
 function AhpMethodNote() {
+  // These entries mirror AHP_CRITERIA — label, benefit flag, and description.
+  // Weights shown are the equal-weight "Seimbang" preset used in this table.
   const criteria = [
-    { label: "Estimasi Pengiriman", weight: "30%", type: "Diminimalkan", desc: "Rata-rata hari dari pemesanan hingga barang tiba" },
-    { label: "Ketepatan Kirim",     weight: "25%", type: "Menguntungkan", desc: "% pengiriman yang tiba sesuai jadwal" },
-    { label: "Harga",               weight: "20%", type: "Diminimalkan", desc: "Rata-rata harga katalog supplier" },
-    { label: "Porsi Pembelian",     weight: "15%", type: "Menguntungkan", desc: "Kontribusi supplier terhadap total pembelian" },
-    { label: "Jumlah Pesanan",      weight: "10%", type: "Menguntungkan", desc: "Volume transaksi historis" },
+    {
+      label: "Harga Rata-rata",
+      weight: "~20%",
+      benefit: false,
+      desc: "Rata-rata harga satuan dari katalog supplier — lebih rendah lebih baik",
+    },
+    {
+      label: "Lead Time",
+      weight: "~20%",
+      benefit: false,
+      desc: "Rata-rata hari aktual dari tanggal PO hingga GR diterima — lebih cepat lebih baik",
+    },
+    {
+      label: "On-Time Rate",
+      weight: "~20%",
+      benefit: true,
+      desc: "Proporsi GR yang tiba sebelum atau tepat pada expected_date — semakin tinggi semakin baik",
+    },
+    {
+      label: "Ketepatan Waktu",
+      weight: "~20%",
+      benefit: true,
+      desc: "Skor rata-rata ketepatan pengiriman berbobot: GR lebih awal menaikkan skor, terlambat menurunkan",
+    },
+    {
+      label: "Tingkat Retur",
+      weight: "~20%",
+      benefit: false,
+      desc: "Rasio retur terhadap total GR yang diterima — lebih sedikit retur lebih baik",
+    },
   ];
   return (
     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
       <div className="flex items-start gap-2 mb-3">
         <Info size={13} className="text-blue-400 mt-0.5 shrink-0" />
         <p className="text-[12px] text-blue-700 leading-relaxed">
-          Setiap supplier dinilai berdasarkan <strong>5 kriteria bisnis</strong> yang masing-masing
-          diberi bobot kepentingan. Supplier kemudian diranking dari yang paling sesuai hingga
-          yang paling tidak sesuai — nilai kecocokan mendekati 1 berarti performa terbaik.
+          Setiap supplier diranking berdasarkan <strong>5 kriteria AHP-TOPSIS</strong> dari data
+          transaksi ERP. Tabel ini menggunakan preset{" "}
+          <strong>Seimbang</strong> — semua kriteria berbobot setara (~20%).
+          <strong> Skor TOPSIS</strong> mendekati 1 berarti supplier paling sesuai di semua kriteria.
+          Ini adalah perankingan keseluruhan — berbeda dari prediksi risiko keterlambatan (ML).
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -724,8 +805,11 @@ function AhpMethodNote() {
             <span className="font-bold text-navy-900">{c.label}</span>
             <span className="text-slate-400 mx-1">·</span>
             <span className="font-bold text-blue-600">{c.weight}</span>
-            <span className={cn("ml-1 text-[10px] font-bold", c.type === "Menguntungkan" ? "text-green-600" : "text-rose-500")}>
-              ({c.type})
+            <span className={cn(
+              "ml-1 text-[10px] font-bold",
+              c.benefit ? "text-green-600" : "text-rose-500",
+            )}>
+              {c.benefit ? "(↑ Benefit)" : "(↓ Cost)"}
             </span>
             <p className="text-[10px] text-slate-400 mt-0.5">{c.desc}</p>
           </div>
@@ -836,13 +920,19 @@ export default function PurchasingInsightPage() {
       // ── Risk rows: sorted highest → lowest risk score ──────────────────
       if (riskRes.status === "fulfilled") {
         const rows: RiskRow[] = riskRes.value.results
-          .filter((v: BatchPredictItem) => v.supplier_id != null && v.supplier_id !== 0)
-          .map((v: BatchPredictItem) => ({
-            supplier_id:   Number(v.supplier_id),
-            supplier_name: v.supplier_name ?? nameMap.get(Number(v.supplier_id)) ?? `Supplier ${v.supplier_id}`,
-            risk_score:    Number(v.delay_probability ?? 0),
-            risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
-          }))
+          .filter((v: BatchPredictItem) => {
+            const sid = Number(v.supplier_id);
+            return sid !== 0 && nameMap.has(sid);
+          })
+          .map((v: BatchPredictItem) => {
+            const sid = Number(v.supplier_id);
+            return {
+              supplier_id:   sid,
+              supplier_name: nameMap.get(sid) ?? v.supplier_name ?? `Supplier ${sid}`,
+              risk_score:    Number(v.delay_probability ?? 0),
+              risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
+            };
+          })
           .sort((a: RiskRow, b: RiskRow) => b.risk_score - a.risk_score);
         setRiskRows(rows);
       }
@@ -935,7 +1025,7 @@ export default function PurchasingInsightPage() {
             <div className="flex items-center gap-2 mb-3">
               <Trophy size={11} className="text-gold-400" />
               <h2 className="text-[11px] font-bold uppercase tracking-widest text-gold-400">
-                Skor AHP + TOPSIS — Supplier Terbaik Per Prioritas
+                Perankingan TOPSIS — Supplier Terbaik Per Prioritas
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -969,7 +1059,7 @@ export default function PurchasingInsightPage() {
                           {best.score.toFixed(4)}
                         </span>
                       </div>
-                      <span className="text-[9px] text-slate-400">Ci Score</span>
+                      <span className="text-[9px] text-slate-400">Skor TOPSIS</span>
                     </div>
                   </div>
                 );
@@ -1026,16 +1116,24 @@ export default function PurchasingInsightPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
-        <SectionTitle icon={Brain} label="AI Risk Model Metrics" sub="Prediksi risiko supplier berbasis XGBoost" />
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-[12px] text-blue-700">
-          <Info size={13} className="text-blue-400 shrink-0" />
-          <span>
-            Prediksi risiko dan metrik model tersedia di halaman{" "}
-            <Link href="/rekomendasi" className="font-bold underline underline-offset-2 hover:text-blue-900 inline-flex items-center gap-1">
-              Rekomendasi Supplier <ArrowRight size={11} />
-            </Link>
-            {" "}— tab <strong>XGBoost Risk</strong>.
-          </span>
+        <SectionTitle icon={Brain} label="Prediksi Risiko ML" sub="Probabilitas keterlambatan pengiriman per supplier — XGBoost" />
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-[12px] text-blue-700">
+          <Info size={13} className="text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p>
+              <strong>Prediksi Risiko ML</strong> memprediksi kemungkinan keterlambatan pengiriman setiap supplier
+              menggunakan model XGBoost yang dilatih dari data ERP historis.
+              Hasilnya ditampilkan sebagai <strong>Delay Probability</strong> (0–100%) dan <strong>Risk Level</strong>.
+            </p>
+            <p>
+              Detail prediksi, metrik akurasi model (Accuracy, Precision, Recall, F1, ROC AUC), dan atribusi fitur (SHAP)
+              tersedia di halaman{" "}
+              <Link href="/rekomendasi" className="font-bold underline underline-offset-2 hover:text-blue-900 inline-flex items-center gap-1">
+                Rekomendasi Supplier <ArrowRight size={11} />
+              </Link>
+              {" "}— tab <strong>Prediksi Risiko ML</strong>.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1156,48 +1254,73 @@ export default function PurchasingInsightPage() {
 
         {/* Best supplier highlight */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <SectionTitle icon={Trophy} label="Top Supplier" sub="Berdasarkan nilai kecocokan tertinggi" />
-          {loading ? <SkeletonBlock h="h-48" /> : supplierScores.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {supplierScores.slice(0, 3).map((s) => (
-                <div key={s.supplierId} className={cn(
-                  "rounded-xl border p-4",
-                  s.rank === 1 ? "bg-gradient-to-br from-navy-900 to-navy-700 border-navy-600" : "bg-slate-50 border-slate-100"
-                )}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className={cn(
-                          "inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold shrink-0",
-                          s.rank === 1 ? "bg-gold-400 text-navy-900" : "bg-slate-200 text-slate-600"
-                        )}>{s.rank}</span>
-                        <p className={cn("font-bold font-serif text-[13px] truncate", s.rank === 1 ? "text-white" : "text-navy-900")}>
-                          {s.supplierName}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold",
-                          s.rank === 1 ? "bg-white/10 text-gold-400" : "bg-slate-100 text-slate-500")}>
-                          <Tooltip
-                            term={`Kecocokan ${s.ahpScore.toFixed(3)}`}
-                            label="Nilai Kecocokan (Ci) — mendekati 1 berarti supplier paling sesuai di semua kriteria."
-                          />
-                        </span>
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold",
-                          s.rank === 1 ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-500")}>
-                          {s.avgLeadTimeDays != null ? `${s.avgLeadTimeDays}h lead` : "—"}
-                        </span>
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold",
-                          s.rank === 1 ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-500")}>
-                          {Math.round(s.onTimeRate * 100)}% on-time
-                        </span>
+          <SectionTitle icon={Trophy} label="Top Supplier" sub="Perankingan TOPSIS Seimbang — skor tertinggi di semua kriteria" />
+          {rankLoading ? <SkeletonBlock h="h-48" /> : (() => {
+            // Use the balanced preset (index 0) as the single ranking source.
+            // Display stats (lead time, on-time) come from supplierScores lookup — display-only.
+            const balancedResults = ahpRankings[0]?.results ?? [];
+            const top3 = balancedResults.slice(0, 3);
+            if (top3.length === 0)
+              return <p className="text-[12px] text-slate-400 text-center py-8">Belum ada skor</p>;
+            const statsMap = new Map(supplierScores.map((s) => [s.supplierId, s]));
+            return (
+              <div className="flex flex-col gap-3">
+                {top3.map((r) => {
+                  const stats = statsMap.get(Number(r.alternativeId));
+                  return (
+                    <div key={r.alternativeId} className={cn(
+                      "rounded-xl border p-4",
+                      r.rank === 1
+                        ? "bg-gradient-to-br from-navy-900 to-navy-700 border-navy-600"
+                        : "bg-slate-50 border-slate-100",
+                    )}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className={cn(
+                            "inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-extrabold shrink-0",
+                            r.rank === 1 ? "bg-gold-400 text-navy-900" : "bg-slate-200 text-slate-600",
+                          )}>
+                            {r.rank}
+                          </span>
+                          <p className={cn(
+                            "font-bold font-serif text-[13px] truncate",
+                            r.rank === 1 ? "text-white" : "text-navy-900",
+                          )}>
+                            {r.name}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {/* Score badge — source of truth: TopsisResult.score */}
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full font-semibold",
+                            r.rank === 1 ? "bg-white/10 text-gold-400" : "bg-slate-100 text-slate-500",
+                          )}>
+                            <Tooltip
+                              term={`TOPSIS ${r.score.toFixed(4)}`}
+                              label="Skor TOPSIS dari preset Seimbang — mendekati 1 berarti supplier paling sesuai di semua kriteria."
+                            />
+                          </span>
+                          {/* Contextual stats — display-only, from supplierScores */}
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full font-semibold",
+                            r.rank === 1 ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-500",
+                          )}>
+                            {stats?.avgLeadTimeDays != null ? `${stats.avgLeadTimeDays}h lead` : "—"}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full font-semibold",
+                            r.rank === 1 ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-500",
+                          )}>
+                            {stats != null ? `${Math.round(stats.onTimeRate * 100)}% on-time` : "—"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="text-[12px] text-slate-400 text-center py-8">Belum ada skor</p>}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -1205,12 +1328,26 @@ export default function PurchasingInsightPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
         <div className="flex items-start justify-between gap-4 mb-4">
           <SectionTitle icon={Brain}
-            label="Penilaian Supplier"
-            sub="Semua supplier diranking berdasarkan 5 kriteria terbobot" />
+            label="Perankingan Supplier"
+            sub="Diranking oleh AHP-TOPSIS Seimbang — 5 kriteria, bobot setara ~20%" />
         </div>
         <AhpMethodNote />
         <div className="mt-4">
-          {loading ? <SkeletonBlock h="h-64" /> : <SupplierRankTable scores={supplierScores} />}
+          {rankLoading ? (
+            <SkeletonBlock h="h-64" />
+          ) : (() => {
+            // Single source of truth: balanced preset TOPSIS output (ahpRankings[0]).
+            // Results are already sorted rank-ascending (score descending) by fetchRankings.
+            const balancedResults = ahpRankings[0]?.results ?? [];
+            // statsMap provides display-only contextual columns — never used for ranking.
+            const statsMap = new Map(supplierScores.map((s) => [s.supplierId, s]));
+            return (
+              <SupplierRankTable
+                topsisResults={balancedResults}
+                statsMap={statsMap}
+              />
+            );
+          })()}
         </div>
       </div>
 

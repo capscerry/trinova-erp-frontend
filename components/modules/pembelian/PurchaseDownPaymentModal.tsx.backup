@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { X, Truck, ArrowRight } from "lucide-react";
@@ -417,7 +417,7 @@ export default function PurchaseDownPaymentModal({
             "
           >
 
-            {isSubmitted && onNavigateToGR ? (
+            {isSubmitted && !isEdit && onNavigateToGR ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Lanjutkan Ke

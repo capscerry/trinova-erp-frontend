@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, User, Landmark, Calendar, Hash, FileText, RefreshCw, PenLine } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 import {
   type PenerimaanFormData,
@@ -178,7 +179,7 @@ export function PenerimaanModal({
       setShowInvoicePicker(true);
     } catch (err) {
       console.error("Gagal memuat faktur penjualan:", err);
-      alert("Gagal memuat faktur penjualan");
+      notify.error("Gagal memuat faktur penjualan");
     } finally {
       setLoadingInvoices(false);
     }
@@ -242,19 +243,19 @@ export function PenerimaanModal({
   // ── Submit ─────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.customerId) {
-      alert("⚠️ Pelanggan (Terima dari) wajib dipilih");
+      notify.warning("Pelanggan (Terima dari) wajib dipilih");
       return;
     }
     if (!form.bankId) {
-      alert("⚠️ Bank wajib dipilih");
+      notify.warning("Bank wajib dipilih");
       return;
     }
     if (!form.nilaiPembayaran || form.nilaiPembayaran <= 0) {
-      alert("⚠️ Nilai pembayaran wajib diisi");
+      notify.warning("Nilai pembayaran wajib diisi");
       return;
     }
     if (!form.noBukti.trim()) {
-      alert("⚠️ No Bukti wajib diisi");
+      notify.warning("No Bukti wajib diisi");
       return;
     }
 
@@ -287,9 +288,7 @@ export function PenerimaanModal({
           : err instanceof Error
             ? err.message
             : "Terjadi kesalahan";
-      alert(
-        "Gagal menyimpan data: " + message
-      );
+      notify.error("Gagal menyimpan penerimaan penjualan", message);
     } finally {
       setIsSubmitting(false);
     }
