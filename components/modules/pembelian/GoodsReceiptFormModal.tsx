@@ -25,6 +25,7 @@ interface PurchaseOrder {
   expected_date?: string | null;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetail {
@@ -33,6 +34,9 @@ interface PurchaseOrderDetail {
   quantity: number;
   price: number;
   subtotal: number;
+  product?: {
+    product_name: string;
+  };
 }
 
 export interface GoodsReceiptFormData {
@@ -196,7 +200,7 @@ export default function GoodsReceiptFormModal({
     (a, b) => b.purchase_order_id - a.purchase_order_id
   );
 
-  // ── On-time indicator derived from receipt_date vs expected_date ──
+  // -- On-time indicator derived from receipt_date vs expected_date --
   type OnTimeStatus = "on_time" | "late" | "unknown";
   const onTimeStatus: OnTimeStatus = (() => {
     if (!selectedExpectedDate || !form.receipt_date) return "unknown";
@@ -307,6 +311,7 @@ export default function GoodsReceiptFormModal({
                 <FormField
                   label="Tanggal Terima"
                   icon={<Calendar size={13} />}
+                  required
                 >
 
                   <input
@@ -325,7 +330,7 @@ export default function GoodsReceiptFormModal({
 
               </div>
 
-              {/* Tanggal Ekspektasi reference — shown once a PO is selected */}
+              {/* Tanggal Ekspektasi reference - shown once a PO is selected */}
               {selectedExpectedDate && (
                 <div className={cn(
                   "rounded-xl border px-4 py-3 flex items-start gap-3",
@@ -363,8 +368,8 @@ export default function GoodsReceiptFormModal({
                         onTimeStatus === "on_time" ? "text-emerald-600" : "text-rose-500"
                       )}>
                         {onTimeStatus === "on_time"
-                          ? "Penerimaan tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
-                          : "Penerimaan terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                          ? "Penerimaan tepat waktu - akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                          : "Penerimaan terlambat - akan dicatat sebagai late di scoring AHP-TOPSIS"}
                       </p>
                     )}
                   </div>
@@ -374,6 +379,7 @@ export default function GoodsReceiptFormModal({
               <FormField
                 label="Purchase Order"
                 icon={<Package size={13} />}
+                required
               >
 
                 <select
@@ -409,6 +415,7 @@ export default function GoodsReceiptFormModal({
               <FormField
                 label="Received By"
                 icon={<User size={13} />}
+                required
               >
 
                 <input
@@ -497,6 +504,23 @@ export default function GoodsReceiptFormModal({
                 </div>
               )}
 
+              {/* Nomor Faktur Pajak - read-only, carried from the selected PO */}
+              {(() => {
+                const selPO = purchaseOrders.find(
+                  (po) => String(po.purchase_order_id) === form.purchase_order_id
+                );
+                return selPO?.nomor_faktur_pajak ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Nomor Faktur Pajak (dari PO)
+                    </p>
+                    <p className="font-mono font-semibold text-sm text-slate-700">
+                      {selPO.nomor_faktur_pajak}
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+
             </Section>
 
             {/* DETAIL */}
@@ -515,6 +539,7 @@ export default function GoodsReceiptFormModal({
 
                         {[
                           "Product ID",
+                          "Product Name",
                           "Qty",
                           "Price",
                           "Subtotal",
@@ -548,7 +573,7 @@ export default function GoodsReceiptFormModal({
                         <tr>
 
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className="
                               px-4
                               py-8
@@ -575,6 +600,10 @@ export default function GoodsReceiptFormModal({
 
                             <td className="px-3 py-3">
                               {item.product_id}
+                            </td>
+
+                            <td className="px-3 py-3 text-slate-700">
+                              {item.product?.product_name ?? "-"}
                             </td>
 
                             <td className="px-3 py-3">
@@ -692,9 +721,9 @@ export default function GoodsReceiptFormModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // SECTION
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function Section({
   title,
@@ -724,17 +753,19 @@ function Section({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // FORM FIELD
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function FormField({
   label,
   icon,
+  required,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -751,6 +782,7 @@ function FormField({
         )}
 
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
 
       </label>
 
@@ -760,9 +792,9 @@ function FormField({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // STYLE
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const inputBase = `
   w-full

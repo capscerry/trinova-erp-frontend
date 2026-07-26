@@ -16,9 +16,9 @@ import {
 import * as XLSX from "xlsx-js-style";
 import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // TYPES
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 interface PurchaseInvoice {
   id: string;
@@ -33,6 +33,7 @@ interface PurchaseInvoice {
   outstanding_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface Payment {
@@ -66,9 +67,9 @@ interface PurchaseInvoiceDetailModalProps {
   downPayments?: any[];
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // HELPERS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const formatDate = (d: string) =>
   new Intl.DateTimeFormat("id-ID", {
@@ -104,9 +105,9 @@ const STATUS_STYLE: Record<string, string> = {
   Cancelled: "bg-rose-50 text-rose-600 border border-rose-200",
 };
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // COMPONENT
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 export default function PurchaseInvoiceDetailModal({
   open,
@@ -147,7 +148,7 @@ export default function PurchaseInvoiceDetailModal({
 
   if (!open || !invoice) return null;
 
-  // ── Resolve the PO ID for this invoice via goods_receipt ──
+  // -- Resolve the PO ID for this invoice via goods_receipt --
   const inv = invoice as any;
   let poId: number | null = inv.purchase_order_id ? Number(inv.purchase_order_id) : null;
   if (!poId && inv.goods_receipt_id) {
@@ -157,7 +158,7 @@ export default function PurchaseInvoiceDetailModal({
     poId = matchedGR ? Number(matchedGR.purchase_order_id ?? null) : null;
   }
 
-  // ── Filter down payments that belong to this invoice's PO ──
+  // -- Filter down payments that belong to this invoice's PO --
   const invoiceDPs: DownPayment[] = poId
     ? downPayments.filter(
         (dp: any) => Number(dp.purchase_order_id) === poId
@@ -184,13 +185,13 @@ export default function PurchaseInvoiceDetailModal({
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // ── Resolve line items: PO details joined with products by product_id ──
+    // -- Resolve line items: PO details joined with products by product_id --
     const inv = invoice as any;
 
     // Strategy 1: invoice carries purchase_order_id directly
     let poId: number | null = inv.purchase_order_id ? Number(inv.purchase_order_id) : null;
 
-    // Strategy 2: invoice → GR lookup via goods_receipt_id
+    // Strategy 2: invoice - GR lookup via goods_receipt_id
     if (!poId && inv.goods_receipt_id) {
       const matchedGR = goodsReceipts.find(
         (gr: any) => Number(gr.goods_receipt_id ?? gr.id) === Number(inv.goods_receipt_id)
@@ -223,7 +224,7 @@ export default function PurchaseInvoiceDetailModal({
             })
         : [];
 
-    // ── Shared styles ─────────────────────────────────────────────────────
+    // -- Shared styles -----------------------------------------------------
     const ALL_MED  = { top: { style: "medium" }, bottom: { style: "medium" }, left: { style: "medium" }, right: { style: "medium" } };
     const ALL_THIN = { top: { style: "thin"   }, bottom: { style: "thin"   }, left: { style: "thin"   }, right: { style: "thin"   } };
 
@@ -367,7 +368,7 @@ export default function PurchaseInvoiceDetailModal({
     const firstPayment = payments[0];
     const paymentNoValue = firstPayment?.payment_number
       ? formatPAYNumber(firstPayment.payment_number)
-      : "—";
+      : "-";
     ws[C(r, 0)] = { v: paymentNoValue,                    t: "s", s: sCell };
     ws[C(r, 1)] = { v: formatDate(invoice.invoice_date),  t: "s", s: sCell };
     ws[C(r, 2)] = { v: invoice.status,                    t: "s", s: sCell };
@@ -503,7 +504,7 @@ export default function PurchaseInvoiceDetailModal({
 
           <div className="overflow-y-auto flex-1 p-6 space-y-6">
 
-            {/* ── INVOICE INFO GRID ── */}
+            {/* -- INVOICE INFO GRID -- */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
                 Informasi Invoice
@@ -513,10 +514,19 @@ export default function PurchaseInvoiceDetailModal({
                 <InfoCard icon={<Calendar size={13} />}    label="Invoice Date"   value={formatDate(invoice.invoice_date)} />
                 <InfoCard icon={<Building2 size={13} />}   label="Supplier"       value={invoice.supplier_name} />
                 <InfoCard icon={<Hash size={13} />}        label="Umur (Hari)"    value={String(invoice.age)} />
+                {invoice.nomor_faktur_pajak && (
+                  <div className="col-span-2">
+                    <InfoCard
+                      icon={<Hash size={13} />}
+                      label="Nomor Faktur Pajak"
+                      value={invoice.nomor_faktur_pajak}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* ── STATUS BADGE ── */}
+            {/* -- STATUS BADGE -- */}
             {(() => {
               const liveStatus =
                 invoice.status === "Cancelled"
@@ -539,7 +549,7 @@ export default function PurchaseInvoiceDetailModal({
               );
             })()}
 
-            {/* ── PAYMENT SUMMARY CARDS ── */}
+            {/* -- PAYMENT SUMMARY CARDS -- */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
                 Ringkasan Pembayaran
@@ -552,7 +562,7 @@ export default function PurchaseInvoiceDetailModal({
               </div>
             </div>
 
-            {/* ── DOWN PAYMENT HISTORY ── */}
+            {/* -- DOWN PAYMENT HISTORY -- */}
             {invoiceDPs.length > 0 && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
@@ -586,15 +596,15 @@ export default function PurchaseInvoiceDetailModal({
                           className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
                         >
                           <td className="px-4 py-3 font-mono font-semibold text-navy-700">
-                            {dp.dp_number ?? "—"}
+                            {dp.dp_number ?? "-"}
                           </td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                            {dp.payment_date ? formatDate(dp.payment_date) : "—"}
+                            {dp.payment_date ? formatDate(dp.payment_date) : "-"}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             <span className="inline-flex items-center gap-1">
                               <ArrowDownCircle size={11} className="text-slate-400" />
-                              {dp.payment_type ?? "—"}
+                              {dp.payment_type ?? "-"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-700">
@@ -604,7 +614,7 @@ export default function PurchaseInvoiceDetailModal({
                             <span
                               className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLE[dp.status ?? ""] ?? "bg-slate-100 text-slate-600"}`}
                             >
-                              {dp.status ?? "—"}
+                              {dp.status ?? "-"}
                             </span>
                           </td>
                         </tr>
@@ -626,7 +636,7 @@ export default function PurchaseInvoiceDetailModal({
               </div>
             )}
 
-            {/* ── PAYMENT HISTORY ── */}
+            {/* -- PAYMENT HISTORY -- */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
                 Riwayat Pembayaran
@@ -670,15 +680,15 @@ export default function PurchaseInvoiceDetailModal({
                           className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
                         >
                           <td className="px-4 py-3 font-mono font-semibold text-navy-700">
-                            {p.payment_number ? formatPAYNumber(p.payment_number) : "—"}
+                            {p.payment_number ? formatPAYNumber(p.payment_number) : "-"}
                           </td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                            {p.payment_date ? formatDate(p.payment_date) : "—"}
+                            {p.payment_date ? formatDate(p.payment_date) : "-"}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             <span className="inline-flex items-center gap-1">
                               <CreditCard size={11} className="text-slate-400" />
-                              {p.payment_method ?? "—"}
+                              {p.payment_method ?? "-"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-700">
@@ -710,7 +720,7 @@ export default function PurchaseInvoiceDetailModal({
                     </tfoot>
                   </table>
 
-                  {/* NOTES — shown if any payment has notes */}
+                  {/* NOTES - shown if any payment has notes */}
                   {payments.some(p => p.notes?.trim()) && (
                     <div className="border-t border-slate-200 px-4 py-3 space-y-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Catatan</p>
@@ -728,7 +738,7 @@ export default function PurchaseInvoiceDetailModal({
               )}
             </div>
 
-            {/* ── TRANSACTION INFO ── */}
+            {/* -- TRANSACTION INFO -- */}
             {(invoice.transaction_name || invoice.transaction_detail) && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">
@@ -782,9 +792,9 @@ export default function PurchaseInvoiceDetailModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function InfoCard({
   icon,

@@ -40,6 +40,7 @@ function getRedirectPath(role: AuthUser["role"]) {
     case "penjualan":
       return "/penjualan";
     case "pembelian":
+    case "procurement_manager":
       return "/pembelian";
     case "persediaan":
       return "/persediaan";
@@ -50,14 +51,14 @@ function getRedirectPath(role: AuthUser["role"]) {
 }
 
 function getAllowedRolesForPath(pathname: string): Role[] {
-  if (pathname === "/login") return ["admin", "penjualan", "pembelian", "persediaan"];
+  if (pathname === "/login") return ["admin", "penjualan", "pembelian", "persediaan", "procurement_manager"];
   if (pathname === "/dashboard") return ["admin"];
   if (pathname.startsWith("/user")) return ["admin"];
   if (pathname.startsWith("/penjualan")) return ["admin", "penjualan"];
-  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian"];
+  if (pathname.startsWith("/pembelian")) return ["admin", "pembelian", "procurement_manager"];
   if (pathname.startsWith("/persediaan")) return ["admin", "persediaan"];
 
-  return ["admin", "penjualan", "pembelian", "persediaan"];
+  return ["admin", "penjualan", "pembelian", "persediaan", "procurement_manager"];
 }
 
 function canAccessPath(role: Role, pathname: string) {

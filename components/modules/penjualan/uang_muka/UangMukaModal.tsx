@@ -26,6 +26,8 @@ import {
   generateAutoFaktur,
   todayStr,
 } from "@/components/modules/penjualan/uang_muka/UangMukaType";
+
+export type { UangMukaFormData };
 import { SalesOrderPickerModal } from "@/components/modules/penjualan/SalesOrderPickerModal";
 
 type UangMukaInitialData = Partial<UangMukaFormData> & {
@@ -979,11 +981,13 @@ function FormField({
   label,
   icon,
   required,
+  hint,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -992,6 +996,7 @@ function FormField({
         {icon && <span className="text-slate-400">{icon}</span>}
         {label}
         {required && <span className="text-red-400 font-bold">*</span>}
+        {hint && <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-slate-400">{hint}</span>}
       </label>
       {children}
     </div>

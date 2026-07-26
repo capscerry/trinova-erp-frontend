@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,6 @@ import * as XLSX from "xlsx-js-style";
 import PurchaseReturnFormModal, {
   type PurchaseReturnFormData,
   type GoodsReceiptOption as FormGROption,
-  type PODetailItem,
   type ReturnLineItem,
 } from "@/components/modules/pembelian/PurchaseReturnFormModal";
 
@@ -26,10 +25,10 @@ import PurchaseReturnSettlementModal, {
 
 import PurchaseReturnDetailModal from "@/components/modules/pembelian/PurchaseReturnDetailModal";
 
-import { getGoodsReceipts } from "@/lib/services/gr.service";
+import { getGoodsReceiptsForReturn, getAvailableReturnDetails } from "@/lib/services/gr.service";
 import { getPurchaseOrders, getPurchaseOrderDetails } from "@/lib/services/po.service";
+import { getProducts } from "@/lib/services/product.service";
 import { getPurchaseInvoices, getUnpaidInvoicesForReturn } from "@/lib/services/purchase-invoice.service";
-import { restoreStock } from "@/lib/services/supplier-product.service";
 import {
   getPurchaseReturns,
   getNextReturnNumber,
@@ -43,6 +42,16 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface GoodsReceiptOption extends FormGROption {}
+
+/** PO detail line — used locally for unit_price resolution and settlement fallback */
+interface PODetailItem {
+  purchase_order_id: number;
+  product_id: number;
+  product_name?: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+}
 
 interface PurchaseReturn {
   purchase_return_id: number;
@@ -59,6 +68,7 @@ interface PurchaseReturn {
   notes: string;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +153,12 @@ export default function PurchaseReturnsPage() {
   const [settlementReturnItems, setSettlementReturnItems] = useState<ReturnLineItem[]>([]);
   const [detailTarget, setDetailTarget] = useState<PurchaseReturn | null>(null);
 
+  // ── Confirm delete dialog ──────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({
+    open: false, row: null,
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadReturns = async () => {
@@ -164,6 +180,7 @@ export default function PurchaseReturnsPage() {
         notes:                  item.notes ?? "",
         transaction_name:       item.transaction_name ?? "",
         transaction_detail:     item.transaction_detail ?? "",
+        nomor_faktur_pajak:     item.nomor_faktur_pajak ?? "",
       })));
     } catch {
       notify.error("Gagal memuat daftar Purchase Returns.");
@@ -177,7 +194,9 @@ export default function PurchaseReturnsPage() {
 
   const loadGoodsReceipts = async () => {
     try {
-      const res = await getGoodsReceipts();
+      // Only load GRs that have at least one line with remaining_qty > 0
+      // so exhausted GRs never appear in the Purchase Return creation form.
+      const res = await getGoodsReceiptsForReturn();
       const list = Array.isArray(res) ? res : res.data;
       setGoodsReceipts(list.map((item: any) => ({
         goods_receipt_id:      item.goods_receipt_id,
@@ -187,6 +206,7 @@ export default function PurchaseReturnsPage() {
         supplier_name:         item.purchase_order?.supplier?.supplier_name ?? item.supplier_name ?? "",
         purchase_order_number: item.purchase_order?.po_number ?? item.po_number ?? item.purchase_order_number ?? "",
         total_amount:          item.total_amount ?? item.total ?? 0,
+        nomor_faktur_pajak:    item.nomor_faktur_pajak ?? item.purchase_order?.nomor_faktur_pajak ?? "",
       })));
     } catch {
       notify.error("Gagal memuat data Goods Receipt.");
@@ -244,16 +264,32 @@ export default function PurchaseReturnsPage() {
 
   const loadPODetails = async () => {
     try {
+      // Build product_id → product_name map from master products first
+      let productNameMap: Record<number, string> = {};
+      try {
+        const products: any[] = await getProducts();
+        products.forEach((p: any) => {
+          productNameMap[Number(p.product_id ?? p.id)] = p.product_name ?? p.name ?? "";
+        });
+      } catch { /* non-fatal — names will fall back gracefully */ }
+
       const res = await getPurchaseOrderDetails();
       const list = Array.isArray(res) ? res : (res.data ?? []);
-      setPODetails(list.map((item: any) => ({
-        purchase_order_id: Number(item.purchase_order_id),
-        product_id:        Number(item.product_id),
-        product_name:      item.product?.product_name ?? item.product_name ?? undefined,
-        quantity:          Number(item.quantity ?? 0),
-        price:             Number(item.price ?? 0),
-        subtotal:          Number(item.subtotal ?? 0),
-      })));
+      setPODetails(list.map((item: any) => {
+        const resolvedName =
+          productNameMap[Number(item.product_id)] ??
+          item.product?.product_name ??
+          item.product_name ??
+          undefined;
+        return {
+          purchase_order_id: Number(item.purchase_order_id),
+          product_id:        Number(item.product_id),
+          product_name:      resolvedName,
+          quantity:          Number(item.quantity ?? 0),
+          price:             Number(item.price ?? 0),
+          subtotal:          Number(item.subtotal ?? 0),
+        };
+      }));
     } catch { /* non-fatal */ }
   };
 
@@ -265,6 +301,42 @@ export default function PurchaseReturnsPage() {
     loadPurchaseInvoices();
     loadPODetails();
   }, []);
+
+  // ── onLoadReturnItems — called by PurchaseReturnFormModal when user picks a GR
+
+  /**
+   * Fetches only the detail lines where remaining_qty > 0 for the selected GR,
+   * then resolves unit_price from the already-loaded poDetails.
+   * Returned items drive the product table in the creation form.
+   */
+  const handleLoadReturnItems = async (grId: number): Promise<ReturnLineItem[]> => {
+    try {
+      const res = await getAvailableReturnDetails(grId);
+      const lines: any[] = Array.isArray(res) ? res : (res.data ?? []);
+
+      return lines.map((line: any) => {
+        // Look up unit price from poDetails — match by product_id across all POs
+        // (the GR was created from one PO so the first match is always correct)
+        const poLine = poDetails.find(
+          (d) => Number(d.product_id) === Number(line.product_id)
+        );
+        const unitPrice = poLine?.price ?? 0;
+
+        return {
+          product_id:    Number(line.product_id),
+          product_name:  line.product_name ?? `Produk #${line.product_id}`,
+          qty_available: Number(line.quantity),       // original received qty
+          remaining_qty: Number(line.remaining_qty),  // max the user can return
+          qty_return:    0,
+          unit_price:    unitPrice,
+          subtotal:      0,
+        } satisfies ReturnLineItem;
+      });
+    } catch {
+      notify.error("Gagal memuat detail produk Goods Receipt.");
+      return [];
+    }
+  };
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
@@ -284,6 +356,7 @@ export default function PurchaseReturnsPage() {
       notify.success("Purchase Return berhasil dibuat.");
       await loadReturns();
       await loadNextNumber();
+      await loadGoodsReceipts(); // refresh so exhausted GRs disappear from the picker
     } catch (err: any) {
       // Surface the backend's specific validation message when available
       const serverMsg: string | undefined =
@@ -293,47 +366,26 @@ export default function PurchaseReturnsPage() {
       notify.error(serverMsg ?? "Gagal membuat Purchase Return.");
       return;
     }
-
-    // Restore stock for the specifically returned items
-    try {
-      const returnedItems = data.return_items ?? [];
-      if (returnedItems.length === 0) return;
-
-      const supplierId = Number(data.supplier_id ?? 0);
-
-      const errors: string[] = [];
-      for (const item of returnedItems) {
-        if (!item.product_id) {
-          errors.push(`Skipped item with missing product ID`);
-          continue;
-        }
-        try {
-          await restoreStock(item.product_id, supplierId, item.qty_return);
-        } catch (e: any) {
-          errors.push(`Product ID ${item.product_id}: ${e?.response?.data?.message ?? e?.message ?? "gagal"}`);
-        }
-      }
-
-      if (errors.length > 0) {
-        notify.warning(`Return dicatat, tetapi ${errors.length} item stok gagal dipulihkan.`);
-        console.warn("[retur] stock restore errors:", errors);
-      }
-    } catch (err) {
-      console.error("[retur] stock restore failed:", err);
-      notify.warning("Purchase Return dicatat, tetapi pemulihan stok gagal.");
-    }
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
 
-  const handleDelete = async (row: PurchaseReturn) => {
-    if (!confirm(`Hapus Purchase Return ${row.purchase_return_number}?`)) return;
+  const handleDelete = (row: PurchaseReturn) => {
+    setConfirmDelete({ open: true, row });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete.row) return;
+    setDeleteLoading(true);
     try {
-      await deletePurchaseReturn(row.purchase_return_id);
+      await deletePurchaseReturn(confirmDelete.row.purchase_return_id);
       notify.success("Purchase Return berhasil dihapus.");
       await loadReturns();
     } catch {
       notify.error("Gagal menghapus Purchase Return.");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete({ open: false, row: null });
     }
   };
 
@@ -341,39 +393,42 @@ export default function PurchaseReturnsPage() {
 
   const handleSettle = async (returnId: number, payload: SettlementPayload) => {
     try {
+      const grId = settlementTarget?.goods_receipt_id ?? 0;
+
       switch (payload.type) {
 
         case "Accept Loss": {
           const { returnItems, returnAmount } = payload.data;
-          const pr = returns.find((r) => r.purchase_return_id === returnId);
-          const supplierId = pr?.supplier_id ?? 0;
-          await resolveAcceptLoss(returnId, returnItems, supplierId, returnAmount);
+          await resolveAcceptLoss(returnId, returnItems, returnAmount, grId);
           notify.success(
             `Retur ditutup — barang pengganti diterima, stok dipulihkan (Rp ${formatNumber(returnAmount)}).`
           );
           await loadReturns();
+          await loadGoodsReceipts(); // refresh: GR may now be exhausted
           break;
         }
 
         case "Next PO Deduction": {
           const { targetPOId, targetPONumber, deductionAmount, newPOTotal } = payload.data;
-          await resolveNextPODeduction(returnId, targetPOId, targetPONumber, deductionAmount, newPOTotal);
+          await resolveNextPODeduction(returnId, targetPOId, targetPONumber, deductionAmount, newPOTotal, grId);
           notify.success(
             `Potongan Rp ${formatNumber(deductionAmount)} dikunci pada PO ${targetPONumber}.`
           );
           await loadReturns();
           await loadPurchaseOrders(); // refresh PO totals
+          await loadGoodsReceipts(); // refresh: GR may now be exhausted
           break;
         }
 
         case "Cash Refund": {
           const { targetInvoiceId, targetInvoiceNumber, deductionAmount, returnDate } = payload.data;
-          await confirmCashRefund(returnId, targetInvoiceId, targetInvoiceNumber, deductionAmount, returnDate);
+          await confirmCashRefund(returnId, targetInvoiceId, targetInvoiceNumber, deductionAmount, returnDate, grId);
           notify.success(
             `Refund dikonfirmasi — Rp ${formatNumber(deductionAmount)} dikreditkan ke invoice ${targetInvoiceNumber}.`
           );
           await loadReturns();
           await loadPurchaseInvoices(); // refresh invoice totals
+          await loadGoodsReceipts(); // refresh: GR may now be exhausted
           break;
         }
       }
@@ -457,6 +512,20 @@ export default function PurchaseReturnsPage() {
     XLSX.writeFile(wb, `Purchase_Return_${today}.xlsx`);
   };
 
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /**
+   * Takes a parsed transaction_detail array and replaces any fallback
+   * "Produk #N" names with the real product_name from the loaded poDetails.
+   */
+  const enrichReturnItemNames = (items: ReturnLineItem[]): ReturnLineItem[] =>
+    items.map((item) => {
+      const realName = poDetails.find((d) => d.product_id === item.product_id)?.product_name;
+      return realName && !realName.startsWith("Produk #")
+        ? { ...item, product_name: realName }
+        : item;
+    });
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -485,7 +554,20 @@ export default function PurchaseReturnsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setDetailTarget(row)}
+                  onClick={() => {
+                    // Enrich transaction_detail names before opening detail modal
+                    try {
+                      const parsed: ReturnLineItem[] = JSON.parse(row.transaction_detail ?? "[]");
+                      if (Array.isArray(parsed) && parsed.length > 0) {
+                        const enriched = enrichReturnItemNames(parsed);
+                        setDetailTarget({ ...row, transaction_detail: JSON.stringify(enriched) });
+                      } else {
+                        setDetailTarget(row);
+                      }
+                    } catch {
+                      setDetailTarget(row);
+                    }
+                  }}
                   title="Lihat detail retur"
                 >
                   Lihat
@@ -503,7 +585,7 @@ export default function PurchaseReturnsPage() {
                     try {
                       const parsed: ReturnLineItem[] = JSON.parse(row.transaction_detail ?? "[]");
                       if (Array.isArray(parsed) && parsed.length > 0) {
-                        setSettlementReturnItems(parsed);
+                        setSettlementReturnItems(enrichReturnItemNames(parsed));
                       } else {
                         // Fallback: transaction_detail is not JSON (old record) —
                         // reconstruct from PO details using the full GR quantity.
@@ -518,6 +600,7 @@ export default function PurchaseReturnsPage() {
                                 product_id:    d.product_id,
                                 product_name:  d.product_name ?? `Produk #${d.product_id}`,
                                 qty_available: d.quantity,
+                                remaining_qty: d.quantity, // fallback: assume all qty still returnable
                                 qty_return:    d.quantity,
                                 unit_price:    d.price,
                                 subtotal:      d.quantity * d.price,
@@ -550,8 +633,9 @@ export default function PurchaseReturnsPage() {
         onClose={() => setOpenFormModal(false)}
         onSubmit={handleSubmit}
         goodsReceipts={goodsReceipts}
-        poDetails={poDetails}
+        onLoadReturnItems={handleLoadReturnItems}
         nextNumber={nextReturnNumber}
+        purchaseOrders={purchaseOrders}
       />
 
       {/* Settlement modal */}
@@ -581,6 +665,18 @@ export default function PurchaseReturnsPage() {
         open={detailTarget !== null}
         onClose={() => setDetailTarget(null)}
         data={detailTarget}
+      />
+
+      {/* Confirm delete */}
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus Purchase Return"
+        message={`Yakin ingin menghapus Purchase Return ${confirmDelete.row?.purchase_return_number}?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deleteLoading}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete({ open: false, row: null })}
       />
     </AppShell>
   );

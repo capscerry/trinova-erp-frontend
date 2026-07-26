@@ -208,6 +208,7 @@ export interface SalesOrderDetail {
 
 export interface SalesOrderPayload {
   header: {
+    orderId?: number;
     soNumber: string;
     tanggalKirim: string | null;
     poNumber: string;
@@ -218,6 +219,9 @@ export interface SalesOrderPayload {
     address: string;
     notes: string;
     subTotal: number;
+    discountTotal?: number;
+    taxTotal?: number;
+    quotationId?: number | null;
   };
 
   detail: {
@@ -226,8 +230,11 @@ export interface SalesOrderPayload {
     productName: string;
     productQty: number;
     productPrice: number;
-    discountAmount: number;
+    discountPercent?: number;
+    discountAmount?: number;
     totalPrice: number;
+    wareHouseId?: number | null;
+    uomId?: number;
   }[];
 }
 
@@ -395,9 +402,9 @@ export const salesOrderService = {
 
     return (response.data.data ?? [])
       .map((item) => ({
-        id: item.orderId ?? item.id,
-        nomor: item.soNumber ?? item.nomor,
-        tanggal: item.soDate ?? item.tanggal,
+        id: item.orderId ?? item.id ?? 0,
+        nomor: item.soNumber ?? item.nomor ?? "",
+        tanggal: item.soDate ?? item.tanggal ?? "",
         tanggalKirim: item.tanggalKirim ?? "",
         poNumber: item.poNumber ?? "",
         pelanggan: item.customerName ?? item.pelanggan ?? "",
@@ -673,10 +680,10 @@ export const salesQuotationService = {
 
   return (response.data.data ?? []).map((item) => ({
     id: String(item.id),
-    nomor: item.quotationNumber,
-    tanggal: item.quotationDate,
+    nomor: item.quotationNumber ?? "",
+    tanggal: item.quotationDate ?? "",
     berlakuHingga: "",
-    pelanggan: item.customerName,
+    pelanggan: item.customerName ?? "",
     alamat : item.address ?? "",
     keterangan: item.notes ?? "",
     status: normalizeSalesStatus("quotation", item.status) as QuotationStatus,
@@ -720,10 +727,10 @@ export const salesQuotationService = {
     return (response.data.data ?? [])
       .map((item) => ({
         id: String(item.id),
-        nomor: item.quotationNumber,
-        tanggal: item.quotationDate,
+        nomor: item.quotationNumber ?? "",
+        tanggal: item.quotationDate ?? "",
         berlakuHingga: "",
-        pelanggan: item.customerName,
+        pelanggan: item.customerName ?? "",
         alamat : item.address ?? "",
         keterangan: item.notes ?? "",
         status: normalizeSalesStatus("quotation", item.status) as QuotationStatus,

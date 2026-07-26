@@ -38,6 +38,10 @@ interface WorkflowDraftContextValue {
   activeModal: ModalKey;
   openModal: (key: ModalKey) => void;
   closeModal: () => void;
+  submitAll: () => Promise<void>;
+  submitting: boolean;
+  submitError: string | null;
+  clearDraft: () => void;
 }
 
 const WorkflowDraftContext = createContext<WorkflowDraftContextValue | undefined>(
@@ -47,6 +51,8 @@ const WorkflowDraftContext = createContext<WorkflowDraftContextValue | undefined
 export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<WorkflowDraft>({});
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setDraftPart = useCallback(
     <K extends DraftKey>(key: K, data: WorkflowDraft[K]) => {
@@ -63,9 +69,42 @@ export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
   const openModal = useCallback((key: ModalKey) => setActiveModal(key), []);
   const closeModal = useCallback(() => setActiveModal(null), []);
 
+  const clearDraft = useCallback(() => {
+    setDraft({});
+    setSubmitError(null);
+  }, []);
+
+  const submitAll = useCallback(async () => {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      // Individual modals handle their own API calls via onSubmit.
+      // submitAll is the hook point for callers that want a single
+      // "commit everything" action; extend here as needed.
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Gagal menyimpan transaksi"
+      );
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
   return (
     <WorkflowDraftContext.Provider
-      value={{ draft, setDraftPart, hasDraftPart, activeModal, openModal, closeModal }}
+      value={{
+        draft,
+        setDraftPart,
+        hasDraftPart,
+        activeModal,
+        openModal,
+        closeModal,
+        submitAll,
+        submitting,
+        submitError,
+        clearDraft,
+      }}
     >
       {children}
     </WorkflowDraftContext.Provider>

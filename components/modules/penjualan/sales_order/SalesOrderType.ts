@@ -247,6 +247,8 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
 
         isTaxAble: form.kenaPajak ?? false,
 
+        isTaxIncluded: form.kenaPajak ?? false,
+
         address: form.alamatPengiriman,
 
         notes: form.keterangan,

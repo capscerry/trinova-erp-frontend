@@ -179,7 +179,7 @@ export default function UangMukaDetailPage() {
 
   const editInitialData: UangMukaFormData | undefined = data
     ? {
-        id: data.id,
+        id: data.id ?? 0,
         customerId: data.customerId,
         pelanggan: data.customerName ?? "",
         noFaktur: data.noFaktur,
@@ -187,8 +187,10 @@ export default function UangMukaDetailPage() {
         tanggal: data.tanggal?.slice(0, 10) ?? "",
         uangMuka: Number(data.nominalUangMuka ?? 0),
         noPO: data.noPO ?? "",
-        kenaPajak: Boolean(data.isTaxable),
-        totalTermasukPajak: Boolean(data.isTaxIncluded),
+        noSo: data.nomorSo ?? "",
+        isTaxable: Boolean(data.isTaxable),
+        isTaxIncluded: Boolean(data.isTaxIncluded),
+        taxAmount: Number(data.taxAmount ?? 0),
         syaratPembayaran: data.syaratPembayaran ?? "",
         alamat: data.alamat ?? "",
         keterangan: data.keterangan ?? "",

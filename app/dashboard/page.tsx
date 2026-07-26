@@ -1,870 +1,768 @@
 ﻿"use client";
 
+import { useCallback, useEffect, useState, useRef } from "react";
 import { AppShell } from "@/components/layout";
 import { useAuth } from "@/lib/AuthContext";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
-  getPurchaseOrders,
-  getGoodsReceipts,
-  getSuppliers,
-  salesOrderService,
-  customerService,
-  getProducts,
-} from "@/lib/services";
-import { getSupplierProducts } from "@/lib/services/supplier-product.service";
-import { getPurchaseReturns } from "@/lib/services/purchase-return.service";
-import { predictAllSuppliers, normalizeRiskLevel } from "@/lib/services/supplier-risk.service";
-import type { BatchPredictItem } from "@/lib/services/supplier-risk.service";
-import {
-  topsis,
-  applyPreset,
-  calcOnTimeRates,
-  calcDeliveryPunctuality,
-  PRIORITY_PRESETS,
-} from "@/lib/ahp-topsis";
-import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
-import type { RiskLevel } from "@/lib/xgboost-risk";
-import {
-  securityActivityService,
-  type SecurityActivityItem,
-} from "@/lib/services/security-activity.service";
-import {
-  TrendingUp,
-  ShoppingCart,
-  Package,
-  Users,
-  Truck,
-  Clock3,
-  Building2,
-  ArrowUpRight,
-  ArrowDownRight,
-  BarChart2,
-  RefreshCw,
-  ShieldAlert,
-  AlertTriangle,
-  KeyRound,
-  ShieldCheck,
-  Shield,
-  ShieldX,
-  Trophy,
-  Brain,
-  Zap,
+  ShoppingCart, Truck, Clock3, Building2, TrendingUp,
+  RefreshCw, ArrowRight, Brain, Trophy, Star, Zap,
+  CreditCard, BarChart2, RotateCcw, ChevronRight,
+  Package, FileText, DollarSign, AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// â”€â”€â”€ AHP criteria (must match preset matrix column order) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const CRITERIA = [
-  { id: "avg_price",            label: "Harga Rata-rata",  description: "", weight: 0.2, benefit: false },
-  { id: "lead_time",            label: "Lead Time",        description: "", weight: 0.2, benefit: false },
-  { id: "on_time_rate",         label: "On-Time Rate",     description: "", weight: 0.2, benefit: true  },
-  { id: "delivery_punctuality", label: "Ketepatan Waktu",  description: "", weight: 0.2, benefit: true  },
-  { id: "return_rate",          label: "Tingkat Retur",    description: "", weight: 0.2, benefit: false },
+// ── Services ──────────────────────────────────────────────────────────────────
+import {
+  fetchPurchasingKpis,
+  getDateBounds,
+  type PurchasingKpiData,
+  type DateFilter,
+} from "@/lib/services/purchasing-kpi.service";
+import {
+  purchasingDashboardService,
+  EMPTY_PURCHASING_DASHBOARD,
+  type PurchasingDashboard,
+} from "@/lib/services/purchasing-dashboard.service";
+import { getSuppliers } from "@/lib/services/supplier.service";
+
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+import { useSupplierRecommendations } from "@/lib/hooks/useSupplierRecommendations";
+
+// ── AI preview ────────────────────────────────────────────────────────────────
+import { AhpTopsisBestPreview } from "@/components/modules/pembelian/AhpTopsisBestPreview";
+
+// ── Dashboard components ──────────────────────────────────────────────────────
+import { KpiCard } from "@/components/modules/pembelian/dashboard/KpiCard";
+import { SpendTrendChart } from "@/components/modules/pembelian/dashboard/SpendTrendChart";
+import { POStatusDonut } from "@/components/modules/pembelian/dashboard/POStatusDonut";
+import { MonthlyVolumeBar } from "@/components/modules/pembelian/dashboard/MonthlyVolumeBar";
+import { TopSuppliersBar } from "@/components/modules/pembelian/dashboard/TopSuppliersBar";
+import { SupplierPerformanceBar } from "@/components/modules/pembelian/dashboard/SupplierPerformanceBar";
+import { CategoryPieChart } from "@/components/modules/pembelian/dashboard/CategoryPieChart";
+import { LeadTimeTrendChart } from "@/components/modules/pembelian/dashboard/LeadTimeTrendChart";
+import { ReturnTrendBar } from "@/components/modules/pembelian/dashboard/ReturnTrendBar";
+import { SupplierLeaderboard } from "@/components/modules/pembelian/dashboard/SupplierLeaderboard";
+import { SupplierRiskIndicator } from "@/components/modules/pembelian/dashboard/SupplierRiskIndicator";
+import { ProcurementFunnel } from "@/components/modules/pembelian/dashboard/ProcurementFunnel";
+import { SpendingByCategory } from "@/components/modules/pembelian/dashboard/SpendingByCategory";
+import { AIRecommendationSummary } from "@/components/modules/pembelian/dashboard/AIRecommendationSummary";
+import { DashboardFilters, type ActiveFilters } from "@/components/modules/pembelian/dashboard/DashboardFilters";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatRupiah(value: number): string {
+  if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(2).replace(".", ",")} M`;
+  if (value >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(2).replace(".", ",")} Jt`;
+  if (value >= 1_000) return `Rp ${(value / 1_000).toFixed(1).replace(".", ",")} Rb`;
+  return `Rp ${value.toLocaleString("id-ID")}`;
+}
+
+function pctChange(current: number, prev: number): number | undefined {
+  if (prev === 0) return undefined;
+  return ((current - prev) / prev) * 100;
+}
+
+const toValidDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const fmtDay   = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { weekday: "long" }) ?? "-";
+const fmtDayN  = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { day: "2-digit" }) ?? "--";
+const fmtMonth = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { month: "short" }) ?? "-";
+const fmtTime  = (v?: string | null) => toValidDate(v)?.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) ?? "--:--";
+const getDateKey = (v?: string | null) => toValidDate(v)?.toISOString().slice(0, 10) ?? "";
+
+const activityHref = (refTable?: string | null, refId?: number | null) => {
+  if (!refTable || !refId) return null;
+  const map: Record<string, string> = {
+    purchase_order: "/pembelian/po",
+    purchase_invoice: "/pembelian/invoice",
+    goods_receipt: "/pembelian/gr",
+    purchase_payment: "/pembelian/payment",
+    purchase_down_payment: "/pembelian/pdp",
+  };
+  return map[refTable] ?? null;
+};
+
+const priorityCls: Record<string, string> = {
+  danger:  "border-red-200 bg-red-50 text-red-700",
+  warning: "border-amber-200 bg-amber-50 text-amber-700",
+  normal:  "border-slate-200 bg-slate-50 text-slate-600",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared chart-card wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ChartCard({
+  title,
+  subtitle,
+  children,
+  action,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3", className)}>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700">{title}</h3>
+          {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-preset visual config for the AI hero right panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRESET_ICON: Record<string, { icon: React.ElementType; iconColor: string }> = {
+  balanced:        { icon: BarChart2,  iconColor: "text-slate-300"  },
+  urgency_high:    { icon: Zap,        iconColor: "text-rose-300"   },
+  budget_priority: { icon: CreditCard, iconColor: "text-amber-300"  },
+  quality_focus:   { icon: Trophy,     iconColor: "text-blue-300"   },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared KPI + Chart Dashboard (used by both roles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_FILTER: DateFilter = { range: "last30" };
+const PO_STATUSES = [
+  "Draft", "Pending Approval", "Approved",
+  "Waiting to be processed", "Partially processed",
+  "Processed", "Completed", "Cancelled",
 ];
 
-// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat("id-ID", {
-    notation: "compact",
-    compactDisplay: "short",
-    maximumFractionDigits: 1,
-  }).format(n);
-
-const formatAlertTime = (value: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-// â”€â”€â”€ types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-interface StatCard {
-  label: string;
-  value: string;
-  sub: string;
-  change: string;
-  trend: "up" | "down" | "neutral";
-  icon: React.ElementType;
-  color: string;
-  iconBg: string;
+interface KpiDashboardProps {
+  isProcurementManager?: boolean;
 }
 
-interface ModuleStat {
-  module: string;
-  color: string;
-  barColor: string;
-  value: number;
-  max: number;
-  label: string;
-}
+function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
+  const router = useRouter();
+  const { dataset: recDataset, loading: recLoading } = useSupplierRecommendations();
 
-const getSecurityMeta = (activityType: string) => {
-  switch (activityType) {
-    case "unauthorized_access":
-      return {
-        label: "Forbidden Access",
-        badge: "bg-red-50 text-red-600 border-red-100",
-        iconWrap: "bg-red-50 text-red-600 border-red-100",
-        icon: ShieldAlert,
-      };
-    case "login_failed":
-      return {
-        label: "Failed Login",
-        badge: "bg-amber-50 text-amber-700 border-amber-100",
-        iconWrap: "bg-amber-50 text-amber-700 border-amber-100",
-        icon: AlertTriangle,
-      };
-    case "authentication_required":
-      return {
-        label: "Missing Token",
-        badge: "bg-blue-50 text-blue-600 border-blue-100",
-        iconWrap: "bg-blue-50 text-blue-600 border-blue-100",
-        icon: KeyRound,
-      };
-    default:
-      return {
-        label: activityType.replaceAll("_", " "),
-        badge: "bg-slate-50 text-slate-600 border-slate-100",
-        iconWrap: "bg-slate-50 text-slate-600 border-slate-100",
-        icon: ShieldAlert,
-      };
-  }
-};
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [dateFilter, setDateFilter]     = useState<DateFilter>(DEFAULT_FILTER);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
 
-interface RiskRow {
-  supplier_id: number;
-  supplier_name: string;
-  risk_score: number;
-  risk_level: RiskLevel;
-}
+  // ── KPI data state ──────────────────────────────────────────────────────────
+  const [kpiData, setKpiData]   = useState<PurchasingKpiData | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
 
-interface AhpPresetRanking {
-  key: string;
-  label: string;
-  color: string;
-  icon: string;
-  description: string;
-  results: TopsisResult[];
-}
+  // ── Supplier list for filter dropdown ───────────────────────────────────────
+  const [supplierList, setSupplierList] = useState<Array<{ id: number; name: string }>>([]);
+  const [categoryList, setCategoryList] = useState<string[]>([]);
 
-// â”€â”€â”€ build TOPSIS alternatives from ERP data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function buildAlternatives(
-  suppliers: any[],
-  pos: any[],
-  grs: any[],
-  returns: any[],
-  supplierProducts: any[],
-): Alternative[] {
-  const normPos = pos.map((p: any) => ({
-    purchase_order_id: Number(p.purchase_order_id),
-    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
-    order_date:        p.order_date    ?? null,
-    expected_date:     p.expected_date ?? null,
-  }));
-  const normGrs = grs.map((g: any) => ({
-    goods_receipt_id:  Number(g.goods_receipt_id),
-    purchase_order_id: Number(g.purchase_order_id),
-    receipt_date:      g.receipt_date ?? null,
-  }));
-  const normReturns = returns.map((r: any) => ({
-    supplier_id:      Number(r.supplier_id ?? 0),
-    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
-  }));
-  const normSps = supplierProducts.map((sp: any) => ({
-    supplier_id:    Number(sp.supplier_id),
-    supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
-    lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
-  }));
-  const normSuppliers = suppliers.map((s: any) => ({
-    supplier_id:   Number(s.supplier_id ?? s.id),
-    supplier_name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
-    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
-  }));
-
-  type Agg = {
-    name: string; code: string; orderCount: number;
-    actualDays: number[]; catalogDays: number[]; prices: number[];
-    grIds: Set<number>;
-  };
-  const agg = new Map<number, Agg>();
-  for (const s of normSuppliers) {
-    agg.set(s.supplier_id, {
-      name: s.supplier_name, code: s.supplier_code,
-      orderCount: 0, actualDays: [], catalogDays: [], prices: [], grIds: new Set(),
-    });
-  }
-  for (const po of normPos) { const a = agg.get(po.supplier_id); if (a) a.orderCount++; }
-  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
-
-  const onTimeMap      = calcOnTimeRates(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-  const punctualityMap = calcDeliveryPunctuality(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-
-  for (const gr of normGrs) {
-    const po = poMap.get(gr.purchase_order_id);
-    if (!po?.order_date || !gr.receipt_date) continue;
-    const days = (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
-    if (days < 0 || days > 365) continue;
-    const a = agg.get(po.supplier_id);
-    if (!a) continue;
-    a.actualDays.push(days);
-    a.grIds.add(gr.goods_receipt_id);
-  }
-  for (const sp of normSps) {
-    const a = agg.get(sp.supplier_id);
-    if (!a) continue;
-    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
-    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
-  }
-  const returnCountMap = new Map<number, number>();
-  for (const ret of normReturns) {
-    if (ret.supplier_id === 0) continue;
-    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
-  }
-
-  const alternatives: Alternative[] = [];
-  for (const [sid, a] of agg.entries()) {
-    if (a.orderCount === 0) continue;
-    const avgPrice   = a.prices.length > 0 ? a.prices.reduce((s,v) => s+v, 0) / a.prices.length : 0;
-    const avgLead    = a.actualDays.length > 0
-      ? a.actualDays.reduce((s,v) => s+v, 0) / a.actualDays.length
-      : a.catalogDays.length > 0 ? a.catalogDays.reduce((s,v) => s+v, 0) / a.catalogDays.length : 14;
-    const grCount    = a.grIds.size;
-    const retCount   = returnCountMap.get(sid) ?? 0;
-    const returnRate = grCount > 0 ? retCount / grCount : 0;
-    alternatives.push({
-      id: String(sid), name: a.name, code: a.code,
-      values: {
-        avg_price:            Math.round(avgPrice * 100) / 100,
-        lead_time:            Math.round(avgLead * 10) / 10,
-        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
-        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
-        return_rate:          Math.round(returnRate * 1000) / 1000,
-      },
-    });
-  }
-  return alternatives;
-}
-
-// â”€â”€â”€ mini bar chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-  return (
-    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-      <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
-
-// â”€â”€â”€ risk level helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const RISK_CFG: Record<RiskLevel, { label: string; barColor: string; textColor: string; badgeClass: string; icon: typeof ShieldCheck }> = {
-  Low:      { label: "Low",      barColor: "bg-emerald-400", textColor: "text-emerald-700", badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700", icon: ShieldCheck },
-  Medium:   { label: "Medium",   barColor: "bg-amber-400",   textColor: "text-amber-700",   badgeClass: "bg-amber-50  border-amber-200  text-amber-700",   icon: Shield      },
-  High:     { label: "High",     barColor: "bg-orange-400",  textColor: "text-orange-700",  badgeClass: "bg-orange-50 border-orange-200 text-orange-700",  icon: ShieldAlert },
-  Critical: { label: "Critical", barColor: "bg-rose-500",    textColor: "text-rose-700",    badgeClass: "bg-rose-50   border-rose-200   text-rose-700",    icon: ShieldX     },
-};
-
-function RiskBadge({ level }: { level: RiskLevel }) {
-  const cfg = RISK_CFG[level];
-  const Icon = cfg.icon;
-  return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0", cfg.badgeClass)}>
-      <Icon size={9} />{cfg.label}
-    </span>
-  );
-}
-
-// â”€â”€â”€ rank medal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function RankMedal({ rank }: { rank: number }) {
-  if (rank === 1) return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">
-      1
-    </span>
-  );
-  if (rank === 2) return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-[10px] font-extrabold shrink-0">2</span>
-  );
-  if (rank === 3) return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-[10px] font-extrabold shrink-0">3</span>
-  );
-  return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-50 border border-slate-200 text-slate-400 text-[10px] font-bold shrink-0">{rank}</span>
-  );
-}
-
-// â”€â”€â”€ Risk Ranking widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-function RiskRankingWidget({ rows, loading }: { rows: RiskRow[]; loading: boolean }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-      {/* header */}
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-slate-800">
-        <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
-          <Brain size={13} className="text-rose-300" />
-        </div>
-        <div>
-          <p className="text-[13px] font-bold text-white leading-none">Risk Detection</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">XGBoost Â· delay probability score</p>
-        </div>
-      </div>
-
-      {/* column headers */}
-      <div className="grid grid-cols-[28px_1fr_72px_90px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Skor</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Level</span>
-      </div>
-
-      {/* body */}
-      {loading ? (
-        <div className="p-4 space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
-          ))}
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="px-5 py-10 text-center">
-          <Zap size={18} className="mx-auto text-slate-300 mb-2" />
-          <p className="text-xs text-slate-400">Belum ada data risiko</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-50">
-          {rows.map((r, i) => {
-            const cfg = RISK_CFG[r.risk_level];
-            return (
-              <div key={r.supplier_id} className="grid grid-cols-[28px_1fr_72px_90px] gap-2 items-center px-4 py-2.5 hover:bg-slate-50 transition-colors">
-                <RankMedal rank={i + 1} />
-                <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-slate-800 truncate">{r.supplier_name}</p>
-                  <div className="mt-1 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all duration-700", cfg.barColor)} style={{ width: `${Math.round(r.risk_score * 100)}%` }} />
-                  </div>
-                </div>
-                <p className={cn("text-[12px] font-bold tabular-nums text-right", cfg.textColor)}>
-                  {(r.risk_score * 100).toFixed(1)}%
-                </p>
-                <div className="flex justify-end">
-                  <RiskBadge level={r.risk_level} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// â”€â”€â”€ AHP preset ranking card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const PRESET_STYLE: Record<string, { header: string; accent: string; badge: string }> = {
-  balanced:        { header: "from-slate-700 to-slate-800",   accent: "text-slate-300",  badge: "bg-slate-200 text-slate-700 border-slate-300"  },
-  urgency_high:    { header: "from-rose-700  to-rose-900",    accent: "text-rose-300",   badge: "bg-rose-100  text-rose-700  border-rose-300"   },
-  budget_priority: { header: "from-amber-600 to-amber-800",   accent: "text-amber-200",  badge: "bg-amber-100 text-amber-700 border-amber-300"  },
-  quality_focus:   { header: "from-blue-700  to-blue-900",    accent: "text-blue-300",   badge: "bg-blue-100  text-blue-700  border-blue-300"   },
-};
-
-function AhpPresetCard({ preset, loading }: { preset: AhpPresetRanking; loading: boolean }) {
-  const style = PRESET_STYLE[preset.key] ?? PRESET_STYLE.balanced;
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-      {/* header */}
-      <div className={cn("flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r", style.header)}>
-        <span className="text-lg leading-none">{preset.icon}</span>
-        <div>
-          <p className="text-[13px] font-bold text-white leading-none">{preset.label}</p>
-          <p className={cn("text-[10px] mt-0.5 truncate max-w-[200px]", style.accent)}>{preset.description}</p>
-        </div>
-      </div>
-
-      {/* column headers */}
-      <div className="grid grid-cols-[28px_1fr_90px] gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">#</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">Skor Ci</span>
-      </div>
-
-      {/* body */}
-      {loading ? (
-        <div className="p-4 space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
-          ))}
-        </div>
-      ) : preset.results.length === 0 ? (
-        <div className="px-5 py-10 text-center">
-          <Trophy size={18} className="mx-auto text-slate-300 mb-2" />
-          <p className="text-xs text-slate-400">Belum ada data ERP</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-50">
-          {preset.results.slice(0, 7).map((r) => {
-            const pct = Math.round(r.score * 100);
-            const barColor = pct >= 70 ? "bg-green-400" : pct >= 40 ? "bg-amber-400" : "bg-rose-400";
-            return (
-              <div key={r.alternativeId} className="grid grid-cols-[28px_1fr_90px] gap-2 items-center px-4 py-2.5 hover:bg-slate-50 transition-colors">
-                <RankMedal rank={r.rank} />
-                <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-slate-800 truncate">{r.name}</p>
-                  <div className="mt-1 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all duration-700", barColor)} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-                <p className="text-[12px] font-bold tabular-nums text-slate-700 text-right">{r.score.toFixed(4)}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// â”€â”€â”€ page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-export default function AdminDashboardPage() {
-  const { user } = useAuth();
-
-  const [loading, setLoading]           = useState(true);
-  const [rankLoading, setRankLoading]   = useState(true);
-  const [lastUpdated, setLastUpdated]   = useState<Date | null>(null);
-
-  // stat cards
-  const [stats, setStats]               = useState<StatCard[]>([]);
-    // module bars
-  const [moduleBars, setModuleBars] = useState<ModuleStat[]>([]);
-  // recent SO / PO
-  const [recentSO, setRecentSO] = useState<{ nomor: string; pelanggan: string; total: number; status: string }[]>([]);
-  const [recentPO, setRecentPO] = useState<{ nomor: string; supplier: string; total: number; status: string }[]>([]);
-  const [securityAlerts, setSecurityAlerts] = useState<SecurityActivityItem[]>([]);
-
-  // AI rankings
-  const [riskRows, setRiskRows]         = useState<RiskRow[]>([]);
-  const [ahpRankings, setAhpRankings]   = useState<AhpPresetRanking[]>([]);
-
-  // â”€â”€ fetch ERP stats (stat cards, module bars, recent tables) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const fetchAll = async () => {
-    setLoading(true);
+  // ── Fetch KPI data ──────────────────────────────────────────────────────────
+  const fetchKpis = useCallback(async () => {
+    setKpiLoading(true);
     try {
-      const [poRes, grRes, supplierRes, soList, customerList, productRes, securityRes] =
-        await Promise.allSettled([
-          getPurchaseOrders(),
-          getGoodsReceipts(),
-          getSuppliers(),
-          salesOrderService.getAll(),
-          customerService.getAll(),
-          getProducts(),
-          securityActivityService.getAlerts(12),
-        ]);
+      // Build TOPSIS scores array for supplier KPIs
+      const balancedPreset = recDataset?.presets.find((p) => p.key === "balanced");
+      const topsisScores = balancedPreset?.rankedSuppliers.map((r) => ({
+        id: r.alternativeId,
+        score: r.score,
+      }));
 
-      const poList: any[]   = poRes.status       === "fulfilled" ? (Array.isArray(poRes.value)       ? poRes.value       : poRes.value?.data       ?? []) : [];
-      const grList: any[]   = grRes.status       === "fulfilled" ? (Array.isArray(grRes.value)       ? grRes.value       : grRes.value?.data       ?? []) : [];
-      const supList: any[]  = supplierRes.status === "fulfilled" ? (Array.isArray(supplierRes.value) ? supplierRes.value : supplierRes.value?.data ?? []) : [];
-      const soArr: any[]    = soList.status       === "fulfilled" ? soList.value       : [];
-      const custArr: any[]  = customerList.status === "fulfilled" ? customerList.value : [];
-      const prodList: any[] = productRes.status === "fulfilled" ? (Array.isArray(productRes.value) ? productRes.value : productRes.value?.data ?? []) : [];
-      const securityArr: SecurityActivityItem[] = securityRes.status === "fulfilled" ? securityRes.value : [];
-
-      const totalPembelian = poList.reduce((s: number, i: any) => s + Number(i.total_amount ?? i.totalAmount ?? 0), 0);
-      const totalPenjualan = soArr.reduce((s: number, i: any) => s + Number(i.total ?? i.subTotal ?? 0), 0);
-      const pendingPO      = poList.filter((i: any) => i.status === "Draft" || i.status === "Waiting to be processed").length;
-      const pendingSO      = soArr.filter((i: any) => i.status === "Draft" || i.status === "Dikonfirmasi").length;
-
-      setStats([
-        { label: "Total Penjualan",  value: `Rp ${fmt(totalPenjualan)}`,  sub: `${soArr.length} sales order`,       change: "+12%", trend: "up",     icon: TrendingUp,  color: "text-blue-600",   iconBg: "bg-blue-50 border-blue-100"   },
-        { label: "Total Pembelian",  value: `Rp ${fmt(totalPembelian)}`,  sub: `${poList.length} purchase order`,   change: "+8%",  trend: "up",     icon: ShoppingCart,color: "text-amber-600",  iconBg: "bg-amber-50 border-amber-100"  },
-        { label: "Customer Aktif",   value: String(custArr.filter((c: any) => c.status === "Aktif" || c.isActive).length || custArr.length), sub: `${custArr.length} total terdaftar`, change: "+3", trend: "up", icon: Users,       color: "text-purple-600", iconBg: "bg-purple-50 border-purple-100" },
-        { label: "Supplier Aktif",   value: String(supList.filter((s: any) => s.isActive !== false).length || supList.length), sub: `${supList.length} total terdaftar`, change: "+1", trend: "up", icon: Building2,   color: "text-green-600",  iconBg: "bg-green-50 border-green-100"  },
-        { label: "Goods Receipt",    value: String(grList.length),        sub: "Penerimaan barang",                 change: "+4",   trend: "up",     icon: Truck,       color: "text-cyan-600",   iconBg: "bg-cyan-50 border-cyan-100"   },
-        { label: "PO Pending",       value: String(pendingPO),            sub: "Menunggu proses",                   change: pendingPO > 5 ? "+2" : "-1", trend: pendingPO > 5 ? "down" : "up", icon: Clock3, color: "text-rose-600", iconBg: "bg-rose-50 border-rose-100" },
-        { label: "SO Pending",       value: String(pendingSO),            sub: "Belum selesai diproses",            change: pendingSO > 5 ? "+2" : "-1", trend: pendingSO > 5 ? "down" : "up", icon: BarChart2, color: "text-orange-600", iconBg: "bg-orange-50 border-orange-100" },
-        { label: "Total Produk",     value: String(prodList.length),      sub: "Goods & service",                   change: "0",    trend: "neutral", icon: Package,     color: "text-teal-600",   iconBg: "bg-teal-50 border-teal-100"   },
-      ]);
-
-      const maxVal = Math.max(soArr.length, poList.length, grList.length, custArr.length, 1);
-      setModuleBars([
-        { module: "Sales Order",    color: "text-blue-600",   barColor: "bg-blue-500",   value: soArr.length,   max: maxVal, label: `${soArr.length} transaksi`   },
-        { module: "Purchase Order", color: "text-amber-600",  barColor: "bg-amber-500",  value: poList.length,  max: maxVal, label: `${poList.length} transaksi`  },
-        { module: "Goods Receipt",  color: "text-cyan-600",   barColor: "bg-cyan-500",   value: grList.length,  max: maxVal, label: `${grList.length} penerimaan` },
-        { module: "Customer",       color: "text-purple-600", barColor: "bg-purple-500", value: custArr.length, max: maxVal, label: `${custArr.length} customer`  },
-        { module: "Supplier",       color: "text-green-600",  barColor: "bg-green-500",  value: supList.length, max: maxVal, label: `${supList.length} supplier`  },
-      ]);
-
-      setRecentSO(soArr.slice(0, 5).map((i: any) => ({
-        nomor:     i.nomor     ?? i.soNumber  ?? "-",
-        pelanggan: i.pelanggan ?? i.customerName ?? "-",
-        total:     i.total     ?? i.subTotal  ?? 0,
-        status:    i.status    ?? "-",
-      })));
-      setRecentPO(poList.slice(0, 5).map((i: any) => ({
-        nomor:    i.poNumber    ?? i.po_number    ?? "-",
-        supplier: i.supplierName ?? i.supplier_name ?? "-",
-        total:    Number(i.total_amount ?? i.totalAmount ?? 0),
-        status:   i.status ?? "-",
-      })));
-
-      setSecurityAlerts(securityArr);
-
-      setLastUpdated(new Date());
-    } catch (e) {
-      console.error("Dashboard fetch error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // â”€â”€ fetch AI rankings (risk + AHP) â€” runs in parallel with fetchAll â”€â”€â”€â”€â”€
-  const fetchRankings = async () => {
-    setRankLoading(true);
-    try {
-      const norm = (r: any) => Array.isArray(r) ? r : r?.data ?? [];
-
-      const [suppRes, poRes, grRes, retRes, spRes, riskRes] = await Promise.allSettled([
-        getSuppliers(),
-        getPurchaseOrders(),
-        getGoodsReceipts(),
-        getPurchaseReturns(),
-        getSupplierProducts(),
-        predictAllSuppliers(),
-      ]);
-
-      // â”€â”€ supplier name map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      const suppliers = suppRes.status === "fulfilled" ? norm(suppRes.value) : [];
-      const nameMap   = new Map<number, string>(
-        suppliers.map((s: any) => [
-          Number(s.supplier_id ?? s.id),
-          String(s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`),
-        ])
+      const data = await fetchPurchasingKpis(
+        dateFilter,
+        topsisScores,
+        {
+          supplierId: activeFilters.supplierId,
+          category:   activeFilters.category,
+          status:     activeFilters.status,
+        }
       );
-
-      // â”€â”€ risk rows: sorted high â†’ low risk score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      if (riskRes.status === "fulfilled") {
-        const rows: RiskRow[] = riskRes.value.results
-          .filter((v: BatchPredictItem) => v.supplier_id != null && v.supplier_id !== 0)
-          .map((v: BatchPredictItem) => ({
-            supplier_id:   Number(v.supplier_id),
-            supplier_name: v.supplier_name ?? nameMap.get(Number(v.supplier_id)) ?? `Supplier ${v.supplier_id}`,
-            risk_score:    Number(v.delay_probability ?? 0),
-            risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
-          }))
-          .sort((a: RiskRow, b: RiskRow) => b.risk_score - a.risk_score);
-        setRiskRows(rows);
-      }
-
-      // â”€â”€ AHP preset rankings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      const pos      = poRes.status  === "fulfilled" ? norm(poRes.value)  : [];
-      const grs      = grRes.status  === "fulfilled" ? norm(grRes.value)  : [];
-      const returns  = retRes.status === "fulfilled" ? norm(retRes.value) : [];
-      const sps      = spRes.status  === "fulfilled" ? norm(spRes.value)  : [];
-
-      if (suppliers.length > 0) {
-        const alts = buildAlternatives(suppliers, pos, grs, returns, sps);
-
-        const rankings: AhpPresetRanking[] = PRIORITY_PRESETS.map((preset) => {
-          const { result } = applyPreset(preset.key as any);
-          const criteria   = CRITERIA.map((c, i) => ({ ...c, weight: result.weights[i] }));
-          const results    = topsis(alts, criteria);
-          return {
-            key:         preset.key,
-            label:       preset.label,
-            icon:        preset.icon,
-            color:       preset.color,
-            description: preset.description,
-            results,
-          };
-        });
-        setAhpRankings(rankings);
-      }
-    } catch (e) {
-      console.error("Rankings fetch error:", e);
+      setKpiData(data);
+    } catch (err) {
+      console.error("Gagal memuat KPI dashboard:", err);
     } finally {
-      setRankLoading(false);
+      setKpiLoading(false);
     }
-  };
+  }, [dateFilter, activeFilters, recDataset]);
 
+  useEffect(() => { fetchKpis(); }, [fetchKpis]);
+
+  // ── Fetch filter options once ───────────────────────────────────────────────
   useEffect(() => {
-    fetchAll();
-    fetchRankings();
+    getSuppliers()
+      .then((raw: any) => {
+        const arr = Array.isArray(raw) ? raw : raw?.data ?? [];
+        setSupplierList(arr.map((s: any) => ({
+          id:   Number(s.supplier_id ?? s.id),
+          name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
+        })));
+        const cats = [...new Set<string>(arr.map((s: any) => s.category_supplier ?? "Others").filter(Boolean))];
+        setCategoryList(cats);
+      })
+      .catch(() => {});
   }, []);
 
-  // â”€â”€ status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const statusBadge = (s: string) => {
+  // ── Drill-down navigation helpers ───────────────────────────────────────────
+  function drillPOStatus(status: string) {
+    router.push(`/pembelian/po?status=${encodeURIComponent(status)}`);
+  }
+  function drillSupplier(supplierId: number) {
+    router.push(`/pembelian/supplier?id=${supplierId}`);
+  }
+  function drillSpendTrend() {
+    router.push("/pembelian/invoice");
+  }
+  function drillFunnel(label: string) {
     const map: Record<string, string> = {
-      Draft:                     "bg-slate-100 text-slate-500",
-      Dikonfirmasi:              "bg-blue-100 text-blue-600",
-      Diproses:                  "bg-amber-100 text-amber-600",
-      Dikirim:                   "bg-cyan-100 text-cyan-600",
-      Selesai:                   "bg-green-100 text-green-600",
-      Dibatalkan:                "bg-red-100 text-red-500",
-      "Waiting to be processed": "bg-amber-100 text-amber-600",
-      Approved:                  "bg-green-100 text-green-600",
+      "PO Created":      "/pembelian/po",
+      "Approved":        "/pembelian/po",
+      "Goods Received":  "/pembelian/gr",
+      "Invoiced":        "/pembelian/invoice",
+      "Paid":            "/pembelian/payment",
     };
-    return (
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${map[s] ?? "bg-slate-100 text-slate-500"}`}>
-        {s}
-      </span>
-    );
-  };
+    router.push(map[label] ?? "/pembelian");
+  }
 
-  // â”€â”€â”€ render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const k = kpiData?.kpis;
+  const c = kpiData?.charts;
+
   return (
-    <AppShell title="Dashboard" subtitle="Overview sistem Trinova Business Suite">
-
-      {/* â”€â”€ Header row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="flex items-center justify-between mb-6">
-        <p className="text-slate-500 text-sm">
-          Selamat datang,{" "}
-          <span className="font-semibold text-slate-700">{user?.username}</span>
-        </p>
+    <div className="space-y-6">
+      {/* ── Dashboard header + filters ────────────────────────────────────── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <button
-          onClick={() => { fetchAll(); fetchRankings(); }}
-          disabled={loading || rankLoading}
-          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40"
+          onClick={fetchKpis}
+          disabled={kpiLoading}
+          className="self-start flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
         >
-          <RefreshCw size={12} className={(loading || rankLoading) ? "animate-spin" : ""} />
-          {lastUpdated
-            ? `Update: ${lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`
-            : "Refresh"}
+          <RefreshCw size={13} className={cn(kpiLoading && "animate-spin")} />
+          Refresh
         </button>
       </div>
 
-      {/* â”€â”€ Stat Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {loading
-          ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-100 p-5 animate-pulse h-28" />
-            ))
-          : stats.map((s) => {
-              const Icon     = s.icon;
-              const isUp     = s.trend === "up";
-              const isNeutral = s.trend === "neutral";
-              return (
-                <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-5 hover:shadow-sm hover:border-slate-200 transition-all duration-150">
-                  <div className="flex items-start justify-between">
-                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${s.iconBg}`}>
-                      <Icon size={15} className={s.color} />
-                    </div>
-                    {!isNeutral && (
-                      <div className={`flex items-center gap-0.5 text-[11px] font-semibold ${isUp ? "text-green-500" : "text-red-500"}`}>
-                        {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                        {s.change}
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-3 text-xl font-bold text-slate-800 leading-none">{s.value}</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{s.label}</p>
-                  <p className="mt-0.5 text-[10px] text-slate-400">{s.sub}</p>
-                </div>
-              );
-            })}
-      </div>
+      {/* ── Time range + additional filters ──────────────────────────────── */}
+      <DashboardFilters
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        activeFilters={activeFilters}
+        onActiveFiltersChange={setActiveFilters}
+        suppliers={supplierList}
+        categories={categoryList}
+        statuses={PO_STATUSES}
+        loading={kpiLoading}
+      />
 
-      {/* â”€â”€ Bottom row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-6 mb-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center">
-              <ShieldAlert size={18} />
+      {/* ══ AI INSIGHTS HERO ═════════════════════════════════════════════════ */}
+      <Link href="/pembelian/insight" className="block group">
+        <div className="rounded-2xl border border-navy-800 bg-gradient-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
+          <div className="flex items-start justify-between gap-6">
+
+            {/* Left — text + AhpTopsisBestPreview cards */}
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-400/15 text-gold-400 text-[11px] font-bold uppercase tracking-widest mb-3">
+                <Brain size={11} />
+                AI Purchasing Insight
+              </div>
+              <h2 className="text-xl font-bold text-white font-serif leading-tight">
+                Lihat analisis penuh performa pembelian
+              </h2>
+              <p className="mt-2 text-slate-300 text-[13px] max-w-xl leading-relaxed">
+                Skor supplier AHP + TOPSIS, spend bulanan, lead time aktual vs katalog,
+                kesehatan pembayaran, konsentrasi HHI, dan kandidat reorder — semua dari
+                data transaksi nyata.
+              </p>
+              <div className="mt-4 inline-flex items-center gap-2 text-gold-400 text-[13px] font-semibold group-hover:gap-3 transition-all duration-150">
+                Buka AI Insight Lebih Lanjut
+                <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform duration-150" />
+              </div>
+              {/* Supplier winner cards — shared singleton, no re-fetch */}
+              <AhpTopsisBestPreview />
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-800">Security Alerts</p>
-              <p className="text-[11px] text-slate-400">Monitoring login gagal dan percobaan akses tidak sah</p>
-            </div>
-          </div>
-          <div className="inline-flex w-fit items-center rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-500">
-            {securityAlerts.length} alert terbaru
-          </div>
-        </div>
 
-        {loading ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-20 rounded-xl bg-slate-100 animate-pulse" />
-            ))}
-          </div>
-        ) : securityAlerts.length === 0 ? (
-          <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-5 text-center">
-            <p className="text-sm font-semibold text-green-700">Tidak ada security alert terbaru</p>
-            <p className="mt-1 text-xs text-green-600">Belum ada login gagal atau percobaan akses role yang ditolak.</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {securityAlerts.map((alert) => {
-              const meta = getSecurityMeta(alert.activityType);
-              const Icon = meta.icon;
+            {/* Right — live preset pills (desktop only) */}
+            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-[220px]">
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400">
+                  Supplier Terbaik · AHP+TOPSIS
+                </p>
+                {recLoading && (
+                  <RefreshCw size={10} className="text-slate-400 animate-spin" />
+                )}
+              </div>
 
-              return (
-                <div
-                  key={alert.id}
-                  className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 hover:border-slate-200 hover:bg-white transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${meta.iconWrap}`}>
-                      <Icon size={16} />
+              {recLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 animate-pulse h-[52px]" />
+              ))}
+
+              {!recLoading && recDataset && recDataset.presets.map((preset) => {
+                const top = preset.rankedSuppliers.find(
+                  (r) => r.score != null && !Number.isNaN(r.score) && r.score > 0
+                );
+                const cfg = PRESET_ICON[preset.key] ?? PRESET_ICON.balanced;
+                const Icon = cfg.icon;
+                return (
+                  <div
+                    key={preset.key}
+                    className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                      <Icon size={13} className={cfg.iconColor} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.badge}`}>
-                          {meta.label}
-                        </span>
-                        <span className="shrink-0 text-[10px] text-slate-400">
-                          {formatAlertTime(alert.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-2 truncate text-xs font-semibold text-slate-800">
-                        {alert.title}
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest truncate">
+                        {preset.label}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">
-                        {alert.description || alert.refNumber || "Tidak ada detail tambahan"}
-                      </p>
-                      <p className="mt-2 text-[10px] text-slate-400">
-                        Actor: <span className="font-semibold text-slate-500">{alert.userName || "SYSTEM"}</span>
+                      <p className="text-white text-[13px] font-semibold font-serif truncate leading-tight mt-0.5">
+                        {top?.name ?? "Belum ada data"}
                       </p>
                     </div>
+                    {top && (
+                      <span className="text-[11px] font-bold tabular-nums text-gold-400 shrink-0">
+                        {(top.score * 100).toFixed(3)}
+                      </span>
+                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+
+              {!recLoading && !recDataset && (
+                <>
+                  {[
+                    { icon: Trophy,    iconColor: "text-gold-400",  label: "Supplier Terbaik", sub: "Skor AHP + TOPSIS" },
+                    { icon: TrendingUp,iconColor: "text-green-400", label: "Spend Bulanan",    sub: "Trend & Pareto HHI" },
+                    { icon: Building2, iconColor: "text-blue-400",  label: "Lead Time",        sub: "Aktual vs Katalog" },
+                  ].map(({ icon: Icon, iconColor, label, sub }) => (
+                    <div key={label} className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 flex items-center gap-3">
+                      <div className={`w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0`}>
+                        <Icon size={13} className={iconColor} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{label}</p>
+                        <p className="text-white text-[13px] font-semibold font-serif">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
           </div>
-        )}
+        </div>
+      </Link>
+
+      {/* ══ KPI CARDS ROW ════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        <KpiCard
+          title="Purchase Orders"
+          value={kpiLoading ? "—" : String(k?.totalPO ?? 0)}
+          subValue="Periode ini"
+          change={k ? pctChange(k.totalPO, k.totalPOPrevMonth) : undefined}
+          changeSuffix="vs periode lalu"
+          icon={ShoppingCart}
+          accentColor="blue"
+          loading={kpiLoading}
+          onClick={() => router.push("/pembelian/po")}
+        />
+        <KpiCard
+          title="Total Purchase Spend"
+          value={kpiLoading ? "—" : formatRupiah(k?.totalSpend ?? 0)}
+          subValue="Dari invoice"
+          change={k ? pctChange(k.totalSpend, k.totalSpendPrevMonth) : undefined}
+          changeSuffix="vs periode lalu"
+          icon={DollarSign}
+          accentColor="emerald"
+          loading={kpiLoading}
+          onClick={() => router.push("/pembelian/invoice")}
+        />
+        <KpiCard
+          title="Outstanding PO"
+          value={kpiLoading ? "—" : String(k?.outstandingPO ?? 0)}
+          subValue="Open / Pending / Partial"
+          icon={Clock3}
+          accentColor="amber"
+          loading={kpiLoading}
+          onClick={() => drillPOStatus("Waiting to be processed")}
+        />
+        <KpiCard
+          title="On-Time Delivery"
+          value={kpiLoading ? "—" : `${(k?.onTimeDeliveryRate ?? 0).toFixed(1)}%`}
+          subValue="GR ≤ expected date"
+          icon={Truck}
+          accentColor="indigo"
+          loading={kpiLoading}
+          onClick={() => router.push("/pembelian/gr")}
+        />
+        <KpiCard
+          title="Avg Supplier Score"
+          value={kpiLoading ? "—" : k && k.avgSupplierScore > 0 ? `${k.avgSupplierScore.toFixed(1)}%` : "—"}
+          subValue="AHP + TOPSIS (AI)"
+          icon={Star}
+          accentColor="purple"
+          loading={kpiLoading || recLoading}
+          onClick={() => router.push("/rekomendasi")}
+        />
+        <KpiCard
+          title="Purchase Returns"
+          value={kpiLoading ? "—" : String(k?.purchaseReturnCount ?? 0)}
+          subValue="Periode ini"
+          change={k ? pctChange(k.purchaseReturnCount, k.purchaseReturnPrevMonth) : undefined}
+          changeSuffix="vs periode lalu"
+          icon={RotateCcw}
+          accentColor="rose"
+          loading={kpiLoading}
+          onClick={() => router.push("/pembelian/retur")}
+        />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
-        {/* Module Activity */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <p className="text-sm font-bold text-slate-700 mb-1">Aktivitas Modul</p>
-          <p className="text-[11px] text-slate-400 mb-5">Volume transaksi per modul</p>
-          {loading ? (
-            <div className="space-y-4">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-8 bg-slate-100 rounded-lg" />)}</div>
-          ) : (
-            <div className="space-y-4">
-              {moduleBars.map((m) => (
-                <div key={m.module}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs font-semibold ${m.color}`}>{m.module}</span>
-                    <span className="text-[11px] text-slate-400">{m.label}</span>
-                  </div>
-                  <MiniBar value={m.value} max={m.max} color={m.barColor} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent SO */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <p className="text-sm font-bold text-slate-700 mb-1">Sales Order Terbaru</p>
-          <p className="text-[11px] text-slate-400 mb-4">5 transaksi penjualan terakhir</p>
-          {loading ? (
-            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />)}</div>
-          ) : recentSO.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">Belum ada data</p>
-          ) : (
-            <div className="space-y-2">
-              {recentSO.map((so, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-700 truncate">{so.nomor}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{so.pelanggan}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
-                    {statusBadge(so.status)}
-                    <p className="text-[10px] font-semibold text-slate-600">Rp {fmt(so.total)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent PO */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <p className="text-sm font-bold text-slate-700 mb-1">Purchase Order Terbaru</p>
-          <p className="text-[11px] text-slate-400 mb-4">5 transaksi pembelian terakhir</p>
-          {loading ? (
-            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-lg" />)}</div>
-          ) : recentPO.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">Belum ada data</p>
-          ) : (
-            <div className="space-y-2">
-              {recentPO.map((po, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-700 truncate">{po.nomor}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{po.supplier}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0 ml-2">
-                    {statusBadge(po.status)}
-                    <p className="text-[10px] font-semibold text-slate-600">Rp {fmt(po.total)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* â”€â”€ AI Supplier Rankings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center shrink-0">
-            <Brain size={12} className="text-yellow-400" />
-          </div>
-          <p className="text-sm font-bold text-slate-800">Supplier Rankings â€” AI & AHP</p>
-        </div>
-        <div className="flex-1 h-px bg-slate-100" />
-        <p className="text-[11px] text-slate-400">Berbasis data ERP Â· XGBoost Risk Â· AHP-TOPSIS</p>
-      </div>
-
-      {/* Risk + AHP row */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-6">
-
-        {/* Risk Detection â€” spans 1 col */}
-        <div className="xl:col-span-1">
-          <RiskRankingWidget rows={riskRows} loading={rankLoading} />
-        </div>
-
-        {/* AHP 4 presets â€” spans 4 cols as 2Ã—2 grid */}
-        <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {rankLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                  <div className="h-14 bg-slate-200 animate-pulse" />
-                  <div className="p-4 space-y-3">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <div key={j} className="animate-pulse h-8 bg-slate-100 rounded-lg" />
-                    ))}
-                  </div>
-                </div>
-              ))
-            : ahpRankings.map((preset) => (
-                <AhpPresetCard key={preset.key} preset={preset} loading={rankLoading} />
-              ))
+      {/* ══ CHARTS ROW 1 ═════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard
+          title="Purchase Spending Trend"
+          subtitle="Total invoice per bulan (12 bulan terakhir)"
+          className="lg:col-span-2"
+          action={
+            <button onClick={drillSpendTrend} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+              Lihat Invoice <ChevronRight size={12} />
+            </button>
           }
-        </div>
+        >
+          <SpendTrendChart data={c?.spendTrend ?? []} loading={kpiLoading} />
+        </ChartCard>
 
+        <ChartCard
+          title="PO by Status"
+          subtitle="Distribusi semua Purchase Order"
+          action={
+            <button onClick={() => router.push("/pembelian/po")} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+              Lihat PO <ChevronRight size={12} />
+            </button>
+          }
+        >
+          <POStatusDonut
+            data={c?.poStatusDistribution ?? []}
+            loading={kpiLoading}
+            onSliceClick={drillPOStatus}
+          />
+        </ChartCard>
       </div>
 
+      {/* ══ CHARTS ROW 2 ═════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard title="Monthly Purchase Volume" subtitle="Jumlah PO per bulan">
+          <MonthlyVolumeBar data={c?.monthlyVolume ?? []} loading={kpiLoading} />
+        </ChartCard>
+        <ChartCard
+          title="Top 10 Suppliers by Spend"
+          subtitle="Total pembelian per supplier (periode ini)"
+          action={
+            <button onClick={() => router.push("/pembelian/supplier")} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+              Semua Supplier <ChevronRight size={12} />
+            </button>
+          }
+        >
+          <TopSuppliersBar
+            data={c?.topSuppliersBySpend ?? []}
+            loading={kpiLoading}
+            onBarClick={drillSupplier}
+          />
+        </ChartCard>
+      </div>
+
+      {/* ══ CHARTS ROW 3 ═════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ChartCard
+          title="Supplier Performance Ranking"
+          subtitle="Skor AI (AHP + TOPSIS) — top 10"
+          className="lg:col-span-2"
+          action={
+            <button onClick={() => router.push("/rekomendasi")} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+              Rekomendasi AI <ChevronRight size={12} />
+            </button>
+          }
+        >
+          <SupplierPerformanceBar
+            data={c?.supplierPerformanceRanking ?? []}
+            loading={kpiLoading || recLoading}
+          />
+        </ChartCard>
+
+        <ChartCard title="Purchase Category Distribution" subtitle="Spending per kategori supplier">
+          <CategoryPieChart data={c?.categoryDistribution ?? []} loading={kpiLoading} />
+        </ChartCard>
+      </div>
+
+      {/* ══ CHARTS ROW 4 ═════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Lead Time Trend"
+          subtitle="Rata-rata hari PO → GR per bulan"
+        >
+          <LeadTimeTrendChart data={c?.leadTimeTrend ?? []} loading={kpiLoading} />
+        </ChartCard>
+        <ChartCard
+          title="Monthly Purchase Return Trend"
+          subtitle="Jumlah retur per bulan"
+          action={
+            <button onClick={() => router.push("/pembelian/retur")} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+              Lihat Retur <ChevronRight size={12} />
+            </button>
+          }
+        >
+          <ReturnTrendBar data={c?.returnTrend ?? []} loading={kpiLoading} />
+        </ChartCard>
+      </div>
+
+      {/* ══ PROCUREMENT MANAGER EXCLUSIVE SECTION ════════════════════════════ */}
+      {isProcurementManager && (
+        <div className="space-y-4">
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 px-2">
+              Procurement Manager Analytics
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* Quick-access approval cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Link href="/pembelian/track-po-status" className="group rounded-2xl border border-amber-200 bg-amber-50 p-5 hover:bg-amber-100 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-amber-200 flex items-center justify-center shrink-0">
+                  <ShoppingCart size={20} className="text-amber-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-amber-900">Track PO Status</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Setujui atau tolak permohonan PO</p>
+                </div>
+                <ArrowRight size={16} className="text-amber-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              </div>
+            </Link>
+            <Link href="/pembelian/po-approval-list" className="group rounded-2xl border border-indigo-200 bg-indigo-50 p-5 hover:bg-indigo-100 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-xl bg-indigo-200 flex items-center justify-center shrink-0">
+                  <FileText size={20} className="text-indigo-700" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-indigo-900">PO Approval List</p>
+                  <p className="text-xs text-indigo-700 mt-0.5">Riwayat PO yang telah disetujui</p>
+                </div>
+                <ArrowRight size={16} className="text-indigo-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              </div>
+            </Link>
+          </div>
+
+          {/* Procurement Funnel + Supplier Risk */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <ChartCard title="Procurement Funnel" subtitle="PO → Approved → GR → Invoice → Payment">
+              <ProcurementFunnel
+                data={kpiData?.funnel ?? []}
+                loading={kpiLoading}
+                onStepClick={drillFunnel}
+              />
+            </ChartCard>
+
+            <ChartCard title="Supplier Risk Indicator" subtitle="Berdasarkan AI Score (AHP + TOPSIS)">
+              <SupplierRiskIndicator
+                data={kpiData?.riskSummary ?? { green: 0, yellow: 0, red: 0 }}
+                loading={kpiLoading || recLoading}
+              />
+            </ChartCard>
+          </div>
+
+          {/* Supplier Leaderboard */}
+          <ChartCard
+            title="Supplier Leaderboard"
+            subtitle="Top 10 supplier berdasarkan AI Score"
+            action={
+              <button onClick={() => router.push("/rekomendasi")} className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+                Rekomendasi AI <ChevronRight size={12} />
+              </button>
+            }
+          >
+            <SupplierLeaderboard
+              data={kpiData?.leaderboard ?? []}
+              loading={kpiLoading || recLoading}
+              onRowClick={drillSupplier}
+            />
+          </ChartCard>
+
+          {/* Spending by Category + AI Summary */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <ChartCard title="Spending by Supplier Category" subtitle="Stacked per bulan (12 bulan terakhir)" className="lg:col-span-2">
+              <SpendingByCategory data={c?.supplierCategorySpend ?? []} loading={kpiLoading} />
+            </ChartCard>
+            <ChartCard title="AI Recommendation Summary" subtitle="Hasil analisis AHP + TOPSIS terkini">
+              <AIRecommendationSummary dataset={recDataset ?? null} loading={recLoading} />
+            </ChartCard>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Activity feed panels (kept from original — no business logic changed)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ActivityFeed() {
+  const { user } = useAuth();
+  const [dashboard, setDashboard] = useState<PurchasingDashboard>(EMPTY_PURCHASING_DASHBOARD);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      setDashboard(await purchasingDashboardService.getDashboard());
+    } catch (err) {
+      console.error("Gagal memuat activity feed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 mt-2">
+      {/* Recent Activities */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex h-11 items-center justify-between border-b border-slate-100 px-4">
+          <p className="text-sm font-bold text-slate-800">Aktivitas Terakhir</p>
+          <button onClick={fetchDashboard} disabled={loading} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+        <div className="h-[260px] overflow-y-auto px-4 py-3">
+          {loading ? (
+            <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />)}</div>
+          ) : dashboard.recentActivities.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-slate-400 text-sm">Tidak ada aktivitas</div>
+          ) : (
+            <div>
+              {dashboard.recentActivities.map((item, index) => {
+                const href = activityHref(item.refTable, item.refId);
+                const dateKey = getDateKey(item.createdAt);
+                const prevDateKey = index > 0 ? getDateKey(dashboard.recentActivities[index - 1]?.createdAt) : "";
+                const showDate = index === 0 || dateKey !== prevDateKey;
+                const content = (
+                  <div className="group grid grid-cols-[72px_1fr] gap-3">
+                    <div className="pt-1 text-slate-500">
+                      {showDate && (<><p className="text-xs">{fmtDay(item.createdAt)}</p><p className="leading-none text-[40px] font-light">{fmtDayN(item.createdAt)}</p><p className="-mt-1 text-xl">{fmtMonth(item.createdAt)}</p></>)}
+                    </div>
+                    <div className="relative border-l border-slate-200 pb-6 pl-7">
+                      <span className="absolute -left-[7px] top-2 h-3 w-3 rounded-full border border-blue-400 bg-blue-100" />
+                      <div className="grid grid-cols-[52px_1fr] gap-2">
+                        <p className="text-xs font-bold text-slate-700">{fmtTime(item.createdAt)}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-slate-600 group-hover:text-slate-900">{item.title}</p>
+                          {(item.description || item.refNumber) && <p className="mt-0.5 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+                return href ? <Link key={item.id} href={href} className="block">{content}</Link> : <div key={item.id}>{content}</div>;
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Upcoming Activities */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex h-11 items-center justify-between border-b border-slate-100 px-4">
+          <p className="text-sm font-bold text-slate-800">Kegiatan Mendatang</p>
+          <button onClick={fetchDashboard} disabled={loading} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+        <div className="h-[260px] overflow-y-auto px-4 py-3">
+          {loading ? (
+            <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}</div>
+          ) : dashboard.upcomingActivities.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-slate-400 text-sm">Tidak ada kegiatan</div>
+          ) : (
+            <div className="space-y-2">
+              {dashboard.upcomingActivities.map((item, index) => {
+                const href = activityHref(item.refTable, item.refId);
+                const badgeCls = priorityCls[item.priority] ?? priorityCls.normal;
+                const content = (
+                  <div className="grid grid-cols-[60px_1fr] gap-4 rounded-xl border border-slate-100 px-3 py-3 hover:bg-slate-50 transition-colors">
+                    <div className="text-slate-500"><p className="text-xs">{fmtDay(item.activityDate)}</p><p className="leading-none text-2xl font-light">{fmtDayN(item.activityDate)}</p><p className="text-xs">{fmtMonth(item.activityDate)}</p></div>
+                    <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
+                          {(item.description || item.refNumber) && <p className="mt-0.5 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${badgeCls}`}>{item.priority}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+                return href ? <Link key={`${item.activityType}-${item.refId ?? index}-${item.activityDate}`} href={href} className="block">{content}</Link> : <div key={`${item.activityType}-${index}`}>{content}</div>;
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Role-based wrapper components
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PurchasingStaffDashboard() {
+  return (
+    <AppShell
+      title="Purchasing Dashboard"
+      subtitle="Executive overview aktivitas pembelian dan supplier"
+    >
+      <KpiDashboard isProcurementManager={false} />
+      <ActivityFeed />
     </AppShell>
   );
 }
 
+function ProcurementManagerDashboard() {
+  return (
+    <AppShell
+      title="Procurement Manager Dashboard"
+      subtitle="Strategic procurement analytics & supplier intelligence"
+    >
+      <KpiDashboard isProcurementManager={true} />
+      <ActivityFeed />
+    </AppShell>
+  );
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Page entry-point
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function PembelianPage() {
+  const { user, isLoading: authLoading } = useAuth();
+
+  if (authLoading) return null;
+
+  if (user?.role === "procurement_manager") {
+    return <ProcurementManagerDashboard />;
+  }
+
+  return <PurchasingStaffDashboard />;
+}

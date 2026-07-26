@@ -12,21 +12,21 @@ import {
 import { salesStatusService } from "@/lib/services/sales-status.service";
 import { cn } from "@/lib/utils";
 
-interface SalesStatusSelectProps {
+interface SalesStatusSelectProps<T extends string = string> {
   module: SalesStatusModule;
   id: number | string;
   value?: string | null;
   disabled?: boolean;
-  onUpdated?: (status: string) => void;
+  onUpdated?: (status: T) => void;
 }
 
-export function SalesStatusSelect({
+export function SalesStatusSelect<T extends string = string>({
   module,
   id,
   value,
   disabled,
   onUpdated,
-}: SalesStatusSelectProps) {
+}: SalesStatusSelectProps<T>) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   const [open, setOpen] = useState(false);
@@ -84,7 +84,7 @@ export function SalesStatusSelect({
       setSaving(true);
       await salesStatusService.update(module, id, { status: nextStatus });
       setStatus(nextStatus);
-      onUpdated?.(nextStatus);
+      onUpdated?.(nextStatus as T);
     } finally {
       setSaving(false);
       setOpen(false);

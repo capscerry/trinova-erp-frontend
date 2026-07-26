@@ -3,6 +3,8 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { notify } from "@/lib/notify";
 
 import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
 
@@ -20,7 +22,7 @@ import {
   getSupplierCategory,
 } from "@/lib/services";
 
-// ─── Type ──────────────────────────────────────────────────────────────────────
+// --- Type ----------------------------------------------------------------------
 
 interface Supplier {
   id: string;
@@ -29,17 +31,36 @@ interface Supplier {
   telepon: string;
   email: string;
   alamat: string;
-
   category_supplier: string;
+  status: string;
 }
 
 interface SupplierCategory {
   category_supplier: string;
-
   nama_category: string;
+  is_active?: boolean;
 }
 
-// ─── Columns ───────────────────────────────────────────────────────────────────
+// --- Status badge --------------------------------------------------------------
+
+function StatusBadge({ status }: { status: string }) {
+  const active = status === "Active";
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold
+        ${active
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+          : "bg-slate-100 text-slate-500 border border-slate-200"}
+      `}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400"}`} />
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+// --- Columns -------------------------------------------------------------------
 
 const COLUMNS: Column<Supplier>[] = [
   {
@@ -56,9 +77,15 @@ const COLUMNS: Column<Supplier>[] = [
     key: "telepon",
     label: "TELEPON",
   },
+
+  {
+    key: "status",
+    label: "STATUS",
+    render: (value) => <StatusBadge status={value as string} />,
+  },
 ];
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
+// --- Page ----------------------------------------------------------------------
 
 export default function SupplierPage() {
 
@@ -89,6 +116,14 @@ export default function SupplierPage() {
         null
       );
 
+  // --- Delete confirmation -------------------------------------------------
+  const [confirmDelete, setConfirmDelete] = useState<{
+    open: boolean;
+    id: string;
+    name: string;
+  }>({ open: false, id: "", name: "" });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const [formData, setFormData] =
     useState({
       supplier_code: "",
@@ -96,11 +131,11 @@ export default function SupplierPage() {
       no_telp_bisnis: "",
       email: "",
       alamat: "",
-
       category_supplier: "",
+      status: "Active",
     });
 
-  // ─── Fetch Supplier ─────────────────────────────────────────────────────────
+  // --- Fetch Supplier ---------------------------------------------------------
 
   const fetchSuppliers = async () => {
 
@@ -140,6 +175,9 @@ export default function SupplierPage() {
             category_supplier:
               item.category_supplier
                 ?.toString() || "",
+
+            status:
+              item.status || "Active",
           })
         );
 
@@ -157,7 +195,7 @@ export default function SupplierPage() {
     }
   };
 
-  // ─── Fetch Categories ───────────────────────────────────────────────────────
+  // --- Fetch Categories -------------------------------------------------------
 
   const fetchCategories =
     async () => {
@@ -171,7 +209,7 @@ export default function SupplierPage() {
           res.data || res || [];
 
         // Normalise to the shape the modal expects:
-        // { category_supplier: string, nama_category: string }
+        // { category_supplier: string, nama_category: string, is_active: boolean }
         const mapped = raw.map(
           (item: any) => ({
             category_supplier:
@@ -184,6 +222,8 @@ export default function SupplierPage() {
               item.nama_category ??
               item.category_name ??
               "",
+            is_active:
+              item.is_active === undefined ? true : Boolean(item.is_active),
           })
         );
 
@@ -206,7 +246,7 @@ export default function SupplierPage() {
 
   }, []);
 
-  // ─── Submit ─────────────────────────────────────────────────────────────────
+  // --- Submit -----------------------------------------------------------------
 
   const handleSubmit =
     async () => {
@@ -238,13 +278,11 @@ export default function SupplierPage() {
                   formData.category_supplier
                 ),
 
-              status: "Active",
+              status: formData.status,
             }
           );
 
-          alert(
-            "Supplier berhasil diupdate"
-          );
+          notify.success("Supplier berhasil diupdate");
 
         } else {
 
@@ -270,13 +308,13 @@ export default function SupplierPage() {
                   formData.category_supplier
                 ),
 
-              status: "Active",
+              status: formData.status,
             });
 
           const supplierId =
             response.data.supplier_id;
 
-          // ─── Import Catalog ─────────────────
+          // --- Import Catalog -----------------
 
           if (catalogFile) {
 
@@ -286,9 +324,7 @@ export default function SupplierPage() {
             );
           }
 
-          alert(
-            "Supplier berhasil ditambahkan"
-          );
+          notify.success("Supplier berhasil ditambahkan");
         }
 
         fetchSuppliers();
@@ -299,8 +335,8 @@ export default function SupplierPage() {
           no_telp_bisnis: "",
           email: "",
           alamat: "",
-
           category_supplier: "",
+          status: "Active",
         });
 
         setCatalogFile(null);
@@ -315,47 +351,33 @@ export default function SupplierPage() {
 
         console.error(err);
 
-        alert(
-          err.message ||
-          "Gagal simpan supplier"
-        );
+        notify.error("Gagal simpan supplier", err.message);
       }
     };
 
-  // ─── Delete ─────────────────────────────────────────────────────────────────
+  // --- Delete -----------------------------------------------------------------
 
-  const handleDelete =
-    async (id: string) => {
+  const handleDelete = (id: string) => {
+    const row = suppliers.find((s) => s.id === id);
+    setConfirmDelete({ open: true, id, name: row?.nama ?? id });
+  };
 
-      const confirmDelete =
-        confirm(
-          "Yakin ingin menghapus supplier ini?"
-        );
+  const executeDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await deleteSupplier(confirmDelete.id);
+      notify.success("Supplier berhasil dihapus");
+      fetchSuppliers();
+    } catch (error) {
+      console.error(error);
+      notify.error("Gagal hapus supplier");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete({ open: false, id: "", name: "" });
+    }
+  };
 
-      if (!confirmDelete)
-        return;
-
-      try {
-
-        await deleteSupplier(id);
-
-        alert(
-          "Supplier berhasil dihapus"
-        );
-
-        fetchSuppliers();
-
-      } catch (error) {
-
-        console.error(error);
-
-        alert(
-          "Gagal hapus supplier"
-        );
-      }
-    };
-
-  // ─── Edit ───────────────────────────────────────────────────────────────────
+  // --- Edit -------------------------------------------------------------------
 
   const handleEdit =
     (row: Supplier) => {
@@ -384,12 +406,15 @@ export default function SupplierPage() {
 
         category_supplier:
           row.category_supplier,
+
+        status:
+          row.status || "Active",
       });
 
       setOpenModal(true);
     };
 
-  // ─── Detail ─────────────────────────────────────────────────────────────────
+  // --- Detail -----------------------------------------------------------------
 
   const handleDetail =
     (row: Supplier) => {
@@ -433,8 +458,8 @@ export default function SupplierPage() {
             no_telp_bisnis: "",
             email: "",
             alamat: "",
-
             category_supplier: "",
+            status: "Active",
           });
 
           setCatalogFile(null);
@@ -476,7 +501,20 @@ export default function SupplierPage() {
         )}
       />
 
-      {/* ─── Modal Form ───────────────────────────────────── */}
+      {/* --- Confirm Delete -------------------------------- */}
+
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus Supplier"
+        message={`Yakin ingin menghapus supplier "${confirmDelete.name}"?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deleteLoading}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete({ open: false, id: "", name: "" })}
+      />
+
+      {/* --- Modal Form ------------------------------------- */}
 
       <SupplierFormModal
 
@@ -501,7 +539,7 @@ export default function SupplierPage() {
         }
       />
 
-      {/* ─── Detail Modal ─────────────────────────────────── */}
+      {/* --- Detail Modal ----------------------------------- */}
 
       {openDetail &&
         detailData && (
@@ -566,7 +604,7 @@ export default function SupplierPage() {
                   transition-colors
                 "
               >
-                ✕
+                -
               </button>
 
             </div>
@@ -590,7 +628,7 @@ export default function SupplierPage() {
                   </p>
 
                   <p className="text-sm font-semibold text-slate-700">
-                    {value || "—"}
+                    {value || "-"}
                   </p>
 
                 </div>

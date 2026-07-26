@@ -186,10 +186,10 @@ export function DataTable<T extends object>({
   const busy = loading || isLoading;
 
   const sortOptions: { value: SortOrder; label: string; available: boolean }[] = [
-    { value: "newest", label: "Newest", available: Boolean(dateField || createdAtField || dateKey) },
-    { value: "oldest", label: "Oldest", available: Boolean(dateField || createdAtField || dateKey) },
-    { value: "az", label: "A to Z", available: Boolean(nameField) },
-    { value: "za", label: "Z to A", available: Boolean(nameField) },
+    { value: "newest" as SortOrder, label: "Newest", available: Boolean(dateField || createdAtField || dateKey) },
+    { value: "oldest" as SortOrder, label: "Oldest", available: Boolean(dateField || createdAtField || dateKey) },
+    { value: "az" as SortOrder, label: "A to Z", available: Boolean(nameField) },
+    { value: "za" as SortOrder, label: "Z to A", available: Boolean(nameField) },
   ].filter((option) => option.available);
 
   return (

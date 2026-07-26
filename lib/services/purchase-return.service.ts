@@ -70,7 +70,8 @@ export const resolveAcceptLoss = async (
   returnId: number,
   returnItems: ReturnLineItem[],
   supplierId: number,
-  returnAmount: number
+  returnAmount: number,
+  _goodsReceiptId?: number  // kept for call-site compatibility; unused
 ) => {
   const itemSummary = returnItems
     .map((i) => `${i.product_name} x${i.qty_return}`)
@@ -111,7 +112,8 @@ export const resolveNextPODeduction = async (
   targetPOId: number,
   targetPONumber: string,
   deductionAmount: number,
-  newPOTotal: number
+  newPOTotal: number,
+  _goodsReceiptId?: number  // kept for call-site compatibility; unused
 ) => {
   await patchPOTotal(targetPOId, newPOTotal);
 
@@ -133,7 +135,8 @@ export const confirmCashRefund = async (
   targetInvoiceId: number,
   targetInvoiceNumber: string,
   deductionAmount: number,
-  returnDate: string
+  returnDate: string,
+  _goodsReceiptId?: number  // kept for call-site compatibility; unused
 ) => {
   // Create a Return Credit payment against the invoice
   await createPurchasePayment({

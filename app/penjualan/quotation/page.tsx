@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import {
   type SalesQuotation,
   type SalesQuotationFormData,
+  type QuotationStatus,
   salesQuotationService,
 } from "@/lib/services/penjualan.service";
 import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
@@ -476,7 +477,7 @@ export default function SalesQuotationPage() {
                     </td>
 
                     <td className="px-5 py-3">
-                      <SalesStatusSelect
+                      <SalesStatusSelect<QuotationStatus>
                         module="quotation"
                         id={row.id}
                         value={row.status}

@@ -4,13 +4,13 @@ import { X, RefreshCcw, Scissors, Banknote, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 
 const fmtDate = (d: string) => {
-  if (!d) return "—";
+  if (!d) return "-";
   try {
     return new Intl.DateTimeFormat("id-ID", {
       day: "2-digit", month: "long", year: "numeric",
@@ -36,7 +36,7 @@ function settlementIcon(option: string) {
   return null;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// --- Sub-components -----------------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -51,7 +51,7 @@ function Divider() {
   return <div className="border-t border-slate-100" />;
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// --- Props --------------------------------------------------------------------
 
 export interface PurchaseReturnDetailData {
   purchase_return_id: number;
@@ -68,6 +68,7 @@ export interface PurchaseReturnDetailData {
   notes: string;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseReturnDetailModalProps {
@@ -76,7 +77,7 @@ interface PurchaseReturnDetailModalProps {
   data: PurchaseReturnDetailData | null;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 export default function PurchaseReturnDetailModal({
   open,
@@ -88,6 +89,26 @@ export default function PurchaseReturnDetailModal({
   const settlementNotes = data.notes
     ? data.notes.split(".").map((s) => s.trim()).filter(Boolean)
     : [];
+
+  // Parse serialised return line items from transaction_detail
+  interface ReturnLineItem {
+    product_id: number;
+    product_name: string;
+    qty_return: number;
+    unit_price: number;
+    subtotal: number;
+  }
+  let returnItems: ReturnLineItem[] = [];
+  if (data.transaction_detail) {
+    try {
+      const parsed = JSON.parse(data.transaction_detail);
+      if (Array.isArray(parsed) && parsed.length > 0 && "product_id" in parsed[0]) {
+        returnItems = parsed as ReturnLineItem[];
+      }
+    } catch {
+      // not JSON - leave returnItems empty
+    }
+  }
 
   const exportToExcel = () => {
     const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
@@ -126,7 +147,7 @@ export default function PurchaseReturnDetailModal({
     const headerFields: [string, string][] = [
       ["DATE",          fmtDate(data.return_date)],
       ["RETURN NUMBER", data.purchase_return_number],
-      ["PO NUMBER",     data.purchase_order_number || "—"],
+      ["PO NUMBER",     data.purchase_order_number || "-"],
     ];
     headerFields.forEach(([label, value]) => {
       ws[C(r, 0)] = { v: "",    t: "s" };
@@ -162,6 +183,28 @@ export default function PurchaseReturnDetailModal({
     for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
     r++;
 
+    // Return line items table (if available)
+    if (returnItems.length > 0) {
+      ws[C(r, 0)] = { v: "PRODUK",       t: "s", s: sColHdr };
+      ws[C(r, 1)] = { v: "",             t: "s", s: sColHdr };
+      ws[C(r, 2)] = { v: "QTY",          t: "s", s: sColHdr };
+      ws[C(r, 3)] = { v: "SUBTOTAL (Rp)",t: "s", s: sColHdr };
+      merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+      r++;
+      const sNum = { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right", vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' };
+      returnItems.forEach((item) => {
+        ws[C(r, 0)] = { v: item.product_name, t: "s", s: sCellL };
+        ws[C(r, 1)] = { v: "",                t: "s", s: sCellL };
+        ws[C(r, 2)] = { v: item.qty_return,   t: "n", s: sCell  };
+        ws[C(r, 3)] = { v: item.subtotal,     t: "n", s: sNum   };
+        merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
+        r++;
+      });
+      // Spacer before settlement
+      for (let c = 0; c < COLS; c++) ws[C(r, c)] = { v: "", t: "s" };
+      r++;
+    }
+
     // Details table header
     ws[C(r, 0)] = { v: "SETTLEMENT",       t: "s", s: sColHdr };
     ws[C(r, 1)] = { v: "NOTES",            t: "s", s: sColHdr };
@@ -171,8 +214,8 @@ export default function PurchaseReturnDetailModal({
     r++;
 
     // Details values
-    ws[C(r, 0)] = { v: data.settlement_option || "—", t: "s", s: sCell  };
-    ws[C(r, 1)] = { v: data.notes?.trim() || "—",      t: "s", s: sCellL };
+    ws[C(r, 0)] = { v: data.settlement_option || "-", t: "s", s: sCell  };
+    ws[C(r, 1)] = { v: data.notes?.trim() || "-",      t: "s", s: sCellL };
     ws[C(r, 2)] = { v: "",                              t: "s", s: sCellL };
     ws[C(r, 3)] = { v: data.total_amount,               t: "n", s: { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right", vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' } };
     merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
@@ -283,11 +326,11 @@ export default function PurchaseReturnDetailModal({
               </Field>
 
               <Field label="No. PO Terkait">
-                <span className="font-mono">{data.purchase_order_number || "—"}</span>
+                <span className="font-mono">{data.purchase_order_number || "-"}</span>
               </Field>
 
               <Field label="GR ID">
-                {data.goods_receipt_id > 0 ? String(data.goods_receipt_id) : "—"}
+                {data.goods_receipt_id > 0 ? String(data.goods_receipt_id) : "-"}
               </Field>
 
               <Field label="Total Retur">
@@ -295,9 +338,60 @@ export default function PurchaseReturnDetailModal({
                   Rp {fmt(data.total_amount)}
                 </span>
               </Field>
+
+              {data.nomor_faktur_pajak && (
+                <div className="col-span-2">
+                  <Field label="Nomor Faktur Pajak">
+                    <span className="font-mono font-semibold text-slate-700">
+                      {data.nomor_faktur_pajak}
+                    </span>
+                  </Field>
+                </div>
+              )}
             </div>
 
             <Divider />
+
+            {/* Return line items */}
+            {returnItems.length > 0 && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Item yang Dikembalikan
+                  </p>
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-slate-400">Produk</th>
+                          <th className="px-3 py-2 text-center font-bold uppercase tracking-wider text-slate-400 w-16">Qty</th>
+                          <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-slate-400 w-28">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {returnItems.map((item) => (
+                          <tr key={item.product_id} className="hover:bg-slate-50/60">
+                            <td className="px-3 py-2 font-medium text-slate-700">{item.product_name}</td>
+                            <td className="px-3 py-2 text-center text-slate-600">{item.qty_return}</td>
+                            <td className="px-3 py-2 text-right text-slate-600">Rp {fmt(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-slate-200 bg-slate-50">
+                          <td colSpan={2} className="px-3 py-2 text-right text-xs font-bold uppercase text-slate-500">Total</td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-800">
+                            Rp {fmt(returnItems.reduce((s, i) => s + i.subtotal, 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <Divider />
+              </>
+            )}
 
             {/* Settlement detail */}
             <div className="space-y-3">
@@ -310,7 +404,7 @@ export default function PurchaseReturnDetailModal({
                   Kondisi Penyelesaian
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  {data.closing_condition || "—"}
+                  {data.closing_condition || "-"}
                 </p>
               </div>
 
@@ -342,25 +436,16 @@ export default function PurchaseReturnDetailModal({
             )}
 
             {/* Transaction info */}
-            {(data.transaction_name || data.transaction_detail) && (
+            {data.transaction_name && (
               <>
                 <Divider />
                 <div className="space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     Informasi Transaksi
                   </p>
-                  {data.transaction_name && (
-                    <Field label="Transaction Name">
-                      <span className="font-medium">{data.transaction_name}</span>
-                    </Field>
-                  )}
-                  {data.transaction_detail && (
-                    <Field label="Transaction Detail">
-                      <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">
-                        {data.transaction_detail}
-                      </p>
-                    </Field>
-                  )}
+                  <Field label="Transaction Name">
+                    <span className="font-medium">{data.transaction_name}</span>
+                  </Field>
                 </div>
               </>
             )}

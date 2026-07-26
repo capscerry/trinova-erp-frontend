@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
+import { useAuth } from "@/lib/AuthContext";
+import { requestPurchaseOrderApproval } from "@/lib/services/po.service";
 import {
   X, Hash, Calendar, Building2, Plus, ToggleLeft,
   CreditCard, Package, FileText, ArrowRight,
@@ -16,19 +18,7 @@ import { AhpTopsisBestPreview } from "./AhpTopsisBestPreview";
 import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
-import { getPurchaseOrders }   from "@/lib/services/po.service";
-import { getGoodsReceipts }    from "@/lib/services/gr.service";
-import { getSuppliers }        from "@/lib/services/supplier.service";
-import { getSupplierProducts } from "@/lib/services/supplier-product.service";
-import { getPurchaseReturns }  from "@/lib/services/purchase-return.service";
-import {
-  topsis,
-  applyPreset,
-  calcOnTimeRates,
-  calcDeliveryPunctuality,
-  PRIORITY_PRESETS,
-} from "@/lib/ahp-topsis";
-import type { TopsisResult, Alternative } from "@/lib/ahp-topsis";
+import { useSupplierRecommendations } from "@/lib/hooks/useSupplierRecommendations";
 
 interface Supplier { id: string; nama: string; status?: string; }
 interface Product {
@@ -46,6 +36,7 @@ export interface PurchaseOrderFormData {
   purchase_order_id?: number;
   transaction_name: string;
   transaction_detail: string;
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderFormModalProps {
@@ -58,11 +49,11 @@ interface PurchaseOrderFormModalProps {
   onCreateInvoice?: (data: any, poId: number, formData: any) => Promise<any>;
   onCreatePayment?: (data: any) => Promise<any>;
   onNavigateToInvoicePage?: () => void;
-  /** Called when the user clicks "Down Payment" — navigate to the DP page pre-selecting this PO */
+  /** Called when the user clicks "Down Payment" - navigate to the DP page pre-selecting this PO */
   onNavigateToDP?: (poId: number, poNumber: string) => void;
-  /** Called when the user clicks "Goods Receipt" — navigate to the GR page pre-selecting this PO */
+  /** Called when the user clicks "Goods Receipt" - navigate to the GR page pre-selecting this PO */
   onNavigateToGR?: (poId: number, poNumber: string) => void;
-  /** Called when the user clicks "Purchase Invoice" — navigate to the Invoice/Payment page */
+  /** Called when the user clicks "Purchase Invoice" - navigate to the Invoice/Payment page */
   onNavigateToInvoice?: (poId: number, poNumber: string) => void;
   suppliers: Supplier[];
   products: Product[];
@@ -75,125 +66,9 @@ interface PurchaseOrderFormModalProps {
   prList?: PurchaseRequisition[];
 }
 
-// ─────────────────────────────────────────────────────────────
-// AHP criteria (must match preset matrix column order)
-// ─────────────────────────────────────────────────────────────
-
-const AHP_CRITERIA = [
-  { id: "avg_price",            label: "Harga Rata-rata",  description: "", weight: 0.2, benefit: false },
-  { id: "lead_time",            label: "Lead Time",        description: "", weight: 0.2, benefit: false },
-  { id: "on_time_rate",         label: "On-Time Rate",     description: "", weight: 0.2, benefit: true  },
-  { id: "delivery_punctuality", label: "Ketepatan Waktu",  description: "", weight: 0.2, benefit: true  },
-  { id: "return_rate",          label: "Tingkat Retur",    description: "", weight: 0.2, benefit: false },
-];
-
-// ─────────────────────────────────────────────────────────────
-// Build TOPSIS alternatives from raw ERP data
-// ─────────────────────────────────────────────────────────────
-
-function buildAlternatives(
-  suppliers: any[], pos: any[], grs: any[], returns: any[], sps: any[],
-): Alternative[] {
-  const normPos = pos.map((p: any) => ({
-    purchase_order_id: Number(p.purchase_order_id),
-    supplier_id:       Number(p.supplier_id ?? p.supplier?.supplier_id ?? 0),
-    order_date:        p.order_date    ?? null,
-    expected_date:     p.expected_date ?? null,
-  }));
-  const normGrs = grs.map((g: any) => ({
-    goods_receipt_id:  Number(g.goods_receipt_id),
-    purchase_order_id: Number(g.purchase_order_id),
-    receipt_date:      g.receipt_date ?? null,
-  }));
-  const normReturns = returns.map((r: any) => ({
-    supplier_id:      Number(r.supplier_id ?? 0),
-    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
-  }));
-  const normSps = sps.map((sp: any) => ({
-    supplier_id:    Number(sp.supplier_id),
-    supplier_price: Number(sp.supplier_price ?? sp.price ?? 0),
-    lead_time_days: sp.lead_time_days != null ? Number(sp.lead_time_days) : null,
-  }));
-  const normSuppliers = suppliers.map((s: any) => ({
-    supplier_id:   Number(s.supplier_id ?? s.id),
-    supplier_name: s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`,
-    supplier_code: s.supplier_code ?? s.kode ?? `S-${s.supplier_id ?? s.id}`,
-  }));
-
-  type Agg = { name: string; code: string; orderCount: number; actualDays: number[]; catalogDays: number[]; prices: number[]; grIds: Set<number> };
-  const agg = new Map<number, Agg>();
-  for (const s of normSuppliers)
-    agg.set(s.supplier_id, { name: s.supplier_name, code: s.supplier_code, orderCount: 0, actualDays: [], catalogDays: [], prices: [], grIds: new Set() });
-
-  for (const po of normPos) { const a = agg.get(po.supplier_id); if (a) a.orderCount++; }
-
-  const poMap = new Map(normPos.map((p) => [p.purchase_order_id, p]));
-  const onTimeMap      = calcOnTimeRates(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-  const punctualityMap = calcDeliveryPunctuality(
-    normPos.map(p => ({ purchase_order_id: p.purchase_order_id, supplier_id: p.supplier_id, order_date: p.order_date, expected_date: p.expected_date })),
-    normGrs.map(g => ({ purchase_order_id: g.purchase_order_id, receipt_date: g.receipt_date })),
-  );
-
-  for (const gr of normGrs) {
-    const po = poMap.get(gr.purchase_order_id);
-    if (!po?.order_date || !gr.receipt_date) continue;
-    const days = (new Date(gr.receipt_date).getTime() - new Date(po.order_date).getTime()) / 86_400_000;
-    if (days < 0 || days > 365) continue;
-    const a = agg.get(po.supplier_id);
-    if (!a) continue;
-    a.actualDays.push(days);
-    a.grIds.add(gr.goods_receipt_id);
-  }
-  for (const sp of normSps) {
-    const a = agg.get(sp.supplier_id);
-    if (!a) continue;
-    if (sp.lead_time_days != null) a.catalogDays.push(sp.lead_time_days);
-    if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
-  }
-  const returnCountMap = new Map<number, number>();
-  for (const ret of normReturns) {
-    if (ret.supplier_id === 0) continue;
-    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
-  }
-
-  const alternatives: Alternative[] = [];
-  for (const [sid, a] of agg.entries()) {
-    if (a.orderCount === 0) continue;
-    const avgPrice   = a.prices.length > 0 ? a.prices.reduce((s, v) => s + v, 0) / a.prices.length : 0;
-    const avgLead    = a.actualDays.length > 0
-      ? a.actualDays.reduce((s, v) => s + v, 0) / a.actualDays.length
-      : a.catalogDays.length > 0 ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length : 14;
-    const grCount    = a.grIds.size;
-    const retCount   = returnCountMap.get(sid) ?? 0;
-    const returnRate = grCount > 0 ? retCount / grCount : 0;
-    alternatives.push({
-      id: String(sid), name: a.name, code: a.code,
-      values: {
-        avg_price:            Math.round(avgPrice * 100) / 100,
-        lead_time:            Math.round(avgLead * 10) / 10,
-        on_time_rate:         Math.round((onTimeMap.get(sid) ?? 0) * 1000) / 1000,
-        delivery_punctuality: Math.round((punctualityMap.get(sid) ?? 0) * 1000) / 1000,
-        return_rate:          Math.round(returnRate * 1000) / 1000,
-      },
-    });
-  }
-  return alternatives;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Per-preset visual config
-// ─────────────────────────────────────────────────────────────
-
-interface PresetBest {
-  key: string;
-  label: string;
-  supplierName: string;
-  supplierId: string;
-  score: number;
-}
+// -------------------------------------------------------------
+// Per-preset visual config (display only - no calculations here)
+// -------------------------------------------------------------
 
 const PRESET_ICONS: Record<string, { icon: React.ElementType; color: string; border: string }> = {
   balanced:        { icon: BarChart2,  color: "text-slate-600",  border: "border-slate-200 hover:border-slate-300"  },
@@ -205,8 +80,8 @@ const PRESET_ICONS: Record<string, { icon: React.ElementType; color: string; bor
 const PROSES_LINKS = [
   {
     key: "persetujuan" as const,
-    label: "Persetujuan PO",
-    desc: "Setujui Purchase Order ini",
+    label: "Permohonan Persetujuan PO",
+    desc: "Ajukan permohonan persetujuan Purchase Order ini",
     icon: ShieldCheck,
     color: "text-amber-600",
     bg: "bg-amber-50 hover:bg-amber-100 border-amber-200",
@@ -246,7 +121,7 @@ const formatRupiah = (n: number) =>
     style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(n);
 
-/** Format a number as Rp 1.501.778,00 — thousands dots, comma decimals, always 2dp */
+/** Format a number as Rp 1.501.778,00 - thousands dots, comma decimals, always 2dp */
 const formatAmount = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency", currency: "IDR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -268,6 +143,9 @@ export default function PurchaseOrderFormModal({
 
   const isEdit = !!initialData;
 
+  const { user } = useAuth();
+  const isPembelianUser = user?.role === "pembelian" || user?.role === "procurement_manager";
+
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [savedPO, setSavedPO] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -276,6 +154,7 @@ export default function PurchaseOrderFormModal({
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   const [dpOpen, setDpOpen] = useState(false);
   const [dpDone, setDpDone] = useState(false);
@@ -312,11 +191,11 @@ export default function PurchaseOrderFormModal({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [deletedItems, setDeletedItems] = useState<number[]>([]);
 
-  // ── AHP-TOPSIS best supplier recommendations ───────────────────────────────
-  const [presetBests, setPresetBests] = useState<PresetBest[]>([]);
-  const [rankLoading, setRankLoading] = useState(false);
+  // -- Shared AHP+TOPSIS recommendation dataset ------------------------------
+  // Consumed from the singleton hook - no independent fetch or recalculation.
+  const { loading: rankLoading, dataset: recommendationDataset } = useSupplierRecommendations();
 
-  // ── PR (Purchase Requisition) picker state ─────────────────────────────────
+  // -- PR (Purchase Requisition) picker state ---------------------------------
   const [prPickerOpen, setPrPickerOpen] = useState(false);
   const [prSearch, setPrSearch] = useState("");
   const [prLoading, setPrLoading] = useState(false);
@@ -330,6 +209,7 @@ export default function PurchaseOrderFormModal({
   const seedFromExisting = useCallback((poId: number) => {
     const approved = initialData?.status === "Approved" || initialData?.status === "Completed";
     setIsApproved(approved);
+    setIsPendingApproval(initialData?.status === "Pending Approval");
 
     const existingGR = existingGoodsReceipts.find(
       (gr: any) => Number(gr.purchase_order_id) === poId
@@ -358,6 +238,7 @@ export default function PurchaseOrderFormModal({
       wasOpenRef.current = true;
       setIsSubmitted(false); setSavedPO(null); setIsSubmitting(false); setPoNumberLoading(false);
       setApprovalOpen(false); setIsApproving(false);
+      setIsPendingApproval(false);
       setDpOpen(false); setDpSaving(false);
       setDpForm({ payment_date: todayStr(), amount: 0, payment_type: "Partial", notes: "" });
       setGrOpen(false); setGrSaving(false);
@@ -368,70 +249,31 @@ export default function PurchaseOrderFormModal({
       setDeletedItems([]);
       setPrPickerOpen(false); setPrSearch(""); setSelectedPR(null);
 
-      // ── Fetch AHP-TOPSIS rankings in parallel when modal opens (new PO only) ──
-      if (!initialData) {
-        setRankLoading(true);
-        (async () => {
-          try {
-            const norm = (r: PromiseSettledResult<any>) =>
-              r.status === "fulfilled" ? (Array.isArray(r.value) ? r.value : r.value?.data ?? []) : [];
-
-            const [suppRes, poRes, grRes, retRes, spRes] = await Promise.allSettled([
-              getSuppliers(),
-              getPurchaseOrders(),
-              getGoodsReceipts(),
-              getPurchaseReturns(),
-              getSupplierProducts(),
-            ]);
-
-            const suppliers = norm(suppRes);
-            if (suppliers.length === 0) return;
-
-            const alts = buildAlternatives(
-              suppliers,
-              norm(poRes),
-              norm(grRes),
-              norm(retRes),
-              norm(spRes),
-            );
-            if (alts.length === 0) return;
-
-            const bests: PresetBest[] = PRIORITY_PRESETS.map((preset) => {
-              const { result } = applyPreset(preset.key as any);
-              const criteria   = AHP_CRITERIA.map((c, i) => ({ ...c, weight: result.weights[i] }));
-              const ranked     = topsis(alts, criteria).sort((a, b) => b.score - a.score);
-              const top        = ranked[0];
-              return {
-                key:          preset.key,
-                label:        preset.label,
-                supplierName: top?.name  ?? "—",
-                supplierId:   top?.alternativeId ?? "",
-                score:        top?.score ?? 0,
-              };
-            });
-            setPresetBests(bests);
-          } catch (e) {
-            console.error("PO Modal AHP rankings error:", e);
-          } finally {
-            setRankLoading(false);
-          }
-        })();
-      }
+      // -- Fetch AHP-TOPSIS rankings: now provided by the shared hook -
+      // No independent fetch or calculation on modal open.
 
       if (initialData) {
-        // Normalize items to ensure tax fields exist (older records won't have them)
-        const normalizedItems = (initialData.items ?? []).map(item => ({
-          ...item,
-          tax_percent: item.tax_percent ?? (item as any).tax_percentage ?? 0,
-          tax_amount: item.tax_amount ?? 0,
-        }));
+        // Normalize items and recompute tax_amount + subtotal so the grand total
+        // always reflects the actual tax_percent (handles toggled-tax edge cases).
+        const normalizedItems = (initialData.items ?? []).map(item => {
+          const taxPct = item.tax_percent ?? (item as any).tax_percentage ?? 0;
+          const base = (item.quantity ?? 0) * (item.price ?? 0);
+          const taxAmount = base * (taxPct / 100);
+          return {
+            ...item,
+            tax_percent: taxPct,
+            tax_amount: taxAmount,
+            subtotal: base + taxAmount,
+          };
+        });
         setForm({ ...initialData, items: normalizedItems });
         setFilteredProducts(products.filter(p => p.supplier_id?.toString() === initialData.supplier_id));
         seedFromExisting(initialData.purchase_order_id ?? 0);
       } else {
         setIsApproved(false);
+        setIsPendingApproval(false);
         setDpDone(false); setGrDone(false); setGrSavedId(null); setInvoiceDone(false);
-        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "" });
+        setForm({ po_number: "", supplier_id: "", order_date: todayStr(), expected_date: "", status: "Draft", total_amount: 0, items: [newItem()], transaction_name: "", transaction_detail: "", nomor_faktur_pajak: "" });
         setFilteredProducts([]);
         // Fetch the real next PO number from the backend
         setPoNumberLoading(true);
@@ -475,16 +317,16 @@ export default function PurchaseOrderFormModal({
     setForm(prev => ({ ...prev, [key]: val }));
 
   const updateItem = (id: string, patch: Partial<PurchaseOrderItem>) =>
-    setForm(prev => ({
-      ...prev,
-      items: prev.items.map(item => {
+    setForm(prev => {
+      const updatedItems = prev.items.map(item => {
         if (item.id !== id) return item;
         const u = { ...item, ...patch };
-        const base = u.quantity * u.price;
-        const taxAmount = base * (u.tax_percent / 100);
+        const base = Number(u.quantity) * Number(u.price);
+        const taxAmount = base * (Number(u.tax_percent) / 100);
         return { ...u, tax_amount: taxAmount, subtotal: base + taxAmount };
-      }),
-    }));
+      });
+      return { ...prev, items: updatedItems };
+    });
 
   const removeItem = (id: string) => {
     const item = form.items.find(x => x.id === id);
@@ -507,6 +349,8 @@ export default function PurchaseOrderFormModal({
   const isCompleted = form.status === "Completed";
   // Treat as approved if the status field is Approved/Completed, or if approved in this session
   const effectivelyApproved = isApproved || form.status === "Approved" || form.status === "Completed";
+  // Treat as pending approval if the status is Pending Approval (awaiting Procurement Manager)
+  const effectivelyPending = isPendingApproval || form.status === "Pending Approval";
 
   // Find the invoice that belongs to this PO.
   const poGrIds = existingGoodsReceipts
@@ -647,16 +491,26 @@ export default function PurchaseOrderFormModal({
   };
 
   const handleApprove = async () => {
-    if (!onApprove || !poId) return;
+    if (!poId) return;
     setIsApproving(true);
     try {
-      await onApprove(poId, { ...form, total_amount: grandTotal });
-      setIsApproved(true);
-      setForm(prev => ({ ...prev, status: "Approved" }));
-      setApprovalOpen(false);
+      if (isPembelianUser) {
+        // Pembelian user: submit an approval REQUEST to Procurement Manager
+        await requestPurchaseOrderApproval(poId);
+        setIsPendingApproval(true);
+        setForm(prev => ({ ...prev, status: "Pending Approval" }));
+        setApprovalOpen(false);
+      } else {
+        // Admin or any role that can directly approve
+        if (!onApprove) return;
+        await onApprove(poId, { ...form, total_amount: grandTotal });
+        setIsApproved(true);
+        setForm(prev => ({ ...prev, status: "Approved" }));
+        setApprovalOpen(false);
+      }
     } catch (err: any) {
-      notify.error(err?.message ?? "Persetujuan gagal");
-      toast.error(err?.message ?? "Persetujuan gagal");
+      notify.error(err?.message ?? "Permohonan gagal");
+      toast.error(err?.message ?? "Permohonan gagal");
     } finally { setIsApproving(false); }
   };
 
@@ -732,7 +586,7 @@ export default function PurchaseOrderFormModal({
       setInvoiceDone(true);
 
       // If the user already filled in a payment amount, immediately record
-      // the payment — no need for a second click.
+      // the payment - no need for a second click.
       if (paymentForm.amount > 0 && invoiceId && onCreatePayment) {
         await onCreatePayment({
           purchase_invoice_id: invoiceId,
@@ -784,7 +638,7 @@ export default function PurchaseOrderFormModal({
     }
   };
 
-  // ── PR Picker handlers ─────────────────────────────────────────────────────
+  // -- PR Picker handlers -----------------------------------------------------
   const handleOpenPrPicker = async () => {
     setPrPickerOpen(true);
     setPrSearch("");
@@ -818,7 +672,7 @@ export default function PurchaseOrderFormModal({
 
     setSelectedPR(fullPR);
 
-    // Map PR detail lines → PO item rows
+    // Map PR detail lines - PO item rows
     if (fullPR.details && fullPR.details.length > 0) {
       const mappedItems: PurchaseOrderItem[] = fullPR.details.map(d => {
         // Look up in ALL products (not just supplier-filtered) for name/uom/price
@@ -884,6 +738,8 @@ export default function PurchaseOrderFormModal({
   const handleNavigate = (key: typeof PROSES_LINKS[number]["key"]) => {
     if (key === "persetujuan") { setApprovalOpen(true); return; }
     if (key === "uang-muka") {
+      // Each PO may only have one Down Payment - block if one already exists.
+      if (dpDone) return;
       if (onNavigateToDP) { onClose(); onNavigateToDP(poId, form.po_number); return; }
       setDpOpen(true); return;
     }
@@ -933,7 +789,7 @@ export default function PurchaseOrderFormModal({
                   <p>Total: <span className="font-semibold">{formatRupiah(grandTotal)}</span></p>
                 </div>
                 <p className="text-xs text-emerald-600 mt-2">
-                  Anda dapat menutup modal ini — PO tersimpan sebagai Draft. Lanjutkan dengan Persetujuan PO di bawah jika diperlukan.
+                  Anda dapat menutup modal ini - PO tersimpan sebagai Draft. Lanjutkan dengan Persetujuan PO di bawah jika diperlukan.
                 </p>
               </div>
             )}
@@ -943,20 +799,45 @@ export default function PurchaseOrderFormModal({
                 <FormField label="PO Number" icon={<Hash size={13} />}>
                   <input readOnly value={form.po_number} placeholder="Otomatis" className={cn(inputBase, "bg-slate-50 text-slate-500 placeholder-slate-400")} />
                 </FormField>
-                <FormField label="Tanggal" icon={<Calendar size={13} />}>
-                  <input readOnly value={form.order_date}
-                    className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-default")} />
+                <FormField label="Nomor Faktur Pajak" icon={<Hash size={13} />}>
+                  {(() => {
+                    const hasTax = form.items.some(i => (i.tax_percent ?? 0) > 0);
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          value={form.nomor_faktur_pajak ?? ""}
+                          onChange={e => setField("nomor_faktur_pajak", e.target.value)}
+                          placeholder={hasTax ? "Contoh: FP-0000000001" : "Isi pajak pada item terlebih dahulu"}
+                          disabled={!hasTax}
+                          className={cn(
+                            inputBase,
+                            !hasTax && "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
+                          )}
+                        />
+                        {!hasTax && (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Nomor Faktur Pajak tersedia setelah ada item dengan pajak &gt; 0%.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </FormField>
-                <FormField label="Tanggal Ekspektasi" icon={<Calendar size={13} />}>
+                <FormField label="Tanggal Ekspektasi" icon={<Calendar size={13} />} required>
                   <input type="date" value={form.expected_date}
                     onChange={e => setField("expected_date", e.target.value)}
                     className={inputBase}
                     placeholder="Pilih tanggal ekspektasi..." />
                 </FormField>
+                <FormField label="Tanggal" icon={<Calendar size={13} />}>
+                  <input readOnly value={form.order_date}
+                    className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-default")} />
+                </FormField>
               </div>
 
-              {/* ── AHP-TOPSIS Supplier Recommendations (new PO only) ─────────── */}
-              {!isEdit && !rankLoading && presetBests.length > 0 && (
+              {/* -- AHP-TOPSIS Supplier Recommendations (new PO only) ----------- */}
+              {!isEdit && !rankLoading && recommendationDataset && recommendationDataset.presets.length > 0 && (
                 <div className="rounded-xl border border-gold-200 bg-gradient-to-br from-gold-50 to-amber-50 p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-gold-400/20 flex items-center justify-center shrink-0">
@@ -964,7 +845,7 @@ export default function PurchaseOrderFormModal({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-gold-800">
-                        Rekomendasi Supplier · AHP+TOPSIS
+                        Rekomendasi Supplier ┬╖ AHP+TOPSIS
                       </p>
                       <p className="text-[10px] text-amber-600 mt-0.5">
                         Supplier terbaik berdasarkan 4 strategi prioritas
@@ -973,18 +854,20 @@ export default function PurchaseOrderFormModal({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {presetBests.map((p) => {
-                      const cfg = PRESET_ICONS[p.key] ?? PRESET_ICONS.balanced;
+                    {recommendationDataset.presets.map((preset) => {
+                      const top = preset.rankedSuppliers[0];
+                      const supplierId = top?.alternativeId ?? "";
+                      const cfg = PRESET_ICONS[preset.key] ?? PRESET_ICONS.balanced;
                       const Icon = cfg.icon;
-                      const isSelected = form.supplier_id === p.supplierId;
+                      const isSelected = form.supplier_id === supplierId;
                       return (
                         <button
-                          key={p.key}
+                          key={preset.key}
                           type="button"
                           onClick={() => {
-                            if (p.supplierId) {
-                              setField("supplier_id", p.supplierId);
-                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === p.supplierId));
+                            if (supplierId) {
+                              setField("supplier_id", supplierId);
+                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === supplierId));
                             }
                           }}
                           className={cn(
@@ -999,14 +882,14 @@ export default function PurchaseOrderFormModal({
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={cn("text-[10px] uppercase tracking-widest font-bold truncate", isSelected ? "text-gold-700" : "text-slate-400")}>
-                              {p.label}
+                              {preset.label}
                             </p>
                             <p className={cn("text-[12px] font-semibold truncate leading-tight mt-0.5", isSelected ? "text-navy-900" : "text-slate-700")}>
-                              {p.supplierName}
+                              {top?.name ?? "-"}
                             </p>
                           </div>
                           <span className={cn("text-[10px] font-bold tabular-nums shrink-0", isSelected ? "text-gold-600" : "text-slate-400")}>
-                            {p.score.toFixed(3)}
+                            {(top?.score ?? 0).toFixed(3)}
                           </span>
                         </button>
                       );
@@ -1031,7 +914,7 @@ export default function PurchaseOrderFormModal({
                 </div>
               )}
 
-              <FormField label="Supplier" icon={<Building2 size={13} />}>
+              <FormField label="Supplier" icon={<Building2 size={13} />} required>
                 {isEdit ? (
                   <input value={supplierName} disabled className={cn(inputBase, "bg-slate-50 text-slate-500 cursor-not-allowed")} />
                 ) : (
@@ -1089,7 +972,7 @@ export default function PurchaseOrderFormModal({
               </FormField>
             </Section>
 
-            {/* ── Ambil dari PR banner (new PO only) ─────────────────────── */}
+            {/* -- Ambil dari PR banner (new PO only) ----------------------- */}
             {!isEdit && !isCompleted && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -1100,8 +983,8 @@ export default function PurchaseOrderFormModal({
                     </p>
                     <p className="text-xs text-blue-600 mt-0.5">
                       {selectedPR
-                        ? `${selectedPR.details.length} item dimuat dari PR — Opsional, ubah item di bawah jika diperlukan`
-                        : "Opsional — pilih PR untuk mengisi item produk secara otomatis"}
+                        ? `${selectedPR.details.length} item dimuat dari PR - Opsional, ubah item di bawah jika diperlukan`
+                        : "Opsional - pilih PR untuk mengisi item produk secara otomatis"}
                     </p>
                   </div>
                 </div>
@@ -1146,17 +1029,17 @@ export default function PurchaseOrderFormModal({
               </p>
 
               <div className="grid grid-cols-2 gap-3">
-                {PROSES_LINKS.filter(l => l.key === "persetujuan" || l.key === "uang-muka").map(({ key, label, desc, icon: Icon, color, bg }) => {
-                  // Persetujuan: active as soon as PO is saved/editing but not if Completed
-                  // Uang Muka: only active after Approved but not if Completed
+                {PROSES_LINKS.filter(l => l.key === "persetujuan" || l.key === "uang-muka").map(({ key: _key, label, desc, icon: Icon, color, bg }) => { const key = _key as typeof PROSES_LINKS[number]["key"];
+                  // Persetujuan: active as soon as PO is saved/editing but not if Completed or pending/approved already
+                  // Uang Muka: only active after truly Approved (not just Pending Approval), not if Completed, not if DP exists
                   const isActive = !isCompleted && (
                     key === "persetujuan"
-                      ? prosesActive && !effectivelyApproved
-                      : prosesActive && effectivelyApproved
+                      ? prosesActive && !effectivelyApproved && !effectivelyPending
+                      : prosesActive && effectivelyApproved && !dpDone
                   );
 
                   const isDone =
-                    (key === "persetujuan" && effectivelyApproved) ||
+                    (key === "persetujuan" && (effectivelyApproved || effectivelyPending)) ||
                     (key === "uang-muka" && dpDone) ||
                     (key === "goods-receipt" && grDone) ||
                     (key === "purchase-invoice" && invoiceDone);
@@ -1185,12 +1068,23 @@ export default function PurchaseOrderFormModal({
                         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", isActive ? "bg-white/70" : "bg-slate-100")}>
                           <Icon size={15} className={isActive ? color : "text-slate-400"} />
                         </div>
-                        {isDone && <Check size={13} className={color} />}
-                        {isActive && !isDone && <ArrowRight size={13} className={color} />}
+                        {/* For persetujuan: show clock icon if pending, check if approved */}
+                        {key === "persetujuan" && effectivelyPending && !effectivelyApproved
+                          ? <Clock size={13} className="text-amber-500" />
+                          : isDone
+                            ? <Check size={13} className={color} />
+                            : isActive
+                              ? <ArrowRight size={13} className={color} />
+                              : null
+                        }
                       </div>
                       <div>
                         <p className={cn("text-xs font-bold", isActive ? "text-slate-800" : "text-slate-500")}>{label}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                        {/* Show "Menunggu persetujuan" hint when pending */}
+                        {key === "persetujuan" && effectivelyPending && !effectivelyApproved
+                          ? <p className="text-[10px] text-amber-600 mt-0.5 leading-snug font-semibold">Menunggu persetujuan PO</p>
+                          : <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{desc}</p>
+                        }
                       </div>
                     </button>
                   );
@@ -1222,7 +1116,7 @@ export default function PurchaseOrderFormModal({
         </div>
       </div>
 
-      {/* ── PR Picker sub-modal (z-60) ────────────────────────────────────── */}
+      {/* -- PR Picker sub-modal (z-60) -------------------------------------- */}
       {prPickerOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setPrPickerOpen(false)} />
@@ -1297,8 +1191,8 @@ export default function PurchaseOrderFormModal({
                             <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
                               {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(pr.tanggal))}
                             </td>
-                            <td className="px-4 py-3 text-slate-600 text-xs">{pr.warehouse_name || "—"}</td>
-                            <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{pr.keterangan || "—"}</td>
+                            <td className="px-4 py-3 text-slate-600 text-xs">{pr.warehouse_name || "-"}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{pr.keterangan || "-"}</td>
                             <td className="px-4 py-3">
                               <span className={cn(
                                 "inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border",
@@ -1312,7 +1206,7 @@ export default function PurchaseOrderFormModal({
                                   ? "bg-rose-50 text-rose-600 border-rose-200"
                                   : "bg-slate-100 text-slate-600 border-slate-200"
                               )}>
-                                {pr.status || "—"}
+                                {pr.status || "-"}
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -1352,8 +1246,12 @@ export default function PurchaseOrderFormModal({
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
                 <div>
-                  <h2 className="text-white font-semibold text-[15px]">Persetujuan Purchase Order</h2>
-                  <p className="text-slate-400 text-xs mt-0.5">Ubah status PO menjadi Approved</p>
+                  <h2 className="text-white font-semibold text-[15px]">
+                    {isPembelianUser ? "Permohonan Persetujuan PO" : "Persetujuan Purchase Order"}
+                  </h2>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    {isPembelianUser ? "Ajukan PO ke Procurement Manager" : "Ubah status PO menjadi Approved"}
+                  </p>
                 </div>
                 <button onClick={() => setApprovalOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                   <X size={16} />
@@ -1363,9 +1261,14 @@ export default function PurchaseOrderFormModal({
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
                   <ShieldCheck size={18} className="text-amber-600 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Konfirmasi Persetujuan</p>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {isPembelianUser ? "Konfirmasi Permohonan" : "Konfirmasi Persetujuan"}
+                    </p>
                     <p className="text-xs text-amber-700 mt-1">
-                      Menyetujui PO <span className="font-bold">{form.po_number}</span> akan mengaktifkan proses Uang Muka, Goods Receipt, dan Purchase Invoice.
+                      {isPembelianUser
+                        ? <>Mengajukan PO <span className="font-bold">{form.po_number}</span> ke Procurement Manager untuk disetujui. PO tidak dapat dilanjutkan ke Down Payment sebelum disetujui.</>
+                        : <>Menyetujui PO <span className="font-bold">{form.po_number}</span> akan mengaktifkan proses Uang Muka, Goods Receipt, dan Purchase Invoice.</>
+                      }
                     </p>
                   </div>
                 </div>
@@ -1389,7 +1292,7 @@ export default function PurchaseOrderFormModal({
                 <button onClick={handleApprove} disabled={isApproving}
                   className="inline-flex items-center gap-2 px-5 py-2 text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 rounded-lg disabled:opacity-60 transition-colors">
                   {isApproving ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />}
-                  Setujui PO
+                  {isPembelianUser ? "Ajukan Permohonan" : "Setujui PO"}
                 </button>
               </div>
             </div>
@@ -1397,7 +1300,7 @@ export default function PurchaseOrderFormModal({
         </>
       )}
 
-      {/* ── Down Payment sub-modal (z-60) ── */}
+      {/* -- Down Payment sub-modal (z-60) -- */}
       {dpOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setDpOpen(false)} />
@@ -1483,7 +1386,7 @@ export default function PurchaseOrderFormModal({
         </>
       )}
 
-      {/* ── Goods Receipt sub-modal (z-60) ── */}
+      {/* -- Goods Receipt sub-modal (z-60) -- */}
       {grOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setGrOpen(false)} />
@@ -1515,7 +1418,7 @@ export default function PurchaseOrderFormModal({
                     onChange={e => setGrForm(f => ({ ...f, receipt_date: e.target.value }))} className={inputBase} />
                 </div>
 
-                {/* Tanggal Ekspektasi reference — always visible so user can see the PO deadline */}
+                {/* Tanggal Ekspektasi reference - always visible so user can see the PO deadline */}
                 {(() => {
                   const expDate  = form.expected_date;
                   const rcptDate = grForm.receipt_date;
@@ -1559,8 +1462,8 @@ export default function PurchaseOrderFormModal({
                             status === "on_time" ? "text-emerald-600" : "text-rose-500"
                           )}>
                             {status === "on_time"
-                              ? "Tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
-                              : "Terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                              ? "Tepat waktu - akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                              : "Terlambat - akan dicatat sebagai late di scoring AHP-TOPSIS"}
                           </p>
                         )}
                       </div>
@@ -1644,9 +1547,9 @@ export default function PurchaseOrderFormModal({
                   <input readOnly
                     value={
                       poInvoice
-                        ? `${poInvoice.invoice_number ?? "—"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
+                        ? `${poInvoice.invoice_number ?? "-"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
                         : invoiceDone
-                          ? `${savedInvoice?.invoice_number ?? "—"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
+                          ? `${savedInvoice?.invoice_number ?? "-"} | Outstanding: ${formatRupiah(effectiveOutstanding)}`
                           : "Akan dibuat otomatis saat menyimpan"
                     }
                     className={cn(inputBase, "bg-slate-50 text-slate-600")} />
@@ -1683,7 +1586,7 @@ export default function PurchaseOrderFormModal({
 
                 {(invoiceDone || poInvoice) && effectiveOutstanding === 0 && (
                   <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
-                    <p className="text-xs font-semibold text-emerald-700">✓ Invoice telah lunas — tidak ada sisa tagihan.</p>
+                    <p className="text-xs font-semibold text-emerald-700">- Invoice telah lunas - tidak ada sisa tagihan.</p>
                   </div>
                 )}
 
@@ -1818,14 +1721,15 @@ function Section({ title, action, children }: {
   );
 }
 
-function FormField({ label, icon, children }: {
-  label: string; icon?: React.ReactNode; children: React.ReactNode;
+function FormField({ label, icon, required, children }: {
+  label: string; icon?: React.ReactNode; required?: boolean; children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
         {icon && <span className="text-slate-400">{icon}</span>}
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -1842,7 +1746,7 @@ function SelectField({ value, placeholder, options, onChange }: {
         className={cn("w-full flex items-center justify-between gap-2 border border-slate-200 bg-white text-left transition-all focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500 px-3 py-2.5 rounded-lg text-sm",
           value ? "text-slate-700" : "text-slate-400")}>
         <span className="truncate">{value || placeholder}</span>
-        <span className={cn("text-slate-400 transition-transform text-xs", open && "rotate-180")}>▼</span>
+        <span className={cn("text-slate-400 transition-transform text-xs", open && "rotate-180")}>-</span>
       </button>
       {open && (
         <>

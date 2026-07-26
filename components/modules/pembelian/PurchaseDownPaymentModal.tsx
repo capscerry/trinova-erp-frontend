@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, Truck, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PurchaseOrder {
@@ -11,6 +11,7 @@ interface PurchaseOrder {
   total_amount: number;
   transaction_name?: string;
   transaction_detail?: string;
+  nomor_faktur_pajak?: string;
 
   supplier?: {
     supplier_id: number;
@@ -35,13 +36,15 @@ interface PurchaseDownPaymentModalProps {
   onClose: () => void;
   onSubmit: (
     data: PurchaseDownPaymentFormData
-  ) => void;
+  ) => Promise<void> | void;
 
   purchaseOrders: PurchaseOrder[];
 
   /** When provided the modal operates in edit mode */
   editId?: number | null;
   initialData?: Partial<PurchaseDownPaymentFormData> | null;
+  /** Navigate to GR page after a successful create */
+  onNavigateToGR?: () => void;
 }
 
 export default function PurchaseDownPaymentModal({
@@ -51,6 +54,7 @@ export default function PurchaseDownPaymentModal({
   purchaseOrders,
   editId,
   initialData,
+  onNavigateToGR,
 }: PurchaseDownPaymentModalProps) {
 
   const isEdit = Boolean(editId);
@@ -73,6 +77,9 @@ export default function PurchaseDownPaymentModal({
   const [amountError, setAmountError] =
     useState<string | null>(null);
 
+  const [isSubmitted, setIsSubmitted] =
+    useState(false);
+
   useEffect(() => {
 
     if (open) {
@@ -84,6 +91,7 @@ export default function PurchaseDownPaymentModal({
       );
 
       setAmountError(null);
+      setIsSubmitted(false);
 
     }
 
@@ -175,7 +183,7 @@ export default function PurchaseDownPaymentModal({
 
           <div className="p-6 space-y-4">
 
-            <FormField label="Purchase Order">
+            <FormField label="Purchase Order" required>
 
               <select
                 value={form.purchase_order_id}
@@ -272,11 +280,11 @@ export default function PurchaseDownPaymentModal({
 
             </FormField>
 
-            <FormField label="Payment Date">
+            <FormField label="Payment Date" required>
 
               <input
                 type="date"
-                value={form.payment_date}
+                value={form.payment_date ?? ""}
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -289,7 +297,7 @@ export default function PurchaseDownPaymentModal({
 
             </FormField>
 
-            <FormField label="Amount">
+            <FormField label="Amount" required>
 
               <input
                 type="number"
@@ -350,7 +358,7 @@ export default function PurchaseDownPaymentModal({
             <FormField label="Notes">
 
               <textarea
-                value={form.notes}
+                value={form.notes ?? ""}
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -381,6 +389,17 @@ export default function PurchaseDownPaymentModal({
               </div>
             )}
 
+            {selectedPO?.nomor_faktur_pajak && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Nomor Faktur Pajak (dari PO)
+                </p>
+                <p className="font-mono font-semibold text-sm text-slate-700">
+                  {selectedPO.nomor_faktur_pajak}
+                </p>
+              </div>
+            )}
+
           </div>
 
           {/* FOOTER */}
@@ -388,9 +407,8 @@ export default function PurchaseDownPaymentModal({
           <div
             className="
               flex
-              items-center
-              justify-end
-              gap-2
+              flex-col
+              gap-3
               px-6
               py-4
               border-t
@@ -399,71 +417,111 @@ export default function PurchaseDownPaymentModal({
             "
           >
 
-            <button
-              onClick={onClose}
-              className="
-                px-4
-                py-2
-                text-sm
-                font-semibold
-                text-slate-600
-                bg-white
-                border
-                border-slate-200
-                rounded-lg
-              "
-            >
-              Batal
-            </button>
+            {isSubmitted && onNavigateToGR ? (
+              <>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Lanjutkan Ke
+                </p>
 
-            <button
-              onClick={() => {
+                <button
+                  onClick={() => {
+                    onClose();
+                    onNavigateToGR();
+                  }}
+                  className="flex items-center gap-4 w-full p-3.5 rounded-xl border text-left transition-all bg-emerald-50 hover:bg-emerald-100 border-emerald-200 cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/70 shrink-0">
+                    <Truck size={15} className="text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-800">Goods Receipt</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">Buat penerimaan barang untuk PO ini</p>
+                  </div>
+                  <ArrowRight size={13} className="text-emerald-600 shrink-0" />
+                </button>
 
-                // Resolve supplier_id from the selected PO at submit time
-                // in case it wasn't set via initialData (nested API shape)
-                const resolvedSupplierId =
-                  form.supplier_id ||
-                  Number(selectedPO?.supplier?.supplier_id ?? selectedPO?.supplier_id ?? 0);
+                <div className="flex justify-start">
+                  <button
+                    onClick={onClose}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
 
-                // Guard: payment_date is required
-                if (!form.payment_date) {
-                  alert("Tanggal pembayaran harus diisi.");
-                  return;
-                }
+                <button
+                  onClick={onClose}
+                  className="
+                    px-4
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-slate-600
+                    bg-white
+                    border
+                    border-slate-200
+                    rounded-lg
+                  "
+                >
+                  Batal
+                </button>
 
-                // Guard: amount must not exceed PO total
-                const max = selectedPO?.total_amount ?? 0;
-                if (max > 0 && form.amount > max) {
-                  setAmountError(
-                    `Melebihi total PO (Rp ${max.toLocaleString("id-ID")})`
-                  );
-                  return;
-                }
+                <button
+                  onClick={async () => {
 
-                // Send null for empty strings so ASP.NET DateTime? binding succeeds
-                onSubmit({
-                  ...form,
-                  supplier_id: resolvedSupplierId,
-                  payment_date: form.payment_date || null as any,
-                  notes: form.notes || null as any,
-                });
+                    // Resolve supplier_id from the selected PO at submit time
+                    // in case it wasn't set via initialData (nested API shape)
+                    const resolvedSupplierId =
+                      form.supplier_id ||
+                      Number(selectedPO?.supplier?.supplier_id ?? selectedPO?.supplier_id ?? 0);
 
-              }}
-              disabled={!!amountError}
-              className="
-                px-5
-                py-2
-                text-sm
-                font-semibold
-                text-gold-400
-                bg-navy-900
-                rounded-lg
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-              "
-            >
-              {isEdit ? "Simpan Perubahan" : "Simpan DP"}
-            </button>
+                    // Guard: payment_date is required
+                    if (!form.payment_date) {
+                      alert("Tanggal pembayaran harus diisi.");
+                      return;
+                    }
+
+                    // Guard: amount must not exceed PO total
+                    const max = selectedPO?.total_amount ?? 0;
+                    if (max > 0 && form.amount > max) {
+                      setAmountError(
+                        `Melebihi total PO (Rp ${max.toLocaleString("id-ID")})`
+                      );
+                      return;
+                    }
+
+                    // Send null for empty strings so ASP.NET DateTime? binding succeeds
+                    await onSubmit({
+                      ...form,
+                      supplier_id: resolvedSupplierId,
+                      payment_date: form.payment_date || null as any,
+                      notes: form.notes || null as any,
+                    });
+
+                    setIsSubmitted(true);
+
+                  }}
+                  disabled={!!amountError}
+                  className="
+                    px-5
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-gold-400
+                    bg-navy-900
+                    rounded-lg
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
+                  "
+                >
+                  {isEdit ? "Simpan Perubahan" : "Simpan DP"}
+                </button>
+
+              </div>
+            )}
 
           </div>
 
@@ -476,9 +534,11 @@ export default function PurchaseDownPaymentModal({
 
 function FormField({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
 
@@ -495,6 +555,7 @@ function FormField({
         "
       >
         {label}
+        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
 
       {children}

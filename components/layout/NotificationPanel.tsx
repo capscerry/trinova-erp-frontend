@@ -51,7 +51,7 @@ const TYPE_CONFIG: Record<
 interface NotificationPanelProps {
   open: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLDivElement>;
+  anchorRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function NotificationPanel({ open, onClose, anchorRef }: NotificationPanelProps) {

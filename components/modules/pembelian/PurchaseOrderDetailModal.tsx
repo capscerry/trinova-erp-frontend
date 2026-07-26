@@ -9,12 +9,13 @@ import {
   CalendarClock,
   Scissors,
   Download,
+  Hash,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // TYPES
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 interface PurchaseOrderItem {
   id: string;
@@ -51,12 +52,14 @@ interface PurchaseOrderDetailData {
 
   items: PurchaseOrderItem[];
 
-  /** Stored total from the DB — may be lower than items sum if a purchase return deduction was applied */
+  /** Stored total from the DB - may be lower than items sum if a purchase return deduction was applied */
   total_amount?: number;
 
   transaction_name?: string;
 
   transaction_detail?: string;
+
+  nomor_faktur_pajak?: string;
 }
 
 interface PurchaseOrderDetailModalProps {
@@ -67,9 +70,9 @@ interface PurchaseOrderDetailModalProps {
   data: PurchaseOrderDetailData | null;
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // HELPERS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const formatDate = (
   d: string
@@ -95,9 +98,9 @@ const formatRupiah = (
     }
   ).format(n);
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // COMPONENT
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 export default function PurchaseOrderDetailModal({
   open,
@@ -120,13 +123,13 @@ export default function PurchaseOrderDetailModal({
   // The stored DB total_amount can be stale (e.g. PO header saved before all
   // items were added), so trusting it would produce a spurious "return
   // deduction" banner. A real return deduction is only meaningful when a
-  // purchase-return settlement record explicitly references this PO — which
+  // purchase-return settlement record explicitly references this PO - which
   // the Detail modal does not have access to. Showing a deduction based purely
   // on a header/items mismatch is misleading, so we drop that inference here.
   const storedTotal = itemsTotal;
   const returnDeduction = 0;
 
-  // ── Export to Excel ────────────────────────────────────────────────────
+  // -- Export to Excel ----------------------------------------------------
   const exportToExcel = () => {
     const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
     const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
@@ -484,6 +487,26 @@ export default function PurchaseOrderDetailModal({
 
               </div>
 
+              {/* NOMOR FAKTUR PAJAK */}
+
+              {data.nomor_faktur_pajak && (
+                <div className="border border-slate-200 rounded-xl p-4">
+
+                  <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wider font-semibold mb-2">
+
+                    <Hash size={14} />
+
+                    Nomor Faktur Pajak
+
+                  </div>
+
+                  <div className="font-mono font-semibold text-slate-700 text-sm">
+                    {data.nomor_faktur_pajak}
+                  </div>
+
+                </div>
+              )}
+
             </div>
 
             {(data.transaction_name || data.transaction_detail) && (
@@ -672,7 +695,7 @@ export default function PurchaseOrderDetailModal({
                         Return Deduction
                       </span>
                       <span className="text-sm font-semibold text-rose-400">
-                        − {formatRupiah(returnDeduction)}
+                        - {formatRupiah(returnDeduction)}
                       </span>
                     </div>
 
