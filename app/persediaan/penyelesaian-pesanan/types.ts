@@ -18,4 +18,12 @@ export interface OrderFulfillment {
   source_warehouse_id: number;
 
   warehouse_name?: string;
+
+  status?: string;
+
+  processed_at?: string;
+
+  completed_at?: string;
+
+  canceled_at?: string;
 }

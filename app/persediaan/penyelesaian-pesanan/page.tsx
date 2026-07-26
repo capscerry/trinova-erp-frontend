@@ -1,26 +1,17 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import { AppShell } from "@/components/layout";
-
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+import { AppShell } from "@/components/layout/AppShell";
+
+import OrderFulfillmentTable from "@/components/modules/persediaan/order-fulfillment/OrderFulfillmentTable";
+import OrderFulfillmentDetailFormModal from "@/components/modules/persediaan/order-fulfillment/OrderFulfillmentDetailFormModal";
 
 import {
   getOrderFulfillments,
-  createOrderFulfillment,
+  completeOrderFulfillment,
 } from "@/lib/services/order-fulfillment.service";
-
-import OrderFulfillmentTable from "@/components/modules/persediaan/order-fulfillment/OrderFulfillmentTable";
-
-import OrderFulfillmentForm, {
-  OrderFulfillmentFormData,
-} from "@/components/modules/persediaan/order-fulfillment/OrderFulfillmentForm";
-
-import Modal from "@/components/ui/Modal";
 
 import { OrderFulfillment } from "./types";
 
@@ -31,10 +22,10 @@ export default function OrderFulfillmentPage() {
   const [loading, setLoading] =
     useState(false);
 
-  const [open, setOpen] =
-    useState(false);
+  const [selected, setSelected] =
+    useState<OrderFulfillment | null>(null);
 
-  const [saving, setSaving] =
+  const [detailOpen, setDetailOpen] =
     useState(false);
 
   useEffect(() => {
@@ -53,70 +44,75 @@ export default function OrderFulfillmentPage() {
       console.error(error);
 
       toast.error(
-        "Gagal mengambil data order fulfillment"
+        "Failed to load order fulfillment data."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCreate(
-    payload: OrderFulfillmentFormData
+  async function handleComplete(
+    row: OrderFulfillment
   ) {
-    console.log(
-      "ORDER FULFILLMENT PAYLOAD",
-      payload
-    );
-
     try {
-      setSaving(true);
-
-      await createOrderFulfillment({
-        product_id: payload.product_id,
-        warehouse_id: payload.warehouse_id,
-        quantity: payload.quantity,
-        notes: payload.notes,
-      });
-
-      toast.success(
-        "Order fulfillment berhasil"
+      await completeOrderFulfillment(
+        row.movement_id
       );
 
-      setOpen(false);
+      toast.success(
+        "Order fulfillment completed."
+      );
 
       await fetchFulfillments();
+
+      if (
+        selected?.movement_id ===
+        row.movement_id
+      ) {
+        setSelected({
+          ...row,
+          status: "COMPLETED",
+        });
+      }
     } catch (error) {
       console.error(error);
 
       toast.error(
-        "Gagal membuat order fulfillment"
+        "Failed to complete order fulfillment."
       );
-    } finally {
-      setSaving(false);
     }
   }
 
-  return (
-    <AppShell
-      title="Order Fulfillment"
-      subtitle="Penyelesaian pesanan dan pengurangan stok"
-    >
-      <OrderFulfillmentTable
-        fulfillments={fulfillments}
-        loading={loading}
-        onAdd={() => setOpen(true)}
-      />
+  function handleView(
+    row: OrderFulfillment
+  ) {
+    setSelected(row);
+    setDetailOpen(true);
+  }
 
-      <Modal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        title="Fulfill Order"
+  function handleCloseDetail() {
+    setDetailOpen(false);
+    setSelected(null);
+  }
+
+  return (
+    <>
+      <AppShell
+        title="Order Fulfillment"
+        subtitle="Penyelesaian pesanan dan pengurangan stok"
       >
-        <OrderFulfillmentForm
-          onSubmit={handleCreate}
-          loading={saving}
+        <OrderFulfillmentTable
+          fulfillments={fulfillments}
+          loading={loading}
+          onView={handleView}
         />
-      </Modal>
-    </AppShell>
+      </AppShell>
+
+      <OrderFulfillmentDetailFormModal
+        isOpen={detailOpen}
+        onClose={handleCloseDetail}
+        data={selected}
+      />
+    </>
   );
 }

@@ -41,6 +41,7 @@ export function getStatusVariant(status: string): StatusVariant {
   ];
   const warningWords = [
     "pending",
+    "processed",
     "dikirim",
     "proses",
     "non-aktif",

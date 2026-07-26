@@ -1,23 +1,23 @@
 "use client";
 
+import { Eye } from "lucide-react";
+
 import { DataTable } from "@/components/ui/DataTable";
+import { Button } from "@/components/ui/Button";
 
-import { columns }
-  from "@/app/persediaan/penyelesaian-pesanan/column";
-
-import { OrderFulfillment }
-  from "@/app/persediaan/penyelesaian-pesanan/types";
+import { columns } from "@/app/persediaan/penyelesaian-pesanan/column";
+import { OrderFulfillment } from "@/app/persediaan/penyelesaian-pesanan/types";
 
 type Props = {
   fulfillments: OrderFulfillment[];
   loading?: boolean;
-  onAdd: () => void;
+  onView: (row: OrderFulfillment) => void;
 };
 
 export default function OrderFulfillmentTable({
   fulfillments,
   loading = false,
-  onAdd,
+  onView,
 }: Props) {
   return (
     <DataTable<OrderFulfillment>
@@ -26,8 +26,16 @@ export default function OrderFulfillmentTable({
       data={fulfillments}
       loading={loading}
       keyField="movement_id"
-      addLabel="Fulfill Order"
-      onAdd={onAdd}
+      renderActions={(row) => (
+        <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => onView(row)}
+        >
+            View
+        </Button>
+      )}
     />
   );
 }
