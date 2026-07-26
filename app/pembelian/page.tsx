@@ -364,7 +364,7 @@ export default function PembelianPage() {
             </div>
 
             {/* Right — AHP-TOPSIS best supplier per preset */}
-            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-[220px]">
+            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-55">
 
               {/* Header row */}
               <div className="flex items-center justify-between mb-0.5">
@@ -382,7 +382,7 @@ export default function PembelianPage() {
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
-                      className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 animate-pulse h-[52px]"
+                      className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 animate-pulse h-13"
                     />
                   ))}
                 </>
@@ -472,7 +472,7 @@ export default function PembelianPage() {
             </div>
           </div>
 
-          <div className="h-[245px] overflow-y-auto px-4 py-3">
+          <div className="h-61.25 overflow-y-auto px-4 py-3">
             {activityLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />)}
@@ -494,7 +494,7 @@ export default function PembelianPage() {
                         {showDate && <><p className="text-sm">{formatDayName(item.createdAt)}</p><p className="leading-none text-[44px] font-light">{formatDayNumber(item.createdAt)}</p><p className="-mt-1 text-2xl">{formatMonthName(item.createdAt)}</p></>}
                       </div>
                       <div className="relative border-l border-slate-200 pb-7 pl-8">
-                        <span className="absolute -left-[7px] top-2 h-3.5 w-3.5 rounded-full border border-blue-500 bg-blue-100" />
+                        <span className="absolute -left-1.75 top-2 h-3.5 w-3.5 rounded-full border border-blue-500 bg-blue-100" />
                         <div className="grid grid-cols-[56px_1fr] gap-2">
                           <p className="text-sm font-bold text-slate-900">{formatTimeOnly(item.createdAt)}</p>
                           <div className="min-w-0">
@@ -526,7 +526,7 @@ export default function PembelianPage() {
             </div>
           </div>
 
-          <div className="h-[245px] overflow-y-auto px-4 py-4">
+          <div className="h-61.25 overflow-y-auto px-4 py-4">
             {activityLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-md bg-slate-100" />)}

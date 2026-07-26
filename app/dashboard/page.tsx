@@ -294,7 +294,7 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 
 function RankMedal({ rank }: { rank: number }) {
   if (rank === 1) return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-linear-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">
       1
     </span>
   );
@@ -398,7 +398,7 @@ function AhpPresetCard({ preset, loading }: { preset: AhpPresetRanking; loading:
         <span className="text-lg leading-none">{preset.icon}</span>
         <div>
           <p className="text-[13px] font-bold text-white leading-none">{preset.label}</p>
-          <p className={cn("text-[10px] mt-0.5 truncate max-w-[200px]", style.accent)}>{preset.description}</p>
+          <p className={cn("text-[10px] mt-0.5 truncate max-w-50", style.accent)}>{preset.description}</p>
         </div>
       </div>
 
