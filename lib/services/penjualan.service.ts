@@ -373,12 +373,17 @@ export const salesOrderService = {
   },
 
   async create(payload: SalesOrderPayload): Promise<SalesOrder> {
-    const response = await api.post<ApiResponse<SalesOrderApi>>(
+    const response = await api.post<ApiResponse<{ header: SalesOrderApi; detail: unknown[] }>>(
       "/sales-order",
       payload
     );
 
-    return mapSalesOrder(response.data.data);
+    // Backend membungkus response create dalam { header, detail } — BEDA
+    // dengan endpoint list/get yang mengembalikan field rata (flat). Kalau
+    // langsung di-mapSalesOrder tanpa unwrap dulu, semua field (termasuk id)
+    // jadi undefined karena mapSalesOrder mencari item.orderId, bukan
+    // item.header.orderId.
+    return mapSalesOrder(response.data.data.header);
   },
 
   async update(id: number | string, payload: SalesOrderPayload): Promise<void> {

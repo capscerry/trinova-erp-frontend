@@ -25,11 +25,43 @@ interface NotificationContextValue {
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
+const STORAGE_KEY = "trinova_notifications";
+
+// Baca dari localStorage — dipanggil HANYA di client (dalam useEffect),
+// supaya tidak mismatch dengan render server-side Next.js.
+function loadStoredNotifications(): NotificationItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as (Omit<NotificationItem, "timestamp"> & { timestamp: string })[];
+    return parsed.map((n) => ({ ...n, timestamp: new Date(n.timestamp) }));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const counterRef = useRef(0);
+
+  // Hydrate dari localStorage setelah mount (client-only, aman dari
+  // mismatch hydration SSR).
+  useEffect(() => {
+    setNotifications(loadStoredNotifications());
+  }, []);
+
+  // Simpan ke localStorage setiap kali daftar notifikasi berubah.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    } catch {
+      // localStorage penuh/diblokir — abaikan, notifikasi tetap jalan di memori
+    }
+  }, [notifications]);
 
   const addNotification = useCallback((type: NotifType, title: string, message?: string) => {
     counterRef.current += 1;

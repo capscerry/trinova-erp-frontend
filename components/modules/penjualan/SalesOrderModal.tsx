@@ -33,6 +33,7 @@ type SavedSalesOrderResponse = {
     subtotal?: number;
     total?: number;
   };
+  id?: number;
   orderId?: number;
   soNumber?: string;
   orderNumber?: string;
@@ -181,6 +182,7 @@ export function SalesOrderModal({
   ...form,
 
   orderId:
+    savedSo?.id ??
     header?.orderId ??
     savedSo?.orderId ??
     0,
@@ -188,6 +190,7 @@ export function SalesOrderModal({
   nomor:
     header?.soNumber ??
     header?.orderNumber ??
+    savedSo?.soNumber ??
     form.nomor,
 
   noPO: form.noPO ?? "",
@@ -213,6 +216,7 @@ export function SalesOrderModal({
     header?.subtotal ??
     savedSo?.subTotal ??
     savedSo?.subtotal ??
+    savedSo?.total ??
     0,
 
   savedSo,

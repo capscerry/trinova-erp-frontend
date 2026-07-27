@@ -146,7 +146,7 @@ export function TransactionOrchestrator() {
           noFaktur: "",
           noFakturMode: "auto" as const,
           tanggal: new Date().toISOString().split("T")[0],
-          uangMuka: getSalesOrderTotal(so),
+          uangMuka: getNumber(so, ["totalHargaPesanan"]) || getSalesOrderTotal(so),
           noPO: getString(so, ["noPO", "poNumber"]),
           noSo: salesOrderNumber,
           salesOrderId: salesOrderId || undefined,
@@ -155,7 +155,11 @@ export function TransactionOrchestrator() {
           alamat: getString(so, ["alamatPengiriman", "address"]),
           keterangan: getString(so, ["keterangan", "notes"]),
           fakturType: "Faktur Penjualan",
-          totalHargaPesanan: getSalesOrderTotal(so),
+          // Pakai totalHargaPesanan yang SUDAH dihitung SalesOrderModal dari
+          // total resmi backend — jangan hitung ulang dari so.items sebagai
+          // sumber utama, karena rapuh (state items bisa saja belum/tidak
+          // sinkron). getSalesOrderTotal cuma fallback kalau field ini kosong.
+          totalHargaPesanan: getNumber(so, ["totalHargaPesanan"]) || getSalesOrderTotal(so),
         }
       : undefined);
 
@@ -184,6 +188,8 @@ export function TransactionOrchestrator() {
             uomId: getNumber(item, ["uomId"]) || undefined,
             qtyDipesan: getNumber(item, ["qty", "quantity", "productQty"]),
             qtyDikirim: getNumber(item, ["qty", "quantity", "productQty"]),
+            warehouseId: getNumber(item, ["warehouseId"]) || undefined,
+            warehouseName: getString(item, ["warehouseName"]),
           })),
         }
       : undefined);
