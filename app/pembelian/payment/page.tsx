@@ -275,33 +275,49 @@ export default function PurchasePaymentPage() {
           transaction_detail:  data.transaction_detail ?? "",
         };
 
-        await createPurchasePayment(payload);
-
-        // If payment fully covers the outstanding amount,
-        // mark the invoice as Paid and redirect.
-        const paidInvoice = purchaseInvoices.find(
-          (inv) =>
-            inv.purchase_invoice_id === data.purchase_invoice_id
-        );
-
-        if (
-          paidInvoice &&
-          data.amount >= Number(paidInvoice.outstanding_amount)
-        ) {
-          await updatePurchaseInvoice(
-            paidInvoice.purchase_invoice_id,
-            { status: "Paid" }
-          );
-
-          setOpenModal(false);
-          router.push("/pembelian/invoice");
+        // Isolate the API call so that any failure in the
+        // post-create UI steps below cannot trigger the error toast.
+        try {
+          await createPurchasePayment(payload);
+        } catch (createError) {
+          console.error("[PurchasePayment] Create API failed:", createError);
+          notify.error("Gagal membuat Purchase Payment");
           return;
         }
 
+        // API succeeded — show success toast and close modal immediately.
         setOpenModal(false);
         notify.success("Purchase Payment berhasil dibuat");
-        await loadData();
-        await fetchInvoices();
+
+        // Post-create UI updates: mark invoice as Paid and/or redirect.
+        // Failures here must NOT re-trigger the error toast.
+        try {
+          const paidInvoice = purchaseInvoices.find(
+            (inv) =>
+              inv.purchase_invoice_id === data.purchase_invoice_id
+          );
+
+          if (
+            paidInvoice &&
+            data.amount >= Number(paidInvoice.outstanding_amount)
+          ) {
+            await updatePurchaseInvoice(
+              paidInvoice.purchase_invoice_id,
+              { status: "Paid" }
+            );
+            router.push("/pembelian/invoice");
+            return;
+          }
+
+          await loadData();
+          await fetchInvoices();
+        } catch (postCreateError) {
+          // The payment was already saved; only the UI refresh/redirect
+          // failed. Log it but do not show the error toast.
+          console.error("[PurchasePayment] Post-create UI update failed:", postCreateError);
+          await loadData().catch(() => {});
+          await fetchInvoices().catch(() => {});
+        }
       }
 
     } catch (error) {
