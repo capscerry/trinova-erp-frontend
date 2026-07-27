@@ -70,7 +70,7 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/60 overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500" />
+          <div className="h-1 w-full bg-linear-to-r from-amber-400 via-amber-300 to-amber-500" />
 
           <div className="p-8">
             <div className="flex items-center gap-2 mb-1">

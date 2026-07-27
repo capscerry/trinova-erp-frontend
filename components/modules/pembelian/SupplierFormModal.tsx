@@ -89,7 +89,7 @@ export default function SupplierFormModal({
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden">
 
           {/* HEADER */}
-          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
+          <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Supplier" : "Tambah Supplier"}

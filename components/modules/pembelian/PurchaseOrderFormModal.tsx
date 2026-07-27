@@ -766,7 +766,7 @@ export default function PurchaseOrderFormModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col border border-slate-200 overflow-hidden">
 
-          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Purchase Order" : "Tambah Purchase Order"}
@@ -1124,7 +1124,7 @@ export default function PurchaseOrderFormModal({
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden max-h-[80vh] flex flex-col">
 
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+              <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">Pilih Purchase Requisition</h2>
                   <p className="text-slate-400 text-xs mt-0.5">Pilih PR untuk mengisi item produk secara otomatis</p>
@@ -1244,7 +1244,7 @@ export default function PurchaseOrderFormModal({
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setApprovalOpen(false)} />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
+              <div className="flex items-center justify-between px-5 py-4 bg-linear-to-r from-navy-900 to-navy-600">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">
                     {isPembelianUser ? "Permohonan Persetujuan PO" : "Persetujuan Purchase Order"}
@@ -1306,7 +1306,7 @@ export default function PurchaseOrderFormModal({
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setDpOpen(false)} />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
+              <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">Tambah Purchase Down Payment</h2>
                   <p className="text-slate-400 text-xs mt-0.5">Catat pembayaran uang muka supplier</p>
@@ -1392,7 +1392,7 @@ export default function PurchaseOrderFormModal({
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setGrOpen(false)} />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+              <div className="flex items-center justify-between px-5 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">Goods Receipt</h2>
                   <p className="text-slate-400 text-xs mt-0.5">Catat penerimaan barang dari supplier</p>
@@ -1527,7 +1527,7 @@ export default function PurchaseOrderFormModal({
           <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setInvoiceOpen(false)} />
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+              <div className="flex items-center justify-between px-5 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>
                   <h2 className="text-white font-semibold text-[15px]">
                     {invoiceDone || poInvoice ? "Tambah Purchase Payment" : "Purchase Invoice & Payment"}

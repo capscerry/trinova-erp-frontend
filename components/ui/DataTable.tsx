@@ -102,7 +102,7 @@ function FilterDropdown({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1.5 left-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[140px] overflow-hidden">
+          <div className="absolute top-full mt-1.5 left-0 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-35 overflow-hidden">
             {options.map((opt) => (
               <button
                 key={opt}
@@ -342,7 +342,7 @@ export function DataTable<T extends object>({
             />
           </div>
 
-          <div className="min-w-[36px] h-8 px-2 flex items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 bg-slate-50">
+          <div className="min-w-9 h-8 px-2 flex items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-500 bg-slate-50">
             {processed.length}
           </div>
         </div>
@@ -411,7 +411,7 @@ export function DataTable<T extends object>({
                     );
                   })}
                   {renderActions && (
-                    <td className="border-b border-slate-100 px-4 py-3 text-right">
+                    <td className="border-b border-slate-100 px-4 py-3 text-center">
                       {renderActions(row)}
                     </td>
                   )}
@@ -464,3 +464,5 @@ export function DataTable<T extends object>({
     </div>
   );
 }
+
+

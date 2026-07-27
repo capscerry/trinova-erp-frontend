@@ -22,6 +22,7 @@ import CategoryForm, {
 import DeleteCategoryModal from "@/components/modules/persediaan/categories/DeleteCategoryModal";
 
 import { toast } from "sonner";
+import CategoryFormModal from "@/components/modules/persediaan/categories/CategoryFormModal";
 
 export default function CategoryPage() {
   const [categories, setCategories] =
@@ -222,33 +223,20 @@ export default function CategoryPage() {
         }
       />
 
-      <Modal
-        isOpen={openModal}
+      <CategoryFormModal
+        open={openModal}
         onClose={() => {
           setOpenModal(false);
-
-          setSelectedCategory(
-            null
-          );
+          setSelectedCategory(null);
         }}
-        title={
+        onSubmit={
           isEdit
-            ? "Edit Category"
-            : "Tambah Category"
+            ? handleUpdateCategory
+            : handleCreateCategory
         }
-      >
-        <CategoryForm
-          onSubmit={
-            isEdit
-              ? handleUpdateCategory
-              : handleCreateCategory
-          }
-          loading={saving}
-          initialData={
-            selectedCategory
-          }
-        />
-      </Modal>
+        loading={saving}
+        initialData={selectedCategory}
+      />
 
       <DeleteCategoryModal
         open={openDeleteModal}

@@ -979,7 +979,7 @@ export function RiskPredictionPanel({
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
       {/* Header — navy+gold to match TOPSIS panel design */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-navy-900 to-navy-700">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-linear-to-r from-navy-900 to-navy-700">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-rose-500/80 flex items-center justify-center">
             <ShieldAlert size={13} className="text-white" />

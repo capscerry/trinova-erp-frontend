@@ -6,6 +6,11 @@ import { AppShell } from "@/components/layout";
 import { ModuleOverview } from "@/components/modules/ModuleOverview";
 import { NAV_CONFIG } from "@/lib/nav";
 
+import { InventoryAIHero } from "@/components/modules/persediaan/demand-forecast/InventoryAIHero";
+import { InventoryAISummary } from "@/components/modules/persediaan/demand-forecast/InventoryAISummary";
+import { TopForecastPreview } from "@/components/modules/persediaan/demand-forecast/TopForecastPreview";
+import { ForecastInsight } from "@/components/modules/persediaan/demand-forecast/ForecastInsight";
+
 import {
   getInventoryDashboard,
   InventoryDashboard,
@@ -70,6 +75,19 @@ export default function PersediaanPage() {
         module={module}
         stats={STATS}
       />
+      
+      {dashboard?.aiSummary && (
+        <>
+          <InventoryAIHero aiSummary={dashboard.aiSummary} />
+
+          <InventoryAISummary aiSummary={dashboard.aiSummary} />
+
+          <TopForecastPreview aiSummary={dashboard.aiSummary} />
+          
+          <ForecastInsight aiSummary={dashboard.aiSummary} />
+        </>
+      )}
     </AppShell>
   );
 }
+

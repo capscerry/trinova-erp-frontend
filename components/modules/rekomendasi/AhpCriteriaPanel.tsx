@@ -58,8 +58,8 @@ function WeightRow({ label, weight, benefit }: { label: string; weight: number; 
           className={cn(
             "h-full rounded-full transition-all duration-500",
             benefit
-              ? "bg-gradient-to-r from-green-400 to-green-600"
-              : "bg-gradient-to-r from-rose-400 to-rose-600"
+              ? "bg-linear-to-r from-green-400 to-green-600"
+              : "bg-linear-to-r from-rose-400 to-rose-600"
           )}
           style={{ width: `${pct}%` }}
         />

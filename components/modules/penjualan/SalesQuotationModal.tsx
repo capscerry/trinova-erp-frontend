@@ -206,7 +206,7 @@ export function SalesQuotationModal({
 
           {/* ── Modal Header ──────────────────────────── */}
           <div className="flex items-center justify-between px-6 py-4
-                          bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+                          bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Sales Quotation" : "Tambah Sales Quotation"}

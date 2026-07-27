@@ -584,7 +584,7 @@ export default function PurchasePaymentPage() {
               className="
                 flex items-center justify-between
                 px-6 py-4
-                bg-gradient-to-r from-navy-900 to-navy-600
+                bg-linear-to-r from-navy-900 to-navy-600
               "
             >
               <div>

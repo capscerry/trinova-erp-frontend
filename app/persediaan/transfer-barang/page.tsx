@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
-import StockTransferDetailModal from "@/components/modules/persediaan/stock-transfer/StockTransferDetailModal";
-import StockTransferForm, {StockTransferFormData,} from "@/components/modules/persediaan/stock-transfer/StockTransferForm";
+import StockTransferDetailModal from "@/components/modules/persediaan/stock-transfer/StockTransferDetailFormModal";
+import StockTransferForm, {StockTransferFormData,} from "@/components/modules/persediaan/stock-transfer/StockTransferFormModal";
 
 import {
   getTransfers,
@@ -372,28 +372,20 @@ const COLUMNS: Column<StokTransfer>[] =
       subtitle="Kelola pesanan transfer stok"
     >
       <DataTable<StokTransfer>
-          title="Daftar Stock Transfer"
-          columns={COLUMNS}
-          data={transfers}
-          addLabel="Tambah Stock Transfer"
-          onAdd={() => setOpenModal(true)}
-          keyField="id"
+        title="Daftar Stock Transfer"
+        columns={COLUMNS}
+        data={transfers}
+        addLabel="Tambah Stock Transfer"
+        onAdd={() => setOpenModal(true)}
+        keyField="id"
       />
 
-      <Modal
+      <StockTransferForm
         isOpen={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
-        title="Tambah Stock Transfer"
-      >
-        <StockTransferForm
-          loading={saving}
-          onSubmit={
-            handleCreateTransfer
-          }
-        />
-      </Modal>
+        onClose={() => setOpenModal(false)}
+        loading={saving}
+        onSubmit={handleCreateTransfer}
+      />
 
       <StockTransferDetailModal
         isOpen={openDetailModal}
@@ -405,4 +397,4 @@ const COLUMNS: Column<StokTransfer>[] =
       />
     </AppShell>
   );
-}
+  }
