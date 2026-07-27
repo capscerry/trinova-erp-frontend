@@ -4,6 +4,18 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "https://trinova-erp-backend-production.up.railway.app";
 
+function clearAuthSessionAndRedirect() {
+  if (typeof window === "undefined") return;
+
+  sessionStorage.removeItem("trinova_user");
+  sessionStorage.removeItem("trinova_token");
+  document.cookie = "trinova_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie = "trinova_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
@@ -49,33 +61,48 @@ api.interceptors.response.use(
   (err) => {
     const data = err.response?.data;
 
-    if (process.env.NODE_ENV === "development") {
-      console.error(
-        `[API Error] ${err.config?.method?.toUpperCase()} ${err.config?.url}`,
-        "status:",
-        err.response?.status,
-        "body:",
-        JSON.stringify(data, null, 2)
-      );
+    // if (process.env.NODE_ENV === "development") {
+    //   console.error(
+    //     `[API Error] ${err.config?.method?.toUpperCase()} ${err.config?.url}`,
+    //     "status:",
+    //     err.response?.status,
+    //     "body:",
+    //     JSON.stringify(data, null, 2)
+    //   );
+    // }
+    if(process.env.NODE_ENV === "development") {
+      const status =  err.response?.status;
+      const url =  err.config?.url ?? "";
+
+      const isExpectedError = status === 401 && url.includes("/auth/login");
+      if(!isExpectedError) {
+        console.warn(
+           `[API Error] ${err.config?.method?.toUpperCase()} ${url}`,
+            "status:",
+            status,
+            "body:",
+            JSON.stringify(data, null, 2)
+        )
+      }
+
     }
 
-    // If the server returns 401, the token is missing or expired.
-    // Clear the stale session and redirect to login so the user can re-authenticate.
-    if (err.response?.status === 401 && typeof window !== "undefined") {
-      sessionStorage.removeItem("trinova_token");
-      sessionStorage.removeItem("trinova_user");
-      // Clear the session/role cookies set by AuthContext
-      document.cookie = "trinova_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      document.cookie = "trinova_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      window.location.href = "/login";
+    const status = err.response?.status;
+    const url = err.config?.url ?? "";
+    const isLoginRequest = url.includes("/auth/login");
+
+    if (status === 401 && !isLoginRequest) {
+      clearAuthSessionAndRedirect();
       return Promise.reject(new Error("Sesi habis. Silakan login kembali."));
     }
+
+
 
     if (data?.errors && typeof data.errors === "object") {
       const fieldErrors = Object.entries(data.errors as Record<string, string[]>)
         .map(([field, msgs]) => `${field}: ${msgs.join(", ")}`)
         .join(" | ");
-      console.error("[API Validation Errors]", data.errors);
+      console.warn("[API Validation Errors]", data.errors);
       return Promise.reject(new Error(fieldErrors || data.title || "Validation error"));
     }
 
@@ -89,3 +116,4 @@ export interface ApiResponse<T> {
   message?: string;
   success?: boolean;
 }
+

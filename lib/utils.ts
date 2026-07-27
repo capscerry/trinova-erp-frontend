@@ -1,4 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
+﻿import { type ClassValue, clsx } from "clsx";
 import type { StatusVariant } from "@/types";
 
 /** Merge Tailwind class names safely */
@@ -26,13 +26,50 @@ export function formatDate(dateString: string): string {
 
 /** Map a status string to a StatusVariant */
 export function getStatusVariant(status: string): StatusVariant {
-  const successWords = ["lunas", "aktif", "aman", "diterima", "selesai"];
-  const warningWords = ["pending", "dikirim", "proses", "non-aktif"];
-  const dangerWords  = ["kritis", "overdue", "dibatalkan", "gagal"];
+  const successWords = [
+    "lunas",
+    "aktif",
+    "aman",
+    "diterima",
+    "selesai",
+    "approved",
+    "processed",
+    "completed",
+    "paid",
+    "received",
+    "validated",
+  ];
+  const warningWords = [
+    "pending",
+    "processed",
+    "dikirim",
+    "proses",
+    "non-aktif",
+    "draft",
+    "issued",
+    "partial",
+    "partially",
+    "unpaid",
+    "waiting",
+  ];
+  const dangerWords = [
+    "kritis",
+    "overdue",
+    "dibatalkan",
+    "gagal",
+    "cancelled",
+    "canceled",
+    "failed",
+    "rejected",
+  ];
 
   const lower = status.toLowerCase();
-  if (successWords.some((w) => lower.includes(w))) return "success";
+  if (dangerWords.some((w) => lower.includes(w))) return "danger";
   if (warningWords.some((w) => lower.includes(w))) return "warning";
-  if (dangerWords.some((w)  => lower.includes(w))) return "danger";
+  if (successWords.some((w) => lower.includes(w))) return "success";
   return "default";
 }
+
+
+
+

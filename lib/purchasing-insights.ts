@@ -342,11 +342,31 @@ export function calcSupplierScores(
     if (sp.supplier_price != null) a.prices.push(Number(sp.supplier_price));
   }
 
+  // Build a GR → supplier_id lookup so invoices that only carry
+  // goods_receipt_id (no purchase_order_id) can still be attributed.
+  const grSupplierMap = new Map<number, number>();
+  for (const gr of grs) {
+    const po = poMap.get((gr as any).purchase_order_id);
+    if (po) grSupplierMap.set((gr as any).goods_receipt_id, po.supplier_id);
+  }
+
   for (const inv of invoices) {
-    if (inv.purchase_order_id == null) continue;
-    const po = poMap.get(inv.purchase_order_id);
-    if (!po) continue;
-    ensureAgg(po.supplier_id).invoiceCount += 1;
+    let supplierId: number | undefined;
+
+    // Primary join: invoice carries a direct purchase_order_id
+    if (inv.purchase_order_id != null) {
+      const po = poMap.get(inv.purchase_order_id);
+      if (po) supplierId = po.supplier_id;
+    }
+
+    // Fallback join: invoice carries only goods_receipt_id → resolve via GR → PO
+    if (supplierId == null && inv.goods_receipt_id != null) {
+      supplierId = grSupplierMap.get(inv.goods_receipt_id);
+    }
+
+    if (supplierId != null) {
+      ensureAgg(supplierId).invoiceCount += 1;
+    }
   }
 
   if (agg.size === 0) return [];

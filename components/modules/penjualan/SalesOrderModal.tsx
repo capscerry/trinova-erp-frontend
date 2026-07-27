@@ -33,6 +33,7 @@ type SavedSalesOrderResponse = {
     subtotal?: number;
     total?: number;
   };
+  id?: number;
   orderId?: number;
   soNumber?: string;
   orderNumber?: string;
@@ -144,11 +145,13 @@ export function SalesOrderModal({
         setSuccessMessage("Perubahan Sales Order berhasil disimpan.");
         notify.success("Sales Order berhasil diperbarui");
         setEditSaved(true);
+        window.dispatchEvent(new CustomEvent("sales-order:saved"));
         onSubmit(form);
       } else {
         setIsSubmitted(true);
         setSuccessMessage("Sales Order berhasil disimpan.");
         notify.success("Sales Order berhasil dibuat");
+        window.dispatchEvent(new CustomEvent("sales-order:saved"));
         // Jangan panggil onSubmit di sini,
         // karena biasanya parent akan menutup modal.
         // onSubmit(form);
@@ -179,6 +182,7 @@ export function SalesOrderModal({
   ...form,
 
   orderId:
+    savedSo?.id ??
     header?.orderId ??
     savedSo?.orderId ??
     0,
@@ -186,6 +190,7 @@ export function SalesOrderModal({
   nomor:
     header?.soNumber ??
     header?.orderNumber ??
+    savedSo?.soNumber ??
     form.nomor,
 
   noPO: form.noPO ?? "",
@@ -211,6 +216,7 @@ export function SalesOrderModal({
     header?.subtotal ??
     savedSo?.subTotal ??
     savedSo?.subtotal ??
+    savedSo?.total ??
     0,
 
   savedSo,
@@ -234,7 +240,7 @@ export function SalesOrderModal({
           {/* Header */}
           <div
             className="flex items-center justify-between px-6 py-4
-                       bg-gradient-to-r from-navy-900 to-navy-600 shrink-0"
+                       bg-linear-to-r from-navy-900 to-navy-600 shrink-0"
           >
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">

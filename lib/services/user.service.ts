@@ -81,6 +81,10 @@ function mapBackendRole(roleName: string): Role {
     case "persediaan":
       return "persediaan";
 
+    case "procurement manager":
+    case "procurement_manager":
+      return "procurement_manager";
+
     default:
       return "penjualan";
   }

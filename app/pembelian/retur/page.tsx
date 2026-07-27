@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { notify } from "@/lib/notify";
@@ -153,6 +153,12 @@ export default function PurchaseReturnsPage() {
   const [settlementReturnItems, setSettlementReturnItems] = useState<ReturnLineItem[]>([]);
   const [detailTarget, setDetailTarget] = useState<PurchaseReturn | null>(null);
   const [isCreatingReturn, setIsCreatingReturn] = useState(false);
+
+  // ── Confirm delete dialog ──────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({
+    open: false, row: null,
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ── Confirm delete dialog ──────────────────────────────────────────────────
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({

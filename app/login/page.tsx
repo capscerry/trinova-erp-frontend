@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,10 +23,7 @@ function getRedirectPath(role: string) {
       return "/persediaan";
 
     case "admin":
-      return "/dashboard";
-
-    default:
-      return "/dashboard";
+    default:            return "/dashboard";
   }
 }
 
@@ -53,11 +50,7 @@ export default function LoginPage() {
 
     try {
       const user = await login(email.trim(), password);
-
-      const redirectPath = getRedirectPath(user.role);
-
-      router.replace(redirectPath);
-      router.refresh();
+      router.replace(getRedirectPath(user.role));
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Email atau password salah.";
@@ -88,7 +81,7 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/60 overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500" />
+          <div className="h-1 w-full bg-linear-to-r from-amber-400 via-amber-300 to-amber-500" />
 
           <div className="p-8">
             <div className="flex items-center gap-2 mb-1">

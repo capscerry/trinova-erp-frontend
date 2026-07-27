@@ -87,6 +87,7 @@ export interface SalesInvoicePayload {
     discountAmount: number;
     taxAmount: number;
     subtotal: number;
+    warehouseId?: number | null;
   }[];
 }
 

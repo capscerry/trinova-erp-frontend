@@ -22,6 +22,7 @@ import WarehouseForm, {
 import DeleteWarehouseModal from "@/components/modules/persediaan/warehouses/DeleteWarehouseModal";
 
 import { toast } from "sonner";
+import WarehouseFormModal from "@/components/modules/persediaan/warehouses/WarehouseFormModal";
 
 export default function WarehousePage() {
   const [warehouses, setWarehouses] =
@@ -232,48 +233,33 @@ export default function WarehousePage() {
         }
       />
 
-      <Modal
-        isOpen={openModal}
+      <WarehouseFormModal
+        open={openModal}
         onClose={() => {
           setOpenModal(false);
-
-          setSelectedWarehouse(
-            null
-          );
+          setSelectedWarehouse(null);
         }}
-        title={
+        onSubmit={
           isEdit
-            ? "Edit Warehouse"
-            : "Tambah Warehouse"
+            ? handleUpdateWarehouse
+            : handleCreateWarehouse
         }
-      >
-        <WarehouseForm
-          onSubmit={
-            isEdit
-              ? handleUpdateWarehouse
-              : handleCreateWarehouse
-          }
-          loading={saving}
-          initialData={
-            selectedWarehouse
-              ? {
-                  warehouse_name:
-                    selectedWarehouse.warehouse_name ??
-                    "",
-                  warehouse_type:
-                    selectedWarehouse.warehouse_type ??
-                    "",
-                  warehouse_address:
-                    selectedWarehouse.warehouse_address ??
-                    "",
-                  description:
-                    selectedWarehouse.description ??
-                    "",
-                }
-              : null
-          }
-        />
-      </Modal>
+        loading={saving}
+        initialData={
+          selectedWarehouse
+            ? {
+                warehouse_name:
+                  selectedWarehouse.warehouse_name ?? "",
+                warehouse_type:
+                  selectedWarehouse.warehouse_type ?? "",
+                warehouse_address:
+                  selectedWarehouse.warehouse_address ?? "",
+                description:
+                  selectedWarehouse.description ?? "",
+              }
+            : null
+        }
+      />
 
       <DeleteWarehouseModal
         open={openDeleteModal}

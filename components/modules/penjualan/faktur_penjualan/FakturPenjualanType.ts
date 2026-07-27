@@ -10,6 +10,9 @@ export interface FakturPenjualanItem {
   qty: number;
   harga: number;
   diskon: number;
+  /** Gudang — cuma dipakai untuk cash sale (tanpa SO/DO). Kosong = jasa, tidak potong stok. */
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface FakturPenjualanFormData {
@@ -60,6 +63,8 @@ export function newFakturItem(): FakturPenjualanItem {
     qty: 1,
     harga: 0,
     diskon: 0,
+    warehouseId: undefined,
+    warehouseName: "",
   };
 }
 
@@ -142,6 +147,7 @@ export function mapFormToApiPayload(form: FakturPenjualanFormData): SalesInvoice
         discountAmount,
         taxAmount: form.kenaPajak ? afterDiscount * 0.11 : 0,
         subtotal: afterDiscount,
+        warehouseId: item.warehouseId ?? null,
       };
     }),
   };

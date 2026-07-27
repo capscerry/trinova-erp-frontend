@@ -55,7 +55,7 @@ export default function CategoryForm({
     >
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Category Name
+          Category Name <span className="text-red-500 font-bold">*</span>
         </label>
 
         <input

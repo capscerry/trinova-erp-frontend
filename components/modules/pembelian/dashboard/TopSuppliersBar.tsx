@@ -45,7 +45,7 @@ export function TopSuppliersBar({ data, loading, onBarClick }: Props) {
 
   const chartData = data.map((d) => ({
     ...d,
-    name: d.supplier_name.length > 16 ? d.supplier_name.slice(0, 14) + "-" : d.supplier_name,
+    name: d.supplier_name.length > 16 ? d.supplier_name.slice(0, 14) + "…" : d.supplier_name,
   }));
 
   return (

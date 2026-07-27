@@ -11,6 +11,7 @@ export interface SecurityActivityItem {
   refNumber?: string | null;
   userId: number;
   userName: string;
+  ipAddress?: string | null;
   createdAt: string;
 }
 

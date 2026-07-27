@@ -40,7 +40,7 @@ function ScoreBar({ score }: { score: number }) {
     <div className="flex items-center gap-2 min-w-0">
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[50px]">
         <div
-          className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-700", color)}
+          className={cn("h-full rounded-full bg-linear-to-r transition-all duration-700", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -150,7 +150,7 @@ function ResultRow({
       <div
         className={cn(
           "grid items-center gap-0 px-5 py-3.5 transition-colors cursor-pointer select-none",
-          "grid-cols-[40px_1fr_170px_80px_56px_110px_32px]",
+          "grid-cols-[40px_1fr_170px_80px_56px_32px]",
           result.rank === 1 ? "bg-gold-300/10 hover:bg-gold-300/20" : "hover:bg-slate-50"
         )}
         onClick={() => setExpanded((v) => !v)}
@@ -182,21 +182,6 @@ function ResultRow({
         {/* Trend */}
         <div className="flex justify-center">
           <TrendIcon score={result.score} />
-        </div>
-
-        {/* D+ / D- */}
-        <div className="text-right">
-          <Tooltip
-            term={result.dPlus.toFixed(4)}
-            label="D+ — Jarak ke solusi ideal terbaik. Semakin kecil semakin baik."
-            className="text-[11px] tabular-nums text-rose-500 font-semibold"
-          />
-          <span className="text-[11px] text-slate-300 mx-1">/</span>
-          <Tooltip
-            term={result.dMinus.toFixed(4)}
-            label="D− — Jarak ke solusi ideal terburuk. Semakin besar semakin baik."
-            className="text-[11px] tabular-nums text-green-600 font-semibold"
-          />
         </div>
 
         {/* Expand chevron */}
@@ -235,25 +220,6 @@ function ResultRow({
               );
             })}
           </div>
-
-          {/* D+ / D- summary */}
-          <div className="mt-4 flex gap-4">
-            <div className="flex-1 bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-rose-400 font-bold mb-1">D+ (Jarak Ideal+)</p>
-              <p className="text-base font-bold font-mono text-rose-600">{result.dPlus.toFixed(6)}</p>
-              <p className="text-[10px] text-rose-400 mt-0.5">Lebih kecil = lebih baik</p>
-            </div>
-            <div className="flex-1 bg-green-50 border border-green-100 rounded-xl p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-green-500 font-bold mb-1">D− (Jarak Ideal−)</p>
-              <p className="text-base font-bold font-mono text-green-600">{result.dMinus.toFixed(6)}</p>
-              <p className="text-[10px] text-green-500 mt-0.5">Lebih besar = lebih baik</p>
-            </div>
-            <div className="flex-1 bg-navy-900/5 border border-navy-900/10 rounded-xl p-3 text-center">
-              <p className="text-[10px] uppercase tracking-widest text-navy-900/50 font-bold mb-1">Ci (Nilai Akhir)</p>
-              <p className="text-base font-bold font-mono text-navy-900">{result.score.toFixed(6)}</p>
-              <p className="text-[10px] text-navy-900/40 mt-0.5">D− / (D+ + D−)</p>
-            </div>
-          </div>
         </div>
       )}
     </>
@@ -266,17 +232,17 @@ function TopsisStepSummary() {
   return (
     <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40">
       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
-        Langkah Perhitungan TOPSIS
+        Metode Perankingan TOPSIS
       </p>
       <div className="flex flex-wrap gap-2">
         {[
           { step: "1", label: "Matriks Keputusan" },
           { step: "2", label: "Normalisasi Vektor" },
-          { step: "3", label: "Matriks Terbobot" },
-          { step: "4", label: "Solusi Ideal A+ / A−" },
-          { step: "5", label: "Jarak D+ dan D−" },
-          { step: "6", label: "Ci = D− / (D+ + D−)" },
-          { step: "7", label: "Perankingan" },
+          { step: "3", label: "Matriks Terbobot AHP" },
+          { step: "4", label: "Solusi Ideal Terbaik & Terburuk" },
+          { step: "5", label: "Jarak ke Solusi Ideal" },
+          { step: "6", label: "Skor Kedekatan (Ci)" },
+          { step: "7", label: "Perankingan Akhir" },
         ].map(({ step, label }) => (
           <div
             key={step}
@@ -289,6 +255,10 @@ function TopsisStepSummary() {
           </div>
         ))}
       </div>
+      <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+        Skor TOPSIS (Ci) mencerminkan posisi relatif supplier terhadap kondisi ideal — bukan skor risiko.
+        Skor risiko ML ditampilkan secara terpisah sebagai informasi pelengkap.
+      </p>
     </div>
   );
 }
@@ -313,29 +283,26 @@ export function TopsisResultsPanel({
         </div>
         <div>
           <h2 className="font-serif font-bold text-navy-900 text-[15px] leading-none">
-            Hasil Perankingan TOPSIS
+            Perankingan Supplier Keseluruhan
           </h2>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Klik baris untuk melihat detail nilai terbobot dan jarak ideal
+            Ranking multi-kriteria AHP + TOPSIS — klik baris untuk detail nilai terbobot
           </p>
         </div>
       </div>
 
       {/* Column headers */}
       {!isLoading && results.length > 0 && (
-        <div className="grid grid-cols-[40px_1fr_170px_80px_56px_110px_32px] gap-0 bg-slate-50 border-b border-slate-100 px-5 py-2">
+        <div className="grid grid-cols-[40px_1fr_170px_80px_56px_32px] gap-0 bg-slate-50 border-b border-slate-100 px-5 py-2">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">#</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supplier</span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Tooltip term="Nilai Ci" label="Closeness Coefficient (Ci) — mendekati 1 = paling dekat ke kondisi ideal di semua kriteria." />
+            <Tooltip term="Skor TOPSIS" label="Closeness Coefficient (Ci) — seberapa dekat supplier ke solusi ideal. Mendekati 1 = peringkat terbaik di semua kriteria." />
           </span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">
-            <Tooltip term="Risk" label="XGBoost risk score (0=aman, 1=kritis). Dilatih dari 10 fitur ERP + inventaris Excel." />
+            <Tooltip term="Prediksi Risiko ML" label="Probabilitas keterlambatan pengiriman (0–1) dari model XGBoost. Ditampilkan sebagai pelengkap — bukan bagian dari skor TOPSIS." />
           </span>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">Tren</span>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">
-            <Tooltip term="D+ / D−" label="D+ = jarak ke solusi ideal terbaik (kecil = baik). D− = jarak ke solusi ideal terburuk (besar = baik)." />
-          </span>
           <span />
         </div>
       )}

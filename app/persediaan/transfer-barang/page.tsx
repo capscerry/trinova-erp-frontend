@@ -1,29 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import { Button } from "@/components/ui/Button";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
+import StockTransferDetailModal from "@/components/modules/persediaan/stock-transfer/StockTransferDetailFormModal";
+import StockTransferForm, {StockTransferFormData,} from "@/components/modules/persediaan/stock-transfer/StockTransferFormModal";
 
 import {
   getTransfers,
+  getTransferById,
   transferStock,
+  processTransfer,
+  completeTransfer,
+  cancelTransfer,
 } from "@/lib/services/stock-transfer.service";
-
-import StockTransferForm, {
-  StockTransferFormData,
-} from "@/components/modules/persediaan/stock-transfer/StockTransferForm";
 
 // ─────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────
 
-type POStatus =
-  | "Waiting to be processed"
-  | "Processed"
-  | "Partially processed"
-  | "Cancelled";
+type TransferStatus =
+  | "CREATED"
+  | "PROCESSED"
+  | "COMPLETED"
+  | "CANCELED";
 
 interface StokTransfer {
   id: string;
@@ -33,7 +35,7 @@ interface StokTransfer {
   gudang_tujuan: string;
   gudang_asal: string;
   keterangan: string;
-  status: POStatus;
+  status: TransferStatus;
 }
 
 interface StockTransferApi {
@@ -44,8 +46,14 @@ interface StockTransferApi {
   reference_number: string;
   notes: string;
   movement_date: string;
+
   source_warehouse_id: number;
   destination_warehouse_id: number;
+
+  source_warehouse_name: string;
+  destination_warehouse_name: string;
+
+  status: TransferStatus;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -63,36 +71,112 @@ const formatDate = (d: string) =>
 // Status Badge
 // ─────────────────────────────────────────────────────────────
 
-const STATUS_STYLE: Record<
-  POStatus,
-  string
-> = {
-  "Waiting to be processed":
+const STATUS_STYLE: Record<TransferStatus, string> = {
+  CREATED:
     "bg-amber-50 text-amber-700 border border-amber-200",
 
-  Processed:
-    "bg-emerald-50 text-emerald-700 border border-emerald-200",
-
-  "Partially processed":
+  PROCESSED:
     "bg-blue-50 text-blue-700 border border-blue-200",
 
-  Cancelled:
+  COMPLETED:
+    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+
+  CANCELED:
     "bg-rose-50 text-rose-600 border border-rose-200",
 };
 
-function POStatusBadge({
-  status,
-}: {
-  status: POStatus;
+function TransferStatusBadge({status,}: {
+  status: TransferStatus;
 }) {
+  const label =
+    status.charAt(0) +
+    status.slice(1).toLowerCase();
+
   return (
     <span
       className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${STATUS_STYLE[status]}`}
     >
-      {status}
+      {label}
     </span>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────
+
+export default function StokTransferPage() {
+  const [transfers, setTransfers] = useState<StokTransfer[]>([]);
+
+  const [openModal, setOpenModal] = useState(false);
+
+  const [saving, setSaving] = useState(false);
+
+  const [selectedTransfer, setSelectedTransfer] = useState<any>(null);
+
+  const [openDetailModal, setOpenDetailModal] = useState(false);
+
+  useEffect(() => { loadTransfers();}, []);
+
+  const loadTransfers = async () => {
+    try {
+      const data: StockTransferApi[] =
+        await getTransfers();
+
+      const mapped: StokTransfer[] =
+        data.map((item) => ({
+          id:
+            item.movement_id.toString(),
+
+          nomor:
+            item.reference_number,
+
+          tanggal:
+            item.movement_date,
+
+          tipe_transfer:
+            item.movement_type,
+
+          gudang_tujuan:
+            item.destination_warehouse_name,
+
+          gudang_asal:
+            item.source_warehouse_name,
+
+          keterangan:
+            item.notes,
+
+          status:
+            item.status,
+        }));
+
+      setTransfers(mapped);
+    } catch (error) {
+      console.error(
+        "Failed to load transfers",
+        error
+      );
+    }
+  };
+
+  const handleView = async (
+    id: number
+  ) => {
+    try {
+      const data =
+        await getTransferById(id);
+
+      setSelectedTransfer(data);
+
+      setOpenDetailModal(true);
+    } catch (err) {
+      console.error(err);
+
+      alert(
+        "Failed to load transfer detail."
+      );
+    }
+  };
 
 // ─────────────────────────────────────────────────────────────
 // Columns
@@ -178,71 +262,29 @@ const COLUMNS: Column<StokTransfer>[] =
       width: "180px",
 
       render: (val) => (
-        <POStatusBadge
-          status={val as POStatus}
+        <TransferStatusBadge
+          status={val as TransferStatus}
         />
       ),
     },
+
+    {
+      key: "id",
+      label: "Action",
+      width: "120px",
+
+      render: (_, row) => (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => handleView(Number(row.id))}
+        >
+          View
+        </Button>
+      ),
+    },
   ];
-
-// ─────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────
-
-export default function StokTransferPage() {
-  const [transfers, setTransfers] =
-    useState<StokTransfer[]>([]);
-
-  const [openModal, setOpenModal] =
-    useState(false);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  useEffect(() => {
-    loadTransfers();
-  }, []);
-
-  const loadTransfers = async () => {
-    try {
-      const data: StockTransferApi[] =
-        await getTransfers();
-
-      const mapped: StokTransfer[] =
-        data.map((item) => ({
-          id:
-            item.movement_id.toString(),
-
-          nomor:
-            item.reference_number,
-
-          tanggal:
-            item.movement_date,
-
-          tipe_transfer:
-            item.movement_type,
-
-          gudang_tujuan:
-            `Warehouse ${item.destination_warehouse_id}`,
-
-          gudang_asal:
-            `Warehouse ${item.source_warehouse_id}`,
-
-          keterangan:
-            item.notes,
-
-          status:
-            "Processed",
-        }));
-
-      setTransfers(mapped);
-    } catch (error) {
-      console.error(
-        "Failed to load transfers",
-        error
-      );
-    }
-  };
 
   const handleCreateTransfer =
     async (
@@ -270,6 +312,60 @@ export default function StokTransferPage() {
       }
     };
 
+  const handleProcess = async () => {
+    if (!selectedTransfer) return;
+
+    try {
+      await processTransfer(
+        selectedTransfer.movement_id
+      );
+
+      setOpenDetailModal(false);
+
+      await loadTransfers();
+    } catch (err) {
+      console.error(err);
+
+      alert("Failed to process transfer.");
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!selectedTransfer) return;
+
+    try {
+      await completeTransfer(
+        selectedTransfer.movement_id
+      );
+
+      setOpenDetailModal(false);
+
+      await loadTransfers();
+    } catch (err) {
+      console.error(err);
+
+      alert("Failed to complete transfer.");
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!selectedTransfer) return;
+
+    try {
+      await cancelTransfer(
+        selectedTransfer.movement_id
+      );
+
+      setOpenDetailModal(false);
+
+      await loadTransfers();
+    } catch (err) {
+      console.error(err);
+
+      alert("Failed to cancel transfer.");
+    }
+  };
+
   return (
     <AppShell
       title="Stock Transfer"
@@ -280,26 +376,25 @@ export default function StokTransferPage() {
         columns={COLUMNS}
         data={transfers}
         addLabel="Tambah Stock Transfer"
-        onAdd={() =>
-          setOpenModal(true)
-        }
+        onAdd={() => setOpenModal(true)}
         keyField="id"
       />
 
-      <Modal
+      <StockTransferForm
         isOpen={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
-        title="Tambah Stock Transfer"
-      >
-        <StockTransferForm
-          loading={saving}
-          onSubmit={
-            handleCreateTransfer
-          }
-        />
-      </Modal>
+        onClose={() => setOpenModal(false)}
+        loading={saving}
+        onSubmit={handleCreateTransfer}
+      />
+
+      <StockTransferDetailModal
+        isOpen={openDetailModal}
+        onClose={() => setOpenDetailModal(false)}
+        data={selectedTransfer}
+        onProcess={handleProcess}
+        onComplete={handleComplete}
+        onCancel={handleCancel}
+      />
     </AppShell>
   );
-}
+  }

@@ -136,7 +136,8 @@ export default function MasterUserPage() {
       await fetchUser();
     } catch (err) {
       console.error("Gagal menyimpan data user", err);
-      showToast("Gagal menyimpan data user", "error");
+      const message = err instanceof Error ? err.message : "Gagal menyimpan data user";
+      showToast(message, "error");
     }
   };
 

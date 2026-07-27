@@ -8,6 +8,7 @@ const ROLE_REDIRECTS: Record<string, string> = {
   pembelian: "/pembelian",
   procurement_manager: "/pembelian",
   persediaan: "/persediaan",
+  procurement_manager: "/pembelian",
 };
 
 function getAllowedRoles(pathname: string) {

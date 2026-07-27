@@ -154,7 +154,7 @@ export function SalesOrderPickerModal({
                      flex flex-col border border-slate-200 overflow-hidden"
         >
           {/* ── Header ────────────────────────────────── */}
-          <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-violet-600 to-violet-500 shrink-0">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-linear-to-r from-violet-600 to-violet-500 shrink-0">
             <div className="flex items-center gap-2">
               <FileDown size={15} className="text-white/80" />
               <div>

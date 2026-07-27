@@ -37,7 +37,7 @@ export function SalesOrderHeaderForm({
   const [nomorMode, setNomorMode] = useState<"auto" | "manual">("auto");
   const [nomorManual, setNomorManual] = useState("");
 
-  const [customerOptions,setCustomerOptions] = useState<{id : number ; name :string}[]>([]);
+  const [customerOptions,setCustomerOptions] = useState<{id : number ; name :string; address: string}[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false); 
 
   const setField = <K extends keyof SalesOrderFormData>(k: K, v: SalesOrderFormData[K]) =>
@@ -53,7 +53,8 @@ export function SalesOrderHeaderForm({
             data.map(
                 (c) => ({
                      id: Number(c.id),
-                     name: c.nama 
+                     name: c.nama,
+                     address: c.alamat ?? "",
                 }))
             );
     }catch(error){
@@ -128,39 +129,23 @@ export function SalesOrderHeaderForm({
           )}
         </FormField>
 
-        {/* No PO */}
-        <FormField label="No PO" icon={<Hash size={13} />}>
-          <input type="text" 
-            value={form.noPO || ""}
-            onChange={(e) => setField("noPO", e.target.value)}
-            placeholder="Nomor Purchase Order..."
-            className={inputBase} />
-        </FormField>
-      </div>
-
-      {/* Tanggal */}
-      <div className="grid grid-cols-2 gap-4">
+        {/* Tanggal */}
         <FormField label="Tanggal" icon={<Calendar size={13} />} required>
           <input type="date" value={form.tanggal}
             onChange={(e) => setField("tanggal", e.target.value)}
             className={inputBase} />
         </FormField>
-        <FormField label="Tanggal Kirim" icon={<Calendar size={13} />}>
-          <input type="date" value={form.tanggalKirim}
-            onChange={(e) => setField("tanggalKirim", e.target.value)}
-            className={inputBase} />
-        </FormField>
       </div>
 
-      {/* Pelanggan + Dipesan Oleh */}
+      {/* Customer + Tanggal Kirim */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Dipesan Oleh" icon={<Users size={13} />} required
+        <FormField label="Customer" icon={<Users size={13} />} required
           hint={isEdit ? (
             <span className="text-[10px] text-slate-400">Tidak dapat diubah</span>
           ) : undefined}>
           <DropdownField
             value={form.pelanggan}
-            placeholder="Pilih sales / staff..."
+            placeholder="Pilih customer..."
             options={customerOptions.map((s) => s.name)}
             disabled={isEdit}
             onChange={(v) => {
@@ -171,12 +156,29 @@ export function SalesOrderHeaderForm({
             onChange({
                 pelanggan: v,
                 customerId: selected?.id,
+                alamatPengiriman: selected?.address ?? "",
                 // Reset quotation reference saat ganti customer
                 quotationId: undefined,
                 quotationNumber: undefined,
             });
             }}
           />
+        </FormField>
+        <FormField label="Tanggal Kirim" icon={<Calendar size={13} />}>
+          <input type="date" value={form.tanggalKirim}
+            onChange={(e) => setField("tanggalKirim", e.target.value)}
+            className={inputBase} />
+        </FormField>
+      </div>
+
+      {/* No PO */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="No PO" icon={<Hash size={13} />}>
+          <input type="text"
+            value={form.noPO || ""}
+            onChange={(e) => setField("noPO", e.target.value)}
+            placeholder="Nomor Purchase Order..."
+            className={inputBase} />
         </FormField>
       </div>
 

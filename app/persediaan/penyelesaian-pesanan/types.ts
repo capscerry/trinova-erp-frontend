@@ -3,6 +3,8 @@ export interface OrderFulfillment {
 
   product_id: number;
 
+  product_name?: string;
+
   movement_type: string;
 
   quantity: number;
@@ -14,4 +16,14 @@ export interface OrderFulfillment {
   movement_date: string;
 
   source_warehouse_id: number;
+
+  warehouse_name?: string;
+
+  status?: string;
+
+  processed_at?: string;
+
+  completed_at?: string;
+
+  canceled_at?: string;
 }

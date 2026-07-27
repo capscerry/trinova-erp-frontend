@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
@@ -69,8 +69,10 @@ const COLUMNS: Column<SalesInvoice>[] = [
 
 export default function SalesInvoicePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [initialFormData, setInitialFormData] = useState<Partial<FakturPenjualanFormData> | undefined>(undefined);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
@@ -97,6 +99,23 @@ export default function SalesInvoicePage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const customerIdParam = searchParams.get("customerId");
+    const pelanggan = searchParams.get("pelanggan") ?? "";
+    const deliveryOrderIdParam = searchParams.get("deliveryOrderId");
+
+    if (!customerIdParam && !pelanggan && !deliveryOrderIdParam) return;
+
+    setInitialFormData({
+      customerId: customerIdParam ? Number(customerIdParam) : undefined,
+      pelanggan,
+      deliveryOrderId: deliveryOrderIdParam ? Number(deliveryOrderIdParam) : undefined,
+    });
+    setModalOpen(true);
+    router.replace("/penjualan/invoice");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     if (!message) return;
@@ -143,7 +162,10 @@ export default function SalesInvoicePage() {
         data={data}
         keyField="id"
         addLabel="Add Invoice"
-        onAdd={() => setModalOpen(true)}
+        onAdd={() => {
+          setInitialFormData(undefined);
+          setModalOpen(true);
+        }}
         loading={isLoading}
         filters={{
           dateKey: "invoiceDate",
@@ -167,9 +189,13 @@ export default function SalesInvoicePage() {
 
       <FakturPenjualanModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setInitialFormData(undefined);
+        }}
         onSubmit={handleSubmit}
         onProses={handleProcessToReceipt}
+        initialData={initialFormData}
       />
     </AppShell>
   );

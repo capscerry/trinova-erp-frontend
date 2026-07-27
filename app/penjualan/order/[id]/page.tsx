@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout";
+import { StatusBadge } from "@/components/ui";
 import {
   ArrowLeft,
   Printer,
@@ -19,9 +20,11 @@ import {
   AlertCircle,
   TrendingUp,
   ChevronRight,
+  Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeSalesStatus } from "@/lib/sales-status";
+import { notify } from "@/lib/notify";
 import {
   SalesOrderDetail,
   salesOrderService,
@@ -110,6 +113,7 @@ export default function SalesOrderDetailPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "order" | "downPayment">("items");
   const [downPayments, setDownPayments] = useState<UangMuka[]>([]);
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
@@ -182,6 +186,26 @@ export default function SalesOrderDetailPage() {
     })),
   });
 
+  const handleCancel = async () => {
+    if (!id || cancelling) return;
+    if (!window.confirm("Batalkan Sales Order ini? Reservasi stok untuk barang yang belum dikirim akan dilepas.")) {
+      return;
+    }
+    try {
+      setCancelling(true);
+      await salesOrderService.cancel(id);
+      notify.success("Sales Order dibatalkan", "Reservasi stok untuk bagian yang belum dikirim sudah dilepas.");
+      fetchData();
+    } catch (err: any) {
+      notify.error(
+        "Gagal membatalkan Sales Order",
+        err?.response?.data?.message ?? err?.message ?? "Terjadi kesalahan, coba lagi"
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleEditSubmit = async (formData: SalesOrderFormData) => {
     // TODO: panggil API update saat sudah tersedia, misalnya:
     // await salesOrderService.update(id, payload);
@@ -246,6 +270,18 @@ export default function SalesOrderDetailPage() {
             >
               <Edit size={13} /> Edit
             </button>
+            {orderStatus !== "Completed" && orderStatus !== "Cancelled" && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
+                           bg-red-50 text-red-700 border border-red-200 hover:bg-red-100
+                           disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Ban size={13} />
+                {cancelling ? "Membatalkan..." : "Batalkan"}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -278,9 +314,7 @@ export default function SalesOrderDetailPage() {
                   Tanggal Order: {formatDate(data.tanggal)}
                 </p>
               </div>
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                {orderStatus}
-              </span>
+              <StatusBadge status={orderStatus} />
             </div>
           </div>
 
@@ -553,9 +587,7 @@ export default function SalesOrderDetailPage() {
                       ))}
                       <div className="flex items-center justify-between py-3 text-sm">
                         <span className="text-slate-500">Status</span>
-                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-                          {orderStatus}
-                        </span>
+                        <StatusBadge status={orderStatus} />
                       </div>
                     </div>
                   </div>

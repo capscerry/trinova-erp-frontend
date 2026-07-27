@@ -6,6 +6,7 @@ import {
   RefreshCw, PenLine, FileDown, Package, Trash2, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 import {
   type PengirimanFormData,
@@ -27,6 +28,7 @@ import {
   type ShippingType,
 } from "@/lib/services/pengiriman-penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
+import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PengirimanModalProps {
@@ -51,7 +53,7 @@ export function PengirimanModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Customer dropdown ────────────────────────────────
-  const [customerOptions, setCustomerOptions] = useState<{ id: number; name: string }[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<{ id: number; name: string; address: string }[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [filterCustomer, setFilterCustomer] = useState("");
@@ -65,6 +67,10 @@ export function PengirimanModal({
   // ── SO Picker ─────────────────────────────────────────
   const [soPickerOpen, setSoPickerOpen] = useState(false);
 
+  // ── Gudang dropdown (wajib per baris — sumber pengurangan stok saat konfirmasi) ──
+  const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+
   useEffect(() => {
     if (!open) return;
 
@@ -72,7 +78,7 @@ export function PengirimanModal({
       try {
         setLoadingCustomers(true);
         const data = await customerService.getAllActive();
-        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama })));
+        setCustomerOptions(data.map((c) => ({ id: Number(c.id), name: c.nama, address: c.alamat ?? "" })));
       } catch (err) {
         console.error("Gagal memuat data customer:", err);
         setCustomerOptions([]);
@@ -94,8 +100,22 @@ export function PengirimanModal({
       }
     };
 
+    const loadWarehouses = async () => {
+      try {
+        setLoadingWarehouses(true);
+        const data = await getWarehouses();
+        setWarehouseOptions(data ?? []);
+      } catch (err) {
+        console.error("Gagal memuat data gudang:", err);
+        setWarehouseOptions([]);
+      } finally {
+        setLoadingWarehouses(false);
+      }
+    };
+
     loadCustomers();
     loadShippingTypes();
+    loadWarehouses();
   }, [open]);
 
   // ── Initialize form ───────────────────────────────────
@@ -128,6 +148,8 @@ export function PengirimanModal({
             uomId: it.uomId,
             qtyDipesan: it.qtyDipesan ?? 0,
             qtyDikirim: it.qtyDikirim ?? 0,
+            warehouseId: it.warehouseId,
+            warehouseName: it.warehouseName ?? "",
           }))
         : [],
     });
@@ -149,11 +171,12 @@ export function PengirimanModal({
     c.name.toLowerCase().includes(filterCustomer.toLowerCase())
   );
 
-  const handleSelectCustomer = (customer: { id: number; name: string }) => {
+  const handleSelectCustomer = (customer: { id: number; name: string; address: string }) => {
     setForm((prev) => ({
       ...prev,
       pelanggan: customer.name,
       customerId: customer.id,
+      alamatPengiriman: customer.address,
       // Reset referensi SO sebelumnya saat ganti customer
       salesOrderId: undefined,
       noSo: "",
@@ -183,7 +206,7 @@ export function PengirimanModal({
 
   // ── SO Picker confirm ─────────────────────────────────
   const handleSoConfirm = (
-    so: { id: number; nomor: string; poNumber: string; alamat: string },
+    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
     items: PengirimanSOPickerResultItem[]
   ) => {
     console.log("🔍 [PengirimanModal] Items diterima dari SO Picker (handleSoConfirm):", items);
@@ -193,6 +216,10 @@ export function PengirimanModal({
       salesOrderId: so.id,
       noSo: so.nomor,
       noPO: so.poNumber || prev.noPO,
+      // Backend mengirim ISO datetime penuh (mis. "2026-07-15T00:00:00"),
+      // sedangkan <input type="date"> hanya menerima persis "YYYY-MM-DD" —
+      // kalau tidak dipotong, browser diam-diam menolak nilainya (tampil kosong).
+      tanggalKirim: so.tanggalKirim ? so.tanggalKirim.split("T")[0] : prev.tanggalKirim,
       alamatPengiriman: so.alamat || prev.alamatPengiriman,
       items: items.map((it) => ({
         id: crypto.randomUUID(),
@@ -203,6 +230,8 @@ export function PengirimanModal({
         uomId: it.uomId,
         qtyDipesan: it.qtyDipesan,
         qtyDikirim: it.qtyDikirim,
+        warehouseId: it.warehouseId,
+        warehouseName: it.warehouseName ?? "",
       })),
     }));
     setSoPickerOpen(false);
@@ -234,22 +263,33 @@ export function PengirimanModal({
     setForm((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== id) }));
   };
 
+  // Gudang wajib per baris — dipakai backend untuk menentukan stok mana yang
+  // dikurangi saat Delivery Order dikonfirmasi. Prefilled dari SO (kalau ada)
+  // tapi tetap bisa diganti di sini.
+  const selectWarehouse = (id: string, warehouseId: number, warehouseName: string) => {
+    updateItem(id, { warehouseId, warehouseName });
+  };
+
   // ── Submit ───────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.customerId) {
-      alert("⚠️ Pelanggan wajib dipilih");
+      notify.warning("Pelanggan wajib dipilih");
       return;
     }
     if (!form.shippingTypeId) {
-      alert("⚠️ Tipe Pengiriman wajib dipilih");
+      notify.warning("Tipe Pengiriman wajib dipilih");
       return;
     }
     if (!form.noSuratJalan.trim()) {
-      alert("⚠️ No Surat Jalan wajib diisi");
+      notify.warning("No Surat Jalan wajib diisi");
       return;
     }
     if (form.items.length === 0) {
-      alert("⚠️ Tambahkan minimal 1 barang untuk dikirim");
+      notify.warning("Tambahkan minimal 1 barang untuk dikirim");
+      return;
+    }
+    if (form.items.some((it) => !it.warehouseId)) {
+      alert("⚠️ Pilih gudang untuk setiap barang");
       return;
     }
 
@@ -277,7 +317,7 @@ export function PengirimanModal({
       onSubmit(savedForm);
     } catch (err: unknown) {
       console.error("❌ Gagal menyimpan pengiriman:", err);
-      alert("Gagal menyimpan data: " + getErrorMessage(err));
+      notify.error("Gagal menyimpan pengiriman", getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -299,7 +339,7 @@ export function PengirimanModal({
           className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden flex flex-col max-h-[96vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Pengiriman Penjualan" : "Tambah Pengiriman Penjualan"}
@@ -319,7 +359,7 @@ export function PengirimanModal({
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-            {/* Top row: Customer + Tanggal */}
+            {/* Top row: Customer + No Surat Jalan */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Customer */}
               <FormField label="Pelanggan" icon={<User size={14} />} required>
@@ -363,82 +403,82 @@ export function PengirimanModal({
                 </div>
               </FormField>
 
-              {/* Tanggal Kirim */}
-              <FormField label="Tanggal Kirim" icon={<Calendar size={14} />} required>
-                <input
-                  type="date"
-                  value={form.tanggalKirim}
-                  onChange={(e) => set("tanggalKirim", e.target.value)}
-                  className={inputClass}
-                />
+              {/* No Surat Jalan — toggle auto/manual */}
+              <FormField
+                label="No Surat Jalan"
+                icon={<Hash size={14} />}
+                required
+                hint={form.noSuratJalanMode === "auto" ? "Auto-generate" : "Input manual"}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border border-slate-200 p-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => switchNoSuratJalanMode("auto")}
+                      title="Auto-generate"
+                      className={cn(
+                        "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                        form.noSuratJalanMode === "auto"
+                          ? "bg-navy-900 text-gold-400 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      <RefreshCw size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchNoSuratJalanMode("manual")}
+                      title="Input manual"
+                      className={cn(
+                        "w-8 h-8 flex items-center justify-center rounded-md transition-all",
+                        form.noSuratJalanMode === "manual"
+                          ? "bg-navy-900 text-gold-400 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      <PenLine size={13} />
+                    </button>
+                  </div>
+
+                  <div className="relative flex-1">
+                    <input
+                      readOnly={form.noSuratJalanMode === "auto"}
+                      value={form.noSuratJalan}
+                      onChange={(e) => {
+                        if (form.noSuratJalanMode === "manual") set("noSuratJalan", e.target.value);
+                      }}
+                      placeholder={form.noSuratJalanMode === "manual" ? "Masukkan no surat jalan..." : ""}
+                      className={cn(
+                        inputClass,
+                        "font-mono",
+                        form.noSuratJalanMode === "auto"
+                          ? "bg-slate-50 text-slate-500 cursor-not-allowed pr-10"
+                          : "bg-white"
+                      )}
+                    />
+                    {form.noSuratJalanMode === "auto" && (
+                      <button
+                        type="button"
+                        onClick={() => set("noSuratJalan", generateNoSuratJalan())}
+                        title="Generate ulang"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100 transition-colors"
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </FormField>
             </div>
 
-            {/* No Surat Jalan — toggle auto/manual */}
-            <FormField
-              label="No Surat Jalan"
-              icon={<Hash size={14} />}
-              required
-              hint={form.noSuratJalanMode === "auto" ? "Auto-generate" : "Input manual"}
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => switchNoSuratJalanMode("auto")}
-                    title="Auto-generate"
-                    className={cn(
-                      "w-8 h-8 flex items-center justify-center rounded-md transition-all",
-                      form.noSuratJalanMode === "auto"
-                        ? "bg-navy-900 text-gold-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                    )}
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchNoSuratJalanMode("manual")}
-                    title="Input manual"
-                    className={cn(
-                      "w-8 h-8 flex items-center justify-center rounded-md transition-all",
-                      form.noSuratJalanMode === "manual"
-                        ? "bg-navy-900 text-gold-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                    )}
-                  >
-                    <PenLine size={13} />
-                  </button>
-                </div>
-
-                <div className="relative flex-1">
-                  <input
-                    readOnly={form.noSuratJalanMode === "auto"}
-                    value={form.noSuratJalan}
-                    onChange={(e) => {
-                      if (form.noSuratJalanMode === "manual") set("noSuratJalan", e.target.value);
-                    }}
-                    placeholder={form.noSuratJalanMode === "manual" ? "Masukkan no surat jalan..." : ""}
-                    className={cn(
-                      inputClass,
-                      "font-mono",
-                      form.noSuratJalanMode === "auto"
-                        ? "bg-slate-50 text-slate-500 cursor-not-allowed pr-10"
-                        : "bg-white"
-                    )}
-                  />
-                  {form.noSuratJalanMode === "auto" && (
-                    <button
-                      type="button"
-                      onClick={() => set("noSuratJalan", generateNoSuratJalan())}
-                      title="Generate ulang"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100 transition-colors"
-                    >
-                      <RefreshCw size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
+            {/* Tanggal Kirim — di bawah Pelanggan; auto-terisi dari SO saat "Ambil dari Pesanan Penjualan" */}
+            <FormField label="Tanggal Kirim" icon={<Calendar size={14} />} required>
+              <input
+                type="date"
+                value={form.tanggalKirim}
+                onChange={(e) => set("tanggalKirim", e.target.value)}
+                className={inputClass}
+              />
             </FormField>
 
             {/* Ambil dari Pesanan Penjualan */}
@@ -597,9 +637,10 @@ export function PengirimanModal({
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Nama Barang</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Satuan</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[18%]">Qty Dipesan</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[18%]">Qty Dikirim</th>
+                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Satuan</th>
+                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Gudang</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Qty Dipesan</th>
+                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Qty Dikirim</th>
                         {!form.salesOrderId && <th className="px-3 py-2.5 w-[5%]"></th>}
                       </tr>
                     </thead>
@@ -631,6 +672,28 @@ export function PengirimanModal({
                                 className={cn(inputClass, "py-1.5")}
                               />
                             )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={item.warehouseId ?? ""}
+                              disabled={loadingWarehouses}
+                              onChange={(e) => {
+                                const found = warehouseOptions.find(
+                                  (w) => String(w.warehouse_id) === e.target.value
+                                );
+                                if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                              }}
+                              className={cn(inputClass, "py-1.5")}
+                            >
+                              <option value="" disabled>
+                                {loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
+                              </option>
+                              {warehouseOptions.map((w) => (
+                                <option key={w.warehouse_id} value={w.warehouse_id}>
+                                  {w.warehouse_name}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-3 py-2">
                             <input

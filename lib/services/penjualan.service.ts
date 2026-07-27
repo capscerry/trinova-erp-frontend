@@ -65,6 +65,8 @@ export interface ProductDropdown {
   productType: string;
   categoryId: number;
   categoryName: string;
+  /** Total qty_available (semua gudang) dari /api/product-data */
+  stock?: number;
   uom: string;
   uomId: number;         // â† BARU: pastikan backend mengirim ini
 }
@@ -77,6 +79,8 @@ export interface Product {
   uomId : number;
   tipe: string;
   kategori: string;
+  /** Total stok tersedia (semua gudang) — sumber: /api/product-data */
+  stock: number;
 }
 
 export interface QuotationItem {
@@ -259,7 +263,8 @@ export interface UangMukaPayload {
 
 export interface UangMukaApi extends UangMukaPayload {
   customerName?: string;
-  soNumber ? : string;
+  soNumber?: string;
+  SoNumber?: string;
   status?: string;
 }
 
@@ -330,6 +335,7 @@ export function mapProductData(item: ProductDropdown): Product {
     uomId: item.uomId,    // â† BARU
     tipe: item.productType,
     kategori: item.categoryName,
+    stock: item.stock ?? 0,
   };
 }
 
@@ -341,7 +347,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
     customerId: item.customerId,
     customerName: item.customerName,
     noPO: item.noPO,
-    nomorSo: item.noSo || item.soNumber || "",
+    nomorSo: item.noSo || item.soNumber || item.SoNumber || "",
     nominalUangMuka: item.nominalUangMuka,
     isTaxable: item.isTaxable,
     isTaxIncluded: item.isTaxIncluded,
@@ -374,12 +380,17 @@ export const salesOrderService = {
   },
 
   async create(payload: SalesOrderPayload): Promise<SalesOrder> {
-    const response = await api.post<ApiResponse<SalesOrderApi>>(
+    const response = await api.post<ApiResponse<{ header: SalesOrderApi; detail: unknown[] }>>(
       "/sales-order",
       payload
     );
 
-    return mapSalesOrder(response.data.data);
+    // Backend membungkus response create dalam { header, detail } — BEDA
+    // dengan endpoint list/get yang mengembalikan field rata (flat). Kalau
+    // langsung di-mapSalesOrder tanpa unwrap dulu, semua field (termasuk id)
+    // jadi undefined karena mapSalesOrder mencari item.orderId, bukan
+    // item.header.orderId.
+    return mapSalesOrder(response.data.data.header);
   },
 
   async update(id: number | string, payload: SalesOrderPayload): Promise<void> {
@@ -390,8 +401,9 @@ export const salesOrderService = {
     await api.delete(`/sales-order/${id}`);
   },
 
-  async confirm(id: number | string): Promise<void> {
-    await api.patch(`/sales-order/${id}/confirm`);
+  /** Batalkan Sales Order — melepas reservasi stok untuk bagian yang belum dikirim */
+  async cancel(id: number | string): Promise<void> {
+    await api.patch(`/sales-order/${id}/cancel`);
   },
 
   /** Ambil daftar Sales Order berdasarkan customer â€” untuk "Ambil dari Pesanan Penjualan" */
@@ -801,7 +813,9 @@ export interface PenerimaanPenjualanApi {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number | null;
+  uangMukaNumber?: string | null;
   salesOrderId?: number | null;
+  salesOrderNumber?: string | null;
   salesInvoiceId?: number | null;
   status?: string;
 }
@@ -816,7 +830,9 @@ export interface PenerimaanPenjualan {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number;
+  uangMukaNumber?: string;
   salesOrderId?: number;
+  salesOrderNumber?: string;
   salesInvoiceId?: number;
   status?: string;
 }
@@ -844,7 +860,9 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
     nilaiPembayaran: item.nilaiPembayaran,
     tanggalBayar: item.tanggalBayar,
     uangMukaId: item.uangMukaId ?? undefined,
+    uangMukaNumber: item.uangMukaNumber ?? undefined,
     salesOrderId: item.salesOrderId ?? undefined,
+    salesOrderNumber: item.salesOrderNumber ?? undefined,
     salesInvoiceId: item.salesInvoiceId ?? undefined,
     status: normalizeSalesStatus("sales-receipt", item.status),
   };
