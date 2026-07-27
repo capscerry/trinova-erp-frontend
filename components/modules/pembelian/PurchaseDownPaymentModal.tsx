@@ -80,6 +80,9 @@ export default function PurchaseDownPaymentModal({
   const [isSubmitted, setIsSubmitted] =
     useState(false);
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   useEffect(() => {
 
     if (open) {
@@ -92,6 +95,7 @@ export default function PurchaseDownPaymentModal({
 
       setAmountError(null);
       setIsSubmitted(false);
+      setIsSubmitting(false);
 
     }
 
@@ -472,6 +476,9 @@ export default function PurchaseDownPaymentModal({
                 <button
                   onClick={async () => {
 
+                    // Duplicate-submission guard
+                    if (isSubmitting) return;
+
                     // Resolve supplier_id from the selected PO at submit time
                     // in case it wasn't set via initialData (nested API shape)
                     const resolvedSupplierId =
@@ -493,18 +500,22 @@ export default function PurchaseDownPaymentModal({
                       return;
                     }
 
-                    // Send null for empty strings so ASP.NET DateTime? binding succeeds
-                    await onSubmit({
-                      ...form,
-                      supplier_id: resolvedSupplierId,
-                      payment_date: form.payment_date || null as any,
-                      notes: form.notes || null as any,
-                    });
-
-                    setIsSubmitted(true);
+                    setIsSubmitting(true);
+                    try {
+                      // Send null for empty strings so ASP.NET DateTime? binding succeeds
+                      await onSubmit({
+                        ...form,
+                        supplier_id: resolvedSupplierId,
+                        payment_date: form.payment_date || null as any,
+                        notes: form.notes || null as any,
+                      });
+                      setIsSubmitted(true);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
 
                   }}
-                  disabled={!!amountError}
+                  disabled={!!amountError || isSubmitting}
                   className="
                     px-5
                     py-2
@@ -517,7 +528,7 @@ export default function PurchaseDownPaymentModal({
                     disabled:cursor-not-allowed
                   "
                 >
-                  {isEdit ? "Simpan Perubahan" : "Simpan DP"}
+                  {isSubmitting ? "Menyimpan…" : isEdit ? "Simpan Perubahan" : "Simpan DP"}
                 </button>
 
               </div>

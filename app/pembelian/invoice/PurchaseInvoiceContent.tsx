@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/DataTable";
 
 import { Button } from "@/components/ui/Button";
+import { notify } from "@/lib/notify";
 
 import {
   useEffect,
@@ -264,6 +265,9 @@ function PurchaseInvoiceInner() {
     useState(false);
 
   const [openDetailModal, setOpenDetailModal] =
+    useState(false);
+
+  const [isCreatingInvoice, setIsCreatingInvoice] =
     useState(false);
 
   const [selectedInvoice, setSelectedInvoice] =
@@ -760,6 +764,8 @@ function PurchaseInvoiceInner() {
   })()}
   onSubmit={async (data) => {
 
+    if (isCreatingInvoice) return;
+    setIsCreatingInvoice(true);
     try {
 
       const created = await createPurchaseInvoice({
@@ -791,15 +797,26 @@ function PurchaseInvoiceInner() {
         ""
       );
 
+      setOpenModal(false);
       setOpenSuccessModal(true);
 
-    } catch (error) {
+    } catch (error: any) {
 
       console.error(error);
 
-      alert(
-        "Gagal membuat Purchase Invoice"
-      );
+      const status = error?.response?.status ?? error?.status;
+      if (status === 409) {
+        notify.error("Purchase Invoice already exists for this Goods Receipt.");
+      } else {
+        notify.error(
+          error?.response?.data?.message ??
+          error?.data?.message ??
+          "Gagal membuat Purchase Invoice."
+        );
+      }
+
+    } finally {
+      setIsCreatingInvoice(false);
     }
   }}
 />

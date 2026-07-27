@@ -152,6 +152,7 @@ export default function PurchaseReturnsPage() {
   const [settlementTarget, setSettlementTarget] = useState<PurchaseReturn | null>(null);
   const [settlementReturnItems, setSettlementReturnItems] = useState<ReturnLineItem[]>([]);
   const [detailTarget, setDetailTarget] = useState<PurchaseReturn | null>(null);
+  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
 
   // ── Confirm delete dialog ──────────────────────────────────────────────────
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({
@@ -341,6 +342,8 @@ export default function PurchaseReturnsPage() {
   // ── Create ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (data: PurchaseReturnFormData) => {
+    if (isCreatingReturn) return;
+    setIsCreatingReturn(true);
     // Serialize the selected return line items into transaction_detail so we
     // can recover them later when the settlement modal opens — without needing
     // a dedicated API endpoint.
@@ -364,7 +367,9 @@ export default function PurchaseReturnsPage() {
         err?.data?.message ??
         err?.message;
       notify.error(serverMsg ?? "Gagal membuat Purchase Return.");
-      return;
+      throw err; // re-throw so the modal's isSubmitting resets via finally
+    } finally {
+      setIsCreatingReturn(false);
     }
   };
 

@@ -63,6 +63,9 @@ export default function PurchaseInvoiceFormModal({
   const [status, setStatus] =
     useState(currentStatus);
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   useEffect(() => {
 
     if (open) {
@@ -76,6 +79,7 @@ export default function PurchaseInvoiceFormModal({
         nomor_faktur_pajak: "",
       });
       setStatus(currentStatus);
+      setIsSubmitting(false);
 
     }
 
@@ -339,13 +343,18 @@ export default function PurchaseInvoiceFormModal({
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
 
-                onSubmit(form);
-
-                onClose();
+                if (isSubmitting) return;
+                setIsSubmitting(true);
+                try {
+                  await onSubmit(form);
+                } finally {
+                  setIsSubmitting(false);
+                }
 
               }}
+              disabled={isSubmitting}
               className="
                 px-5
                 py-2
@@ -354,9 +363,11 @@ export default function PurchaseInvoiceFormModal({
                 text-gold-400
                 bg-navy-900
                 rounded-lg
+                disabled:opacity-50
+                disabled:cursor-not-allowed
               "
             >
-              Simpan Invoice
+              {isSubmitting ? "Menyimpan…" : "Simpan Invoice"}
             </button>
 
           </div>

@@ -86,6 +86,7 @@ export default function GoodsReceiptFormModal({
 }: GoodsReceiptFormModalProps) {
 
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [selectedDetails, setSelectedDetails] =
     useState<PurchaseOrderDetail[]>([]);
@@ -109,6 +110,7 @@ export default function GoodsReceiptFormModal({
     if (!open) return;
 
     setIsSubmitted(false);
+    setIsSubmitting(false);
 
     const prefillPOId = initialPOId ? String(initialPOId) : "";
 
@@ -692,9 +694,16 @@ export default function GoodsReceiptFormModal({
 
                 <button
                   onClick={async () => {
-                    await onSubmit(form);
-                    setIsSubmitted(true);
+                    if (isSubmitting) return;
+                    setIsSubmitting(true);
+                    try {
+                      await onSubmit(form);
+                      setIsSubmitted(true);
+                    } finally {
+                      setIsSubmitting(false);
+                    }
                   }}
+                  disabled={isSubmitting}
                   className="
                     px-5
                     py-2
@@ -705,9 +714,11 @@ export default function GoodsReceiptFormModal({
                     hover:bg-navy-700
                     rounded-lg
                     transition-colors
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
                   "
                 >
-                  Simpan Goods Receipt
+                  {isSubmitting ? "Menyimpan…" : "Simpan Goods Receipt"}
                 </button>
               </div>
             )}
