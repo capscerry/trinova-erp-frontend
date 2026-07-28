@@ -362,7 +362,7 @@ export default function PurchaseOrderPage() {
       ]);
 
       const dps  = Array.isArray(dpRes)  ? dpRes  : dpRes.data  ?? [];
-      const grs  = Array.isArray(grRes)  ? grRes  : grRes.data  ?? [];
+      const grs  = grRes;
       const invs = Array.isArray(invRes) ? invRes : invRes.data ?? [];
 
       setDownPayments(dps);

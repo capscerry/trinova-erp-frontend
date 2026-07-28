@@ -127,8 +127,7 @@ export default function PurchaseInvoiceDetailModal({
     const fetchPayments = async () => {
       setLoading(true);
       try {
-        const res = await getPaymentsByInvoice(Number(invoice.id));
-        const list = Array.isArray(res) ? res : res.data ?? [];
+        const list = await getPaymentsByInvoice(Number(invoice.id));
         // Client-side guard: only keep payments that belong to this invoice
         const filtered = list.filter(
           (p: any) =>

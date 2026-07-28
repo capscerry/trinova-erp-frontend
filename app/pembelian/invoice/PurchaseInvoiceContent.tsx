@@ -286,6 +286,9 @@ function PurchaseInvoiceInner() {
   const [createdInvoiceNumber, setCreatedInvoiceNumber] =
     useState("");
 
+  const [pageError, setPageError] =
+    useState<string | null>(null);
+
   const tableRef = useRef<HTMLDivElement>(null);
 
   const fetchInvoices = useCallback(async () => {
@@ -331,8 +334,7 @@ function PurchaseInvoiceInner() {
   }, []);
 const fetchGoodsReceipt = async (poList?: any[]) => {
     try {
-      const res = await getGoodsReceipts();
-        const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const list = await getGoodsReceipts();
       // Resolve po list: use the passed-in snapshot (from init) or fall back
       // to whatever is already in state (for standalone re-fetches).
       const pos = poList ?? allPurchaseOrders;

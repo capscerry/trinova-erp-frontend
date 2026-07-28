@@ -197,8 +197,7 @@ export default function PurchaseReturnsPage() {
     try {
       // Only load GRs that have at least one line with remaining_qty > 0
       // so exhausted GRs never appear in the Purchase Return creation form.
-      const res = await getGoodsReceiptsForReturn();
-      const list = Array.isArray(res) ? res : res.data;
+      const list = await getGoodsReceiptsForReturn();
       setGoodsReceipts(list.map((item: any) => ({
         goods_receipt_id:      item.goods_receipt_id,
         receipt_number:        item.receipt_number,
@@ -247,8 +246,7 @@ export default function PurchaseReturnsPage() {
 
   const loadUnpaidInvoicesForReturn = async (purchaseReturnId: number) => {
     try {
-      const res = await getUnpaidInvoicesForReturn(purchaseReturnId);
-      const list = Array.isArray(res) ? res : (res.data ?? []);
+      const list = await getUnpaidInvoicesForReturn(purchaseReturnId);
       setSettlementInvoices(list.map((item: any) => ({
         invoice_id:         item.purchase_invoice_id ?? item.id,
         invoice_number:     item.invoice_number,
@@ -312,8 +310,7 @@ export default function PurchaseReturnsPage() {
    */
   const handleLoadReturnItems = async (grId: number): Promise<ReturnLineItem[]> => {
     try {
-      const res = await getAvailableReturnDetails(grId);
-      const lines: any[] = Array.isArray(res) ? res : (res.data ?? []);
+      const lines = await getAvailableReturnDetails(grId);
 
       return lines.map((line: any) => {
         // Look up unit price from poDetails — match by product_id across all POs
