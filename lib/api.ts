@@ -2,7 +2,7 @@
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
-  "https://trinova-erp-backend-production.up.railway.app";
+  "https://trinova-erp-backend-production-2.up.railway.app";
 
 function clearAuthSessionAndRedirect() {
   if (typeof window === "undefined") return;
