@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
-import { Download } from "lucide-react";
+import { Download, AlertCircle, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 import { AppShell } from "@/components/layout";
@@ -138,30 +138,52 @@ export default function PurchasePaymentPage() {
   const [detailData, setDetailData] =
     useState<any | null>(null);
 
-  // --- Load -----------------------------------
+  // Page-level error for retry banner
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  // ─── Load data ───────────────────────────────────────────────────────────────
+
+  const loadData = useCallback(async () => {
     try {
+      console.log("[Payment Page] Loading Purchase Payments...");
       const res = await getPurchasePayments();
-      setPayments(res.data || []);
-    } catch (err) {
-      console.error(err);
+      // Safely normalise to array: service returns { data: [] } or array
+      const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log(`[Payment Page] Loaded ${list.length} payment(s)`);
+      setPayments(list);
+    } catch (err: any) {
+      console.error("[Payment Page] Purchase Payment retrieval failed:", err?.message ?? err);
+      setPayments([]);
     }
-  };
+  }, []);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
+      console.log("[Payment Page] Loading Purchase Invoices...");
       const res = await getPurchaseInvoices();
-      setPurchaseInvoices(res.data || []);
-    } catch (err) {
-      console.error(err);
+      const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log(`[Payment Page] Loaded ${list.length} invoice(s)`);
+      setPurchaseInvoices(list);
+    } catch (err: any) {
+      console.error("[Payment Page] Purchase Invoice retrieval failed:", err?.message ?? err);
+      setPurchaseInvoices([]);
     }
-  };
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setPageError(null);
+    try {
+      await Promise.all([loadData(), fetchInvoices()]);
+    } catch (err: any) {
+      const msg = err?.message ?? "Gagal memuat halaman Purchase Payment";
+      console.error("[Payment Page] Initial load failed:", msg);
+      setPageError(msg);
+    }
+  }, [loadData, fetchInvoices]);
 
   useEffect(() => {
-    loadData();
-    fetchInvoices();
-  }, []);
+    loadAll();
+  }, [loadAll]);
 
   const availableInvoices =
     purchaseInvoices.filter(
@@ -237,7 +259,7 @@ export default function PurchasePaymentPage() {
         // then check if this invoice is now fully paid.
         await fetchInvoices();
         const freshInvoices: any[] = await getPurchaseInvoices().then(
-          (r) => r.data || []
+          (r) => Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : [])
         );
         const updatedInvoice = freshInvoices.find(
           (inv: any) =>
@@ -320,8 +342,8 @@ export default function PurchasePaymentPage() {
         }
       }
 
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("[Payment Page] handleSubmit failed:", error?.message ?? error);
       notify.error(
         isEdit
           ? "Gagal memperbarui Purchase Payment"
@@ -509,6 +531,23 @@ export default function PurchasePaymentPage() {
           Export Excel
         </Button>
       </div>
+
+      {/* Page-level error banner with retry */}
+      {pageError && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">Gagal memuat data</p>
+            <p className="text-xs text-red-600 mt-0.5">{pageError}</p>
+          </div>
+          <button
+            onClick={loadAll}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw size={12} /> Coba Lagi
+          </button>
+        </div>
+      )}
 
       <DataTable<any>
         title="Daftar Purchase Payment"

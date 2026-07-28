@@ -305,56 +305,31 @@ export default function PurchaseOrderPage() {
   // ---------------------------------------------------------
 
   const fetchPurchaseOrders = async () => {
-
     try {
-
+      console.log("[PO Page] Loading Purchase Orders...");
       const res = await getPurchaseOrders();
-
-      const poList = Array.isArray(res)
-        ? res
-        : res.data;
-
-      const mappedData = poList.map((item: any) => ({
-        id: item.purchase_order_id.toString(),
-
-        nomor: item.po_number,
-
-        tanggal: item.order_date,
-
-        supplier:
-          item.supplier?.supplier_name || "-",
-
-        supplier_id:
-          item.supplier_id?.toString() ||
-          item.supplier?.supplier_id?.toString() || "",
-
-        informasi:
-          item.status || "-",
-
-        status:
-          item.status as POStatus,
-
-        total:
-          item.total_amount,
-
-        transaction_name:
-          item.transaction_name ?? "",
-
-        transaction_detail:
-          item.transaction_detail ?? "",
-
-        expected_date:
-          item.expected_date ?? null,
-
-        nomor_faktur_pajak:
-          item.nomor_faktur_pajak ?? "",
-      }));
-
+      const poList = Array.isArray(res) ? res : (res?.data ?? []);
+      const mappedData = poList
+        .filter((item: any) => item?.purchase_order_id != null)
+        .map((item: any) => ({
+          id: String(item.purchase_order_id),
+          nomor: item.po_number ?? "",
+          tanggal: item.order_date ?? "",
+          supplier: item.supplier?.supplier_name ?? "-",
+          supplier_id:
+            String(item.supplier_id ?? item.supplier?.supplier_id ?? ""),
+          informasi: item.status ?? "-",
+          status: (item.status ?? "Draft") as POStatus,
+          total: Number(item.total_amount ?? 0),
+          transaction_name: item.transaction_name ?? "",
+          transaction_detail: item.transaction_detail ?? "",
+          expected_date: item.expected_date ?? null,
+          nomor_faktur_pajak: item.nomor_faktur_pajak ?? "",
+        }));
+      console.log(`[PO Page] Loaded ${mappedData.length} Purchase Order(s)`);
       setPurchaseOrders(mappedData);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (error: any) {
+      console.error("[PO Page] Purchase Order retrieval failed:", error?.message ?? error);
     }
   };
 
@@ -363,21 +338,14 @@ export default function PurchaseOrderPage() {
   // ---------------------------------------------------------
 
   const fetchPurchaseOrderDetails = async () => {
-
     try {
-
-      const res =
-        await getPurchaseOrderDetails();
-
-      const detailList = Array.isArray(res)
-        ? res
-        : res.data;
-
+      console.log("[PO Page] Loading Purchase Order Details...");
+      const res = await getPurchaseOrderDetails();
+      const detailList: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log(`[PO Page] Loaded ${detailList.length} PO detail line(s)`);
       setPurchaseOrderDetails(detailList);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (err: any) {
+      console.error("[PO Page] PO Details retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -420,8 +388,8 @@ export default function PurchaseOrderPage() {
       }));
 
       setPurchaseInvoices(enriched);
-    } catch (error) {
-      console.error(error);
+    } catch (err: any) {
+      console.error("[PO Page] Workflow data (DP/GR/Invoice) retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -430,28 +398,21 @@ export default function PurchaseOrderPage() {
   // ---------------------------------------------------------
 
   const fetchSuppliers = async () => {
-
     try {
-
+      console.log("[PO Page] Loading Suppliers...");
       const res = await getSuppliers();
-
-      const supplierList = Array.isArray(res)
-        ? res
-        : res.data;
-
-      const mappedData = supplierList.map(
-        (item: any) => ({
-          id: item.supplier_id.toString(),
-          nama: item.supplier_name,
-          status: item.status ?? "Active",
-        })
-      );
-
+      const supplierList: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const mappedData = supplierList
+        .filter((item: any) => item?.supplier_id != null)
+        .map((item: any) => ({
+          id: String(item.supplier_id),
+          nama: item.supplier_name ?? "",
+          status: item.status ?? 'Active',
+        }));
+      console.log(`[PO Page] Loaded ${mappedData.length} supplier(s)`);
       setSuppliers(mappedData);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (err: any) {
+      console.error("[PO Page] Supplier retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -460,51 +421,26 @@ export default function PurchaseOrderPage() {
   // ---------------------------------------------------------
 
   const fetchProducts = async () => {
-
     try {
-
-      const res =
-        await getSupplierProducts();
-
-      const productList =
-        Array.isArray(res)
-        ? res
-        : res.data;
-
-      const mappedData =
-        productList.map(
-          (item: any) => ({
-
-            id:
-              item.product_id.toString(),
-
-            nama:
-              item.product_name || "-",
-
-            uom_id:
-              item.uom_id || 0,
-
-            supplier_id:
-              item.supplier_id,
-
-            supplier_price:
-              item.supplier_price,
-
-            available_stock:
-              item.available_stock,
-
-            lead_time_days:
-              item.lead_time_days,
-          })
-        );
-
+      console.log("[PO Page] Loading Supplier Products...");
+      const res = await getSupplierProducts();
+      const productList: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const mappedData = productList
+        .filter((item: any) => item?.product_id != null)
+        .map((item: any) => ({
+          id: String(item.product_id),
+          nama: item.product_name ?? "-",
+          uom_id: item.uom_id ?? 0,
+          supplier_id: item.supplier_id ?? null,
+          supplier_price: item.supplier_price ?? 0,
+          available_stock: item.available_stock ?? undefined,
+          lead_time_days: item.lead_time_days ?? undefined,
+        }));
+      console.log(`[PO Page] Loaded ${mappedData.length} product(s)`);
       setProducts(mappedData);
-
       setFilteredProducts(mappedData);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (err: any) {
+      console.error("[PO Page] Product retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -513,27 +449,20 @@ export default function PurchaseOrderPage() {
   // ---------------------------------------------------------
 
   const fetchUoms = async () => {
-
     try {
-
+      console.log("[PO Page] Loading UoMs...");
       const res = await getUoms();
-
-      const uomList = Array.isArray(res)
-        ? res
-        : res.data;
-
-      const mappedData = uomList.map(
-        (item: any) => ({
-          id: item.uom_id.toString(),
-          nama: item.uom_name,
-        })
-      );
-
+      const uomList: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      const mappedData = uomList
+        .filter((item: any) => item?.uom_id != null)
+        .map((item: any) => ({
+          id: String(item.uom_id),
+          nama: item.uom_name ?? "",
+        }));
+      console.log(`[PO Page] Loaded ${mappedData.length} UoM(s)`);
       setUoms(mappedData);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (err: any) {
+      console.error("[PO Page] UoM retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -740,7 +669,7 @@ export default function PurchaseOrderPage() {
         return { purchase_order_id: purchaseOrderId, po_number: payload.po_number };
       }
 
-    } catch (error) {
+    } catch (error: any) {
 
       console.error(error);
 
@@ -915,10 +844,15 @@ export default function PurchaseOrderPage() {
 
   const fetchPrList = async () => {
     try {
-      const data = await purchaseRequisitionService.getAll();
+      // Use getValidForPO so only actionable PRs appear in the PO creation picker.
+      // PRs that are Cancelled / Processed / Completed or have no remaining
+      // quantity are excluded before they reach the UI.
+      const data = await purchaseRequisitionService.getValidForPO();
+      console.log(`[PO Page] Loaded ${data.length} valid PR(s) for PO creation`);
       setPrList(data);
-    } catch (error) {
-      console.error("Failed to fetch PR list:", error);
+    } catch (error: any) {
+      console.error("[PO Page] Failed to fetch valid PR list:", error?.message ?? error);
+      setPrList([]);
     }
   };
 
@@ -1019,8 +953,8 @@ export default function PurchaseOrderPage() {
       await deletePurchaseOrder(Number(confirmDeletePO.row.id));
       await fetchPurchaseOrders();
       notify.success("Purchase Order berhasil dihapus");
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("[PO Page] Delete PO failed:", error?.message ?? error);
       notify.error("Gagal menghapus Purchase Order");
     } finally {
       setDeletePOLoading(false);
@@ -1382,3 +1316,10 @@ export default function PurchaseOrderPage() {
     </AppShell>
   );
 }
+
+
+
+
+
+
+
