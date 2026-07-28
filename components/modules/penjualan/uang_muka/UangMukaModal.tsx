@@ -234,7 +234,7 @@ export function UangMukaModal({
         data.savedSo?.soNumber ??
         data.savedSo?.orderNumber ??
         "",
-      salesOrderId: Number(data.salesOrderId ?? data.orderId ?? data.savedSo?.orderId ?? data.savedSo?.id ?? 0) || undefined,
+      salesOrderId: Number(data.salesOrderId ?? data.orderId ?? 0) || undefined,
       syaratPembayaran: data.syaratPembayaran ?? "",
       alamat: data.alamat ?? data.alamatPengiriman ?? data.address ?? "",
       keterangan: data.keterangan ?? data.notes ?? "",

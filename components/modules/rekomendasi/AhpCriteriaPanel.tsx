@@ -34,7 +34,7 @@ function formatSaaty(v: number): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CrBadge({ isConsistent }: { cr: number; isConsistent: boolean }) {
+function CrBadge({ isConsistent }: { isConsistent: boolean }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border",

@@ -160,12 +160,6 @@ export default function PurchaseReturnsPage() {
   });
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // ── Confirm delete dialog ──────────────────────────────────────────────────
-  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({
-    open: false, row: null,
-  });
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadReturns = async () => {

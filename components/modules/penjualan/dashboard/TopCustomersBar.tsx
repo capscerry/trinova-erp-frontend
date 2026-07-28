@@ -67,7 +67,7 @@ export function TopCustomersBar({ data, loading, onBarClick }: Props) {
             <LabelList
               dataKey="total"
               position="right"
-              formatter={(v: number) => formatRupiah(v)}
+              formatter={(v) => formatRupiah(Number(v))}
               style={{ fontSize: 10, fontWeight: 600, fill: "#334155" }}
             />
           </Bar>

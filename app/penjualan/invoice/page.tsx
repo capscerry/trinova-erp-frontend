@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
 import { AppShell } from "@/components/layout";
@@ -67,7 +67,7 @@ const COLUMNS: Column<SalesInvoice>[] = [
   },
 ];
 
-export default function SalesInvoicePage() {
+function SalesInvoicePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<SalesInvoice[]>([]);
@@ -198,5 +198,13 @@ export default function SalesInvoicePage() {
         initialData={initialFormData}
       />
     </AppShell>
+  );
+}
+
+export default function SalesInvoicePage() {
+  return (
+    <Suspense fallback={null}>
+      <SalesInvoicePageInner />
+    </Suspense>
   );
 }

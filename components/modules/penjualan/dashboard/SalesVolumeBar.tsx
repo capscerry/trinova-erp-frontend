@@ -37,7 +37,7 @@ export function SalesVolumeBar({ data, loading }: Props) {
             <LabelList
               dataKey="value"
               position="top"
-              formatter={(v: number) => (v > 0 ? v : "")}
+              formatter={(v) => (Number(v) > 0 ? v : "")}
               style={{ fontSize: 11, fontWeight: 600, fill: "#475569" }}
             />
           </Bar>
