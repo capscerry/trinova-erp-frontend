@@ -612,8 +612,6 @@ export default function PurchaseOrderFormModal({
   const handleSavePayment = async (invoiceId: number, outstandingAmount: number) => {
     if (!onCreatePayment) return;
     setPaymentSaving(true);
-    console.log("[handleSavePayment] invoiceId:", invoiceId, "outstandingAmount:", outstandingAmount, "paymentAmount:", paymentForm.amount);
-    console.log("[handleSavePayment] poInvoice:", poInvoice, "savedInvoice:", savedInvoice);
     try {
       await onCreatePayment({
         purchase_invoice_id: invoiceId,
