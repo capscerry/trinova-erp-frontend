@@ -11,12 +11,13 @@ export interface SecurityActivityItem {
   refNumber?: string | null;
   userId: number;
   userName: string;
+  ipAddress?: string | null;
   createdAt: string;
 }
 
 export const securityActivityService = {
   async getAlerts(take = 12): Promise<SecurityActivityItem[]> {
-    const response = await api.get<ApiResponse<SecurityActivityItem[]>>("/security-activity", {
+    const response = await api.get<ApiResponse<SecurityActivityItem[]>>("/api/security-activity", {
       params: { take },
     });
 

@@ -99,16 +99,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [pathname, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    if (isLoading || !user) return;
+    if (isLoading) return;
 
-    if (pathname === "/login") {
-      router.replace(getRedirectPath(user.role));
+    // Not logged in — send to login on every navigation
+    if (!user) {
+      if (pathname !== "/login") {
+        router.replace("/login");
+      }
       return;
     }
 
+    // Logged in but trying to access a forbidden path
     if (!canAccessPath(user.role, pathname)) {
       router.replace(getRedirectPath(user.role));
     }

@@ -18,6 +18,8 @@ export interface PengirimanSOPickerResultItem {
   satuan: string;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 interface PengirimanSOPickerModalProps {
@@ -26,7 +28,7 @@ interface PengirimanSOPickerModalProps {
   customerId: number;
   customerName: string;
   onConfirm: (
-    so: { id: number; nomor: string; poNumber: string; alamat: string },
+    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
     items: PengirimanSOPickerResultItem[]
   ) => void;
 }
@@ -146,6 +148,8 @@ export function PengirimanSOPickerModal({
         satuan: it.uomCode ?? "",
         qtyDipesan: it.productQty,
         qtyDikirim: qtyKirim[idx] ?? it.productQty,
+        warehouseId: it.wareHouseId,
+        warehouseName: it.warehouseName,
       }));
 
     console.log("🔍 [SO Picker] Items yang dikirim ke onConfirm:", items);
@@ -156,6 +160,7 @@ export function PengirimanSOPickerModal({
         nomor: selectedSo.nomor,
         poNumber: selectedSo.poNumber ?? "",
         alamat: selectedSoRecord.alamat ?? "",
+        tanggalKirim: selectedSo.tanggalKirim,
       },
       items
     );
@@ -185,7 +190,7 @@ export function PengirimanSOPickerModal({
           className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh]
                      flex flex-col border border-slate-200 overflow-hidden"
         >
-          <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-sky-600 to-sky-500 shrink-0">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-linear-to-r from-sky-600 to-sky-500 shrink-0">
             <div className="flex items-center gap-2">
               <FileDown size={15} className="text-white/80" />
               <div>

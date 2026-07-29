@@ -22,6 +22,19 @@ import {
   salesDashboardService,
   type SalesDashboard,
 } from "@/lib/services/sales-dashboard.service";
+import {
+  fetchSalesKpis,
+  type SalesKpiData,
+  type DateFilter,
+} from "@/lib/services/sales-kpi.service";
+import { customerService } from "@/lib/services/customer.service";
+import { KpiCard } from "@/components/modules/penjualan/dashboard/KpiCard";
+import { SalesTrendChart } from "@/components/modules/penjualan/dashboard/SalesTrendChart";
+import { SOStatusDonut } from "@/components/modules/penjualan/dashboard/SOStatusDonut";
+import { TopCustomersBar } from "@/components/modules/penjualan/dashboard/TopCustomersBar";
+import { SalesVolumeBar } from "@/components/modules/penjualan/dashboard/SalesVolumeBar";
+import { OutstandingTrendChart } from "@/components/modules/penjualan/dashboard/OutstandingTrendChart";
+import { DashboardFilters, type ActiveFilters } from "@/components/modules/penjualan/dashboard/DashboardFilters";
 
 type Tone = "blue" | "emerald" | "amber" | "rose" | "violet" | "slate";
 
@@ -66,6 +79,14 @@ const formatCompact = (value: number) =>
   }).format(value || 0);
 
 const formatRupiah = (value: number) => `Rp ${formatCompact(value)}`;
+
+const formatRupiahFull = (value: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value || 0);
+
+function pctChange(current: number, prev: number): number | undefined {
+  if (prev === 0) return undefined;
+  return ((current - prev) / prev) * 100;
+}
 
 const formatDate = (value?: string | null) => {
   if (!value) return "-";
@@ -146,6 +167,12 @@ export default function PenjualanDashboardPage() {
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  const [kpiData, setKpiData] = useState<SalesKpiData | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ range: "last6m" });
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
+  const [customerOptions, setCustomerOptions] = useState<Array<{ id: number; name: string }>>([]);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -168,6 +195,33 @@ export default function PenjualanDashboardPage() {
 
     return () => window.clearTimeout(timer);
   }, [fetchData]);
+
+  const fetchKpi = useCallback(async () => {
+    try {
+      setKpiLoading(true);
+      const result = await fetchSalesKpis(dateFilter, {
+        customerId: activeFilters.customerId,
+        category: activeFilters.category,
+        status: activeFilters.status,
+      });
+      setKpiData(result);
+    } catch (err) {
+      console.error("Gagal memuat KPI penjualan:", err);
+    } finally {
+      setKpiLoading(false);
+    }
+  }, [dateFilter, activeFilters]);
+
+  useEffect(() => {
+    fetchKpi();
+  }, [fetchKpi]);
+
+  useEffect(() => {
+    customerService
+      .getAll()
+      .then((list) => setCustomerOptions(list.map((c) => ({ id: c.id, name: c.nama }))))
+      .catch(() => {});
+  }, []);
 
   const metrics: MetricCard[] = [
     {
@@ -242,6 +296,77 @@ export default function PenjualanDashboardPage() {
             {error}
           </div>
         )}
+
+        {/* ── Analytics: filter + KPI + charts ─────────────────────────── */}
+        <DashboardFilters
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
+          activeFilters={activeFilters}
+          onActiveFiltersChange={setActiveFilters}
+          customers={customerOptions}
+          statuses={["Draft", "Approved", "Confirmed", "Processing", "Shipped", "Completed", "Cancelled"]}
+          loading={kpiLoading}
+        />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            title="Sales Order"
+            value={String(kpiData?.kpis.totalSalesOrder ?? 0)}
+            change={kpiData ? pctChange(kpiData.kpis.totalSalesOrder, kpiData.kpis.totalSalesOrderPrevMonth) : undefined}
+            icon={ShoppingBag}
+            loading={kpiLoading}
+            accentColor="blue"
+          />
+          <KpiCard
+            title="Total Revenue"
+            value={formatRupiahFull(kpiData?.kpis.totalRevenue ?? 0)}
+            change={kpiData ? pctChange(kpiData.kpis.totalRevenue, kpiData.kpis.totalRevenuePrevMonth) : undefined}
+            icon={Receipt}
+            loading={kpiLoading}
+            accentColor="emerald"
+          />
+          <KpiCard
+            title="Outstanding Piutang"
+            value={formatRupiahFull(kpiData?.kpis.outstandingReceivable ?? 0)}
+            icon={CreditCard}
+            loading={kpiLoading}
+            accentColor="rose"
+          />
+          <KpiCard
+            title="Fulfillment Rate"
+            value={`${(kpiData?.kpis.fulfillmentRate ?? 0).toFixed(1)}%`}
+            icon={Truck}
+            loading={kpiLoading}
+            accentColor="indigo"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Tren Revenue Bulanan</p>
+            <SalesTrendChart data={kpiData?.charts.revenueTrend ?? []} loading={kpiLoading} />
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Distribusi Status Sales Order</p>
+            <SOStatusDonut data={kpiData?.charts.soStatusDistribution ?? []} loading={kpiLoading} />
+          </section>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Top 10 Customer by Revenue</p>
+            <TopCustomersBar data={kpiData?.charts.topCustomersByRevenue ?? []} loading={kpiLoading} />
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="mb-3 text-sm font-bold text-slate-700">Volume Sales Order Bulanan</p>
+            <SalesVolumeBar data={kpiData?.charts.salesVolumeTrend ?? []} loading={kpiLoading} />
+          </section>
+        </div>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-3 text-sm font-bold text-slate-700">Tren Outstanding Piutang</p>
+          <OutstandingTrendChart data={kpiData?.charts.outstandingTrend ?? []} loading={kpiLoading} />
+        </section>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading

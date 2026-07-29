@@ -18,6 +18,13 @@ interface SalesStatusSelectProps<T extends string = string> {
   value?: string | null;
   disabled?: boolean;
   onUpdated?: (status: T) => void;
+  /**
+   * Statuses to hide from the manual picker — for transitions that have side
+   * effects beyond the status column (e.g. "Confirmed" reserves stock,
+   * "Shipped" deducts it) and must only happen through their dedicated
+   * confirm actions, never this generic status writer.
+   */
+  excludeOptions?: string[];
 }
 
 export function SalesStatusSelect<T extends string = string>({
@@ -26,6 +33,7 @@ export function SalesStatusSelect<T extends string = string>({
   value,
   disabled,
   onUpdated,
+  excludeOptions,
 }: SalesStatusSelectProps<T>) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -37,7 +45,9 @@ export function SalesStatusSelect<T extends string = string>({
   );
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
-  const options = SALES_STATUS_OPTIONS[module];
+  const options = excludeOptions?.length
+    ? SALES_STATUS_OPTIONS[module].filter((option) => !excludeOptions.includes(option))
+    : SALES_STATUS_OPTIONS[module];
 
   useEffect(() => {
     setMounted(true);

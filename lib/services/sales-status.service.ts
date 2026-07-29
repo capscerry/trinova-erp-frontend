@@ -13,6 +13,6 @@ export const salesStatusService = {
     id: number | string,
     payload: UpdateSalesStatusPayload
   ): Promise<void> {
-    await api.patch(`/sales-status/${module}/${id}`, payload);
+    await api.patch(`/api/sales-status/${module}/${id}`, payload);
   },
 };

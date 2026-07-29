@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PurchaseOrderItemTable, { PurchaseOrderItem } from "./PurchaseOrderItemTable";
-import { AhpTopsisBestPreview } from "./AhpTopsisBestPreview";
 import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/services/purchase-requisition.service";
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
@@ -613,8 +612,6 @@ export default function PurchaseOrderFormModal({
   const handleSavePayment = async (invoiceId: number, outstandingAmount: number) => {
     if (!onCreatePayment) return;
     setPaymentSaving(true);
-    console.log("[handleSavePayment] invoiceId:", invoiceId, "outstandingAmount:", outstandingAmount, "paymentAmount:", paymentForm.amount);
-    console.log("[handleSavePayment] poInvoice:", poInvoice, "savedInvoice:", savedInvoice);
     try {
       await onCreatePayment({
         purchase_invoice_id: invoiceId,
@@ -642,14 +639,15 @@ export default function PurchaseOrderFormModal({
   const handleOpenPrPicker = async () => {
     setPrPickerOpen(true);
     setPrSearch("");
-    // Prefer the list passed as a prop; fall back to fetching live if empty.
+    // Prefer the pre-filtered list passed as a prop; fall back to fetching live
+    // (using getValidForPO so invalid PRs never appear).
     if (prList.length > 0) {
       setPrItems(prList);
       return;
     }
     setPrLoading(true);
     try {
-      const data = await purchaseRequisitionService.getAll();
+      const data = await purchaseRequisitionService.getValidForPO();
       setPrItems(data);
     } catch {
       setPrItems([]);
@@ -1167,7 +1165,16 @@ export default function PurchaseOrderFormModal({
                     return (
                       <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                         <ClipboardList size={28} className="mb-2 opacity-30" />
-                        <p className="text-sm">Tidak ada Purchase Requisition ditemukan</p>
+                        <p className="text-sm font-semibold text-slate-500">
+                          {prItems.length === 0
+                            ? "Tidak ada Purchase Requisition yang tersedia"
+                            : "Tidak ada Purchase Requisition ditemukan"}
+                        </p>
+                        {prItems.length === 0 && (
+                          <p className="text-xs text-slate-400 mt-1 text-center max-w-xs">
+                            Semua PR sudah diproses, dibatalkan, atau tidak memiliki item yang valid untuk PO.
+                          </p>
+                        )}
                       </div>
                     );
                   }

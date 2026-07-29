@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 
 import { getInventoryStocks } from "@/lib/services/inventory-stock.service";
 
+import { getWarehouses, Warehouse, } from "@/lib/services/warehouse.service";
+
 export interface StockTransferFormData {
   product_id: number;
   source_warehouse_id: number;
@@ -49,18 +51,22 @@ export default function StockTransferForm({
   const [inventoryStocks, setInventoryStocks] =
     useState<InventoryStock[]>([]);
 
+  const [warehouses, setWarehouses] =
+    useState<Warehouse[]>([]);
+
   const [formData, setFormData] =
-    useState<StockTransferFormData>({
-      product_id: 0,
-      source_warehouse_id: 0,
-      destination_warehouse_id: 0,
-      quantity: 1,
-      notes: "",
-    });
+  useState<StockTransferFormData>({
+    product_id: 0,
+    source_warehouse_id: 0,
+    destination_warehouse_id: 0,
+    quantity: 1,
+    notes: "",
+  });  
 
   useEffect(() => {
     loadInventoryStocks();
-  }, []);
+    loadWarehouses();
+  }, []);   
 
   async function loadInventoryStocks() {
     try {
@@ -72,6 +78,15 @@ export default function StockTransferForm({
       console.error(error);
     }
   }
+
+  async function loadWarehouses() {
+        try {
+          const data = await getWarehouses();
+          setWarehouses(data);
+        } catch (error) {
+          console.error(error);
+        }
+      }
 
   const products = useMemo(() => {
     return Array.from(
@@ -109,27 +124,16 @@ export default function StockTransferForm({
       formData.product_id,
     ]);
 
-  const destinationWarehouses =
-    useMemo(() => {
-      const unique =
-        Array.from(
-          new Map(
-            inventoryStocks.map((x) => [
-              x.warehouse.warehouse_id,
-              x.warehouse,
-            ])
-          ).values()
-        );
-
-      return unique.filter(
-        (w) =>
-          w.warehouse_id !==
-          formData.source_warehouse_id
-      );
-    }, [
-      inventoryStocks,
-      formData.source_warehouse_id,
-    ]);
+  const destinationWarehouses = useMemo(() => {
+    return warehouses.filter(
+      (warehouse) =>
+        warehouse.warehouse_id !==
+        formData.source_warehouse_id
+    );
+  }, [
+    warehouses,
+    formData.source_warehouse_id,
+  ]);
 
   const selectedStock =
     useMemo(() => {
@@ -395,6 +399,8 @@ export default function StockTransferForm({
           }
         />
       </div>
+
+      {/* SAVE */}
 
       <div className="flex justify-end">
         <Button

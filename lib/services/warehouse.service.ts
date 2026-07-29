@@ -14,7 +14,7 @@ export interface Warehouse {
 
 export async function getWarehouses() {
   const response = await api.get(
-    "/master-warehouse"
+    "/api/master-warehouse"
   );
 
   return response.data.data;
@@ -29,7 +29,7 @@ export async function createWarehouse(
   }
 ) {
   const response = await api.post(
-    "/master-warehouse",
+    "/api/master-warehouse",
     data
   );
 
@@ -40,7 +40,7 @@ export async function updateWarehouse(
   data: Warehouse
 ) {
   const response = await api.put(
-    "/master-warehouse",
+    "/api/master-warehouse",
     data
   );
 
@@ -51,7 +51,7 @@ export async function deleteWarehouse(
   id: number
 ) {
   const response = await api.delete(
-    `/master-warehouse/${id}`
+    `/api/master-warehouse/${id}`
   );
 
   return response.data;

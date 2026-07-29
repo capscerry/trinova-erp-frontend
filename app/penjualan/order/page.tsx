@@ -67,6 +67,7 @@ const COLUMNS: Column<SalesOrder>[] = [
         module="sales-order"
         id={row.id}
         value={row.status}
+        excludeOptions={["Cancelled"]}
         onUpdated={(status) => {
           row.status = status as SalesOrder["status"];
         }}
@@ -113,6 +114,12 @@ function SalesOrderPageInner() {
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    const refreshSalesOrders = () => fetchData();
+    window.addEventListener("sales-order:saved", refreshSalesOrders);
+    return () => window.removeEventListener("sales-order:saved", refreshSalesOrders);
   }, [fetchData]);
 
   useEffect(() => {

@@ -77,9 +77,10 @@ const COLUMNS: Column<Customer>[] = [
     key: "status",
     label: "Status",
     width: "120px",
-    render: (val) => <StatusBadge status={val ? "Aktif" : "Nonaktif"} />,
+    render: (val) => <StatusBadge status={val ? "Active" : "Inactive"} variant={val ? "success" :"danger"} />,
   },
 ];
+
 
 export default function CustomerPage() {
   const [data, setData] = useState<Customer[]>([]);
@@ -108,7 +109,7 @@ export default function CustomerPage() {
   const fetchCustomerData = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/customer");
+      const response = await api.get("/api/customer");
       const result = response.data;
 
       const mappedData: Customer[] = (result.data || []).map(
@@ -177,7 +178,7 @@ export default function CustomerPage() {
         categoryId: Number(formData.category),
       };
 
-      await api.post("/customer", payload);
+      await api.post("/api/customer", payload);
 
       showToast("Customer berhasil ditambahkan", "success");
       setModalOpen(false);
@@ -205,7 +206,7 @@ export default function CustomerPage() {
         categoryId: Number(formData.category)
       }
 
-      await api.put(`/customer/${id}`, payload)
+      await api.put(`/api/customer/${id}`, payload)
 
       showToast('Customer berhasil diupdate', 'success')
       handleCloseModal()
@@ -219,7 +220,7 @@ export default function CustomerPage() {
   }
 
   const toggleCustomerStatus = async (id: number) => {
-    const response = await api.patch(`/customer/${id}/status`);
+    const response = await api.patch(`/api/customer/${id}/status`);
     const result = response.data;
     return result.status === true;
   };

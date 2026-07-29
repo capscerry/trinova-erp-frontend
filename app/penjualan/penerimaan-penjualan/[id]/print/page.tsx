@@ -69,8 +69,8 @@ export default function PenerimaanPrintPage() {
           <Meta label="Tanggal Bayar" value={formatDate(data.tanggalBayar)} />
           <Meta label="Terima Dari" value={data.pelanggan || "-"} />
           <Meta label="Bank" value={data.bank || "-"} />
-          <Meta label="Referensi SO" value={data.salesOrderId ? String(data.salesOrderId) : "-"} />
-          <Meta label="Referensi Uang Muka" value={data.uangMukaId ? String(data.uangMukaId) : "-"} />
+          <Meta label="Referensi SO" value={data.salesOrderNumber || (data.salesOrderId ? String(data.salesOrderId) : "-")} />
+          <Meta label="Referensi Uang Muka" value={data.uangMukaNumber || (data.uangMukaId ? String(data.uangMukaId) : "-")} />
         </section>
         <div className="amount">Rp {formatRupiah(data.nilaiPembayaran)}</div>
         <section className="signatures"><div><p>Dibuat oleh,</p><div className="signature-line">TRINOVA</div></div><div><p>Diterima oleh,</p><div className="signature-line">Customer</div></div></section>

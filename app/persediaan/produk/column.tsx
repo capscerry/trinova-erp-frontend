@@ -34,17 +34,6 @@ export const getColumns = ({
   },
 
   {
-    key: "product_type",
-    label: "Product Type",
-    width: "180px",
-    render: (val) => (
-      <span className="text-slate-600">
-        {String(val)}
-      </span>
-    ),
-  },
-
-  {
     key: "category_id",
     label: "Category",
     width: "180px",
@@ -78,7 +67,7 @@ export const getColumns = ({
     width: "140px",
     render: (_, row) => (
       <span className="text-slate-700">
-        {row.masterUom?.uom_name}
+        {row.masterUom?.uom_code}
       </span>
     ),
   },

@@ -16,6 +16,7 @@ import {
 } from "@/lib/services/penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
 import { DropdownField } from "../DropdownField";
+import { ProductStockBadge } from "./ProductStockBadge";
 
 // ─── Props (UI-specific, tetap lokal) ─────────────────────────────────────────
 interface SalesQuotationModalProps {
@@ -85,7 +86,7 @@ export function SalesQuotationModal({
   const [productList, setProductList] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
   const [customerOptions, setCustomerOptions] = useState<
-    { id: number; name: string }[]
+    { id: number; name: string; address: string }[]
   >([]);
 
   // Fetch produk & customer saat mount
@@ -102,6 +103,7 @@ export function SalesQuotationModal({
           data.map((c) => ({
             id:   Number(c.id),
             name: c.nama,
+            address: c.alamat ?? "",
           }))
         );
       })
@@ -204,7 +206,7 @@ export function SalesQuotationModal({
 
           {/* ── Modal Header ──────────────────────────── */}
           <div className="flex items-center justify-between px-6 py-4
-                          bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
+                          bg-linear-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
               <h2 className="text-white font-semibold text-[15px] tracking-tight">
                 {isEdit ? "Edit Sales Quotation" : "Tambah Sales Quotation"}
@@ -307,6 +309,7 @@ export function SalesQuotationModal({
                         ...p,
                         dipesanOleh: v,
                         customerId: selected?.id ?? null,
+                        address: selected?.address ?? "",
                       }));
                     }}
                   />
@@ -347,15 +350,16 @@ export function SalesQuotationModal({
                 </button>
               }>
               <div className="border border-slate-200 rounded-xl overflow-visible">
-                <table className="w-full border-collapse text-xs table-fixed min-w-[860px]">
+                <table className="w-full border-collapse text-xs table-fixed min-w-[1000px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[20%]">Produk</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Deskripsi</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Qty</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[11%]">Satuan</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Harga</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Diskon %</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[17%]">Produk</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Deskripsi</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Qty</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[9%]">Satuan</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Stok Tersedia</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Harga</th>
+                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Diskon %</th>
                       <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
                       <th className="px-3 py-2.5 w-[5%]"></th>
                     </tr>
@@ -385,6 +389,12 @@ export function SalesQuotationModal({
                           <SelectField value={item.satuan} placeholder="Pilih..."
                             options={satuanOptions}
                             onChange={(v) => updateItem(item.id, { satuan: v })} compact />
+                        </td>
+                        <td className="px-3 py-2">
+                          <ProductStockBadge
+                            hasProduct={!!item.productId}
+                            stock={productList.find((p) => p.id === item.productId)?.stock}
+                          />
                         </td>
                         <td className="px-3 py-2">
                           <input type="number" min={0}

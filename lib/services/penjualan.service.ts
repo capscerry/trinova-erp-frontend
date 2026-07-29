@@ -65,6 +65,8 @@ export interface ProductDropdown {
   productType: string;
   categoryId: number;
   categoryName: string;
+  /** Total qty_available (semua gudang) dari /api/product-data */
+  stock?: number;
   uom: string;
   uomId: number;         // â† BARU: pastikan backend mengirim ini
 }
@@ -77,6 +79,8 @@ export interface Product {
   uomId : number;
   tipe: string;
   kategori: string;
+  /** Total stok tersedia (semua gudang) — sumber: /api/product-data */
+  stock: number;
 }
 
 export interface QuotationItem {
@@ -259,7 +263,8 @@ export interface UangMukaPayload {
 
 export interface UangMukaApi extends UangMukaPayload {
   customerName?: string;
-  soNumber ? : string;
+  soNumber?: string;
+  SoNumber?: string;
   status?: string;
 }
 
@@ -330,6 +335,7 @@ export function mapProductData(item: ProductDropdown): Product {
     uomId: item.uomId,    // â† BARU
     tipe: item.productType,
     kategori: item.categoryName,
+    stock: item.stock ?? 0,
   };
 }
 
@@ -341,7 +347,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
     customerId: item.customerId,
     customerName: item.customerName,
     noPO: item.noPO,
-    nomorSo: item.noSo || item.soNumber || "",
+    nomorSo: item.noSo || item.soNumber || item.SoNumber || "",
     nominalUangMuka: item.nominalUangMuka,
     isTaxable: item.isTaxable,
     isTaxIncluded: item.isTaxIncluded,
@@ -359,7 +365,7 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
 export const salesOrderService = {
   async getAll(): Promise<SalesOrder[]> {
     const response = await api.get<ApiResponse<SalesOrderApi[]>>(
-      "/sales-order"
+      "/api/sales-order"
     );
 
     return (response.data.data ?? []).map(mapSalesOrder);
@@ -367,37 +373,43 @@ export const salesOrderService = {
 
   async getById(id: number | string): Promise<SalesOrderDetail> {
   const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
-    `/sales-order/${id}`
+    `/api/sales-order/${id}`
   );
 
     return mapSalesOrderDetail(response.data.data);
   },
 
   async create(payload: SalesOrderPayload): Promise<SalesOrder> {
-    const response = await api.post<ApiResponse<SalesOrderApi>>(
-      "/sales-order",
+    const response = await api.post<ApiResponse<{ header: SalesOrderApi; detail: unknown[] }>>(
+      "/api/sales-order",
       payload
     );
 
-    return mapSalesOrder(response.data.data);
+    // Backend membungkus response create dalam { header, detail } — BEDA
+    // dengan endpoint list/get yang mengembalikan field rata (flat). Kalau
+    // langsung di-mapSalesOrder tanpa unwrap dulu, semua field (termasuk id)
+    // jadi undefined karena mapSalesOrder mencari item.orderId, bukan
+    // item.header.orderId.
+    return mapSalesOrder(response.data.data.header);
   },
 
   async update(id: number | string, payload: SalesOrderPayload): Promise<void> {
-    await api.put(`/sales-order/${id}`, payload);
+    await api.put(`/api/sales-order/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/sales-order/${id}`);
+    await api.delete(`/api/sales-order/${id}`);
   },
 
-  async confirm(id: number | string): Promise<void> {
-    await api.patch(`/sales-order/${id}/confirm`);
+  /** Batalkan Sales Order — melepas reservasi stok untuk bagian yang belum dikirim */
+  async cancel(id: number | string): Promise<void> {
+    await api.patch(`/api/sales-order/${id}/cancel`);
   },
 
   /** Ambil daftar Sales Order berdasarkan customer â€” untuk "Ambil dari Pesanan Penjualan" */
   async getByCustomerId(customerId: number): Promise<SalesOrder[]> {
     const response = await api.get<ApiResponse<SalesOrderByCustomerApi[]>>(
-      `/sales-order/by-customer/${customerId}`
+      `/api/sales-order/by-customer/${customerId}`
     );
 
     return (response.data.data ?? [])
@@ -423,7 +435,7 @@ export const salesOrderService = {
   /** Detail items SO (kode produk, qty, harga) â€” untuk isi referensi di form Uang Muka */
   async getDetailItems(orderId: number | string): Promise<SalesOrderDetailItem[]> {
     const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
-      `/sales-order/${orderId}`
+      `/api/sales-order/${orderId}`
     );
 
     return response.data.data?.detail ?? [];
@@ -434,14 +446,14 @@ export const salesOrderService = {
 
 export const uangMukaService = {
   async getAll(): Promise<UangMuka[]> {
-    const response = await api.get<ApiResponse<UangMukaApi[]>>("/uang-muka");
+    const response = await api.get<ApiResponse<UangMukaApi[]>>("/api/uang-muka");
 
     return (response.data.data ?? []).map(mapUangMuka);
   },
 
   async getById(id: number | string): Promise<UangMuka> {
     const response = await api.get<ApiResponse<UangMukaApi>>(
-      `/uang-muka/${id}`
+      `/api/uang-muka/${id}`
     );
 
     return mapUangMuka(response.data.data);
@@ -449,7 +461,7 @@ export const uangMukaService = {
 
   async create(payload: UangMukaPayload): Promise<UangMuka> {
     const response = await api.post<ApiResponse<UangMukaApi>>(
-      "/uang-muka",
+      "/api/uang-muka",
       payload
     );
 
@@ -457,11 +469,11 @@ export const uangMukaService = {
   },
 
   async update(id: number | string, payload: UangMukaPayload): Promise<void> {
-    await api.put(`/uang-muka/${id}`, payload);
+    await api.put(`/api/uang-muka/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/uang-muka/${id}`);
+    await api.delete(`/api/uang-muka/${id}`);
   },
 };
 
@@ -470,7 +482,7 @@ export const uangMukaService = {
 export const productDropdownService = {
   async getAll(): Promise<Product[]> {
     const response = await api.get<ApiResponse<ProductDropdown[]>>(
-      "/product-data"
+      "/api/product-data"
     );
 
     return (response.data.data ?? []).map(mapProductData);
@@ -675,7 +687,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
 export const salesQuotationService = {
   async getAll(): Promise<SalesQuotation[]> {
   const response = await api.get<ApiResponse<SalesQuotationListItemApi[]>>(
-    "/SalesQuotation"
+    "/api/SalesQuotation"
   );
 
   return (response.data.data ?? []).map((item) => ({
@@ -694,7 +706,7 @@ export const salesQuotationService = {
 
   async getById(id: number | string): Promise<SalesQuotation> {
     const response = await api.get<ApiResponse<SalesQuotationApi>>(
-      `/SalesQuotation/${id}`
+      `/api/SalesQuotation/${id}`
     );
 
     return mapSalesQuotation(response.data.data);
@@ -703,7 +715,7 @@ export const salesQuotationService = {
   /** Detail items untuk "Ambil dari Penawaran Penjualan" di form SO */
   async getDetailItems(quotationId: number | string): Promise<QuotationDetailItem[]> {
     const response = await api.get<ApiResponse<QuotationDetailItemApi[]>>(
-      `/quotation-detail/${quotationId}`
+      `/api/quotation-detail/${quotationId}`
     );
 
     return (response.data.data ?? []).map(mapQuotationDetailItem);
@@ -712,7 +724,7 @@ export const salesQuotationService = {
   /** Detail lengkap (header + items) untuk halaman Detail & Print Penawaran. */
   async getFullDetailById(id: number | string): Promise<SalesQuotationDetail> {
     const response = await api.get<ApiResponse<SalesQuotationHeaderDetailApi>>(
-      `/header-detail/${id}`
+      `/api/header-detail/${id}`
     );
 
     return mapSalesQuotationDetail(response.data.data);
@@ -721,7 +733,7 @@ export const salesQuotationService = {
   /** Ambil daftar quotation berdasarkan customer */
   async getByCustomerId(customerId: number): Promise<SalesQuotation[]> {
     const response = await api.get<ApiResponse<SalesQuotationListItemApi[]>>(
-      `/SalesQuotation/${customerId}`
+      `/api/SalesQuotation/${customerId}`
     );
 
     return (response.data.data ?? [])
@@ -742,7 +754,7 @@ export const salesQuotationService = {
 
   async create(payload: SalesQuotationPayload): Promise<SalesQuotation> {
     const response = await api.post<ApiResponse<SalesQuotationApi>>(
-      "/SalesQuotation",
+      "/api/SalesQuotation",
       payload
     );
     return mapSalesQuotation(response.data.data);
@@ -752,11 +764,11 @@ export const salesQuotationService = {
     id: number | string,
     payload: Partial<SalesQuotationApi>
   ): Promise<void> {
-    await api.put(`/SalesQuotation/${id}`, payload);
+    await api.put(`/api/SalesQuotation/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/SalesQuotation/${id}`);
+    await api.delete(`/api/SalesQuotation/${id}`);
   },
 };
 
@@ -784,7 +796,7 @@ export function mapBank(item: BankApi): Bank {
 
 export const bankService = {
   async getAll(): Promise<Bank[]> {
-    const response = await api.get<ApiResponse<BankApi[]>>("/bank");
+    const response = await api.get<ApiResponse<BankApi[]>>("/api/bank");
     return (response.data.data ?? []).map(mapBank);
   },
 };
@@ -801,7 +813,9 @@ export interface PenerimaanPenjualanApi {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number | null;
+  uangMukaNumber?: string | null;
   salesOrderId?: number | null;
+  salesOrderNumber?: string | null;
   salesInvoiceId?: number | null;
   status?: string;
 }
@@ -816,7 +830,9 @@ export interface PenerimaanPenjualan {
   nilaiPembayaran: number;
   tanggalBayar: string;
   uangMukaId?: number;
+  uangMukaNumber?: string;
   salesOrderId?: number;
+  salesOrderNumber?: string;
   salesInvoiceId?: number;
   status?: string;
 }
@@ -844,7 +860,9 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
     nilaiPembayaran: item.nilaiPembayaran,
     tanggalBayar: item.tanggalBayar,
     uangMukaId: item.uangMukaId ?? undefined,
+    uangMukaNumber: item.uangMukaNumber ?? undefined,
     salesOrderId: item.salesOrderId ?? undefined,
+    salesOrderNumber: item.salesOrderNumber ?? undefined,
     salesInvoiceId: item.salesInvoiceId ?? undefined,
     status: normalizeSalesStatus("sales-receipt", item.status),
   };
@@ -853,21 +871,21 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
 export const penerimaanPenjualanService = {
   async getAll(): Promise<PenerimaanPenjualan[]> {
     const response = await api.get<ApiResponse<PenerimaanPenjualanApi[]>>(
-      "/sales-receipt"
+      "/api/sales-receipt"
     );
     return (response.data.data ?? []).map(mapPenerimaanPenjualan);
   },
 
   async create(payload: PenerimaanPenjualanPayload): Promise<PenerimaanPenjualan> {
     const response = await api.post<ApiResponse<PenerimaanPenjualanApi>>(
-      "/sales-receipt",
+      "/api/sales-receipt",
       payload
     );
     return mapPenerimaanPenjualan(response.data.data);
   },
 
   async update(id: number | string, payload: PenerimaanPenjualanPayload): Promise<void> {
-    await api.put(`/sales-receipt/${id}`, payload);
+    await api.put(`/api/sales-receipt/${id}`, payload);
   },
 
   async getById(id: number | string): Promise<PenerimaanPenjualan> {

@@ -9,9 +9,9 @@ import { AppShell } from "@/components/layout";
 
 import Modal from "@/components/ui/Modal";
 
-import ProductForm, {
+import ProductFormModal, {
   ProductFormData,
-} from "@/components/modules/persediaan/products/ProductForm";
+} from "@/components/modules/persediaan/products/ProductFormModal";
 
 import {
   getProducts,
@@ -237,31 +237,20 @@ export default function MasterProductPage() {
       )}
 
       {/* ─── Create Modal ─────────────────────────────────────────── */}
-      <Modal
-        isOpen={openModal}
+      <ProductFormModal
+        open={openModal}
         onClose={() => {
           setOpenModal(false);
           setEditingProduct(null);
         }}
-        title={
+        onSubmit={
           editingProduct
-            ? "Edit Produk"
-            : "Tambah Produk"
+            ? handleUpdateProduct
+            : handleCreateProduct
         }
-      >
-        <ProductForm
-          onSubmit={
-            editingProduct
-              ? handleUpdateProduct
-              : handleCreateProduct
-          }
-          existingCodes={products.map(
-            (p) => p.product_code
-          )}
-          loading={saving}
-          initialData={editingProduct}
-        />
-      </Modal>
+        loading={saving}
+        initialData={editingProduct}
+      />
 
       {/* ─── Delete Modal ─────────────────────────────────────────── */}
       <DeleteProductModal

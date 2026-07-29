@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { notify } from "@/lib/notify";
@@ -152,6 +152,7 @@ export default function PurchaseReturnsPage() {
   const [settlementTarget, setSettlementTarget] = useState<PurchaseReturn | null>(null);
   const [settlementReturnItems, setSettlementReturnItems] = useState<ReturnLineItem[]>([]);
   const [detailTarget, setDetailTarget] = useState<PurchaseReturn | null>(null);
+  const [isCreatingReturn, setIsCreatingReturn] = useState(false);
 
   // ── Confirm delete dialog ──────────────────────────────────────────────────
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; row: PurchaseReturn | null }>({
@@ -196,8 +197,7 @@ export default function PurchaseReturnsPage() {
     try {
       // Only load GRs that have at least one line with remaining_qty > 0
       // so exhausted GRs never appear in the Purchase Return creation form.
-      const res = await getGoodsReceiptsForReturn();
-      const list = Array.isArray(res) ? res : res.data;
+      const list = await getGoodsReceiptsForReturn();
       setGoodsReceipts(list.map((item: any) => ({
         goods_receipt_id:      item.goods_receipt_id,
         receipt_number:        item.receipt_number,
@@ -246,8 +246,7 @@ export default function PurchaseReturnsPage() {
 
   const loadUnpaidInvoicesForReturn = async (purchaseReturnId: number) => {
     try {
-      const res = await getUnpaidInvoicesForReturn(purchaseReturnId);
-      const list = Array.isArray(res) ? res : (res.data ?? []);
+      const list = await getUnpaidInvoicesForReturn(purchaseReturnId);
       setSettlementInvoices(list.map((item: any) => ({
         invoice_id:         item.purchase_invoice_id ?? item.id,
         invoice_number:     item.invoice_number,
@@ -311,8 +310,7 @@ export default function PurchaseReturnsPage() {
    */
   const handleLoadReturnItems = async (grId: number): Promise<ReturnLineItem[]> => {
     try {
-      const res = await getAvailableReturnDetails(grId);
-      const lines: any[] = Array.isArray(res) ? res : (res.data ?? []);
+      const lines = await getAvailableReturnDetails(grId);
 
       return lines.map((line: any) => {
         // Look up unit price from poDetails — match by product_id across all POs
@@ -341,6 +339,8 @@ export default function PurchaseReturnsPage() {
   // ── Create ─────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (data: PurchaseReturnFormData) => {
+    if (isCreatingReturn) return;
+    setIsCreatingReturn(true);
     // Serialize the selected return line items into transaction_detail so we
     // can recover them later when the settlement modal opens — without needing
     // a dedicated API endpoint.
@@ -364,7 +364,9 @@ export default function PurchaseReturnsPage() {
         err?.data?.message ??
         err?.message;
       notify.error(serverMsg ?? "Gagal membuat Purchase Return.");
-      return;
+      throw err; // re-throw so the modal's isSubmitting resets via finally
+    } finally {
+      setIsCreatingReturn(false);
     }
   };
 

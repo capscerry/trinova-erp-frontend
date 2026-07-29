@@ -21,7 +21,7 @@ export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
     "Completed",
     "Cancelled",
   ],
-  "down-payment": ["Draft", "Issued", "Partially Paid", "Received", "Used", "Cancelled"],
+  "down-payment": ["Draft", "Unpaid", "Partially Paid", "Received", "Used", "Cancelled"],
   "delivery-order": ["Draft", "Approved", "Shipped", "Received", "Invoiced", "Cancelled"],
   "sales-invoice": ["Draft", "Issued", "Partially Paid", "Paid", "Overdue", "Cancelled"],
   "sales-receipt": ["Draft", "Validated", "Cancelled"],
@@ -66,7 +66,9 @@ export function normalizeSalesStatus(
     ditagih: "Invoiced",
 
     terbit: "Issued",
-    "belum dibayar": "Issued",
+    issued: module === "down-payment" ? "Unpaid" : "Issued",
+    unpaid: "Unpaid",
+    "belum dibayar": module === "down-payment" ? "Unpaid" : "Issued",
     "dibayar sebagian": "Partially Paid",
     "sebagian dibayar": "Partially Paid",
     lunas: "Paid",
@@ -86,9 +88,19 @@ export function isApprovedForPicker(
 
   const selectableStatuses: Record<SalesStatusModule, string[]> = {
     quotation: ["Draft", "Sent", "Approved"],
-    "sales-order": ["Draft", "Approved", "Confirmed", "Processing", "Delivery Overdue"],
+    "sales-order": [
+      "Draft",
+      "Approved",
+      "Confirmed",
+      "Processing",
+      "Delivery Overdue",
+      "In Delivery",
+      "Delivered",
+      "Invoiced",
+      "Partially Paid",
+    ],
     "down-payment": ["Received"],
-    "delivery-order": ["Draft", "Approved", "Shipped", "Received"],
+    "delivery-order": ["Draft", "Approved", "Shipped", "Received", "Invoiced"],
     "sales-invoice": ["Issued", "Partially Paid", "Overdue"],
     "sales-receipt": ["Draft"],
   };
@@ -112,7 +124,7 @@ export function getStatusTone(status?: string | null) {
     return "bg-sky-100 text-sky-700 border-sky-200";
   }
 
-  if (["Processing", "Partially Paid", "Overdue", "Delivery Overdue"].includes(normalized)) {
+  if (["Processing", "Partially Paid", "Overdue", "Delivery Overdue", "Unpaid"].includes(normalized)) {
     return "bg-amber-100 text-amber-700 border-amber-200";
   }
 

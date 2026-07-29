@@ -12,6 +12,7 @@ import {
 } from "./SalesOrderType";
 import { productDropdownService, type Product } from "@/lib/services/penjualan.service";
 import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
+import { ProductStockInfo } from "../ProductStockInfo";
 
 const SATUAN_OPTIONS_FALLBACK = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
@@ -31,7 +32,7 @@ export function SalesOrderDetailForm({
   const [produkOptions, setProdukOptions] = useState<Product[]>([]);
   const [loadingProduk, setLoadingProduk] = useState(false);
 
-  // ── Gudang (belum ada cek stok — murni pilihan gudang saja) ────
+  // ── Gudang (stok tersedia ditampilkan per gudang yang dipilih) ────
   const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
 
@@ -133,16 +134,17 @@ export function SalesOrderDetailForm({
 
       <div className="border border-slate-200 rounded-xl overflow-visible">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs table-fixed min-w-[1080px]">
+          <table className="w-full border-collapse text-xs table-fixed min-w-[1180px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Produk</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Deskripsi</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Qty</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[15%]">Gudang</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Harga</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Diskon %</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Produk</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Deskripsi</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[6%]">Qty</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Satuan</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Gudang</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Stok di Gudang</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Harga</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Diskon %</th>
                 <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Subtotal</th>
                 <th className="px-3 py-2.5 w-[4%]"></th>
               </tr>
@@ -198,6 +200,17 @@ export function SalesOrderDetailForm({
                         const found = warehouseOptions.find((w) => w.warehouse_name === v);
                         if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
                       }}
+                      compact
+                    />
+                  </td>
+
+                  {/* Stok di gudang terpilih (fallback: total semua gudang sebelum gudang dipilih) */}
+                  <td className="px-3 py-2">
+                    <ProductStockInfo
+                      productId={item.productId}
+                      warehouseId={item.warehouseId}
+                      warehouseName={item.warehouseName}
+                      requestedQty={item.qty}
                       compact
                     />
                   </td>

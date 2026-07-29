@@ -62,7 +62,7 @@ interface PurchasePaymentModalProps {
 
   onSubmit: (
     data: PurchasePaymentFormData
-  ) => void;
+  ) => Promise<void> | void;
 
   purchaseInvoices: PurchaseInvoice[];
 }
@@ -93,6 +93,9 @@ export default function PurchasePaymentFormModal({
   const [amountError, setAmountError] =
     useState<string>("");
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   useEffect(() => {
 
     if (open) {
@@ -116,6 +119,8 @@ export default function PurchasePaymentFormModal({
         setAmountError("");
 
       }
+
+      setIsSubmitting(false);
     }
 
   }, [open, isEdit, initialData]);
@@ -193,7 +198,7 @@ export default function PurchasePaymentFormModal({
               justify-between
               px-6
               py-4
-              bg-gradient-to-r
+              bg-linear-to-r
               from-navy-900
               to-navy-600
             "
@@ -474,7 +479,9 @@ export default function PurchasePaymentFormModal({
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
+
+                if (isSubmitting) return;
 
                 if (
                   maxPayable > 0 &&
@@ -486,9 +493,15 @@ export default function PurchasePaymentFormModal({
                   return;
                 }
 
-                onSubmit(form);
+                setIsSubmitting(true);
+                try {
+                  await onSubmit(form);
+                } finally {
+                  setIsSubmitting(false);
+                }
 
               }}
+              disabled={isSubmitting}
               className="
                 px-5
                 py-2
@@ -497,9 +510,11 @@ export default function PurchasePaymentFormModal({
                 text-gold-400
                 bg-navy-900
                 rounded-lg
+                disabled:opacity-50
+                disabled:cursor-not-allowed
               "
             >
-              {isEdit ? "Simpan Perubahan" : "Simpan Payment"}
+              {isSubmitting ? "Menyimpan…" : isEdit ? "Simpan Perubahan" : "Simpan Payment"}
             </button>
 
           </div>

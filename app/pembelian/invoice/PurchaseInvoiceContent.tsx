@@ -9,15 +9,17 @@ import {
 } from "@/components/ui/DataTable";
 
 import { Button } from "@/components/ui/Button";
+import { notify } from "@/lib/notify";
 
 import {
   useEffect,
   useRef,
   useState,
+  useCallback,
 } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { CheckCircle2, Download, FileText, X } from "lucide-react";
+import { CheckCircle2, Download, FileText, X, AlertCircle, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 import {
@@ -266,6 +268,9 @@ function PurchaseInvoiceInner() {
   const [openDetailModal, setOpenDetailModal] =
     useState(false);
 
+  const [isCreatingInvoice, setIsCreatingInvoice] =
+    useState(false);
+
   const [selectedInvoice, setSelectedInvoice] =
     useState<any>(null);
   
@@ -281,97 +286,55 @@ function PurchaseInvoiceInner() {
   const [createdInvoiceNumber, setCreatedInvoiceNumber] =
     useState("");
 
+  const [pageError, setPageError] =
+    useState<string | null>(null);
+
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const fetchInvoices = async () => {
-
+  const fetchInvoices = useCallback(async () => {
     try {
-
+      console.log("[Invoice Page] Loading Purchase Invoices...");
       const invoiceRes = await getPurchaseInvoices();
-
-      const list = Array.isArray(invoiceRes)
+      const list: any[] = Array.isArray(invoiceRes)
         ? invoiceRes
-        : invoiceRes.data;
-
-      const mapped = list.map(
-        (item: any) => {
-
-          // Use server-computed outstanding_amount and dp_paid directly ΓÇö
-          // the backend SQL already subtracts both down-payments and
-          // purchase-payments from total_amount correctly.
+        : Array.isArray((invoiceRes as any)?.data) ? (invoiceRes as any).data : [];
+      const mapped = list
+        .filter((item: any) => item?.purchase_invoice_id != null)
+        .map((item: any) => {
           const outstanding = Math.max(0, Number(item.outstanding_amount ?? 0));
-
           return {
-
-            id:
-              item.purchase_invoice_id.toString(),
-
-            goods_receipt_id:
-              item.goods_receipt_id,
-
-            invoice_number:
-              item.invoice_number,
-
-            invoice_date:
-              item.invoice_date,
-
-            supplier_id:
-              item.supplier_id,
-
-            supplier_name:
-              item.supplier_name,
-
-            total_amount:
-              item.total_amount,
-
-            dp_paid:
-              Number(item.dp_paid ?? 0),
-
-            payment_paid:
-              Number(item.payment_paid ?? 0),
-
-            outstanding_amount:
-              outstanding,
-
+            id:                 String(item.purchase_invoice_id),
+            goods_receipt_id:   item.goods_receipt_id ?? null,
+            invoice_number:     item.invoice_number ?? "",
+            invoice_date:       item.invoice_date ?? "",
+            supplier_id:        item.supplier_id ?? 0,
+            supplier_name:      item.supplier_name ?? "",
+            total_amount:       Number(item.total_amount ?? 0),
+            dp_paid:            Number(item.dp_paid ?? 0),
+            payment_paid:       Number(item.payment_paid ?? 0),
+            outstanding_amount: outstanding,
             status: (item.status === "Cancelled"
               ? "Cancelled"
-              : outstanding === 0
-                ? "Paid"
-                : "Unpaid") as InvoiceStatus,
-
-            age:
-              Math.floor(
-                (Date.now() -
-                  new Date(
-                    item.invoice_date
-                  ).getTime()) /
-                  (1000 * 60 * 60 * 24)
-              ),
-
-            transaction_name:
-              item.transaction_name ?? "",
-
-            transaction_detail:
-              item.transaction_detail ?? "",
-
-            nomor_faktur_pajak:
-              item.nomor_faktur_pajak ?? "",
+              : outstanding === 0 ? "Paid" : "Unpaid") as InvoiceStatus,
+            age: (() => {
+              try { return Math.floor((Date.now() - new Date(item.invoice_date).getTime()) / (1000 * 60 * 60 * 24)); }
+              catch { return 0; }
+            })(),
+            transaction_name:   item.transaction_name ?? "",
+            transaction_detail: item.transaction_detail ?? "",
+            nomor_faktur_pajak: item.nomor_faktur_pajak ?? "",
           };
-        }
-      );
-
+        });
+      console.log(`[Invoice Page] Loaded ${mapped.length} invoice(s)`);
       setInvoices(mapped);
-
-    } catch (error) {
-
-      console.error(error);
+    } catch (err: any) {
+      const msg = err?.message ?? "Gagal mengambil Purchase Invoice";
+      console.error("[Invoice Page] Purchase Invoice retrieval failed:", msg);
     }
-  };
-
-  const fetchGoodsReceipt = async (poList?: any[]) => {
+  }, []);
+const fetchGoodsReceipt = async (poList?: any[]) => {
     try {
-      const res = await getGoodsReceipts();
-      const list = Array.isArray(res) ? res : res.data;
+      const list = await getGoodsReceipts();
       // Resolve po list: use the passed-in snapshot (from init) or fall back
       // to whatever is already in state (for standalone re-fetches).
       const pos = poList ?? allPurchaseOrders;
@@ -396,8 +359,8 @@ function PurchaseInvoiceInner() {
         };
       });
       setGoodsReceipts(enriched);
-    } catch (error) {
-      console.error(error);
+      } catch (err: any) {
+        console.error("[Invoice Page] Goods Receipt retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -406,8 +369,8 @@ function PurchaseInvoiceInner() {
       const res = await getPurchaseOrderDetails();
       const list = Array.isArray(res) ? res : res.data ?? [];
       setPurchaseOrderDetails(list);
-    } catch (error) {
-      console.error(error);
+      } catch (err: any) {
+        console.error("[Invoice Page] PO Details retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -416,8 +379,8 @@ function PurchaseInvoiceInner() {
       const res = await getProducts();
       const list = Array.isArray(res) ? res : res.data ?? [];
       setProducts(list);
-    } catch (error) {
-      console.error(error);
+      } catch (err: any) {
+        console.error("[Invoice Page] Products retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -426,8 +389,8 @@ function PurchaseInvoiceInner() {
       const res = await getPurchaseDownPayments();
       const list = Array.isArray(res) ? res : res.data ?? [];
       setDownPayments(list);
-    } catch (error) {
-      console.error(error);
+      } catch (err: any) {
+        console.error("[Invoice Page] Down Payments retrieval failed:", err?.message ?? err);
     }
   };
 
@@ -445,9 +408,9 @@ function PurchaseInvoiceInner() {
         const poList = Array.isArray(poRes) ? poRes : poRes.data ?? [];
         setAllPurchaseOrders(poList);
         await fetchGoodsReceipt(poList);
-      } catch (error) {
-        console.error(error);
-        fetchGoodsReceipt();
+        } catch (err: any) {
+          console.error("[Invoice Page] PO/GR load failed, falling back:", err?.message ?? err);
+          await fetchGoodsReceipt();
       }
     };
     init();
@@ -644,6 +607,23 @@ function PurchaseInvoiceInner() {
           </Button>
         </div>
 
+        {/* Page-level error banner with retry */}
+        {pageError && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-700">Gagal memuat data</p>
+              <p className="text-xs text-red-600 mt-0.5">{pageError}</p>
+            </div>
+            <button
+              onClick={() => fetchInvoices()}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+            >
+              <RefreshCw size={12} /> Coba Lagi
+            </button>
+          </div>
+        )}
+
         <div ref={tableRef}>
         <DataTable<PurchaseInvoice>
           title="Daftar Purchase Invoice"
@@ -760,6 +740,8 @@ function PurchaseInvoiceInner() {
   })()}
   onSubmit={async (data) => {
 
+    if (isCreatingInvoice) return;
+    setIsCreatingInvoice(true);
     try {
 
       const created = await createPurchaseInvoice({
@@ -791,15 +773,26 @@ function PurchaseInvoiceInner() {
         ""
       );
 
+      setOpenModal(false);
       setOpenSuccessModal(true);
 
-    } catch (error) {
+    } catch (error: any) {
 
       console.error(error);
 
-      alert(
-        "Gagal membuat Purchase Invoice"
-      );
+      const status = error?.response?.status ?? error?.status;
+      if (status === 409) {
+        notify.error("Purchase Invoice already exists for this Goods Receipt.");
+      } else {
+        notify.error(
+          error?.response?.data?.message ??
+          error?.data?.message ??
+          "Gagal membuat Purchase Invoice."
+        );
+      }
+
+    } finally {
+      setIsCreatingInvoice(false);
     }
   }}
 />
@@ -1101,3 +1094,6 @@ export default function PurchaseInvoiceContent() {
     </Suspense>
   );
 }
+
+
+

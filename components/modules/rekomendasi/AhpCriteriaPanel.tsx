@@ -34,7 +34,7 @@ function formatSaaty(v: number): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CrBadge({ cr, isConsistent }: { cr: number; isConsistent: boolean }) {
+function CrBadge({ isConsistent }: { isConsistent: boolean }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border",
@@ -43,8 +43,7 @@ function CrBadge({ cr, isConsistent }: { cr: number; isConsistent: boolean }) {
         : "bg-red-50 border-red-200 text-red-600"
     )}>
       {isConsistent ? <CheckCircle size={11} /> : <AlertTriangle size={11} />}
-      CR = {(cr * 100).toFixed(1)}%
-      {isConsistent ? " ✓ Konsisten" : " ✗ Tidak Konsisten"}
+      {isConsistent ? "Consistent" : "Needs Review"}
     </span>
   );
 }
@@ -59,8 +58,8 @@ function WeightRow({ label, weight, benefit }: { label: string; weight: number; 
           className={cn(
             "h-full rounded-full transition-all duration-500",
             benefit
-              ? "bg-gradient-to-r from-green-400 to-green-600"
-              : "bg-gradient-to-r from-rose-400 to-rose-600"
+              ? "bg-linear-to-r from-green-400 to-green-600"
+              : "bg-linear-to-r from-rose-400 to-rose-600"
           )}
           style={{ width: `${pct}%` }}
         />
@@ -246,10 +245,6 @@ export function AhpCriteriaPanel({
             Nilai pecahan (1/3, 1/5, …) berarti kebalikannya.
           </p>
           <p>
-            <strong>Consistency Ratio (CR)</strong> harus &lt; 10% agar pembobotan konsisten.
-            Preset sudah divalidasi CR &lt; 10% — aman langsung digunakan.
-          </p>
-          <p>
             <strong>Tipe:</strong>{" "}
             <span className="text-green-700 font-semibold">↑ Benefit</span> = lebih besar lebih baik. &nbsp;
             <span className="text-rose-600 font-semibold">↓ Cost</span> = lebih kecil lebih baik.
@@ -361,7 +356,7 @@ export function AhpCriteriaPanel({
               Hasil Pembobotan AHP
             </span>
             <div className="flex items-center gap-2">
-              <CrBadge cr={ahpResult.cr} isConsistent={ahpResult.isConsistent} />
+              <CrBadge isConsistent={ahpResult.isConsistent} />
               {resultOpen
                 ? <ChevronUp size={14} className="text-slate-400" />
                 : <ChevronDown size={14} className="text-slate-400" />}
@@ -370,34 +365,37 @@ export function AhpCriteriaPanel({
 
           {resultOpen && (
             <div className="px-5 py-4 space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "λmax", value: ahpResult.lambdaMax.toFixed(4), sub: "Eigenvalue Utama" },
-                  { label: "CI",   value: ahpResult.ci.toFixed(4),         sub: "Consistency Index" },
-                  { label: "CR",   value: `${(ahpResult.cr * 100).toFixed(2)}%`, sub: "Consistency Ratio" },
-                ].map((stat) => (
-                  <div key={stat.label} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif mb-1">
-                      {stat.label}
-                    </p>
-                    <p className={cn(
-                      "text-lg font-bold font-serif leading-none",
-                      stat.label === "CR"
-                        ? ahpResult.isConsistent ? "text-green-600" : "text-red-500"
-                        : "text-navy-900"
-                    )}>
-                      {stat.value}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-1">{stat.sub}</p>
-                  </div>
-                ))}
+              <div className="flex justify-center">
+                <div className={cn(
+                  "border rounded-xl p-4 text-center min-w-[160px]",
+                  ahpResult.isConsistent
+                    ? "bg-green-50 border-green-100"
+                    : "bg-red-50 border-red-100"
+                )}>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif mb-2">
+                    AHP Validation
+                  </p>
+                  <p className={cn(
+                    "text-[15px] font-bold font-serif leading-none flex items-center justify-center gap-1.5",
+                    ahpResult.isConsistent ? "text-green-600" : "text-red-500"
+                  )}>
+                    {ahpResult.isConsistent
+                      ? <><CheckCircle size={15} /> Consistent</>
+                      : <><AlertTriangle size={15} /> Needs Review</>}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    {ahpResult.isConsistent
+                      ? "Pairwise comparison verified"
+                      : "Adjust matrix or select a preset"}
+                  </p>
+                </div>
               </div>
 
               {!ahpResult.isConsistent && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
                   <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
                   <p className="text-[12px] text-red-700">
-                    CR ≥ 10% — penilaian tidak konsisten. Tinjau kembali matriks atau pilih preset yang sudah tervalidasi.
+                    Penilaian tidak konsisten. Tinjau kembali matriks atau pilih preset yang sudah tervalidasi.
                   </p>
                 </div>
               )}

@@ -71,7 +71,7 @@ export default function WarehouseForm({
     >
       <div>
         <label className="text-sm font-medium">
-          Warehouse Name
+          Warehouse Name <span className="text-red-500 font-bold">*</span>
         </label>
 
         <input
@@ -85,7 +85,7 @@ export default function WarehouseForm({
 
       <div>
         <label className="text-sm font-medium">
-          Warehouse Type
+          Warehouse Type <span className="text-red-500 font-bold">*</span>
         </label>
 
         <input
@@ -99,7 +99,7 @@ export default function WarehouseForm({
 
       <div>
         <label className="text-sm font-medium">
-          Address
+          Address <span className="text-red-500 font-bold">*</span>
         </label>
 
         <textarea

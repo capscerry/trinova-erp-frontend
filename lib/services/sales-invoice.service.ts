@@ -87,6 +87,7 @@ export interface SalesInvoicePayload {
     discountAmount: number;
     taxAmount: number;
     subtotal: number;
+    warehouseId?: number | null;
   }[];
 }
 
@@ -187,36 +188,36 @@ export function mapSalesInvoiceFullDetail(
 
 export const salesInvoiceService = {
   async getAll(): Promise<SalesInvoice[]> {
-    const response = await api.get<ApiResponse<SalesInvoiceApi[]>>("/sales-invoice");
+    const response = await api.get<ApiResponse<SalesInvoiceApi[]>>("/api/sales-invoice");
     return (response.data.data ?? []).map(mapSalesInvoice);
   },
 
   async getById(id: number | string): Promise<SalesInvoice> {
-    const response = await api.get<ApiResponse<SalesInvoiceApi>>(`/sales-invoice/${id}`);
+    const response = await api.get<ApiResponse<SalesInvoiceApi>>(`/api/sales-invoice/${id}`);
     const data = response.data.data as SalesInvoiceApi | SalesInvoiceDetailResponseApi;
     if ("header" in data) return mapSalesInvoice(data.header);
     return mapSalesInvoice(data);
   },
 
   async getFullDetailById(id: number | string): Promise<SalesInvoiceFullDetail> {
-    const response = await api.get<ApiResponse<SalesInvoiceDetailResponseApi>>(`/sales-invoice/${id}`);
+    const response = await api.get<ApiResponse<SalesInvoiceDetailResponseApi>>(`/api/sales-invoice/${id}`);
     return mapSalesInvoiceFullDetail(response.data.data);
   },
 
   async create(payload: SalesInvoicePayload): Promise<SalesInvoice> {
-    const response = await api.post<ApiResponse<SalesInvoiceApi>>("/sales-invoice", payload);
+    const response = await api.post<ApiResponse<SalesInvoiceApi>>("/api/sales-invoice", payload);
     return mapSalesInvoice(response.data.data);
   },
 
   async update(id: number | string, payload: SalesInvoicePayload): Promise<void> {
-    await api.put(`/sales-invoice/${id}`, payload);
+    await api.put(`/api/sales-invoice/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/sales-invoice/${id}`);
+    await api.delete(`/api/sales-invoice/${id}`);
   },
 
   async confirm(id: number | string): Promise<void> {
-    await api.patch(`/sales-invoice/${id}/confirm`);
+    await api.patch(`/api/sales-invoice/${id}/confirm`);
   },
 };

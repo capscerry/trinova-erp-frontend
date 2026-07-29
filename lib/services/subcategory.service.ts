@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/product-subcategories";
+const BASE_URL = "/api/product-subcategories";
 
 export interface ProductSubcategory {
   subcategory_id: number;
@@ -30,10 +30,13 @@ export async function getSubcategories() {
 }
 
 // ─── Get Subcategories By Category ──────────────────────────────────
-export async function getSubcategoriesByCategory(
-  categoryId: number
-) {
-  const response = await api.get(`${BASE_URL}/by-category/${categoryId}`);
+export async function getSubcategoriesByCategory(categoryId: number) {
+  const response = await api.get(
+    `${BASE_URL}/by-category/${categoryId}`
+  );
+
+  console.log(response.data);
+
   return response.data;
 }
 

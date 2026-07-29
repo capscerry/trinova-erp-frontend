@@ -74,7 +74,7 @@ export interface PurchaseOrderForValidation {
 interface PurchaseReturnFormModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: PurchaseReturnFormData) => void;
+  onSubmit: (data: PurchaseReturnFormData) => Promise<void> | void;
   goodsReceipts: GoodsReceiptOption[];
   /**
    * Called when the user picks a Goods Receipt.
@@ -152,6 +152,7 @@ export default function PurchaseReturnFormModal({
   );
   const [returnItems, setReturnItems] = useState<ReturnLineItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset whenever the modal opens
   useEffect(() => {
@@ -159,6 +160,7 @@ export default function PurchaseReturnFormModal({
     setForm(buildEmptyForm(nextNumber));
     setReturnItems([]);
     setLoadingItems(false);
+    setIsSubmitting(false);
   }, [open, nextNumber]);
 
   if (!open) return null;
@@ -240,7 +242,8 @@ export default function PurchaseReturnFormModal({
 
   // --- Submit ----------------------------------------------------------------
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!selectedGR) return;
     if (returnItems.every((i) => i.qty_return === 0)) return;
 
@@ -254,7 +257,13 @@ export default function PurchaseReturnFormModal({
       closing_condition: getClosingCondition(form.settlement_option),
       return_items: returnItems.filter((i) => i.qty_return > 0),
     };
-    onSubmit(validated);
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(validated);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalReturn = returnItems.reduce((s, i) => s + i.subtotal, 0);
@@ -645,6 +654,7 @@ export default function PurchaseReturnFormModal({
               type="button"
               onClick={handleSubmit}
               disabled={
+                isSubmitting ||
                 !selectedGR ||
                 loadingItems ||
                 !hasSelection ||
@@ -652,7 +662,7 @@ export default function PurchaseReturnFormModal({
               }
               className="px-4 py-2 rounded-lg bg-navy-900 text-white hover:bg-navy-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
             >
-              Simpan Retur
+              {isSubmitting ? "Menyimpan…" : "Simpan Retur"}
             </button>
           </div>
         </div>

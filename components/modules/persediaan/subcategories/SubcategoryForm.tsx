@@ -136,7 +136,7 @@ export default function SubcategoryForm({
       {/* Category */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Category
+          Category <span className="text-red-500 font-bold">*</span>
         </label>
 
         <select
@@ -193,7 +193,7 @@ export default function SubcategoryForm({
       {/* Name */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Name
+          Name <span className="text-red-500 font-bold">*</span>
         </label>
 
         <input

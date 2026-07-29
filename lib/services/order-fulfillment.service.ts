@@ -1,20 +1,28 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/OrderFulfillment";
+const BASE_URL = "/api/OrderFulfillment";
 
 export async function getOrderFulfillments() {
-  const response = await api.get(BASE_URL);
-  return response.data;
+    const res = await api.get(BASE_URL);
+    return res.data;
 }
 
-export async function createOrderFulfillment(
-  payload: {
-    product_id: number;
-    warehouse_id: number;
-    quantity: number;
-    notes?: string;
-  }
-) {
-  const response = await api.post(BASE_URL, payload);
-  return response.data;
+export async function completeOrderFulfillment(
+    movementId:number
+){
+    const res = await api.put(
+        `${BASE_URL}/${movementId}/complete`
+    );
+
+    return res.data;
+}
+
+export async function cancelOrderFulfillment(
+    movementId:number
+){
+    const res = await api.put(
+        `${BASE_URL}/${movementId}/cancel`
+    );
+
+    return res.data;
 }

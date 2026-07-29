@@ -6,8 +6,8 @@ import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 
-import PurchaseRequisitionModal from "@/components/modules/persediaan/purchase-requisition/PurchaseRequisitionModal";
-import PurchaseRequisitionDetailModal from "@/components/modules/persediaan/purchase-requisition/PurchaseRequisitionDetailModal";
+import PurchaseRequisitionDetailModal from "@/components/modules/persediaan/purchase-requisition/PurchaseRequisitionDetailFormModal";
+import PurchaseRequisitionModal from "@/components/modules/persediaan/purchase-requisition/PurchaseRequisitionFormModal";
 
 import {
   getPurchaseRequisitions,
@@ -80,6 +80,19 @@ export default function PurchaseRequisitionPage() {
 
   const [selectedPR, setSelectedPR] =
     useState<any>(null);
+
+  const handleOpenModal = () => {
+    setOpenModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setOpenModal(false);
+  };
+
+  const handleSuccess = () => {
+    fetchPurchaseRequisitions();
+    setOpenModal(false);
+  };
 
   const fetchPurchaseRequisitions =
     async () => {
@@ -216,20 +229,14 @@ export default function PurchaseRequisitionPage() {
         data={data}
         loading={loading}
         addLabel="Tambah Purchase Requisition"
-        onAdd={() =>
-          setOpenModal(true)
-        }
+        onAdd={handleOpenModal}
         keyField="pr_id"
       />
 
       <PurchaseRequisitionModal
         isOpen={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
-        onSuccess={() => {
-          fetchPurchaseRequisitions();
-        }}
+        onClose={handleCloseModal}
+        onSuccess={handleSuccess}
       />
 
       <PurchaseRequisitionDetailModal

@@ -43,7 +43,7 @@ export function mapKategoriCustomer(
 
 export const categoryCustomerService = {
   async getAll(): Promise<KategoriCustomer[]> {
-    const res = await api.get("/category-customer");
+    const res = await api.get("/api/category-customer");
     return (res.data.data ?? []).map(
       (item: CategoryCustomerApi, index: number) =>
         mapKategoriCustomer(item, index)
@@ -51,17 +51,17 @@ export const categoryCustomerService = {
   },
 
   async create(payload: KategoriCustomerPayload): Promise<string> {
-    const res = await api.post("/category-customer", payload);
+    const res = await api.post("/api/category-customer", payload);
     return res.data.message ?? "Kategori berhasil ditambahkan";
   },
 
   async update(id: number, payload: KategoriCustomerPayload): Promise<string> {
-    const res = await api.put(`/category-customer/${id}`, payload);
+    const res = await api.put(`/api/category-customer/${id}`, payload);
     return res.data.message ?? "Kategori berhasil diupdate";
   },
 
   async toggleStatus(id: number, payload: ToggleStatusPayload): Promise<string> {
-    const res = await api.post(`/category-customer/${id}/status`, payload);
+    const res = await api.post(`/api/category-customer/${id}/status`, payload);
     return res.data.message ?? "Status berhasil diubah";
   },
 };

@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
-import { Download } from "lucide-react";
+import { Download, AlertCircle, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 import { AppShell } from "@/components/layout";
@@ -138,30 +138,52 @@ export default function PurchasePaymentPage() {
   const [detailData, setDetailData] =
     useState<any | null>(null);
 
-  // --- Load -----------------------------------
+  // Page-level error for retry banner
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  // ─── Load data ───────────────────────────────────────────────────────────────
+
+  const loadData = useCallback(async () => {
     try {
+      console.log("[Payment Page] Loading Purchase Payments...");
       const res = await getPurchasePayments();
-      setPayments(res.data || []);
-    } catch (err) {
-      console.error(err);
+      // Safely normalise to array: service returns { data: [] } or array
+      const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log(`[Payment Page] Loaded ${list.length} payment(s)`);
+      setPayments(list);
+    } catch (err: any) {
+      console.error("[Payment Page] Purchase Payment retrieval failed:", err?.message ?? err);
+      setPayments([]);
     }
-  };
+  }, []);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
+      console.log("[Payment Page] Loading Purchase Invoices...");
       const res = await getPurchaseInvoices();
-      setPurchaseInvoices(res.data || []);
-    } catch (err) {
-      console.error(err);
+      const list: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      console.log(`[Payment Page] Loaded ${list.length} invoice(s)`);
+      setPurchaseInvoices(list);
+    } catch (err: any) {
+      console.error("[Payment Page] Purchase Invoice retrieval failed:", err?.message ?? err);
+      setPurchaseInvoices([]);
     }
-  };
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setPageError(null);
+    try {
+      await Promise.all([loadData(), fetchInvoices()]);
+    } catch (err: any) {
+      const msg = err?.message ?? "Gagal memuat halaman Purchase Payment";
+      console.error("[Payment Page] Initial load failed:", msg);
+      setPageError(msg);
+    }
+  }, [loadData, fetchInvoices]);
 
   useEffect(() => {
-    loadData();
-    fetchInvoices();
-  }, []);
+    loadAll();
+  }, [loadAll]);
 
   const availableInvoices =
     purchaseInvoices.filter(
@@ -237,7 +259,7 @@ export default function PurchasePaymentPage() {
         // then check if this invoice is now fully paid.
         await fetchInvoices();
         const freshInvoices: any[] = await getPurchaseInvoices().then(
-          (r) => r.data || []
+          (r) => Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : [])
         );
         const updatedInvoice = freshInvoices.find(
           (inv: any) =>
@@ -275,37 +297,53 @@ export default function PurchasePaymentPage() {
           transaction_detail:  data.transaction_detail ?? "",
         };
 
-        await createPurchasePayment(payload);
-
-        // If payment fully covers the outstanding amount,
-        // mark the invoice as Paid and redirect.
-        const paidInvoice = purchaseInvoices.find(
-          (inv) =>
-            inv.purchase_invoice_id === data.purchase_invoice_id
-        );
-
-        if (
-          paidInvoice &&
-          data.amount >= Number(paidInvoice.outstanding_amount)
-        ) {
-          await updatePurchaseInvoice(
-            paidInvoice.purchase_invoice_id,
-            { status: "Paid" }
-          );
-
-          setOpenModal(false);
-          router.push("/pembelian/invoice");
+        // Isolate the API call so that any failure in the
+        // post-create UI steps below cannot trigger the error toast.
+        try {
+          await createPurchasePayment(payload);
+        } catch (createError) {
+          console.error("[PurchasePayment] Create API failed:", createError);
+          notify.error("Gagal membuat Purchase Payment");
           return;
         }
 
+        // API succeeded — show success toast and close modal immediately.
         setOpenModal(false);
         notify.success("Purchase Payment berhasil dibuat");
-        await loadData();
-        await fetchInvoices();
+
+        // Post-create UI updates: mark invoice as Paid and/or redirect.
+        // Failures here must NOT re-trigger the error toast.
+        try {
+          const paidInvoice = purchaseInvoices.find(
+            (inv) =>
+              inv.purchase_invoice_id === data.purchase_invoice_id
+          );
+
+          if (
+            paidInvoice &&
+            data.amount >= Number(paidInvoice.outstanding_amount)
+          ) {
+            await updatePurchaseInvoice(
+              paidInvoice.purchase_invoice_id,
+              { status: "Paid" }
+            );
+            router.push("/pembelian/invoice");
+            return;
+          }
+
+          await loadData();
+          await fetchInvoices();
+        } catch (postCreateError) {
+          // The payment was already saved; only the UI refresh/redirect
+          // failed. Log it but do not show the error toast.
+          console.error("[PurchasePayment] Post-create UI update failed:", postCreateError);
+          await loadData().catch(() => {});
+          await fetchInvoices().catch(() => {});
+        }
       }
 
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("[Payment Page] handleSubmit failed:", error?.message ?? error);
       notify.error(
         isEdit
           ? "Gagal memperbarui Purchase Payment"
@@ -494,6 +532,23 @@ export default function PurchasePaymentPage() {
         </Button>
       </div>
 
+      {/* Page-level error banner with retry */}
+      {pageError && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">Gagal memuat data</p>
+            <p className="text-xs text-red-600 mt-0.5">{pageError}</p>
+          </div>
+          <button
+            onClick={loadAll}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw size={12} /> Coba Lagi
+          </button>
+        </div>
+      )}
+
       <DataTable<any>
         title="Daftar Purchase Payment"
         columns={COLUMNS}
@@ -584,7 +639,7 @@ export default function PurchasePaymentPage() {
               className="
                 flex items-center justify-between
                 px-6 py-4
-                bg-gradient-to-r from-navy-900 to-navy-600
+                bg-linear-to-r from-navy-900 to-navy-600
               "
             >
               <div>

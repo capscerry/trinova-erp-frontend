@@ -49,6 +49,7 @@ import { ProcurementFunnel } from "@/components/modules/pembelian/dashboard/Proc
 import { SpendingByCategory } from "@/components/modules/pembelian/dashboard/SpendingByCategory";
 import { AIRecommendationSummary } from "@/components/modules/pembelian/dashboard/AIRecommendationSummary";
 import { DashboardFilters, type ActiveFilters } from "@/components/modules/pembelian/dashboard/DashboardFilters";
+import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
 
 // Helpers
 
@@ -733,6 +734,8 @@ function PurchasingStaffDashboard() {
     >
       <KpiDashboard isProcurementManager={false} />
       <ActivityFeed />
+      {/* Full-width enterprise activity timeline — newest 20 transactions */}
+      <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
     </AppShell>
   );
 }
@@ -745,6 +748,8 @@ function ProcurementManagerDashboard() {
     >
       <KpiDashboard isProcurementManager={true} />
       <ActivityFeed />
+      {/* Full-width enterprise activity timeline — newest 20 transactions */}
+      <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
     </AppShell>
   );
 }

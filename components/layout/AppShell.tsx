@@ -33,7 +33,7 @@ export function AppShell({ title, subtitle, children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
       <Sidebar />
-      <div className="ml-[264px] flex min-h-screen flex-col">
+      <div className="ml-66 flex min-h-screen flex-col">
         <Topbar title={title} subtitle={subtitle} />
         <main className="flex-1 px-8 py-6">{children}</main>
       </div>

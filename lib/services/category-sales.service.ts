@@ -39,7 +39,7 @@ export function mapKategoriPenjualan(
 
 export const categorySalesService = {
   async getAll(): Promise<KategoriPenjualan[]> {
-    const res = await api.get("/sales-category");
+    const res = await api.get("/api/sales-category");
     return (res.data.data ?? []).map(
       (item: SalesCategoryApi, index: number) =>
         mapKategoriPenjualan(item, index)
@@ -47,12 +47,12 @@ export const categorySalesService = {
   },
 
   async create(payload: KategoriPenjualanPayload): Promise<string> {
-    const res = await api.post("/sales-category", payload);
+    const res = await api.post("/api/sales-category", payload);
     return res.data.message ?? res.data ?? "Kategori berhasil ditambahkan";
   },
 
   async update(id: number, payload: KategoriPenjualanPayload): Promise<string> {
-    const res = await api.put(`/sales-category/${id}`, payload);
+    const res = await api.put(`/api/sales-category/${id}`, payload);
     return res.data.message ?? "Kategori berhasil diupdate";
   },
 
@@ -60,7 +60,7 @@ export const categorySalesService = {
     id: number,
     payload: ToggleSalesCategoryStatusPayload
   ): Promise<string> {
-    const res = await api.post(`/sales-category/${id}/status`, payload);
+    const res = await api.post(`/api/sales-category/${id}/status`, payload);
     return res.data.message ?? "Status berhasil diubah";
   },
 };

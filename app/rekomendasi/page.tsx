@@ -457,13 +457,13 @@ export default function RekomendasiPage() {
       const batchRes = await predictAllSuppliers();
 
       const backendResults: RiskResult[] = batchRes.results
-        .filter(v => v.supplier_id != null && v.supplier_id !== 0)
+        .filter(v => v.supplier_id != null && v.supplier_id !== 0 && supplierNameMap.has(Number(v.supplier_id)))
         .map((v) => {
           const sid       = Number(v.supplier_id);
           const altValues = altMap.get(sid) ?? {};
           return {
             supplier_id:   sid,
-            supplier_name: v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
+            supplier_name: supplierNameMap.get(sid) ?? v.supplier_name ?? `Supplier ${sid}`,
             risk_score:    Number(v.delay_probability ?? 0),
             risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
             contributions: {},
@@ -496,6 +496,10 @@ export default function RekomendasiPage() {
         );
         const fallback: RiskResult[] = settled
           .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+          .filter((r) => {
+            const sid = Number(r.value?.supplier_id ?? 0);
+            return sid !== 0 && supplierNameMap.has(sid);
+          })
           .map((r) => {
             const v   = r.value;
             const sid = Number(v.supplier_id ?? 0);
@@ -590,13 +594,13 @@ export default function RekomendasiPage() {
     if (results.length === 0) return;
     const riskMap = new Map(riskResults.map(r => [r.supplier_id, r]));
     const critHeaders = criteria.map(c => c.label);
-    const header = ["Rank","Kode","Nama","Ci","D+","D−",...critHeaders,"Risk Score","Risk Level","Alasan"].join(",");
+    const header = ["Rank","Kode","Nama","Skor TOPSIS",...critHeaders,"Probabilitas Risiko","Level Risiko","Alasan"].join(",");
     const rows = results.map(r => {
       const risk = riskMap.get(Number(r.alternativeId));
       const critVals = criteria.map(c => (r.weightedValues?.[c.id] ?? 0).toFixed(6));
       return [
         r.rank, r.code ?? "", `"${r.name}"`,
-        r.score.toFixed(6), r.dPlus.toFixed(6), r.dMinus.toFixed(6),
+        r.score.toFixed(6),
         ...critVals,
         risk?.risk_score.toFixed(3) ?? "—",
         risk?.risk_level ?? "—",
@@ -615,7 +619,7 @@ export default function RekomendasiPage() {
   return (
     <AppShell
       title="Rekomendasi Supplier"
-      subtitle="AHP + TOPSIS · XGBoost Risk Prediction — analisis multi-kriteria berbasis data ERP"
+      subtitle="Prediksi Risiko ML · Perankingan Supplier Keseluruhan — berbasis data ERP"
     >
       {/* ── Top action bar ──────────────────────────────────────────────── */}
       {hasRun && results.length > 0 && (
@@ -629,7 +633,7 @@ export default function RekomendasiPage() {
       {/* ── Method info banner ──────────────────────────────────────────── */}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 mb-6">
         <Info size={15} className="text-blue-400 mt-0.5 shrink-0" />
-        <div className="text-[12px] text-blue-700 leading-relaxed space-y-1">
+        <div className="text-[12px] text-blue-700 leading-relaxed space-y-1.5">
           <p className="font-bold text-blue-800">Alur Analisis 3 Langkah</p>
           <div className="flex flex-wrap gap-x-4 gap-y-0.5">
             <span>
@@ -638,13 +642,17 @@ export default function RekomendasiPage() {
             </span>
             <span>
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-800 text-[9px] font-extrabold mr-1">2</span>
-              <strong>Prediksi Risiko</strong> — semua supplier diprediksi sekaligus · hasilnya tampil terlebih dahulu di tab <em>XGBoost Risk</em>.
+              <strong>Prediksi Risiko ML</strong> — probabilitas keterlambatan pengiriman per supplier · tampil di tab <em>Prediksi Risiko ML</em>.
             </span>
             <span>
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-800 text-[9px] font-extrabold mr-1">3</span>
-              <strong>Ranking AHP · TOPSIS</strong> — bobot dari matriks Saaty diterapkan ke data ERP nyata · hasil akhir di tab <em>AHP · TOPSIS</em>.
+              <strong>Perankingan Supplier</strong> — bobot AHP diterapkan ke 5 kriteria ERP · ranking akhir di tab <em>Perankingan Supplier</em>.
             </span>
           </div>
+          <p className="text-blue-600 pt-0.5 border-t border-blue-100">
+            <strong>Prediksi Risiko ML</strong> (tab kiri) memprediksi kemungkinan keterlambatan per supplier.
+            <strong> Perankingan Supplier</strong> (tab kanan) meranking berdasarkan 5 kriteria multi-dimensi. Keduanya adalah hasil yang berbeda — bukan skor yang sama.
+          </p>
         </div>
       </div>
 
@@ -873,7 +881,7 @@ export default function RekomendasiPage() {
                 <div className="text-left min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className={cn("text-[13px] font-bold leading-none", activeTab === "risk" ? "text-white" : "text-slate-700")}>
-                      XGBoost Risk
+                      Prediksi Risiko ML
                     </p>
                     {/* Step badge */}
                     {isRunning && pipelineStep === "predicting" && (
@@ -891,7 +899,7 @@ export default function RekomendasiPage() {
                   <p className={cn("text-[10px] mt-0.5", activeTab === "risk" ? "text-rose-200" : "text-slate-400")}>
                     {isRunning && pipelineStep === "predicting"
                       ? "Langkah 2 — inferensi ML…"
-                      : "ML · Prediksi risiko supplier"}
+                      : "Delay Probability · Risk Level per supplier"}
                   </p>
                 </div>
                 {activeTab !== "risk" && riskResults.length > 0 && !isRunning && (
@@ -930,12 +938,12 @@ export default function RekomendasiPage() {
                 </div>
                 <div className="text-left min-w-0">
                   <p className={cn("text-[13px] font-bold leading-none", activeTab === "topsis" ? "text-white" : "text-slate-700")}>
-                    AHP · TOPSIS
+                    Perankingan Supplier
                   </p>
                   <p className={cn("text-[10px] mt-0.5", activeTab === "topsis" ? "text-slate-400" : "text-slate-400")}>
                     {isRunning && pipelineStep === "ranking"
                       ? "Langkah 3 — ranking…"
-                      : "Perankingan multi-kriteria"}
+                      : "Skor TOPSIS · 5 kriteria AHP"}
                   </p>
                 </div>
               </button>
@@ -983,7 +991,6 @@ export default function RekomendasiPage() {
                         <p className="text-[10px] uppercase tracking-widest text-gold-400 font-bold mb-0.5">Rekomendasi Terbaik (TOPSIS)</p>
                         <p className="text-white font-bold font-serif text-[15px] leading-tight truncate">{top.name}</p>
                         <p className="text-slate-400 text-[11px] font-mono">
-                          {top.code} — Ci: <strong className="text-gold-400">{top.score.toFixed(4)}</strong>
                           {topRisk && (
                             <span className={cn(
                               "ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold",
@@ -1014,7 +1021,6 @@ export default function RekomendasiPage() {
                         <span className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 text-[12px] font-extrabold flex items-center justify-center shrink-0">2</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-semibold text-navy-900 font-serif truncate">{results[1].name}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">Ci: {results[1].score.toFixed(4)}</p>
                         </div>
                       </div>
                     )}
@@ -1044,7 +1050,7 @@ export default function RekomendasiPage() {
                           <p className="text-[11px] text-rose-600 mt-0.5">
                             <strong>{riskResults[0].supplier_name}</strong> memiliki skor risiko{" "}
                             <strong>{Number(riskResults[0].risk_score).toFixed(3)}</strong> ({riskResults[0].risk_level}).
-                            Lihat tab <em>XGBoost Risk</em> untuk detail SHAP.
+                            Lihat tab <em>Prediksi Risiko ML</em> untuk detail SHAP.
                           </p>
                         </div>
                       </div>

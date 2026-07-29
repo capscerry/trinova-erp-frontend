@@ -29,7 +29,7 @@ export const shippingTypeService = {
     // CATATAN: endpoint ini mengembalikan ARRAY LANGSUNG (bukan dibungkus
     // { success, message, data } seperti endpoint lain di project ini),
     // jadi tidak bisa pakai ApiResponse<T> generic seperti biasa.
-    const response = await api.get<ApiResponse<ShippingTypeApi[]>>("/shipping-type");
+    const response = await api.get<ApiResponse<ShippingTypeApi[]>>("/api/shipping-type");
     return (response.data.data?? []).map(mapShippingType);
   },
 };
@@ -112,6 +112,8 @@ export interface DeliveryOrderDetailApi {
   uomName?: string;
   qtyDikirim: number;
   qtyDipesan: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface PengirimanDetailItem {
@@ -122,6 +124,8 @@ export interface PengirimanDetailItem {
   satuan: string;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface PengirimanPenjualanFullDetail extends PengirimanPenjualan {
@@ -137,6 +141,8 @@ export function mapPengirimanDetailItem(item: DeliveryOrderDetailApi): Pengirima
     satuan: item.uomName ?? "",
     qtyDipesan: item.qtyDipesan,
     qtyDikirim: item.qtyDikirim,
+    warehouseId: item.warehouseId ?? undefined,
+    warehouseName: item.warehouseName ?? undefined,
   };
 }
 
@@ -162,6 +168,7 @@ export interface DeliveryOrderDetailPayload {
   uomId?: number;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number | null;
 }
 
 export interface PengirimanPenjualanPayload {
@@ -172,7 +179,7 @@ export interface PengirimanPenjualanPayload {
 export const pengirimanPenjualanService = {
   async getAll(): Promise<PengirimanPenjualan[]> {
     const response = await api.get<ApiResponse<DeliveryOrderHeaderApi[]>>(
-      "/do-header"
+      "/api/do-header"
     );
     return (response.data.data ?? []).map(mapPengirimanPenjualan);
   },
@@ -195,7 +202,7 @@ export const pengirimanPenjualanService = {
   /** Detail item — dipanggil terpisah saat buka halaman Detail/Edit (GetDoDetail di backend) */
   async getDetailItems(id: number | string): Promise<PengirimanDetailItem[]> {
     const response = await api.get<ApiResponse<DeliveryOrderDetailApi[]>>(
-      `/do-detail/${id}`
+      `/api/do-detail/${id}`
     );
     return (response.data.data ?? []).map(mapPengirimanDetailItem);
   },
@@ -203,7 +210,7 @@ export const pengirimanPenjualanService = {
   /** Create Delivery Order baru — backend murni INSERT, tidak ada mode update/upsert untuk saat ini */
   async create(payload: PengirimanPenjualanPayload): Promise<PengirimanPenjualan> {
     const response = await api.post<ApiResponse<DeliveryOrderHeaderApi>>(
-      "/delivery-order",
+      "/api/delivery-order",
       payload
     );
     const header = extractDeliveryOrderHeader(response.data);
@@ -241,6 +248,6 @@ export const pengirimanPenjualanService = {
   },
 
   async update(id: number | string, payload: PengirimanPenjualanPayload): Promise<void> {
-    await api.put(`/delivery-order/${id}`, payload);
+    await api.put(`/api/delivery-order/${id}`, payload);
   },
 };

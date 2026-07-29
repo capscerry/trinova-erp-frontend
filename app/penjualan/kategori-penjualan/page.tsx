@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
-import { DataTable } from "@/components/ui";
+import { DataTable, StatusBadge } from "@/components/ui";
 import { KategoriPenjualanModal, type KategoriPenjualanFormData } from "@/components/modules/penjualan/CategorySalesModal";
 import type { Column } from "@/components/ui";
 import {
@@ -27,15 +27,10 @@ const COLUMNS: Column<KategoriPenjualan>[] = [
     label: "Status",
     width: "150px",
     render: (_value: unknown, row: KategoriPenjualan) => (
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-          row.isActive
-            ? "bg-green-100 text-green-800"
-            : "bg-red-100 text-red-800"
-        }`}
-      >
-        {row.isActive ? "Aktif" : "Tidak Aktif"}
-      </span>
+      <StatusBadge
+        status={row.isActive ? "Active" : "Inactive"}
+        variant={row.isActive ? "success" : "danger"}
+      />
     ),
   },
 ];
@@ -44,13 +39,23 @@ export default function KategoriPenjualanPage() {
   const [data, setData] = useState<KategoriPenjualan[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editData, setEditData] = useState<KategoriPenjualanFormData | undefined>();
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isLoading, setIsLoading] = useState(false);
 
-  const showMessage = useCallback((msg: string, type: "success" | "error" = "success") => {
-    setMessage(msg);
-    setMessageType(type);
+  const [confirmStatus, setConfirmStatus] = useState<{
+    open: boolean;
+    id: number;
+    nama: string;
+    currentStatus: boolean;
+  } | null>(null);
+
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  const showToast = useCallback((msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
   const fetchSalesCategory = useCallback(async () => {
@@ -59,11 +64,11 @@ export default function KategoriPenjualanPage() {
       const result = await categorySalesService.getAll();
       setData(result);
     } catch {
-      showMessage("Gagal memuat kategori penjualan", "error");
+      showToast("Gagal memuat kategori penjualan", "error");
     } finally {
       setIsLoading(false);
     }
-  }, [showMessage]);
+  }, [showToast]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -72,12 +77,6 @@ export default function KategoriPenjualanPage() {
 
     return () => window.clearTimeout(timer);
   }, [fetchSalesCategory]);
-
-  useEffect(() => {
-    if (!message) return;
-    const timer = window.setTimeout(() => setMessage(""), 3000);
-    return () => window.clearTimeout(timer);
-  }, [message]);
 
   const handleTambah = () => {
     setEditData(undefined);
@@ -105,27 +104,30 @@ export default function KategoriPenjualanPage() {
         ? await categorySalesService.update(formData.id, payload)
         : await categorySalesService.create(payload);
 
-      showMessage(msg, "success");
+      showToast(msg, "success");
       setModalOpen(false);
       await fetchSalesCategory();
     } catch {
-      showMessage("Gagal menyimpan kategori penjualan", "error");
+      showToast("Gagal menyimpan kategori penjualan", "error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleToggleStatus = async (row: KategoriPenjualan) => {
+  const confirmToggleStatus = async () => {
+    if (!confirmStatus) return;
+
     try {
       setIsLoading(true);
-      const msg = await categorySalesService.toggleStatus(row.id, {
-        isActive: !row.isActive,
+      const msg = await categorySalesService.toggleStatus(confirmStatus.id, {
+        isActive: !confirmStatus.currentStatus,
       });
 
-      showMessage(msg, "success");
+      showToast(msg, "success");
+      setConfirmStatus(null);
       await fetchSalesCategory();
     } catch {
-      showMessage("Gagal mengubah status kategori penjualan", "error");
+      showToast("Gagal mengubah status kategori penjualan", "error");
     } finally {
       setIsLoading(false);
     }
@@ -133,18 +135,6 @@ export default function KategoriPenjualanPage() {
 
   return (
     <AppShell title="Kategori Penjualan" subtitle="Master data kategori penjualan">
-      {message && (
-        <div
-          className={`mb-4 rounded-lg px-4 py-3 text-sm font-semibold ${
-            messageType === "error"
-              ? "border border-red-300 bg-red-100 text-red-700"
-              : "border border-green-300 bg-green-100 text-green-700"
-          }`}
-        >
-          {message}
-        </div>
-      )}
-
       <DataTable
         title="Daftar Kategori Penjualan"
         columns={COLUMNS}
@@ -154,24 +144,34 @@ export default function KategoriPenjualanPage() {
         onAdd={handleTambah}
         loading={isLoading}
         renderActions={(row) => (
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center gap-1.5 justify-center">
             <button
               onClick={() => handleEdit(row)}
               disabled={isLoading}
-              className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-md text-xs font-semibold font-sans
+                         bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors
+                         disabled:cursor-not-allowed disabled:opacity-50"
             >
               Edit
             </button>
+
             <button
-              onClick={() => handleToggleStatus(row)}
+              onClick={() =>
+                setConfirmStatus({
+                  open: true,
+                  id: row.id,
+                  nama: row.nama,
+                  currentStatus: row.isActive,
+                })
+              }
               disabled={isLoading}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors text-white disabled:cursor-not-allowed disabled:opacity-50 ${
                 row.isActive
-                  ? "bg-green-50 text-green-700 hover:bg-green-100"
-                  : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                  ? "bg-red-500 hover:bg-red-600"
+                  : "bg-emerald-500 hover:bg-emerald-600"
               }`}
             >
-              {row.isActive ? "Aktif" : "Nonaktif"}
+              {row.isActive ? "Deactivate" : "Activate"}
             </button>
           </div>
         )}
@@ -183,6 +183,75 @@ export default function KategoriPenjualanPage() {
         onSubmit={handleSubmit}
         initialData={editData}
       />
+
+      {confirmStatus?.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-[420px] rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div
+              className={`px-6 py-5 text-white ${
+                confirmStatus.currentStatus ? "bg-red-600" : "bg-emerald-600"
+              }`}
+            >
+              <h3 className="text-lg font-bold font-serif">
+                {confirmStatus.currentStatus
+                  ? "Deactivate Category?"
+                  : "Activate Category?"}
+              </h3>
+              <p className="mt-1 text-sm opacity-90 font-serif">
+                {confirmStatus.currentStatus
+                  ? "Kategori akan dinonaktifkan."
+                  : "Kategori akan diaktifkan kembali."}
+              </p>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm text-slate-600 font-serif">
+                Apakah kamu yakin ingin{" "}
+                <span className="font-bold text-slate-900">
+                  {confirmStatus.currentStatus ? "menonaktifkan" : "mengaktifkan"}
+                </span>{" "}
+                kategori{" "}
+                <span className="font-bold text-slate-900">
+                  {confirmStatus.nama}
+                </span>
+                ?
+              </p>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                onClick={() => setConfirmStatus(null)}
+                className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 font-serif"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmToggleStatus}
+                className={`px-4 py-2.5 rounded-lg text-sm font-semibold text-white font-serif ${
+                  confirmStatus.currentStatus
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                }`}
+              >
+                {confirmStatus.currentStatus ? "Ya, Deactivate" : "Ya, Activate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-[100] px-5 py-3.5 rounded-xl shadow-lg font-serif text-sm font-semibold
+          ${
+            toast.type === "success"
+              ? "bg-navy-900 text-gold-400 shadow-navy-900/30"
+              : "bg-red-600 text-white shadow-red-600/30"
+          }`}
+        >
+          {toast.msg}
+        </div>
+      )}
     </AppShell>
   );
 }

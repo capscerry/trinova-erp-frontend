@@ -52,7 +52,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true);
-        const response = await api.get("/category-customer");
+        const response = await api.get("/api/category-customer");
         const data = response.data;
         setCategories(data.data);
       } catch (error) {
@@ -112,7 +112,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
 
           {/* Header - Fixed */}
           <div className="flex items-center justify-between px-8 py-5
-                          bg-gradient-to-r from-navy-900 to-navy-600 flex-shrink-0">
+                          bg-linear-to-r from-navy-900 to-navy-600 flex-shrink-0">
             <div>
               <h2 className="text-white font-semibold text-lg tracking-tight">
                 {isEdit ? "Edit Customer" : "Tambah Customer Baru"}

@@ -11,6 +11,8 @@ export interface PengirimanItemForm {
   uomId?: number;
   qtyDipesan: number;
   qtyDikirim: number;
+  warehouseId?: number;
+  warehouseName?: string;
 }
 
 export interface PengirimanFormData {
@@ -62,6 +64,8 @@ export function newPengirimanItem(): PengirimanItemForm {
     uomId: undefined,
     qtyDipesan: 0,
     qtyDikirim: 0,
+    warehouseId: undefined,
+    warehouseName: "",
   };
 }
 
@@ -99,6 +103,7 @@ export function mapFormToApiPayload(
       uomId: item.uomId,
       qtyDipesan: item.qtyDipesan,
       qtyDikirim: item.qtyDikirim,
+      warehouseId: item.warehouseId ?? null,
     })),
   };
 }

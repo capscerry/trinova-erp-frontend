@@ -119,13 +119,17 @@ export function UserFormModal({
       errs.roleId = "Role wajib dipilih";
     }
 
-    if (!isEdit) {
+        if (!isEdit) {
       if (!form.password) {
         errs.password = "Password wajib diisi";
-      }
-
-      if (form.password && form.password.length < 6) {
-        errs.password = "Password minimal 6 karakter";
+      } else if (form.password.length < 8) {
+        errs.password = "Password minimal 8 karakter";
+      } else if (!/[A-Z]/.test(form.password)) {
+        errs.password = "Password harus memiliki minimal 1 huruf besar";
+      } else if (!/[a-z]/.test(form.password)) {
+        errs.password = "Password harus memiliki minimal 1 huruf kecil";
+      } else if (!/[0-9]/.test(form.password)) {
+        errs.password = "Password harus memiliki minimal 1 angka";
       }
 
       if (form.password !== form.confirmPassword) {
@@ -245,7 +249,7 @@ export function UserFormModal({
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field
+                        <Field
               label={isEdit ? "Password" : "Password"}
               required={!isEdit}
               error={errors.password}
@@ -256,7 +260,7 @@ export function UserFormModal({
                   value={form.password}
                   disabled={isEdit}
                   onChange={(e) => handleChange("password", e.target.value)}
-                  placeholder={isEdit ? "Tidak bisa diubah" : "Min. 6 karakter"}
+                  placeholder={isEdit ? "Tidak bisa diubah" : "Min. 8 karakter"}
                   className={cn(
                     inputCls(errors.password),
                     "pr-16",
@@ -275,6 +279,12 @@ export function UserFormModal({
                   </button>
                 )}
               </div>
+
+              {!isEdit && !errors.password && (
+                <p className="text-[11px] text-slate-400 mt-1 font-serif">
+                  Minimal 8 karakter, kombinasi huruf besar, huruf kecil, dan angka.
+                </p>
+              )}
             </Field>
 
             <Field
