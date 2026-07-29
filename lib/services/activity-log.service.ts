@@ -35,7 +35,6 @@ export interface ActivityLogEntry {
   activityType: string;
   /** Document type label, e.g. "Purchase Order" */
   documentType: string;
-  /** Human-readable document number, e.g. "PO.2026.07.00015" */
   documentNumber: string;
   title: string;
   description: string;
