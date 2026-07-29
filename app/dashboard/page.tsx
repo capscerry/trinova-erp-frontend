@@ -50,9 +50,7 @@ import { SpendingByCategory } from "@/components/modules/pembelian/dashboard/Spe
 import { AIRecommendationSummary } from "@/components/modules/pembelian/dashboard/AIRecommendationSummary";
 import { DashboardFilters, type ActiveFilters } from "@/components/modules/pembelian/dashboard/DashboardFilters";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 function formatRupiah(value: number): string {
   if (value >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(2).replace(".", ",")} M`;
