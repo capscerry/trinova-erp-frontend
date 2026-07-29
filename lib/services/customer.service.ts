@@ -50,29 +50,29 @@ export function mapCustomer(item: CustomerApi): Customer {
 
 export const customerService = {
   async getAll(): Promise<Customer[]> {
-    const res = await api.get<ApiResponse<CustomerApi[]>>("/customer");
+    const res = await api.get<ApiResponse<CustomerApi[]>>("/api/customer");
     return (res.data.data ?? []).map(mapCustomer);
   },
 
   async getAllActive() : Promise<Customer[]> {
-    const res = await api.get<ApiResponse<CustomerApi[]>>("/customer/active");
+    const res = await api.get<ApiResponse<CustomerApi[]>>("/api/customer/active");
     return (res.data.data ?? []).map(mapCustomer);
   },
 
   async getByCode(code: string): Promise<Customer> {
-    const res = await api.get<ApiResponse<CustomerApi>>(`/customer/${code}`);
+    const res = await api.get<ApiResponse<CustomerApi>>(`/api/customer/${code}`);
     return mapCustomer(res.data.data);
   },
 
   async create(payload: CustomerPayload): Promise<void> {
-    await api.post("/customer", payload);
+    await api.post("/api/customer", payload);
   },
 
   async update(code: string, payload: CustomerPayload): Promise<void> {
-    await api.put(`/customer/${code}`, payload);
+    await api.put(`/api/customer/${code}`, payload);
   },
 
   async remove(code: string): Promise<void> {
-    await api.delete(`/customer/${code}`);
+    await api.delete(`/api/customer/${code}`);
   },
 };

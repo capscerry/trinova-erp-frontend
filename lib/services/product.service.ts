@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/master-product";
+const BASE_URL = "/api/master-product";
 
 export async function getProducts() {
   const response = await api.get(BASE_URL);

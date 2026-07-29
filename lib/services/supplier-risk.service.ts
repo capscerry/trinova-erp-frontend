@@ -156,14 +156,14 @@ function unwrap<T>(res: any): T {
 export const predictSupplierRiskRaw = async (
   supplierId: number,
 ): Promise<RawPredictData> => {
-  const res = await api.get(`/supplier-risk/predict/${supplierId}`);
+  const res = await api.get(`/api/supplier-risk/predict/${supplierId}`);
   return unwrap<RawPredictData>(res);
 };
 
 // ─── Train — server-side bundled CSV ──────────────────────────────────────────
 
 export const trainFromServerCsv = async (): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train");
+  const res = await api.post("/api/supplier-risk/train");
   return unwrap<TrainResponse>(res);
 };
 
@@ -172,7 +172,7 @@ export const trainFromServerCsv = async (): Promise<TrainResponse> => {
 export const trainFromErp = async (
   appendToExisting = true,
 ): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train/from-erp", {
+  const res = await api.post("/api/supplier-risk/train/from-erp", {
     append_to_existing: appendToExisting,
   });
   return unwrap<TrainResponse>(res);
@@ -184,7 +184,7 @@ export const trainFromRows = async (
   rows: TrainRow[],
   appendToExisting = true,
 ): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train/from-rows", {
+  const res = await api.post("/api/supplier-risk/train/from-rows", {
     rows,
     append_to_existing: appendToExisting,
   });
@@ -196,7 +196,7 @@ export const trainFromRows = async (
 export const trainFromCsvUpload = async (file: File): Promise<TrainResponse> => {
   const form = new FormData();
   form.append("file", file);
-  const res = await api.post("/supplier-risk/train/from-csv-upload", form, {
+  const res = await api.post("/api/supplier-risk/train/from-csv-upload", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return unwrap<TrainResponse>(res);
@@ -220,7 +220,7 @@ export const rankWithAhpTopsis = async (
 ): Promise<BackendRankResponse> => {
   const body: Record<string, unknown> = { suppliers };
   if (ahpMatrix) body.ahp_matrix = { matrix: ahpMatrix };
-  const res = await api.post("/supplier-risk/rank/ahp-topsis", body);
+  const res = await api.post("/api/supplier-risk/rank/ahp-topsis", body);
   return unwrap<BackendRankResponse>(res);
 };
 
@@ -242,7 +242,7 @@ export interface BatchPredictResponse {
 }
 
 export const predictAllSuppliers = async (): Promise<BatchPredictResponse> => {
-  const res = await api.get("/supplier-risk/predict/all");
+  const res = await api.get("/api/supplier-risk/predict/all");
   const data = unwrap<any>(res);
   // Backend may return { results: [...], total: N } or just an array
   if (Array.isArray(data)) return { results: data, total: data.length };
@@ -275,7 +275,7 @@ export interface FullEvaluationResponse {
 export const evaluateAll = async (
   appendToExisting = true,
 ): Promise<FullEvaluationResponse> => {
-  const res = await api.post("/supplier-risk/evaluate/all", {
+  const res = await api.post("/api/supplier-risk/evaluate/all", {
     append_to_existing: appendToExisting,
   });
   return unwrap<FullEvaluationResponse>(res);

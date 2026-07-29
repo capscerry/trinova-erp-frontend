@@ -92,32 +92,32 @@ function mapPR(item: PurchaseRequisitionApi): PurchaseRequisition {
 }
 
 export async function getPurchaseRequisitionDetail(id: number) {
-  const response = await api.get(`/PurchaseRequisition/${id}`);
+  const response = await api.get(`/api/PurchaseRequisition/${id}`);
   return response.data;
 }
 
 export async function getPurchaseRequisitions() {
-  const response = await api.get("/PurchaseRequisition");
+  const response = await api.get("/api/PurchaseRequisition");
   return response.data;
 }
 
 export async function getPurchaseRequisitionById(id: number) {
-  const response = await api.get(`/PurchaseRequisition/${id}`);
+  const response = await api.get(`/api/PurchaseRequisition/${id}`);
   return response.data;
 }
 
 export async function createPurchaseRequisition(payload: CreatePurchaseRequisitionRequest) {
-  const response = await api.post("/PurchaseRequisition", payload);
+  const response = await api.post("/api/PurchaseRequisition", payload);
   return response.data;
 }
 
 export async function updatePurchaseRequisition(id: number, payload: Partial<PurchaseRequisitionApi>) {
-  const response = await api.put(`/PurchaseRequisition/${id}`, payload);
+  const response = await api.put(`/api/PurchaseRequisition/${id}`, payload);
   return response.data;
 }
 
 export async function deletePurchaseRequisition(id: number) {
-  const response = await api.delete(`/PurchaseRequisition/${id}`);
+  const response = await api.delete(`/api/PurchaseRequisition/${id}`);
   return response.data;
 }
 
@@ -159,12 +159,12 @@ function isPrValidForPO(pr: PurchaseRequisition): boolean {
 
 export const purchaseRequisitionService = {
   async getAll(): Promise<PurchaseRequisition[]> {
-    const response = await api.get("/PurchaseRequisition");
+    const response = await api.get("/api/PurchaseRequisition");
     return normalizeList(response.data).map(mapPR);
   },
 
   async getById(id: number | string): Promise<PurchaseRequisition> {
-    const response = await api.get(`/PurchaseRequisition/${id}`);
+    const response = await api.get(`/api/PurchaseRequisition/${id}`);
     const raw: PurchaseRequisitionApi = response.data?.data ?? response.data;
     return mapPR(raw);
   },
@@ -185,7 +185,7 @@ export const purchaseRequisitionService = {
       // client-side filtering of the full list.
       let raw: PurchaseRequisitionApi[] = [];
       try {
-        const res = await api.get("/PurchaseRequisition/for-po-selection");
+        const res = await api.get("/api/PurchaseRequisition/for-po-selection");
         raw = normalizeList(res.data);
         if (raw.length > 0) {
           const mapped = raw.map(mapPR);
@@ -197,7 +197,7 @@ export const purchaseRequisitionService = {
       }
 
       // Fallback: fetch all and filter client-side
-      const allRes = await api.get("/PurchaseRequisition");
+      const allRes = await api.get("/api/PurchaseRequisition");
       raw = normalizeList(allRes.data);
       const all = raw.map(mapPR);
       const valid = all.filter(isPrValidForPO);

@@ -173,12 +173,12 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
   };
 
   const [pos, grs, invs, pays, rtns, dps] = await Promise.all([
-    safeGet("/purchase-order"),
-    safeGet("/goods-receipt"),
-    safeGet("/purchase-invoice"),
-    safeGet("/purchase-payment"),
-    safeGet("/purchase-return"),
-    safeGet("/purchase-down-payment"),
+    safeGet("/api/purchase-order"),
+    safeGet("/api/goods-receipt"),
+    safeGet("/api/purchase-invoice"),
+    safeGet("/api/purchase-payment"),
+    safeGet("/api/purchase-return"),
+    safeGet("/api/purchase-down-payment"),
   ]);
 
   const entries: ActivityLogEntry[] = [];
@@ -197,7 +197,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       createdAt: toIso(r.order_date ?? r.created_at),
       userName: r.created_by ?? undefined,
       status: status === "cancelled" ? "error" : status === "approved" || status === "completed" ? "success" : "info",
-      href: "/pembelian/po",
+      href: "/api/pembelian/po",
     });
   });
 
@@ -214,7 +214,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       createdAt: toIso(r.receipt_date ?? r.created_at),
       userName: r.received_by ?? undefined,
       status: r.status === "Cancelled" ? "error" : r.status === "Received" ? "success" : "info",
-      href: "/pembelian/gr",
+      href: "/api/pembelian/gr",
     });
   });
 
@@ -231,7 +231,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       description: `Rp ${rupiah(Number(r.total_amount ?? 0))} · Outstanding: Rp ${rupiah(outstanding)} · ${r.supplier_name ?? "–"}`,
       createdAt: toIso(r.invoice_date ?? r.created_at),
       status: r.status === "Paid" ? "success" : r.status === "Cancelled" ? "error" : outstanding > 0 ? "warning" : "info",
-      href: "/pembelian/invoice",
+      href: "/api/pembelian/invoice",
     });
   });
 
@@ -247,7 +247,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       description: `Rp ${rupiah(Number(r.amount ?? 0))} · ${r.payment_method ?? "–"} · ${r.supplier_name ?? "–"}`,
       createdAt: toIso(r.payment_date ?? r.created_at),
       status: "success",
-      href: "/pembelian/payment",
+      href: "/api/pembelian/payment",
     });
   });
 
@@ -263,7 +263,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       description: `Rp ${rupiah(Number(r.total_amount ?? 0))} · Status: ${r.status ?? "–"} · ${r.supplier_name ?? "–"}`,
       createdAt: toIso(r.return_date ?? r.created_at),
       status: r.status === "Closed" ? "success" : r.status === "Cancelled" ? "error" : "warning",
-      href: "/pembelian/retur",
+      href: "/api/pembelian/retur",
     });
   });
 
@@ -279,7 +279,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
       description: `Rp ${rupiah(Number(r.amount ?? r.dp_amount ?? 0))} · Status: ${r.status ?? "–"} · ${r.supplier_name ?? "–"}`,
       createdAt: toIso(r.payment_date ?? r.dp_date ?? r.created_at),
       status: r.status === "Paid" ? "success" : r.status === "Cancelled" ? "error" : "warning",
-      href: "/pembelian/pdp",
+      href: "/api/pembelian/pdp",
     });
   });
 
@@ -300,7 +300,7 @@ async function buildFromTransactions(): Promise<ActivityLogEntry[]> {
 export async function getRecentActivities(limit = 20): Promise<ActivityLogEntry[]> {
   try {
     // Attempt 1: dedicated activity log endpoint
-    const res = await api.get(`/activity-log?limit=${limit}`);
+    const res = await api.get(`/api/activity-log?limit=${limit}`);
     const data = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? res.data?.items ?? []);

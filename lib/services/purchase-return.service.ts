@@ -21,17 +21,17 @@ export interface PurchaseReturnPayload {
 }
 
 export const getPurchaseReturns = async () => {
-  const response = await api.get("/purchase-return");
+  const response = await api.get("/api/purchase-return");
   return response.data;
 };
 
 export const getNextReturnNumber = async (): Promise<string> => {
-  const response = await api.get("/purchase-return/next-number");
+  const response = await api.get("/api/purchase-return/next-number");
   return response.data?.next_number ?? response.data;
 };
 
 export const createPurchaseReturn = async (payload: PurchaseReturnPayload) => {
-  const response = await api.post("/purchase-return", payload);
+  const response = await api.post("/api/purchase-return", payload);
   return response.data;
 };
 
@@ -39,12 +39,12 @@ export const updatePurchaseReturn = async (
   id: number,
   payload: Partial<PurchaseReturnPayload> & { status?: string }
 ) => {
-  const response = await api.put(`/purchase-return/${id}`, payload);
+  const response = await api.put(`/api/purchase-return/${id}`, payload);
   return response.data;
 };
 
 export const deletePurchaseReturn = async (id: number) => {
-  const response = await api.delete(`/purchase-return/${id}`);
+  const response = await api.delete(`/api/purchase-return/${id}`);
   return response.data;
 };
 
@@ -54,7 +54,7 @@ export const deletePurchaseReturn = async (id: number) => {
  * products and quantities that were originally returned.
  */
 export const getReturnDetails = async (returnId: number) => {
-  const response = await api.get(`/purchase-return/${returnId}/details`);
+  const response = await api.get(`/api/purchase-return/${returnId}/details`);
   return response.data;
 };
 

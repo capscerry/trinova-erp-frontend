@@ -1,18 +1,18 @@
 import { api } from "@/lib/api";
 
 export async function getTransfers() {
-  const response = await api.get("/StockTransfer");
+  const response = await api.get("/api/StockTransfer");
   return response.data;
 }
 
 export async function getTransferById(id: number) {
-  const response = await api.get(`/StockTransfer/${id}`);
+  const response = await api.get(`/api/StockTransfer/${id}`);
   return response.data;
 }
 
 export async function transferStock(payload: any) {
   const response = await api.post(
-    "/StockTransfer",
+    "/api/StockTransfer",
     payload
   );
 
@@ -23,7 +23,7 @@ export async function processTransfer(
   id: number
 ) {
   const response = await api.put(
-    `/StockTransfer/${id}/process`
+    `/api/StockTransfer/${id}/process`
   );
 
   return response.data;
@@ -33,7 +33,7 @@ export async function completeTransfer(
   id: number
 ) {
   const response = await api.put(
-    `/StockTransfer/${id}/complete`
+    `/api/StockTransfer/${id}/complete`
   );
 
   return response.data;
@@ -43,7 +43,7 @@ export async function cancelTransfer(
   movementId: number
 ) {
   const response = await api.put(
-    `/StockTransfer/${movementId}/cancel`
+    `/api/StockTransfer/${movementId}/cancel`
   );
 
   return response.data;

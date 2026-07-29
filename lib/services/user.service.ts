@@ -130,13 +130,13 @@ export function mapAuthUser(item: LoginResponseApi): AuthUser {
 
 export const masterUserService = {
   async getAll(): Promise<MasterUser[]> {
-    const response = await api.get<ApiResponse<MasterUserApi[]>>("/user-list");
+    const response = await api.get<ApiResponse<MasterUserApi[]>>("/api/user-list");
     return (response.data.data ?? []).map(mapMasterUser);
   },
 
   async create(payload: CreateMasterUserPayload): Promise<boolean> {
     const response = await api.post<ApiResponse<boolean>>(
-      "/create-user",
+      "/api/create-user",
       payload
     );
 
@@ -145,7 +145,7 @@ export const masterUserService = {
 
   async update(payload: UpdateMasterUserPayload): Promise<boolean> {
     const response = await api.put<ApiResponse<boolean>>(
-      "/update-user",
+      "/api/update-user",
       payload
     );
 
@@ -154,7 +154,7 @@ export const masterUserService = {
 
   async toggleStatus(id: number): Promise<boolean> {
     const response = await api.put<ApiResponse<boolean>>(
-      `/toggle-user-status/${id}`
+      `/api/toggle-user-status/${id}`
     );
 
     return response.data.data ?? false;
@@ -163,7 +163,7 @@ export const masterUserService = {
 
 export const roleService = {
   async getAll(): Promise<MasterRole[]> {
-    const response = await api.get<ApiResponse<MasterRoleApi[]>>("/role-list");
+    const response = await api.get<ApiResponse<MasterRoleApi[]>>("/api/role-list");
     return (response.data.data ?? []).map(mapMasterRole);
   },
 };
@@ -171,7 +171,7 @@ export const roleService = {
 export const authService = {
   async login(payload: LoginApi): Promise<AuthUser> {
     const response = await api.post<ApiResponse<LoginResponseApi>>(
-      "/auth/login",
+      "/api/auth/login",
       payload
     );
 

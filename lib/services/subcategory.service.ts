@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/product-subcategories";
+const BASE_URL = "/api/product-subcategories";
 
 export interface ProductSubcategory {
   subcategory_id: number;

@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/OrderFulfillment";
+const BASE_URL = "/api/OrderFulfillment";
 
 export async function getOrderFulfillments() {
     const res = await api.get(BASE_URL);

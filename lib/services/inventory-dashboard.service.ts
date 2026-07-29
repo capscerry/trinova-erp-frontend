@@ -29,6 +29,6 @@ export interface InventoryDashboard {
 }
 
 export async function getInventoryDashboard() {
-  const response = await api.get("/InventoryDashboard");
+  const response = await api.get("/api/InventoryDashboard");
   return response.data as InventoryDashboard;
 }
