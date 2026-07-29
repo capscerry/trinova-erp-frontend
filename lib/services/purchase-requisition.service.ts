@@ -144,7 +144,7 @@ function isDetailLineValid(detail: PurchaseRequisitionDetail): boolean {
  *  - at least one detail line passes isDetailLineValid
  *
  * PRs whose details array is empty (not yet loaded) are kept so that the
- * picker can fetch the full record by ID on selection — if the full record
+ * picker can fetch the full record by ID on selection â€” if the full record
  * turns out to have no valid lines, the items table will just be empty.
  */
 function isPrValidForPO(pr: PurchaseRequisition): boolean {
@@ -193,7 +193,7 @@ export const purchaseRequisitionService = {
           return mapped;
         }
       } catch {
-        // Endpoint not yet available — fall through to client-side filtering
+        // Endpoint not yet available â€” fall through to client-side filtering
       }
 
       // Fallback: fetch all and filter client-side

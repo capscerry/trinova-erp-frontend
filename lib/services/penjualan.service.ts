@@ -79,7 +79,7 @@ export interface Product {
   uomId : number;
   tipe: string;
   kategori: string;
-  /** Total stok tersedia (semua gudang) — sumber: /api/product-data */
+  /** Total stok tersedia (semua gudang) â€” sumber: /api/product-data */
   stock: number;
 }
 
@@ -385,7 +385,7 @@ export const salesOrderService = {
       payload
     );
 
-    // Backend membungkus response create dalam { header, detail } — BEDA
+    // Backend membungkus response create dalam { header, detail } â€” BEDA
     // dengan endpoint list/get yang mengembalikan field rata (flat). Kalau
     // langsung di-mapSalesOrder tanpa unwrap dulu, semua field (termasuk id)
     // jadi undefined karena mapSalesOrder mencari item.orderId, bukan
@@ -401,7 +401,7 @@ export const salesOrderService = {
     await api.delete(`/sales-order/${id}`);
   },
 
-  /** Batalkan Sales Order — melepas reservasi stok untuk bagian yang belum dikirim */
+  /** Batalkan Sales Order â€” melepas reservasi stok untuk bagian yang belum dikirim */
   async cancel(id: number | string): Promise<void> {
     await api.patch(`/sales-order/${id}/cancel`);
   },
