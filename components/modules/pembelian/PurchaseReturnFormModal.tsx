@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Plus, Minus, AlertTriangle, Info } from "lucide-react";
+import { X, Plus, Minus, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Settlement options ───────────────────────────────────────────────────────
+// --- Settlement options -------------------------------------------------------
 
 export type SettlementOption =
   | "Accept Loss"
@@ -17,7 +17,7 @@ export interface GoodsReceiptOption {
   supplier_id: number;
   supplier_name: string;
   purchase_order_number: string;
-  /** The PO id that backs this GR — needed to load its detail items */
+  /** The PO id that backs this GR - needed to load its detail items */
   purchase_order_id: number;
   total_amount: number;
   nomor_faktur_pajak?: string;
@@ -32,12 +32,16 @@ export interface PODetailItem {
   subtotal: number;
 }
 
-/** A line in the return — subset of the GR's products */
+/** A line in the return - subset of the GR's products */
 export interface ReturnLineItem {
   product_id: number;
   product_name: string;
-  qty_available: number;  // max from GR
-  qty_return: number;     // what the user chose to return
+  /** Original received quantity - shown as read-only "Diterima" reference */
+  qty_available: number;
+  /** Units still available to return (remaining_qty from the backend) */
+  remaining_qty: number;
+  /** What the user chose to return - capped at remaining_qty */
+  qty_return: number;
   unit_price: number;
   subtotal: number;       // qty_return * unit_price
 }
@@ -56,7 +60,7 @@ export interface PurchaseReturnFormData {
   closing_condition: string;
   transaction_name: string;
   transaction_detail: string;
-  /** Serialised line items — passed through as notes / for stock restoration */
+  /** Serialised line items - passed through as notes / for stock restoration */
   return_items: ReturnLineItem[];
 }
 
@@ -72,14 +76,21 @@ interface PurchaseReturnFormModalProps {
   onClose: () => void;
   onSubmit: (data: PurchaseReturnFormData) => void;
   goodsReceipts: GoodsReceiptOption[];
-  poDetails: PODetailItem[];
+  /**
+   * Called when the user picks a Goods Receipt.
+   * The page fetches `/purchase-return/gr/{grId}/available-details` and
+   * returns the line items pre-shaped as ReturnLineItem[] (remaining_qty > 0
+   * lines only, with unit_price resolved from PO details).
+   * Return an empty array if the fetch fails - the form will show a warning.
+   */
+  onLoadReturnItems: (grId: number) => Promise<ReturnLineItem[]>;
   /** Auto-generated next return number from the backend */
   nextNumber?: string;
-  /** Used to guard the Next PO Deduction option — pass all POs from the page */
+  /** Used to guard the Next PO Deduction option - pass all POs from the page */
   purchaseOrders?: PurchaseOrderForValidation[];
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 const SETTLEMENT_OPTIONS: SettlementOption[] = [
   "Accept Loss",
@@ -125,14 +136,14 @@ function buildEmptyForm(nextNumber = ""): PurchaseReturnFormData {
 const formatRp = (n: number) =>
   new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 export default function PurchaseReturnFormModal({
   open,
   onClose,
   onSubmit,
   goodsReceipts,
-  poDetails,
+  onLoadReturnItems,
   nextNumber,
   purchaseOrders = [],
 }: PurchaseReturnFormModalProps) {
@@ -140,12 +151,14 @@ export default function PurchaseReturnFormModal({
     buildEmptyForm(nextNumber)
   );
   const [returnItems, setReturnItems] = useState<ReturnLineItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   // Reset whenever the modal opens
   useEffect(() => {
     if (!open) return;
     setForm(buildEmptyForm(nextNumber));
     setReturnItems([]);
+    setLoadingItems(false);
   }, [open, nextNumber]);
 
   if (!open) return null;
@@ -154,7 +167,7 @@ export default function PurchaseReturnFormModal({
     (gr) => gr.goods_receipt_id === form.goods_receipt_id
   );
 
-  // Compute whether any active POs exist for the selected supplier —
+  // Compute whether any active POs exist for the selected supplier -
   // used to guard the "Next PO Deduction" settlement option.
   const INACTIVE_PO_STATUSES = new Set(["Cancelled", "Completed", "Closed"]);
   const hasEligiblePOs = purchaseOrders.some((po) => {
@@ -166,9 +179,9 @@ export default function PurchaseReturnFormModal({
     );
   });
 
-  // ── When user picks a GR, populate return-item rows from PO details ─────────
+  // -- When user picks a GR, load returnable lines from the backend ------------
 
-  const handleGRChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleGRChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const grId = Number(e.target.value);
     const gr = goodsReceipts.find((g) => g.goods_receipt_id === grId);
 
@@ -186,20 +199,8 @@ export default function PurchaseReturnFormModal({
       return;
     }
 
-    // Load PO detail items for this GR's PO
-    const items = poDetails
-      .filter((d) => Number(d.purchase_order_id) === Number(gr.purchase_order_id))
-      .map((d) => ({
-        product_id: d.product_id,
-        product_name: d.product_name ?? `Produk #${d.product_id}`,
-        qty_available: d.quantity,
-        qty_return: 0,
-        unit_price: d.price,
-        subtotal: 0,
-      } satisfies ReturnLineItem));
-
-    setReturnItems(items);
-
+    // Optimistically clear the previous GR's lines while fetching
+    setReturnItems([]);
     setForm((f) => ({
       ...f,
       goods_receipt_id: gr.goods_receipt_id,
@@ -207,17 +208,28 @@ export default function PurchaseReturnFormModal({
       supplier_name: gr.supplier_name,
       purchase_order_number: gr.purchase_order_number,
       total_amount: 0,
-      return_items: items,
+      return_items: [],
     }));
+
+    // Fetch lines that still have remaining_qty > 0 from the backend
+    setLoadingItems(true);
+    try {
+      const items = await onLoadReturnItems(gr.goods_receipt_id);
+      setReturnItems(items);
+      setForm((f) => ({ ...f, return_items: items }));
+    } finally {
+      setLoadingItems(false);
+    }
   };
 
-  // ── Quantity change for a return line ──────────────────────────────────────
+  // -- Quantity change for a return line --------------------------------------
 
   const handleQtyChange = (productId: number, raw: number) => {
     setReturnItems((prev) => {
       const next = prev.map((item) => {
         if (item.product_id !== productId) return item;
-        const qty = Math.max(0, Math.min(raw, item.qty_available));
+        // Cap at remaining_qty - this is the backend-enforced maximum
+        const qty = Math.max(0, Math.min(raw, item.remaining_qty));
         return { ...item, qty_return: qty, subtotal: qty * item.unit_price };
       });
       const total = next.reduce((s, i) => s + i.subtotal, 0);
@@ -226,7 +238,7 @@ export default function PurchaseReturnFormModal({
     });
   };
 
-  // ─── Submit ────────────────────────────────────────────────────────────────
+  // --- Submit ----------------------------------------------------------------
 
   const handleSubmit = () => {
     if (!selectedGR) return;
@@ -276,7 +288,7 @@ export default function PurchaseReturnFormModal({
             </button>
           </div>
 
-          {/* Body — scrollable */}
+          {/* Body - scrollable */}
           <div className="overflow-y-auto flex-1 p-6 space-y-5">
             {/* Return number */}
             <FormField label="Nomor Retur">
@@ -313,7 +325,7 @@ export default function PurchaseReturnFormModal({
                   <option value={0}>Pilih Goods Receipt</option>
                   {goodsReceipts.map((gr) => (
                     <option key={gr.goods_receipt_id} value={gr.goods_receipt_id}>
-                      {gr.receipt_number} — {gr.supplier_name}
+                      {gr.receipt_number} - {gr.supplier_name}
                     </option>
                   ))}
                 </select>
@@ -349,16 +361,20 @@ export default function PurchaseReturnFormModal({
               </div>
             )}
 
-            {/* ── Product / quantity picker ─────────────────────────────── */}
             {selectedGR && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">
                   Produk yang Dikembalikan
                 </label>
 
-                {returnItems.length === 0 ? (
+                {loadingItems ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-xs text-slate-500 text-center">
+                    Memuat data produk-
+                  </div>
+                ) : returnItems.length === 0 ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                    Tidak ada item ditemukan pada PO terkait GR ini.
+                    Tidak ada item tersisa untuk dikembalikan pada Goods Receipt ini.
+                    Semua qty sudah habis di-retur sebelumnya.
                   </div>
                 ) : (
                   <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -368,8 +384,11 @@ export default function PurchaseReturnFormModal({
                           <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">
                             Produk
                           </th>
-                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-24">
-                            Tersedia
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-20">
+                            Diterima
+                          </th>
+                          <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-20">
+                            Sisa
                           </th>
                           <th className="px-3 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-32">
                             Qty Retur
@@ -394,18 +413,27 @@ export default function PurchaseReturnFormModal({
                             <td className="px-3 py-2.5 font-medium text-slate-700">
                               {item.product_name}
                             </td>
-                            <td className="px-3 py-2.5 text-center text-slate-500">
+                            {/* Diterima - original received qty, read-only reference */}
+                            <td className="px-3 py-2.5 text-center text-slate-400">
                               {item.qty_available}
+                            </td>
+                            {/* Sisa - remaining returnable qty, drives the cap */}
+                            <td className={cn(
+                              "px-3 py-2.5 text-center font-semibold",
+                              item.remaining_qty === 0
+                                ? "text-rose-500"
+                                : item.remaining_qty < item.qty_available
+                                  ? "text-amber-600"
+                                  : "text-emerald-600"
+                            )}>
+                              {item.remaining_qty}
                             </td>
                             <td className="px-3 py-2.5">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleQtyChange(
-                                      item.product_id,
-                                      item.qty_return - 1
-                                    )
+                                    handleQtyChange(item.product_id, item.qty_return - 1)
                                   }
                                   disabled={item.qty_return <= 0}
                                   className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
@@ -415,27 +443,19 @@ export default function PurchaseReturnFormModal({
                                 <input
                                   type="number"
                                   min={0}
-                                  max={item.qty_available}
+                                  max={item.remaining_qty}
                                   value={item.qty_return}
                                   onChange={(e) =>
-                                    handleQtyChange(
-                                      item.product_id,
-                                      Number(e.target.value)
-                                    )
+                                    handleQtyChange(item.product_id, Number(e.target.value))
                                   }
                                   className="w-14 text-center text-sm font-semibold rounded border border-slate-200 py-1 px-1 focus:outline-none focus:ring-1 focus:ring-navy-300"
                                 />
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleQtyChange(
-                                      item.product_id,
-                                      item.qty_return + 1
-                                    )
+                                    handleQtyChange(item.product_id, item.qty_return + 1)
                                   }
-                                  disabled={
-                                    item.qty_return >= item.qty_available
-                                  }
+                                  disabled={item.qty_return >= item.remaining_qty}
                                   className="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
                                 >
                                   <Plus size={11} />
@@ -448,7 +468,7 @@ export default function PurchaseReturnFormModal({
                             <td className="px-3 py-2.5 text-right font-semibold text-slate-700">
                               {item.qty_return > 0
                                 ? `Rp ${formatRp(item.subtotal)}`
-                                : "—"}
+                                : "-"}
                             </td>
                           </tr>
                         ))}
@@ -456,7 +476,7 @@ export default function PurchaseReturnFormModal({
                       <tfoot>
                         <tr className="border-t border-slate-200 bg-slate-50">
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wide text-slate-500"
                           >
                             Total Retur
@@ -497,19 +517,19 @@ export default function PurchaseReturnFormModal({
                   const disableNextPO = isNextPO && !!selectedGR && !hasEligiblePOs;
                   return (
                     <option key={option} value={option} disabled={disableNextPO}>
-                      {option === "Accept Loss"       ? "Opsi A — Penggantian Barang (Accept Loss)" :
+                      {option === "Accept Loss"       ? "Opsi A - Penggantian Barang (Accept Loss)" :
                        option === "Next PO Deduction"
                          ? disableNextPO
-                           ? "Opsi B — Potong PO Berikutnya (tidak tersedia — belum ada PO aktif)"
-                           : "Opsi B — Terima Kerugian / Potong PO Berikutnya"
-                         : option === "Cash Refund"    ? "Opsi C — Cash Refund (Uang Kembali)"
+                           ? "Opsi B - Potong PO Berikutnya (tidak tersedia - belum ada PO aktif)"
+                           : "Opsi B - Terima Kerugian / Potong PO Berikutnya"
+                         : option === "Cash Refund"    ? "Opsi C - Cash Refund (Uang Kembali)"
                          : option}
                     </option>
                   );
                 })}
               </select>
 
-              {/* Next PO Deduction — no eligible POs warning */}
+              {/* Next PO Deduction - no eligible POs warning */}
               {form.settlement_option === "Next PO Deduction" && selectedGR && !hasEligiblePOs && (
                 <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
                   <AlertTriangle size={14} className="mt-0.5 shrink-0 text-rose-500" />
@@ -521,8 +541,8 @@ export default function PurchaseReturnFormModal({
                       Buat PO baru untuk supplier ini terlebih dahulu, atau pilih opsi lain:
                     </p>
                     <ul className="list-disc list-inside space-y-0.5 text-rose-700">
-                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
-                      <li><span className="font-semibold">Opsi C</span> — Nilai retur dikembalikan tunai melalui invoice</li>
+                      <li><span className="font-semibold">Opsi A</span> - Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi C</span> - Nilai retur dikembalikan tunai melalui invoice</li>
                     </ul>
                   </div>
                 </div>
@@ -540,8 +560,8 @@ export default function PurchaseReturnFormModal({
                       Jika tidak ada, pilih:
                     </p>
                     <ul className="list-disc list-inside space-y-0.5 text-amber-700">
-                      <li><span className="font-semibold">Opsi A</span> — Supplier mengirim kembali barang pengganti</li>
-                      <li><span className="font-semibold">Opsi B</span> — Nilai retur dipotong dari PO berikutnya</li>
+                      <li><span className="font-semibold">Opsi A</span> - Supplier mengirim kembali barang pengganti</li>
+                      <li><span className="font-semibold">Opsi B</span> - Nilai retur dipotong dari PO berikutnya</li>
                     </ul>
                     <p className="text-amber-600 italic">
                       Jika Anda menyimpan dengan Opsi C saat tidak ada invoice outstanding, server akan menolak permintaan ini.
@@ -600,7 +620,12 @@ export default function PurchaseReturnFormModal({
                 Pilih Goods Receipt terlebih dahulu untuk mengisi data retur.
               </div>
             )}
-            {selectedGR && !hasSelection && (
+            {selectedGR && !loadingItems && returnItems.length === 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                Goods Receipt ini tidak memiliki sisa qty yang dapat dikembalikan.
+              </div>
+            )}
+            {selectedGR && !loadingItems && returnItems.length > 0 && !hasSelection && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Pilih setidaknya satu produk dengan qty retur lebih dari 0.
               </div>
@@ -621,6 +646,7 @@ export default function PurchaseReturnFormModal({
               onClick={handleSubmit}
               disabled={
                 !selectedGR ||
+                loadingItems ||
                 !hasSelection ||
                 (form.settlement_option === "Next PO Deduction" && !!selectedGR && !hasEligiblePOs)
               }
@@ -635,7 +661,7 @@ export default function PurchaseReturnFormModal({
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// --- Sub-components -----------------------------------------------------------
 
 function FormField({
   label,

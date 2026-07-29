@@ -4,13 +4,13 @@ import { X, RefreshCcw, Scissors, Banknote, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 
 const fmtDate = (d: string) => {
-  if (!d) return "—";
+  if (!d) return "-";
   try {
     return new Intl.DateTimeFormat("id-ID", {
       day: "2-digit", month: "long", year: "numeric",
@@ -36,7 +36,7 @@ function settlementIcon(option: string) {
   return null;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// --- Sub-components -----------------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -51,7 +51,7 @@ function Divider() {
   return <div className="border-t border-slate-100" />;
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// --- Props --------------------------------------------------------------------
 
 export interface PurchaseReturnDetailData {
   purchase_return_id: number;
@@ -77,7 +77,7 @@ interface PurchaseReturnDetailModalProps {
   data: PurchaseReturnDetailData | null;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// --- Component ----------------------------------------------------------------
 
 export default function PurchaseReturnDetailModal({
   open,
@@ -106,7 +106,7 @@ export default function PurchaseReturnDetailModal({
         returnItems = parsed as ReturnLineItem[];
       }
     } catch {
-      // not JSON — leave returnItems empty
+      // not JSON - leave returnItems empty
     }
   }
 
@@ -147,7 +147,7 @@ export default function PurchaseReturnDetailModal({
     const headerFields: [string, string][] = [
       ["DATE",          fmtDate(data.return_date)],
       ["RETURN NUMBER", data.purchase_return_number],
-      ["PO NUMBER",     data.purchase_order_number || "—"],
+      ["PO NUMBER",     data.purchase_order_number || "-"],
     ];
     headerFields.forEach(([label, value]) => {
       ws[C(r, 0)] = { v: "",    t: "s" };
@@ -214,8 +214,8 @@ export default function PurchaseReturnDetailModal({
     r++;
 
     // Details values
-    ws[C(r, 0)] = { v: data.settlement_option || "—", t: "s", s: sCell  };
-    ws[C(r, 1)] = { v: data.notes?.trim() || "—",      t: "s", s: sCellL };
+    ws[C(r, 0)] = { v: data.settlement_option || "-", t: "s", s: sCell  };
+    ws[C(r, 1)] = { v: data.notes?.trim() || "-",      t: "s", s: sCellL };
     ws[C(r, 2)] = { v: "",                              t: "s", s: sCellL };
     ws[C(r, 3)] = { v: data.total_amount,               t: "n", s: { font: { sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right", vertical: "center" }, fill: WHITE, border: THIN, numFmt: '#,##0' } };
     merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
@@ -326,11 +326,11 @@ export default function PurchaseReturnDetailModal({
               </Field>
 
               <Field label="No. PO Terkait">
-                <span className="font-mono">{data.purchase_order_number || "—"}</span>
+                <span className="font-mono">{data.purchase_order_number || "-"}</span>
               </Field>
 
               <Field label="GR ID">
-                {data.goods_receipt_id > 0 ? String(data.goods_receipt_id) : "—"}
+                {data.goods_receipt_id > 0 ? String(data.goods_receipt_id) : "-"}
               </Field>
 
               <Field label="Total Retur">
@@ -404,7 +404,7 @@ export default function PurchaseReturnDetailModal({
                   Kondisi Penyelesaian
                 </p>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  {data.closing_condition || "—"}
+                  {data.closing_condition || "-"}
                 </p>
               </div>
 

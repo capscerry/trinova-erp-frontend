@@ -13,9 +13,9 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // TYPES
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 interface PurchaseOrderItem {
   id: string;
@@ -52,7 +52,7 @@ interface PurchaseOrderDetailData {
 
   items: PurchaseOrderItem[];
 
-  /** Stored total from the DB — may be lower than items sum if a purchase return deduction was applied */
+  /** Stored total from the DB - may be lower than items sum if a purchase return deduction was applied */
   total_amount?: number;
 
   transaction_name?: string;
@@ -70,9 +70,9 @@ interface PurchaseOrderDetailModalProps {
   data: PurchaseOrderDetailData | null;
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // HELPERS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const formatDate = (
   d: string
@@ -98,9 +98,9 @@ const formatRupiah = (
     }
   ).format(n);
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // COMPONENT
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 export default function PurchaseOrderDetailModal({
   open,
@@ -123,13 +123,13 @@ export default function PurchaseOrderDetailModal({
   // The stored DB total_amount can be stale (e.g. PO header saved before all
   // items were added), so trusting it would produce a spurious "return
   // deduction" banner. A real return deduction is only meaningful when a
-  // purchase-return settlement record explicitly references this PO — which
+  // purchase-return settlement record explicitly references this PO - which
   // the Detail modal does not have access to. Showing a deduction based purely
   // on a header/items mismatch is misleading, so we drop that inference here.
   const storedTotal = itemsTotal;
   const returnDeduction = 0;
 
-  // ── Export to Excel ────────────────────────────────────────────────────
+  // -- Export to Excel ----------------------------------------------------
   const exportToExcel = () => {
     const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
     const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
@@ -695,7 +695,7 @@ export default function PurchaseOrderDetailModal({
                         Return Deduction
                       </span>
                       <span className="text-sm font-semibold text-rose-400">
-                        − {formatRupiah(returnDeduction)}
+                        - {formatRupiah(returnDeduction)}
                       </span>
                     </div>
 

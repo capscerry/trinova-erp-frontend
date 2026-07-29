@@ -200,7 +200,7 @@ export default function GoodsReceiptFormModal({
     (a, b) => b.purchase_order_id - a.purchase_order_id
   );
 
-  // ── On-time indicator derived from receipt_date vs expected_date ──
+  // -- On-time indicator derived from receipt_date vs expected_date --
   type OnTimeStatus = "on_time" | "late" | "unknown";
   const onTimeStatus: OnTimeStatus = (() => {
     if (!selectedExpectedDate || !form.receipt_date) return "unknown";
@@ -330,7 +330,7 @@ export default function GoodsReceiptFormModal({
 
               </div>
 
-              {/* Tanggal Ekspektasi reference — shown once a PO is selected */}
+              {/* Tanggal Ekspektasi reference - shown once a PO is selected */}
               {selectedExpectedDate && (
                 <div className={cn(
                   "rounded-xl border px-4 py-3 flex items-start gap-3",
@@ -368,8 +368,8 @@ export default function GoodsReceiptFormModal({
                         onTimeStatus === "on_time" ? "text-emerald-600" : "text-rose-500"
                       )}>
                         {onTimeStatus === "on_time"
-                          ? "Penerimaan tepat waktu — akan dicatat sebagai on-time di scoring AHP-TOPSIS"
-                          : "Penerimaan terlambat — akan dicatat sebagai late di scoring AHP-TOPSIS"}
+                          ? "Penerimaan tepat waktu - akan dicatat sebagai on-time di scoring AHP-TOPSIS"
+                          : "Penerimaan terlambat - akan dicatat sebagai late di scoring AHP-TOPSIS"}
                       </p>
                     )}
                   </div>
@@ -504,7 +504,7 @@ export default function GoodsReceiptFormModal({
                 </div>
               )}
 
-              {/* Nomor Faktur Pajak — read-only, carried from the selected PO */}
+              {/* Nomor Faktur Pajak - read-only, carried from the selected PO */}
               {(() => {
                 const selPO = purchaseOrders.find(
                   (po) => String(po.purchase_order_id) === form.purchase_order_id
@@ -721,9 +721,9 @@ export default function GoodsReceiptFormModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // SECTION
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function Section({
   title,
@@ -753,9 +753,9 @@ function Section({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // FORM FIELD
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function FormField({
   label,
@@ -792,9 +792,9 @@ function FormField({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // STYLE
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const inputBase = `
   w-full

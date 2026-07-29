@@ -72,6 +72,10 @@ function mapBackendRole(roleName: string): Role {
     case "purchasing":
       return "pembelian";
 
+    case "procurement manager":
+    case "procurement_manager":
+      return "procurement_manager";
+
     case "inventory":
     case "warehouse":
     case "persediaan":

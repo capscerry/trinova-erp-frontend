@@ -123,10 +123,10 @@ export function SalesOrderModal({
       // Endpoint create() sekarang berperan sebagai upsert di backend:
       // kalau payload.header.orderId terisi (mode edit), backend akan
       // UPDATE record yang sudah ada, bukan membuat SO baru.
-      const response = await salesOrderService.create(payload);
+      const response: unknown = await salesOrderService.create(payload);
       console.log("Return API Sales Order:", response);
 
-      const header = response?.header;
+      const header = (response as SavedSalesOrderResponse)?.header;
 
       setSavedSo(response as unknown as SavedSalesOrderResponse);
       setForm((prev) => ({

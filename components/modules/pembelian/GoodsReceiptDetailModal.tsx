@@ -107,7 +107,7 @@ export default function GoodsReceiptDetailModal({
     r++;
 
     // Row 7: values
-    ws[C(r, 0)] = { v: data.received_by ?? "—", t: "s", s: sHdrVal };
+    ws[C(r, 0)] = { v: data.received_by ?? "-", t: "s", s: sHdrVal };
     ws[C(r, 1)] = { v: "",                      t: "s", s: sHdrVal };
     ws[C(r, 2)] = { v: "",                      t: "s", s: sHdrVal };
     ws[C(r, 3)] = { v: data.status,             t: "s", s: sHdrVal };

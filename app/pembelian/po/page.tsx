@@ -3,6 +3,7 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -62,9 +63,9 @@ import PurchaseOrderFormModal from "@/components/modules/pembelian/PurchaseOrder
 
 import PurchaseOrderDetailModal from "@/components/modules/pembelian/PurchaseOrderDetailModal";
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // TYPES
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 type POStatus =
   | "Waiting to be processed"
@@ -73,6 +74,7 @@ type POStatus =
   | "Cancelled"
   | "Draft"
   | "Approved"
+  | "Pending Approval"
   | "Completed";
 
 interface PurchaseOrder {
@@ -118,9 +120,9 @@ interface Uom {
   nama: string;
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // HELPERS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -134,9 +136,9 @@ const formatDate = (d: string) =>
     year: "numeric",
   }).format(new Date(d));
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // STATUS STYLE
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const STATUS_STYLE: Record<string, string> = {
   "Waiting to be processed":
@@ -157,6 +159,9 @@ const STATUS_STYLE: Record<string, string> = {
   Approved:
     "bg-indigo-50 text-indigo-700 border border-indigo-200",
 
+  "Pending Approval":
+    "bg-amber-50 text-amber-600 border border-amber-300",
+
   Completed:
     "bg-emerald-50 text-emerald-700 border border-emerald-200",
 };
@@ -175,9 +180,9 @@ function POStatusBadge({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // TABLE COLUMNS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 const COLUMNS: Column<PurchaseOrder>[] = [
   {
@@ -199,7 +204,7 @@ const COLUMNS: Column<PurchaseOrder>[] = [
 
     render: (val) => (
       <span className="text-slate-600 text-xs">
-        {String(val || "—")}
+        {String(val || "-")}
       </span>
     ),
   },
@@ -239,9 +244,9 @@ const COLUMNS: Column<PurchaseOrder>[] = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // PAGE
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 export default function PurchaseOrderPage() {
 
@@ -289,9 +294,15 @@ export default function PurchaseOrderPage() {
   const [editingPO, setEditingPO] =
     useState<any>(null);
 
-  // ─────────────────────────────────────────────────────────
+  // -- Confirm delete ----------------------------------------------------------
+  const [confirmDeletePO, setConfirmDeletePO] = useState<{ open: boolean; row: any }>({
+    open: false, row: null,
+  });
+  const [deletePOLoading, setDeletePOLoading] = useState(false);
+
+  // ---------------------------------------------------------
   // FETCH PO
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchPurchaseOrders = async () => {
 
@@ -347,9 +358,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH DETAIL
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchPurchaseOrderDetails = async () => {
 
@@ -370,9 +381,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH DOWN PAYMENTS / GR / INVOICES
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchWorkflowData = async () => {
     try {
@@ -392,7 +403,7 @@ export default function PurchaseOrderPage() {
       // Enrich invoices with purchase_order_id by joining through GR
       // The GR row has both goods_receipt_id and purchase_order_id.
       // The invoice row from the API has goods_receipt_id on the raw object
-      // even if it wasn't in the mapped type — keep raw data here.
+      // even if it wasn't in the mapped type - keep raw data here.
       const grMap: Record<number, number> = {};
       grs.forEach((gr: any) => {
         if (gr.goods_receipt_id != null && gr.purchase_order_id != null) {
@@ -414,9 +425,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH SUPPLIER
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchSuppliers = async () => {
 
@@ -444,9 +455,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH PRODUCT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchProducts = async () => {
 
@@ -497,9 +508,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH UOM
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchUoms = async () => {
 
@@ -526,9 +537,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // SUBMIT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleSubmitPO = async (
     payload: any
@@ -536,7 +547,7 @@ export default function PurchaseOrderPage() {
 
     try {
 
-        // ── Client-side guard: catch obvious bad payloads before hitting the API ──
+        // -- Client-side guard: catch obvious bad payloads before hitting the API --
         if (!payload.supplier_id || Number(payload.supplier_id) === 0) {
           throw new Error("Supplier harus dipilih sebelum menyimpan PO.");
         }
@@ -547,7 +558,7 @@ export default function PurchaseOrderPage() {
           throw new Error("Tambahkan minimal satu produk ke PO.");
         }
 
-        // ── Validate supplier is Active before hitting the API ─────────────────
+        // -- Validate supplier is Active before hitting the API -----------------
         // Backend rejects with a generic "Insert Failed" if supplier is inactive.
         const supplierCheck = suppliers.find(
           (s) => s.id === String(payload.supplier_id)
@@ -745,9 +756,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // HELPERS
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   // Build the full PO header payload the API requires for PUT.
   // Normalises order_date to YYYY-MM-DD regardless of whether the
@@ -762,9 +773,9 @@ export default function PurchaseOrderPage() {
     transaction_detail: formData.transaction_detail ?? "",
   });
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // APPROVE PO
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleApprovePO = async (poId: number, formData?: any) => {
     // Delegate approval + stock deduction entirely to the backend.
@@ -772,7 +783,7 @@ export default function PurchaseOrderPage() {
     //   1. Validates PO exists and is in Draft status
     //   2. Deducts available_stock for every detail line via DeductStock()
     //   3. Rolls back all deductions if any line fails, returning a clear error
-    //   4. Transitions status Draft → Approved only when all lines succeed
+    //   4. Transitions status Draft - Approved only when all lines succeed
     const result = await approvePurchaseOrder(poId);
 
     if (!result?.status) {
@@ -784,9 +795,9 @@ export default function PurchaseOrderPage() {
     notify.success("Purchase Order berhasil disetujui");
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // CREATE DOWN PAYMENT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleCreateDP = async (data: any) => {
     await createPurchaseDownPayment(data);
@@ -794,9 +805,9 @@ export default function PurchaseOrderPage() {
     notify.success("Down payment berhasil dicatat");
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // CREATE GOODS RECEIPT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleCreateGR = async (
     poId: number,
@@ -820,9 +831,9 @@ export default function PurchaseOrderPage() {
     return grResponse;
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // CREATE INVOICE
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleCreateInvoice = async (data: any, poId: number, formData: any) => {
     const result = await createPurchaseInvoice(data);
@@ -833,9 +844,9 @@ export default function PurchaseOrderPage() {
     return result;
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // CREATE PAYMENT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleCreatePayment = async (data: any) => {
     // Strip the internal helper field before sending to API
@@ -853,7 +864,7 @@ export default function PurchaseOrderPage() {
     console.log("[handleCreatePayment] outstanding (num):", outstanding, "fully paid:", Number(data.amount) >= outstanding);
 
     if (outstanding > 0 && Number(data.amount) >= outstanding) {
-      // Payment fully covers the outstanding — mark invoice as Paid
+      // Payment fully covers the outstanding - mark invoice as Paid
       try {
         await updatePurchaseInvoice(
           Number(data.purchase_invoice_id),
@@ -866,7 +877,7 @@ export default function PurchaseOrderPage() {
         // Still navigate so the user sees the updated list
       }
 
-      notify.success("Invoice telah lunas — mengarahkan ke Purchase Invoice");
+      notify.success("Invoice telah lunas - mengarahkan ke Purchase Invoice");
 
       // Close modal first, then navigate on next tick to avoid
       // React mid-render conflicts with router.push
@@ -881,17 +892,17 @@ export default function PurchaseOrderPage() {
     notify.success("Pembayaran berhasil dicatat");
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // NAVIGATE TO INVOICE PAGE
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleNavigateToInvoicePage = () => {
     router.push("/pembelian/invoice");
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // QUICK NAV: DP / GR / INVOICE PAGE
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const handleNavigateToDP = (poId: number, poNumber: string) => {
     router.push(`/pembelian/pdp?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`);
@@ -905,9 +916,9 @@ export default function PurchaseOrderPage() {
     router.push(`/pembelian/invoice?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`);
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // FETCH PR LIST
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const fetchPrList = async () => {
     try {
@@ -918,9 +929,9 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // USE EFFECT
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   useEffect(() => {
 
@@ -934,9 +945,9 @@ export default function PurchaseOrderPage() {
 
   }, []);
 
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
   // EXPORT TO EXCEL (LIST)
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   const exportToExcel = () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1007,9 +1018,26 @@ export default function PurchaseOrderPage() {
     XLSX.writeFile(wb, `Purchase_Order_${today}.xlsx`);
   };
 
-  // ─────────────────────────────────────────────────────────
+  // -- Execute PO delete (called after ConfirmDialog confirms) ----------------
+  const executeDeletePO = async () => {
+    if (!confirmDeletePO.row) return;
+    setDeletePOLoading(true);
+    try {
+      await deletePurchaseOrder(Number(confirmDeletePO.row.id));
+      await fetchPurchaseOrders();
+      notify.success("Purchase Order berhasil dihapus");
+    } catch (error) {
+      console.error(error);
+      notify.error("Gagal menghapus Purchase Order");
+    } finally {
+      setDeletePOLoading(false);
+      setConfirmDeletePO({ open: false, row: null });
+    }
+  };
+
+  // ---------------------------------------------------------
   // RETURN
-  // ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------
 
   return (
     <AppShell
@@ -1037,6 +1065,7 @@ export default function PurchaseOrderPage() {
           "Partially processed",
           "Cancelled",
           "Draft",
+          "Pending Approval",
           "Approved",
           "Completed",
         ]}
@@ -1286,13 +1315,14 @@ export default function PurchaseOrderPage() {
             <Button
               variant="danger"
               size="sm"
-              onClick={async () => {
+              onClick={() => {
 
                 if (row.status === "Approved" || row.status === "Completed") {
                   toast.error("Tidak bisa menghapus PO", {
                     description: `Purchase Order dengan status "${row.status}" tidak dapat dihapus.`,
                   });
                   return;
+<<<<<<< HEAD
                 }
 
                 const confirmed =
@@ -1317,7 +1347,11 @@ export default function PurchaseOrderPage() {
                   console.error(error);
 
                   notify.error("Gagal menghapus Purchase Order");
+=======
+>>>>>>> 456634e53bc8789d153e344f036d14c56aad4cff
                 }
+
+                setConfirmDeletePO({ open: true, row });
               }}
             >
               Hapus
@@ -1365,6 +1399,18 @@ export default function PurchaseOrderPage() {
           setOpenDetail(false)
         }
         data={selectedPO}
+      />
+
+      {/* CONFIRM DELETE PO */}
+      <ConfirmDialog
+        open={confirmDeletePO.open}
+        title="Hapus Purchase Order"
+        message={`Yakin ingin menghapus Purchase Order ${confirmDeletePO.row?.nomor}?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deletePOLoading}
+        onConfirm={executeDeletePO}
+        onCancel={() => setConfirmDeletePO({ open: false, row: null })}
       />
 
     </AppShell>

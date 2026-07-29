@@ -145,7 +145,7 @@ export function PengirimanSOPickerModal({
         productCode: it.productCode ?? "",
         productName: it.productName,
         uomId: it.uomId,
-        satuan: it.satuan ?? "",
+        satuan: it.uomCode ?? "",
         qtyDipesan: it.productQty,
         qtyDikirim: qtyKirim[idx] ?? it.productQty,
         warehouseId: it.wareHouseId,
@@ -357,8 +357,8 @@ export function PengirimanSOPickerModal({
                               </td>
                               <td className="px-3 py-2.5 font-medium text-slate-700">
                                 {item.productName}
-                                {item.satuan && (
-                                  <span className="text-slate-400 ml-1 font-normal">({item.satuan})</span>
+                                {item.uomCode && (
+                                  <span className="text-slate-400 ml-1 font-normal">({item.uomCode})</span>
                                 )}
                               </td>
                               <td className="px-3 py-2.5 text-right text-slate-500">

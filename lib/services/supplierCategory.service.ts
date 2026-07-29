@@ -1,9 +1,16 @@
 import { api } from "../api";
 
-export const getSupplierCategory = async () => {
-  const res = await api.get("/supplier-category");
-  return res.data;
+export const getNextSupplierCategoryCode = async (): Promise<string> => {
+  const res = await api.get("/supplier-category/next-code");
+  return res.data?.category_code ?? "";
 };
+
+export const migrateSupplierCategoryCodes = async (): Promise<void> => {
+  await api.post("/supplier-category/migrate-codes");
+};
+
+export const getSupplierCategory =
+  async () => {
 
 export const getNextSupplierCategoryCode = async (): Promise<string> => {
   const res = await api.get("/supplier-category/next-code");

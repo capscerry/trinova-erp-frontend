@@ -6,6 +6,35 @@ export const getGoodsReceipts = async () => {
   return res.data;
 };
 
+// GET GRs AVAILABLE FOR PURCHASE RETURN
+// Only returns GRs that have at least one detail line with remaining_qty > 0.
+export const getGoodsReceiptsForReturn = async () => {
+  const res = await api.get("/goods-receipt/for-purchase-return");
+  return res.data;
+};
+
+// GET AVAILABLE RETURN DETAILS FOR A SPECIFIC GR
+// Returns only detail lines where remaining_qty > 0.
+export const getAvailableReturnDetails = async (grId: number) => {
+  const res = await api.get(`/purchase-return/gr/${grId}/available-details`);
+  return res.data;
+};
+
+// UPDATE GR
+export const updateGoodsReceipt = async (
+  id: number,
+  payload: Partial<{
+    status: string;
+    received_by: string;
+    receipt_date: string;
+    transaction_name: string;
+    transaction_detail: string;
+  }>
+) => {
+  const res = await api.put(`/goods-receipt/${id}`, payload);
+  return res.data;
+};
+
 // GET NEXT GR NUMBER
 export const getNextGRNumber = async () => {
   const res = await api.get("/goods-receipt/next-number");

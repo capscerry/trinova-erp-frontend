@@ -12,7 +12,10 @@ function getRedirectPath(role: string) {
     case "penjualan":
       return "/penjualan";
 
-    case "pembelian":  
+    case "pembelian":
+    case "purchasing":
+    case "procurement manager":
+    case "procurement_manager":
       return "/pembelian";
 
     // case "inventory":

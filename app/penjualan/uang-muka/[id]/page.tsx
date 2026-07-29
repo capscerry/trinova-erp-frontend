@@ -110,7 +110,7 @@ function InfoRow({
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
           {label}
         </p>
-        <p className="text-sm font-semibold text-slate-700 break-words">
+        <p className="text-sm font-semibold text-slate-700 wrap-break-word">
           {value || "—"}
         </p>
       </div>
@@ -179,7 +179,7 @@ export default function UangMukaDetailPage() {
 
   const editInitialData: UangMukaFormData | undefined = data
     ? {
-        id: data.id,
+        id: data.id ?? 0,
         customerId: data.customerId,
         pelanggan: data.customerName ?? "",
         noFaktur: data.noFaktur,
@@ -188,8 +188,9 @@ export default function UangMukaDetailPage() {
         uangMuka: Number(data.nominalUangMuka ?? 0),
         noPO: data.noPO ?? "",
         noSo: data.nomorSo ?? "",
-        kenaPajak: Boolean(data.isTaxable),
-        totalTermasukPajak: Boolean(data.isTaxIncluded),
+        isTaxable: Boolean(data.isTaxable),
+        isTaxIncluded: Boolean(data.isTaxIncluded),
+        taxAmount: Number(data.taxAmount ?? 0),
         syaratPembayaran: data.syaratPembayaran ?? "",
         alamat: data.alamat ?? "",
         keterangan: data.keterangan ?? "",

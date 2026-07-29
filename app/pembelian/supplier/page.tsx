@@ -3,6 +3,8 @@
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { notify } from "@/lib/notify";
 
 import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
 
@@ -20,7 +22,7 @@ import {
   getSupplierCategory,
 } from "@/lib/services";
 
-// ─── Type ──────────────────────────────────────────────────────────────────────
+// --- Type ----------------------------------------------------------------------
 
 interface Supplier {
   id: string;
@@ -39,7 +41,7 @@ interface SupplierCategory {
   is_active?: boolean;
 }
 
-// ─── Status badge ──────────────────────────────────────────────────────────────
+// --- Status badge --------------------------------------------------------------
 
 function StatusBadge({ status }: { status: string }) {
   const active = status === "Active";
@@ -58,7 +60,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Columns ───────────────────────────────────────────────────────────────────
+// --- Columns -------------------------------------------------------------------
 
 const COLUMNS: Column<Supplier>[] = [
   {
@@ -83,7 +85,7 @@ const COLUMNS: Column<Supplier>[] = [
   },
 ];
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
+// --- Page ----------------------------------------------------------------------
 
 export default function SupplierPage() {
 
@@ -114,6 +116,14 @@ export default function SupplierPage() {
         null
       );
 
+  // --- Delete confirmation -------------------------------------------------
+  const [confirmDelete, setConfirmDelete] = useState<{
+    open: boolean;
+    id: string;
+    name: string;
+  }>({ open: false, id: "", name: "" });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const [formData, setFormData] =
     useState({
       supplier_code: "",
@@ -125,7 +135,7 @@ export default function SupplierPage() {
       status: "Active",
     });
 
-  // ─── Fetch Supplier ─────────────────────────────────────────────────────────
+  // --- Fetch Supplier ---------------------------------------------------------
 
   const fetchSuppliers = async () => {
 
@@ -185,7 +195,7 @@ export default function SupplierPage() {
     }
   };
 
-  // ─── Fetch Categories ───────────────────────────────────────────────────────
+  // --- Fetch Categories -------------------------------------------------------
 
   const fetchCategories =
     async () => {
@@ -236,7 +246,7 @@ export default function SupplierPage() {
 
   }, []);
 
-  // ─── Submit ─────────────────────────────────────────────────────────────────
+  // --- Submit -----------------------------------------------------------------
 
   const handleSubmit =
     async () => {
@@ -272,9 +282,7 @@ export default function SupplierPage() {
             }
           );
 
-          alert(
-            "Supplier berhasil diupdate"
-          );
+          notify.success("Supplier berhasil diupdate");
 
         } else {
 
@@ -306,7 +314,7 @@ export default function SupplierPage() {
           const supplierId =
             response.data.supplier_id;
 
-          // ─── Import Catalog ─────────────────
+          // --- Import Catalog -----------------
 
           if (catalogFile) {
 
@@ -316,9 +324,7 @@ export default function SupplierPage() {
             );
           }
 
-          alert(
-            "Supplier berhasil ditambahkan"
-          );
+          notify.success("Supplier berhasil ditambahkan");
         }
 
         fetchSuppliers();
@@ -345,47 +351,33 @@ export default function SupplierPage() {
 
         console.error(err);
 
-        alert(
-          err.message ||
-          "Gagal simpan supplier"
-        );
+        notify.error("Gagal simpan supplier", err.message);
       }
     };
 
-  // ─── Delete ─────────────────────────────────────────────────────────────────
+  // --- Delete -----------------------------------------------------------------
 
-  const handleDelete =
-    async (id: string) => {
+  const handleDelete = (id: string) => {
+    const row = suppliers.find((s) => s.id === id);
+    setConfirmDelete({ open: true, id, name: row?.nama ?? id });
+  };
 
-      const confirmDelete =
-        confirm(
-          "Yakin ingin menghapus supplier ini?"
-        );
+  const executeDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await deleteSupplier(confirmDelete.id);
+      notify.success("Supplier berhasil dihapus");
+      fetchSuppliers();
+    } catch (error) {
+      console.error(error);
+      notify.error("Gagal hapus supplier");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete({ open: false, id: "", name: "" });
+    }
+  };
 
-      if (!confirmDelete)
-        return;
-
-      try {
-
-        await deleteSupplier(id);
-
-        alert(
-          "Supplier berhasil dihapus"
-        );
-
-        fetchSuppliers();
-
-      } catch (error) {
-
-        console.error(error);
-
-        alert(
-          "Gagal hapus supplier"
-        );
-      }
-    };
-
-  // ─── Edit ───────────────────────────────────────────────────────────────────
+  // --- Edit -------------------------------------------------------------------
 
   const handleEdit =
     (row: Supplier) => {
@@ -422,7 +414,7 @@ export default function SupplierPage() {
       setOpenModal(true);
     };
 
-  // ─── Detail ─────────────────────────────────────────────────────────────────
+  // --- Detail -----------------------------------------------------------------
 
   const handleDetail =
     (row: Supplier) => {
@@ -509,7 +501,20 @@ export default function SupplierPage() {
         )}
       />
 
-      {/* ─── Modal Form ───────────────────────────────────── */}
+      {/* --- Confirm Delete -------------------------------- */}
+
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus Supplier"
+        message={`Yakin ingin menghapus supplier "${confirmDelete.name}"?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deleteLoading}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete({ open: false, id: "", name: "" })}
+      />
+
+      {/* --- Modal Form ------------------------------------- */}
 
       <SupplierFormModal
 
@@ -534,7 +539,7 @@ export default function SupplierPage() {
         }
       />
 
-      {/* ─── Detail Modal ─────────────────────────────────── */}
+      {/* --- Detail Modal ----------------------------------- */}
 
       {openDetail &&
         detailData && (
@@ -599,7 +604,7 @@ export default function SupplierPage() {
                   transition-colors
                 "
               >
-                ✕
+                -
               </button>
 
             </div>
@@ -623,7 +628,7 @@ export default function SupplierPage() {
                   </p>
 
                   <p className="text-sm font-semibold text-slate-700">
-                    {value || "—"}
+                    {value || "-"}
                   </p>
 
                 </div>

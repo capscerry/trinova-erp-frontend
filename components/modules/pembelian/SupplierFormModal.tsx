@@ -184,7 +184,7 @@ export default function SupplierFormModal({
                 />
               </FormField>
 
-              {/* Status toggle — spans both columns */}
+              {/* Status toggle - spans both columns */}
               <div className="col-span-2 space-y-1.5">
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Status
@@ -227,7 +227,7 @@ export default function SupplierFormModal({
               />
             </FormField>
 
-            {/* UPLOAD CATALOG — only on create */}
+            {/* UPLOAD CATALOG - only on create */}
             {!isEdit && (
               <div className="space-y-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -240,7 +240,7 @@ export default function SupplierFormModal({
                       htmlFor="catalog-upload"
                       className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
                     >
-                      📤 Upload Catalog
+                      ≡ƒôñ Upload Catalog
                     </label>
 
                     <input
@@ -258,7 +258,7 @@ export default function SupplierFormModal({
 
                     {selectedFileName && (
                       <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
-                        ✅ {selectedFileName}
+                        - {selectedFileName}
                       </span>
                     )}
                   </div>

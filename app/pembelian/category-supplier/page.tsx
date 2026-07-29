@@ -1,10 +1,12 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { notify } from "@/lib/notify";
 
 import {
   getSupplierCategory,
@@ -65,6 +67,14 @@ export default function SupplierCategoryPage() {
   const [formData, setFormData] = useState({ category_name: "", is_active: true });
   const [previewCode, setPreviewCode] = useState<string | null>(null);
 
+  // ─── Delete confirmation ───────────────────────────────────────────────────
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string; name: string }>({
+    open: false,
+    id: "",
+    name: "",
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // ─── FETCH ────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
@@ -100,7 +110,7 @@ export default function SupplierCategoryPage() {
 
   const handleSubmit = async () => {
     if (!formData.category_name.trim()) {
-      alert("Nama category tidak boleh kosong");
+      notify.warning("Nama category tidak boleh kosong");
       return;
     }
 
@@ -111,14 +121,14 @@ export default function SupplierCategoryPage() {
           is_active: formData.is_active,
           update_by: user?.username ?? user?.email ?? "system",
         });
-        alert("Category berhasil diupdate");
+        notify.success("Category berhasil diupdate");
       } else {
         await createSupplierCategory({
           category_name: formData.category_name,
           is_active: formData.is_active,
           created_by: user?.username ?? user?.email ?? "system",
         });
-        alert("Category berhasil ditambahkan");
+        notify.success("Category berhasil ditambahkan");
       }
 
       fetchData();
@@ -127,21 +137,29 @@ export default function SupplierCategoryPage() {
       setPreviewCode(null);
     } catch (err) {
       console.error(err);
-      alert("Gagal simpan category");
+      notify.error("Gagal simpan category");
     }
   };
 
   // ─── DELETE ───────────────────────────────────────────────────────────────
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Yakin hapus category ini?")) return;
+  const handleDelete = (id: string) => {
+    const row = data.find((r) => r.category_id.toString() === id);
+    setConfirmDelete({ open: true, id, name: row?.category_name ?? id });
+  };
 
+  const executeDelete = async () => {
+    setDeleteLoading(true);
     try {
-      await deleteSupplierCategory(id);
+      await deleteSupplierCategory(confirmDelete.id);
       fetchData();
+      notify.success("Category berhasil dihapus");
     } catch (err: any) {
       console.error(err);
-      alert(err?.message ?? "Gagal hapus category");
+      notify.error("Gagal hapus category", err?.message);
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete({ open: false, id: "", name: "" });
     }
   };
 
@@ -180,6 +198,19 @@ export default function SupplierCategoryPage() {
             </Button>
           </div>
         )}
+      />
+
+      {/* ─── CONFIRM DELETE ─────────────────────────────────────────────────── */}
+
+      <ConfirmDialog
+        open={confirmDelete.open}
+        title="Hapus Category"
+        message={`Yakin ingin menghapus category "${confirmDelete.name}"?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={deleteLoading}
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete({ open: false, id: "", name: "" })}
       />
 
       {/* ─── MODAL ──────────────────────────────────────────────────────────── */}

@@ -149,7 +149,7 @@ export default function PurchaseDownPaymentDetailModal({
     // Row 4: PO NUMBER
     ws[C(r, 0)] = { v: "",           t: "s" };
     ws[C(r, 1)] = { v: "PO NUMBER",  t: "s", s: sHdrLbl };
-    ws[C(r, 2)] = { v: data.po_number ?? "—", t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: data.po_number ?? "-", t: "s", s: sHdrVal };
     ws[C(r, 3)] = { v: "",           t: "s", s: sHdrVal };
     merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
     r++;
@@ -188,8 +188,8 @@ export default function PurchaseDownPaymentDetailModal({
     r++;
 
     // Row 10: values
-    ws[C(r, 0)] = { v: data.payment_type ?? "—",       t: "s", s: sCell };
-    ws[C(r, 1)] = { v: data.notes?.trim() || "—",      t: "s", s: sCellL };
+    ws[C(r, 0)] = { v: data.payment_type ?? "-",       t: "s", s: sCell };
+    ws[C(r, 1)] = { v: data.notes?.trim() || "-",      t: "s", s: sCellL };
     ws[C(r, 2)] = { v: Number(data.po_total ?? 0),     t: "n", s: sNum  };
     ws[C(r, 3)] = { v: Number(data.amount  ?? 0),      t: "n", s: sNum  };
     r++;
@@ -538,9 +538,9 @@ export default function PurchaseDownPaymentDetailModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // SUB COMPONENTS
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
 function InfoCard({
   label,

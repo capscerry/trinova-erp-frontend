@@ -1,4 +1,4 @@
-export type Role = "admin" | "penjualan" | "pembelian" | "persediaan";
+export type Role = "admin" | "penjualan" | "pembelian" | "persediaan" | "procurement_manager";
 
 export interface AuthUser {
   id: number;

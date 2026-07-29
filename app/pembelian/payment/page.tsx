@@ -25,13 +25,13 @@ import {
   updatePurchaseInvoice,
 } from "@/lib/services";
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // HELPERS
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Normalises any payment number to PAY-0000000000 format.
- * e.g. "PAY000003", "PAY-3", "3" → "PAY-0000000003"
+ * e.g. "PAY000003", "PAY-3", "3" - "PAY-0000000003"
  */
 const formatPAYNumber = (raw: string | number): string => {
   const str = String(raw ?? "");
@@ -42,7 +42,7 @@ const formatPAYNumber = (raw: string | number): string => {
 
 /**
  * Normalises any invoice number to INV-0000000000 format.
- * e.g. "INV000003", "INV-3", "3" → "INV-0000000003"
+ * e.g. "INV000003", "INV-3", "3" - "INV-0000000003"
  */
 const formatINVNumber = (raw: string | number): string => {
   const str = String(raw ?? "");
@@ -51,9 +51,9 @@ const formatINVNumber = (raw: string | number): string => {
   return `INV-${digits.padStart(10, "0")}`;
 };
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // COLUMNS
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 const COLUMNS: Column<any>[] = [
   {
@@ -109,9 +109,9 @@ const COLUMNS: Column<any>[] = [
   },
 ];
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // PAGE
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export default function PurchasePaymentPage() {
 
@@ -138,7 +138,7 @@ export default function PurchasePaymentPage() {
   const [detailData, setDetailData] =
     useState<any | null>(null);
 
-  // ─── Load ───────────────────────────────────
+  // --- Load -----------------------------------
 
   const loadData = async () => {
     try {
@@ -168,7 +168,7 @@ export default function PurchasePaymentPage() {
       (inv) => Number(inv.outstanding_amount) > 0
     );
 
-  // ─── Add ────────────────────────────────────
+  // --- Add ------------------------------------
 
   const handleAdd = () => {
     setIsEdit(false);
@@ -176,7 +176,7 @@ export default function PurchasePaymentPage() {
     setOpenModal(true);
   };
 
-  // ─── Edit ───────────────────────────────────
+  // --- Edit -----------------------------------
 
   const handleEdit = (row: any) => {
     setIsEdit(true);
@@ -184,7 +184,7 @@ export default function PurchasePaymentPage() {
     setOpenModal(true);
   };
 
-  // ─── Delete ─────────────────────────────────
+  // --- Delete ---------------------------------
 
   const handleDelete = async (row: any) => {
     const confirmed = confirm(
@@ -203,21 +203,21 @@ export default function PurchasePaymentPage() {
     }
   };
 
-  // ─── Detail ─────────────────────────────────
+  // --- Detail ---------------------------------
 
   const handleDetail = (row: any) => {
     setDetailData(row);
     setOpenDetail(true);
   };
 
-  // ─── Submit (Create / Edit) ──────────────────
+  // --- Submit (Create / Edit) ------------------
 
   const handleSubmit = async (data: any) => {
     try {
 
       if (isEdit && editingPayment) {
 
-        // ── UPDATE ──
+        // -- UPDATE --
         const payload = {
           payment_date:        data.payment_date,
           amount:              data.amount,
@@ -263,7 +263,7 @@ export default function PurchasePaymentPage() {
 
       } else {
 
-        // ── CREATE ──
+        // -- CREATE --
         const payload = {
           purchase_invoice_id: data.purchase_invoice_id,
           payment_date:        data.payment_date,
@@ -314,7 +314,7 @@ export default function PurchasePaymentPage() {
     }
   };
 
-  // ─── Excel helpers ──────────────────────────
+  // --- Excel helpers --------------------------
 
   const NAVY  = { patternType: "solid", fgColor: { rgb: "1E3A5F" } };
   const LGRAY = { patternType: "solid", fgColor: { rgb: "F0F4F8" } };
@@ -335,7 +335,7 @@ export default function PurchasePaymentPage() {
   const sBlankN = { fill: NAVY, border: MED };
 
   const formatDateXlsx = (d: string) =>
-    d ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d)) : "—";
+    d ? new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d)) : "-";
 
   const C = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
 
@@ -362,8 +362,8 @@ export default function PurchasePaymentPage() {
       ws[C(r, 0)] = { v: i + 1,                              t: "n", s: sCell  };
       ws[C(r, 1)] = { v: formatPAYNumber(p.payment_number),  t: "s", s: sCell  };
       ws[C(r, 2)] = { v: formatINVNumber(p.invoice_number),  t: "s", s: sCell  };
-      ws[C(r, 3)] = { v: p.supplier_name ?? "—",             t: "s", s: sCellL };
-      ws[C(r, 4)] = { v: p.payment_method ?? "—",            t: "s", s: sCell  };
+      ws[C(r, 3)] = { v: p.supplier_name ?? "-",             t: "s", s: sCellL };
+      ws[C(r, 4)] = { v: p.payment_method ?? "-",            t: "s", s: sCell  };
       ws[C(r, 5)] = { v: Number(p.amount ?? 0),              t: "n", s: sNum   };
       grandTotal += Number(p.amount ?? 0);
     });
@@ -430,9 +430,9 @@ export default function PurchasePaymentPage() {
     merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
     r++;
 
-    ws[C(r, 0)] = { v: d.supplier_name ?? "—", t: "s", s: sHdrVal };
+    ws[C(r, 0)] = { v: d.supplier_name ?? "-", t: "s", s: sHdrVal };
     ws[C(r, 1)] = { v: "",                      t: "s", s: sHdrVal };
-    ws[C(r, 2)] = { v: d.status ?? "—",         t: "s", s: sHdrVal };
+    ws[C(r, 2)] = { v: d.status ?? "-",         t: "s", s: sHdrVal };
     ws[C(r, 3)] = { v: "",                      t: "s", s: sHdrVal };
     merges.push({ s: { r, c: 0 }, e: { r, c: 1 } });
     merges.push({ s: { r, c: 2 }, e: { r, c: 3 } });
@@ -450,8 +450,8 @@ export default function PurchasePaymentPage() {
     merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
     r++;
 
-    ws[C(r, 0)] = { v: d.payment_method ?? "—",  t: "s", s: sCell  };
-    ws[C(r, 1)] = { v: d.notes?.trim() || "—",   t: "s", s: sCellL };
+    ws[C(r, 0)] = { v: d.payment_method ?? "-",  t: "s", s: sCell  };
+    ws[C(r, 1)] = { v: d.notes?.trim() || "-",   t: "s", s: sCellL };
     ws[C(r, 2)] = { v: "",                        t: "s", s: sCellL };
     ws[C(r, 3)] = { v: Number(d.amount ?? 0),     t: "n", s: sNum   };
     merges.push({ s: { r, c: 1 }, e: { r, c: 2 } });
@@ -479,7 +479,7 @@ export default function PurchasePaymentPage() {
     XLSX.writeFile(wb, `${safeName}.xlsx`);
   };
 
-  // ─── Render ─────────────────────────────────
+  // --- Render ---------------------------------
 
   return (
     <AppShell
@@ -514,13 +514,21 @@ export default function PurchasePaymentPage() {
               Detail
             </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEdit(row)}
-            >
-              Edit
-            </Button>
+            {(() => {
+              const linkedInvoice = purchaseInvoices.find(
+                (inv) => inv.purchase_invoice_id === row.purchase_invoice_id
+              );
+              const invoiceIsPaid = linkedInvoice?.status === "Paid";
+              return !invoiceIsPaid ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEdit(row)}
+                >
+                  Edit
+                </Button>
+              ) : null;
+            })()}
 
             <Button
               variant="danger"
@@ -534,7 +542,7 @@ export default function PurchasePaymentPage() {
         )}
       />
 
-      {/* ─── Form Modal (Create / Edit) ──── */}
+      {/* --- Form Modal (Create / Edit) ---- */}
 
       <PurchasePaymentFormModal
         open={openModal}
@@ -550,7 +558,7 @@ export default function PurchasePaymentPage() {
         onSubmit={handleSubmit}
       />
 
-      {/* ─── Detail Modal ───────────────────── */}
+      {/* --- Detail Modal --------------------- */}
 
       {openDetail && detailData && (
 
@@ -598,7 +606,7 @@ export default function PurchasePaymentPage() {
                   transition-colors
                 "
               >
-                ✕
+                -
               </button>
             </div>
 
@@ -616,7 +624,7 @@ export default function PurchasePaymentPage() {
                 { label: "Payment Date",   value: detailData.payment_date },
                 { label: "Payment Method", value: detailData.payment_method },
                 { label: "Status",         value: detailData.status },
-                { label: "Notes",          value: detailData.notes || "—" },
+                { label: "Notes",          value: detailData.notes || "-" },
                 ...(detailData.transaction_name
                   ? [{ label: "Transaction Name", value: detailData.transaction_name }]
                   : []),
@@ -633,7 +641,7 @@ export default function PurchasePaymentPage() {
                     {label}
                   </p>
                   <p className="text-sm font-semibold text-slate-700">
-                    {value || "—"}
+                    {value || "-"}
                   </p>
                 </div>
 
