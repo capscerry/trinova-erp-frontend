@@ -71,7 +71,7 @@ const mapUpcoming = (item: any): PurchasingDashboardUpcomingActivityItem => ({
 
 export const purchasingDashboardService = {
   async getDashboard(): Promise<PurchasingDashboard> {
-    const response = await api.get<ApiResponse<any>>("/api/purchasing/dashboard");
+    const response = await api.get<ApiResponse<any>>("/purchasing/dashboard");
     const data = response.data.data ?? {};
 
     return {

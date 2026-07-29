@@ -29,7 +29,7 @@ export const shippingTypeService = {
     // CATATAN: endpoint ini mengembalikan ARRAY LANGSUNG (bukan dibungkus
     // { success, message, data } seperti endpoint lain di project ini),
     // jadi tidak bisa pakai ApiResponse<T> generic seperti biasa.
-    const response = await api.get<ApiResponse<ShippingTypeApi[]>>("/api/shipping-type");
+    const response = await api.get<ApiResponse<ShippingTypeApi[]>>("/shipping-type");
     return (response.data.data?? []).map(mapShippingType);
   },
 };
@@ -179,7 +179,7 @@ export interface PengirimanPenjualanPayload {
 export const pengirimanPenjualanService = {
   async getAll(): Promise<PengirimanPenjualan[]> {
     const response = await api.get<ApiResponse<DeliveryOrderHeaderApi[]>>(
-      "/api/do-header"
+      "/do-header"
     );
     return (response.data.data ?? []).map(mapPengirimanPenjualan);
   },
@@ -202,7 +202,7 @@ export const pengirimanPenjualanService = {
   /** Detail item — dipanggil terpisah saat buka halaman Detail/Edit (GetDoDetail di backend) */
   async getDetailItems(id: number | string): Promise<PengirimanDetailItem[]> {
     const response = await api.get<ApiResponse<DeliveryOrderDetailApi[]>>(
-      `/api/do-detail/${id}`
+      `/do-detail/${id}`
     );
     return (response.data.data ?? []).map(mapPengirimanDetailItem);
   },
@@ -210,7 +210,7 @@ export const pengirimanPenjualanService = {
   /** Create Delivery Order baru — backend murni INSERT, tidak ada mode update/upsert untuk saat ini */
   async create(payload: PengirimanPenjualanPayload): Promise<PengirimanPenjualan> {
     const response = await api.post<ApiResponse<DeliveryOrderHeaderApi>>(
-      "/api/delivery-order",
+      "/delivery-order",
       payload
     );
     const header = extractDeliveryOrderHeader(response.data);
@@ -248,6 +248,6 @@ export const pengirimanPenjualanService = {
   },
 
   async update(id: number | string, payload: PengirimanPenjualanPayload): Promise<void> {
-    await api.put(`/api/delivery-order/${id}`, payload);
+    await api.put(`/delivery-order/${id}`, payload);
   },
 };

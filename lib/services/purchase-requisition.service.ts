@@ -1,4 +1,4 @@
-ï»¿import { api } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export interface PurchaseRequisitionDetailApi {
   pr_detail_id?: number;
@@ -92,32 +92,32 @@ function mapPR(item: PurchaseRequisitionApi): PurchaseRequisition {
 }
 
 export async function getPurchaseRequisitionDetail(id: number) {
-  const response = await api.get(`/api/PurchaseRequisition/${id}`);
+  const response = await api.get(`/PurchaseRequisition/${id}`);
   return response.data;
 }
 
 export async function getPurchaseRequisitions() {
-  const response = await api.get("/api/PurchaseRequisition");
+  const response = await api.get("/PurchaseRequisition");
   return response.data;
 }
 
 export async function getPurchaseRequisitionById(id: number) {
-  const response = await api.get(`/api/PurchaseRequisition/${id}`);
+  const response = await api.get(`/PurchaseRequisition/${id}`);
   return response.data;
 }
 
 export async function createPurchaseRequisition(payload: CreatePurchaseRequisitionRequest) {
-  const response = await api.post("/api/PurchaseRequisition", payload);
+  const response = await api.post("/PurchaseRequisition", payload);
   return response.data;
 }
 
 export async function updatePurchaseRequisition(id: number, payload: Partial<PurchaseRequisitionApi>) {
-  const response = await api.put(`/api/PurchaseRequisition/${id}`, payload);
+  const response = await api.put(`/PurchaseRequisition/${id}`, payload);
   return response.data;
 }
 
 export async function deletePurchaseRequisition(id: number) {
-  const response = await api.delete(`/api/PurchaseRequisition/${id}`);
+  const response = await api.delete(`/PurchaseRequisition/${id}`);
   return response.data;
 }
 
@@ -144,7 +144,7 @@ function isDetailLineValid(detail: PurchaseRequisitionDetail): boolean {
  *  - at least one detail line passes isDetailLineValid
  *
  * PRs whose details array is empty (not yet loaded) are kept so that the
- * picker can fetch the full record by ID on selection â€” if the full record
+ * picker can fetch the full record by ID on selection — if the full record
  * turns out to have no valid lines, the items table will just be empty.
  */
 function isPrValidForPO(pr: PurchaseRequisition): boolean {
@@ -159,12 +159,12 @@ function isPrValidForPO(pr: PurchaseRequisition): boolean {
 
 export const purchaseRequisitionService = {
   async getAll(): Promise<PurchaseRequisition[]> {
-    const response = await api.get("/api/PurchaseRequisition");
+    const response = await api.get("/PurchaseRequisition");
     return normalizeList(response.data).map(mapPR);
   },
 
   async getById(id: number | string): Promise<PurchaseRequisition> {
-    const response = await api.get(`/api/PurchaseRequisition/${id}`);
+    const response = await api.get(`/PurchaseRequisition/${id}`);
     const raw: PurchaseRequisitionApi = response.data?.data ?? response.data;
     return mapPR(raw);
   },
@@ -185,7 +185,7 @@ export const purchaseRequisitionService = {
       // client-side filtering of the full list.
       let raw: PurchaseRequisitionApi[] = [];
       try {
-        const res = await api.get("/api/PurchaseRequisition/for-po-selection");
+        const res = await api.get("/PurchaseRequisition/for-po-selection");
         raw = normalizeList(res.data);
         if (raw.length > 0) {
           const mapped = raw.map(mapPR);
@@ -193,11 +193,11 @@ export const purchaseRequisitionService = {
           return mapped;
         }
       } catch {
-        // Endpoint not yet available â€” fall through to client-side filtering
+        // Endpoint not yet available — fall through to client-side filtering
       }
 
       // Fallback: fetch all and filter client-side
-      const allRes = await api.get("/api/PurchaseRequisition");
+      const allRes = await api.get("/PurchaseRequisition");
       raw = normalizeList(allRes.data);
       const all = raw.map(mapPR);
       const valid = all.filter(isPrValidForPO);

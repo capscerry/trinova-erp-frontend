@@ -17,7 +17,7 @@ export interface SecurityActivityItem {
 
 export const securityActivityService = {
   async getAlerts(take = 12): Promise<SecurityActivityItem[]> {
-    const response = await api.get<ApiResponse<SecurityActivityItem[]>>("/api/security-activity", {
+    const response = await api.get<ApiResponse<SecurityActivityItem[]>>("/security-activity", {
       params: { take },
     });
 

@@ -1,8 +1,8 @@
-﻿import { api, type ApiResponse } from "@/lib/api";
+import { api, type ApiResponse } from "@/lib/api";
 
 import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export type SalesOrderStatus =
   | "Draft"
@@ -47,7 +47,7 @@ export interface SalesOrderDetailApi {
   poNumber: string;
   address: string;
   keterangan: string;
-  /** Grand total final â€” sudah dikurangi diskon, ditambah pajak */
+  /** Grand total final — sudah dikurangi diskon, ditambah pajak */
   total: number;
   discountTotal?: number;
   taxTotal?: number;
@@ -68,7 +68,7 @@ export interface ProductDropdown {
   /** Total qty_available (semua gudang) dari /api/product-data */
   stock?: number;
   uom: string;
-  uomId: number;         // â† BARU: pastikan backend mengirim ini
+  uomId: number;         // ← BARU: pastikan backend mengirim ini
 }
 
 export interface Product {
@@ -79,14 +79,14 @@ export interface Product {
   uomId : number;
   tipe: string;
   kategori: string;
-  /** Total stok tersedia (semua gudang) — sumber: /api/product-data */
+  /** Total stok tersedia (semua gudang) � sumber: /api/product-data */
   stock: number;
 }
 
 export interface QuotationItem {
   id: string;
-  productId?: number;    // â† BARU: id produk dari API
-  uomId?: number;        // â† BARU: id satuan dari API
+  productId?: number;    // ← BARU: id produk dari API
+  uomId?: number;        // ← BARU: id satuan dari API
   produk: string;
   deskripsi: string;
   qty: number;
@@ -98,7 +98,7 @@ export interface QuotationItem {
 
  
 export interface SalesQuotationFormData {
-  /** Opsional â€” diisi saat mode edit, dipakai untuk upsert ke backend */
+  /** Opsional — diisi saat mode edit, dipakai untuk upsert ke backend */
   id?: number;
   nomor: string;
   tanggal: string;
@@ -106,13 +106,13 @@ export interface SalesQuotationFormData {
   dipesanOleh: string;
   address: string;
   keterangan: string;
-  /** PPN 11% â€” kalau dicentang, pajak otomatis dihitung & masuk ke Total (selalu inclusive) */
+  /** PPN 11% — kalau dicentang, pajak otomatis dihitung & masuk ke Total (selalu inclusive) */
   kenaPajak: boolean;
   items: QuotationItem[];
 }
 
 export interface SalesQuotationPayload {
-  /** Opsional â€” kalau diisi, backend akan UPDATE record yang sudah ada (upsert). Kosongkan untuk create baru. */
+  /** Opsional — kalau diisi, backend akan UPDATE record yang sudah ada (upsert). Kosongkan untuk create baru. */
   id?: number;
   customerId: number;
   quotationNumber: string;
@@ -198,7 +198,7 @@ export interface SalesOrderDetail {
   alamat?: string;
   keterangan: string;
   status?: SalesOrderStatus;
-  /** Grand total final dari API â€” sudah dikurangi diskon, ditambah pajak */
+  /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
   total: number;
   discountTotal: number;
   taxTotal: number;
@@ -208,7 +208,7 @@ export interface SalesOrderDetail {
   items: SalesOrderDetailItem[];
 }
 
-// â”€â”€â”€ Payload SO â†’ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Payload SO → API ─────────────────────────────────────────────────────────
 
 export interface SalesOrderPayload {
   header: {
@@ -242,7 +242,7 @@ export interface SalesOrderPayload {
   }[];
 }
 
-// â”€â”€â”€ Payload UM â†’ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Payload UM → API ─────────────────────────────────────────────────────────
 
 export interface UangMukaPayload {
   id?: number;
@@ -287,7 +287,7 @@ export interface UangMuka {
   status?: string;
 }
 
-// â”€â”€â”€ Mappers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Mappers ──────────────────────────────────────────────────────────────────
 
 export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
   return {
@@ -332,7 +332,7 @@ export function mapProductData(item: ProductDropdown): Product {
     kode: item.productCode,
     nama: item.productName,
     satuan: item.uom,
-    uomId: item.uomId,    // â† BARU
+    uomId: item.uomId,    // ← BARU
     tipe: item.productType,
     kategori: item.categoryName,
     stock: item.stock ?? 0,
@@ -360,12 +360,12 @@ export function mapUangMuka(item: UangMukaApi): UangMuka {
   };
 }
 
-// â”€â”€â”€ Services Sales Order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Services Sales Order ────────────────────────────────────────────────────
 
 export const salesOrderService = {
   async getAll(): Promise<SalesOrder[]> {
     const response = await api.get<ApiResponse<SalesOrderApi[]>>(
-      "/api/sales-order"
+      "/sales-order"
     );
 
     return (response.data.data ?? []).map(mapSalesOrder);
@@ -373,7 +373,7 @@ export const salesOrderService = {
 
   async getById(id: number | string): Promise<SalesOrderDetail> {
   const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
-    `/api/sales-order/${id}`
+    `/sales-order/${id}`
   );
 
     return mapSalesOrderDetail(response.data.data);
@@ -381,11 +381,11 @@ export const salesOrderService = {
 
   async create(payload: SalesOrderPayload): Promise<SalesOrder> {
     const response = await api.post<ApiResponse<{ header: SalesOrderApi; detail: unknown[] }>>(
-      "/api/sales-order",
+      "/sales-order",
       payload
     );
 
-    // Backend membungkus response create dalam { header, detail } — BEDA
+    // Backend membungkus response create dalam { header, detail } � BEDA
     // dengan endpoint list/get yang mengembalikan field rata (flat). Kalau
     // langsung di-mapSalesOrder tanpa unwrap dulu, semua field (termasuk id)
     // jadi undefined karena mapSalesOrder mencari item.orderId, bukan
@@ -394,22 +394,22 @@ export const salesOrderService = {
   },
 
   async update(id: number | string, payload: SalesOrderPayload): Promise<void> {
-    await api.put(`/api/sales-order/${id}`, payload);
+    await api.put(`/sales-order/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/api/sales-order/${id}`);
+    await api.delete(`/sales-order/${id}`);
   },
 
-  /** Batalkan Sales Order — melepas reservasi stok untuk bagian yang belum dikirim */
+  /** Batalkan Sales Order � melepas reservasi stok untuk bagian yang belum dikirim */
   async cancel(id: number | string): Promise<void> {
-    await api.patch(`/api/sales-order/${id}/cancel`);
+    await api.patch(`/sales-order/${id}/cancel`);
   },
 
-  /** Ambil daftar Sales Order berdasarkan customer â€” untuk "Ambil dari Pesanan Penjualan" */
+  /** Ambil daftar Sales Order berdasarkan customer — untuk "Ambil dari Pesanan Penjualan" */
   async getByCustomerId(customerId: number): Promise<SalesOrder[]> {
     const response = await api.get<ApiResponse<SalesOrderByCustomerApi[]>>(
-      `/api/sales-order/by-customer/${customerId}`
+      `/sales-order/by-customer/${customerId}`
     );
 
     return (response.data.data ?? [])
@@ -432,28 +432,28 @@ export const salesOrderService = {
       .filter((item) => isApprovedForPicker("sales-order", item.status));
   },
 
-  /** Detail items SO (kode produk, qty, harga) â€” untuk isi referensi di form Uang Muka */
+  /** Detail items SO (kode produk, qty, harga) — untuk isi referensi di form Uang Muka */
   async getDetailItems(orderId: number | string): Promise<SalesOrderDetailItem[]> {
     const response = await api.get<ApiResponse<SalesOrderDetailApi>>(
-      `/api/sales-order/${orderId}`
+      `/sales-order/${orderId}`
     );
 
     return response.data.data?.detail ?? [];
   },
 };
 
-// â”€â”€â”€ Services Uang Muka â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Services Uang Muka ──────────────────────────────────────────────────────
 
 export const uangMukaService = {
   async getAll(): Promise<UangMuka[]> {
-    const response = await api.get<ApiResponse<UangMukaApi[]>>("/api/uang-muka");
+    const response = await api.get<ApiResponse<UangMukaApi[]>>("/uang-muka");
 
     return (response.data.data ?? []).map(mapUangMuka);
   },
 
   async getById(id: number | string): Promise<UangMuka> {
     const response = await api.get<ApiResponse<UangMukaApi>>(
-      `/api/uang-muka/${id}`
+      `/uang-muka/${id}`
     );
 
     return mapUangMuka(response.data.data);
@@ -461,7 +461,7 @@ export const uangMukaService = {
 
   async create(payload: UangMukaPayload): Promise<UangMuka> {
     const response = await api.post<ApiResponse<UangMukaApi>>(
-      "/api/uang-muka",
+      "/uang-muka",
       payload
     );
 
@@ -469,27 +469,27 @@ export const uangMukaService = {
   },
 
   async update(id: number | string, payload: UangMukaPayload): Promise<void> {
-    await api.put(`/api/uang-muka/${id}`, payload);
+    await api.put(`/uang-muka/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/api/uang-muka/${id}`);
+    await api.delete(`/uang-muka/${id}`);
   },
 };
 
-// â”€â”€â”€ Product Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Product Dropdown ────────────────────────────────────────────────────────
 
 export const productDropdownService = {
   async getAll(): Promise<Product[]> {
     const response = await api.get<ApiResponse<ProductDropdown[]>>(
-      "/api/product-data"
+      "/product-data"
     );
 
     return (response.data.data ?? []).map(mapProductData);
   },
 };
 
-// â”€â”€â”€ Sales Quotation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sales Quotation ─────────────────────────────────────────────────────────
 
 export type QuotationStatus =
   | "Draft"
@@ -550,7 +550,7 @@ export function mapSalesQuotation(item: SalesQuotationApi): SalesQuotation {
   };
 }
 
-// â”€â”€â”€ Quotation Detail Items (GET /api/quotation-detail/{quotationId}) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Quotation Detail Items (GET /api/quotation-detail/{quotationId}) ─────────
 
 export interface QuotationDetailItemApi {
   productId: number;
@@ -589,7 +589,7 @@ export function mapQuotationDetailItem(item: QuotationDetailItemApi): QuotationD
   };
 }
 
-// â”€â”€â”€ Quotation Full Detail (untuk halaman Detail & Print Penawaran) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Quotation Full Detail (untuk halaman Detail & Print Penawaran) ──────────
 // Sumber: GET /api/header-detail/{id}
 
 export interface SalesQuotationHeaderDetailApi {
@@ -601,7 +601,7 @@ export interface SalesQuotationHeaderDetailApi {
     quotationDate: string;
     address?: string;
     notes: string;
-    /** Grand total final dari backend â€” sudah dikurangi diskon, ditambah pajak */
+    /** Grand total final dari backend — sudah dikurangi diskon, ditambah pajak */
     subtotal: number;
     discountTotal?: number;
     taxTotal?: number;
@@ -628,7 +628,7 @@ export interface SalesQuotationDetail {
   pelanggan: string;
   alamat: string;
   keterangan: string;
-  /** Grand total final dari API â€” sudah dikurangi diskon, ditambah pajak */
+  /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
   subtotal: number;
   discountTotal: number;
   taxTotal: number;
@@ -687,7 +687,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
 export const salesQuotationService = {
   async getAll(): Promise<SalesQuotation[]> {
   const response = await api.get<ApiResponse<SalesQuotationListItemApi[]>>(
-    "/api/SalesQuotation"
+    "/SalesQuotation"
   );
 
   return (response.data.data ?? []).map((item) => ({
@@ -706,7 +706,7 @@ export const salesQuotationService = {
 
   async getById(id: number | string): Promise<SalesQuotation> {
     const response = await api.get<ApiResponse<SalesQuotationApi>>(
-      `/api/SalesQuotation/${id}`
+      `/SalesQuotation/${id}`
     );
 
     return mapSalesQuotation(response.data.data);
@@ -715,7 +715,7 @@ export const salesQuotationService = {
   /** Detail items untuk "Ambil dari Penawaran Penjualan" di form SO */
   async getDetailItems(quotationId: number | string): Promise<QuotationDetailItem[]> {
     const response = await api.get<ApiResponse<QuotationDetailItemApi[]>>(
-      `/api/quotation-detail/${quotationId}`
+      `/quotation-detail/${quotationId}`
     );
 
     return (response.data.data ?? []).map(mapQuotationDetailItem);
@@ -724,7 +724,7 @@ export const salesQuotationService = {
   /** Detail lengkap (header + items) untuk halaman Detail & Print Penawaran. */
   async getFullDetailById(id: number | string): Promise<SalesQuotationDetail> {
     const response = await api.get<ApiResponse<SalesQuotationHeaderDetailApi>>(
-      `/api/header-detail/${id}`
+      `/header-detail/${id}`
     );
 
     return mapSalesQuotationDetail(response.data.data);
@@ -733,7 +733,7 @@ export const salesQuotationService = {
   /** Ambil daftar quotation berdasarkan customer */
   async getByCustomerId(customerId: number): Promise<SalesQuotation[]> {
     const response = await api.get<ApiResponse<SalesQuotationListItemApi[]>>(
-      `/api/SalesQuotation/${customerId}`
+      `/SalesQuotation/${customerId}`
     );
 
     return (response.data.data ?? [])
@@ -754,7 +754,7 @@ export const salesQuotationService = {
 
   async create(payload: SalesQuotationPayload): Promise<SalesQuotation> {
     const response = await api.post<ApiResponse<SalesQuotationApi>>(
-      "/api/SalesQuotation",
+      "/SalesQuotation",
       payload
     );
     return mapSalesQuotation(response.data.data);
@@ -764,15 +764,15 @@ export const salesQuotationService = {
     id: number | string,
     payload: Partial<SalesQuotationApi>
   ): Promise<void> {
-    await api.put(`/api/SalesQuotation/${id}`, payload);
+    await api.put(`/SalesQuotation/${id}`, payload);
   },
 
   async remove(id: number | string): Promise<void> {
-    await api.delete(`/api/SalesQuotation/${id}`);
+    await api.delete(`/SalesQuotation/${id}`);
   },
 };
 
-// â”€â”€â”€ Bank Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Bank Dropdown ────────────────────────────────────────────────────────────
 
 export interface BankApi {
   id: number;
@@ -796,12 +796,12 @@ export function mapBank(item: BankApi): Bank {
 
 export const bankService = {
   async getAll(): Promise<Bank[]> {
-    const response = await api.get<ApiResponse<BankApi[]>>("/api/bank");
+    const response = await api.get<ApiResponse<BankApi[]>>("/bank");
     return (response.data.data ?? []).map(mapBank);
   },
 };
 
-// â”€â”€â”€ Penerimaan Penjualan (Sales Receipt) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Penerimaan Penjualan (Sales Receipt) ─────────────────────────────────────
 
 export interface PenerimaanPenjualanApi {
   id: number;
@@ -837,7 +837,7 @@ export interface PenerimaanPenjualan {
   status?: string;
 }
 
-/** Payload untuk POST /api/sales-receipt â€” id TIDAK dikirim (auto dari backend) */
+/** Payload untuk POST /api/sales-receipt — id TIDAK dikirim (auto dari backend) */
 export interface PenerimaanPenjualanPayload {
   noBukti: string;
   customerId: number;
@@ -871,21 +871,21 @@ export function mapPenerimaanPenjualan(item: PenerimaanPenjualanApi): Penerimaan
 export const penerimaanPenjualanService = {
   async getAll(): Promise<PenerimaanPenjualan[]> {
     const response = await api.get<ApiResponse<PenerimaanPenjualanApi[]>>(
-      "/api/sales-receipt"
+      "/sales-receipt"
     );
     return (response.data.data ?? []).map(mapPenerimaanPenjualan);
   },
 
   async create(payload: PenerimaanPenjualanPayload): Promise<PenerimaanPenjualan> {
     const response = await api.post<ApiResponse<PenerimaanPenjualanApi>>(
-      "/api/sales-receipt",
+      "/sales-receipt",
       payload
     );
     return mapPenerimaanPenjualan(response.data.data);
   },
 
   async update(id: number | string, payload: PenerimaanPenjualanPayload): Promise<void> {
-    await api.put(`/api/sales-receipt/${id}`, payload);
+    await api.put(`/sales-receipt/${id}`, payload);
   },
 
   async getById(id: number | string): Promise<PenerimaanPenjualan> {

@@ -52,7 +52,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true);
-        const response = await api.get("/api/category-customer");
+        const response = await api.get("/category-customer");
         const data = response.data;
         setCategories(data.data);
       } catch (error) {

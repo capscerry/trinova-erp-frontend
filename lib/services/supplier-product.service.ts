@@ -5,7 +5,7 @@ export const getSupplierProducts =
 
     const response =
       await api.get(
-        "/api/supplier-product"
+        "/supplier-product"
       );
 
     return response.data;
@@ -16,7 +16,7 @@ export const getSupplierProductsBySupplier =
 
     const response =
       await api.get(
-        `/api/supplier-product/by-supplier/${supplierId}`
+        `/supplier-product/by-supplier/${supplierId}`
       );
 
     return response.data;
@@ -34,7 +34,7 @@ export const updateSupplierProduct = async (
   id: number,
   payload: { available_stock?: number; [key: string]: any }
 ) => {
-  const response = await api.put(`/api/supplier-product/${id}`, payload);
+  const response = await api.put(`/supplier-product/${id}`, payload);
   return response.data;
 };
 
@@ -48,7 +48,7 @@ export const restoreStock = async (
   supplierId: number,
   quantity: number
 ) => {
-  const response = await api.post("/api/supplier-product/restore-stock", {
+  const response = await api.post("/supplier-product/restore-stock", {
     product_id: productId,
     supplier_id: supplierId,
     quantity,
@@ -73,7 +73,7 @@ export const importSupplierCatalog =
     const response =
       await api.post(
 
-        `/api/supplier-product/import/${supplierId}`,
+        `/supplier-product/import/${supplierId}`,
 
         formData,
 

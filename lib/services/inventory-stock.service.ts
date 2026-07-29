@@ -1,6 +1,6 @@
-﻿import { api } from "@/lib/api";
+import { api } from "@/lib/api";
 
-const BASE_URL = "/api/InventoryStock";
+const BASE_URL = "/InventoryStock";
 
 export interface InventoryStockPayload {
   product_id: number;

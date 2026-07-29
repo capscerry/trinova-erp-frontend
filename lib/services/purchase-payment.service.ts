@@ -21,7 +21,7 @@ function toArray(data: unknown): any[] {
 export const getPurchasePayments = async () => {
   try {
     console.log("[Payment] Loading Purchase Payments...");
-    const res = await api.get("/api/purchase-payment");
+    const res = await api.get("/purchase-payment");
     const raw = res.data;
     const list = toArray(raw);
     console.log(`[Payment] Loaded ${list.length} payment(s)`);
@@ -54,7 +54,7 @@ export const createPurchasePayment = async (payload: any) => {
     throw new Error("Amount harus lebih dari 0.");
   }
   console.log("[Payment] Creating Purchase Payment for invoice:", payload.purchase_invoice_id);
-  const res = await api.post("/api/purchase-payment", payload);
+  const res = await api.post("/purchase-payment", payload);
   return res.data ?? {};
 };
 
@@ -62,7 +62,7 @@ export const createPurchasePayment = async (payload: any) => {
 export const updatePurchasePayment = async (id: number, payload: any) => {
   if (!id || id <= 0) throw new Error("ID Purchase Payment tidak valid.");
   console.log(`[Payment] Updating Purchase Payment ${id}...`);
-  const res = await api.put(`/api/purchase-payment/${id}`, payload);
+  const res = await api.put(`/purchase-payment/${id}`, payload);
   return res.data ?? {};
 };
 
@@ -70,6 +70,6 @@ export const updatePurchasePayment = async (id: number, payload: any) => {
 export const deletePurchasePayment = async (id: number) => {
   if (!id || id <= 0) throw new Error("ID Purchase Payment tidak valid.");
   console.log(`[Payment] Deleting Purchase Payment ${id}...`);
-  const res = await api.delete(`/api/purchase-payment/${id}`);
+  const res = await api.delete(`/purchase-payment/${id}`);
   return res.data ?? {};
 };

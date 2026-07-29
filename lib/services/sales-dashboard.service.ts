@@ -77,7 +77,7 @@ export const EMPTY_SALES_DASHBOARD: SalesDashboard = {
 
 export const salesDashboardService = {
   async getDashboard(): Promise<SalesDashboard> {
-    const response = await api.get<ApiResponse<SalesDashboard>>("/api/sales-dashboard");
+    const response = await api.get<ApiResponse<SalesDashboard>>("/sales-dashboard");
     return response.data.data ?? EMPTY_SALES_DASHBOARD;
   },
 };

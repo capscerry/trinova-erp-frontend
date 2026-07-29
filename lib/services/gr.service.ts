@@ -21,7 +21,7 @@ function toArray(data: unknown): any[] {
 export const getGoodsReceipts = async (): Promise<any[]> => {
   try {
     console.log("[GR] Loading Goods Receipts...");
-    const res = await api.get("/api/goods-receipt");
+    const res = await api.get("/goods-receipt");
     const list = toArray(res.data);
     console.log(`[GR] Loaded ${list.length} Goods Receipt(s)`);
     return list;
@@ -40,7 +40,7 @@ export const getGoodsReceipts = async (): Promise<any[]> => {
 export const getGoodsReceiptsForReturn = async (): Promise<any[]> => {
   try {
     console.log("[GR] Loading Goods Receipts for return...");
-    const res = await api.get("/api/goods-receipt/for-purchase-return");
+    const res = await api.get("/goods-receipt/for-purchase-return");
     return toArray(res.data);
   } catch (err: any) {
     console.error("[GR] getGoodsReceiptsForReturn failed:", err?.message ?? err);
@@ -73,7 +73,7 @@ export const getAvailableReturnDetails = async (grId: number): Promise<any[]> =>
 // ─── GET NEXT GR NUMBER ───────────────────────────────────────────────────────
 export const getNextGRNumber = async () => {
   try {
-    const res = await api.get("/api/goods-receipt/next-number");
+    const res = await api.get("/goods-receipt/next-number");
     return res.data ?? {};
   } catch (err: any) {
     console.error("[GR] getNextGRNumber failed:", err?.message ?? err);
@@ -87,7 +87,7 @@ export const createGoodsReceipt = async (payload: any) => {
     throw new Error("purchase_order_id diperlukan untuk membuat Goods Receipt.");
   }
   console.log("[GR] Creating Goods Receipt for PO:", payload.purchase_order_id);
-  const res = await api.post("/api/goods-receipt", payload);
+  const res = await api.post("/goods-receipt", payload);
   return res.data ?? {};
 };
 
@@ -104,7 +104,7 @@ export const updateGoodsReceipt = async (
 ) => {
   if (!id || id <= 0) throw new Error("ID Goods Receipt tidak valid.");
   console.log(`[GR] Updating Goods Receipt ${id}...`);
-  const res = await api.put(`/api/goods-receipt/${id}`, payload);
+  const res = await api.put(`/goods-receipt/${id}`, payload);
   return res.data ?? {};
 };
 
@@ -113,6 +113,6 @@ export const createGoodsReceiptDetail = async (payload: any) => {
   if (!payload?.goods_receipt_id) {
     throw new Error("goods_receipt_id diperlukan untuk membuat GR Detail.");
   }
-  const res = await api.post("/api/goods-receipt-detail", payload);
+  const res = await api.post("/goods-receipt-detail", payload);
   return res.data ?? {};
 };

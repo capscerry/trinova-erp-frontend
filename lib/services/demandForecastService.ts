@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 
-const BASE_URL = "/api/DemandForecast";
+const BASE_URL = "/DemandForecast";
 
 export async function getDemandForecast() {
   const response = await api.get(BASE_URL);

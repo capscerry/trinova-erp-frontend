@@ -2,24 +2,24 @@ import { api } from "../api";
 
 // ─── Purchase Order Header ─────────────────────────────────────
 export const getPurchaseOrders = async () => {
-  const res = await api.get("/api/purchase-order");
+  const res = await api.get("/purchase-order");
   return res.data;
 };
 
 /** Procurement Manager view: POs awaiting approval (status = "Pending Approval"). */
 export const getPendingApprovalPOs = async () => {
-  const res = await api.get("/api/purchase-order/pending-approval");
+  const res = await api.get("/purchase-order/pending-approval");
   return res.data;
 };
 
 /** Procurement Manager view: POs that have been approved and are in progress. */
 export const getApprovedPOs = async () => {
-  const res = await api.get("/api/purchase-order/approved");
+  const res = await api.get("/purchase-order/approved");
   return res.data;
 };
 
 export const getNextPONumber = async () => {
-  const res = await api.get("/api/purchase-order/next-number");
+  const res = await api.get("/purchase-order/next-number");
   return res.data;
 };
 
@@ -27,7 +27,7 @@ export const createPurchaseOrder = async (
   payload: any
 ) => {
   const res = await api.post(
-    "/api/purchase-order",
+    "/purchase-order",
     payload
   );
 
@@ -39,7 +39,7 @@ export const updatePurchaseOrder = async (
   payload: any
 ) => {
   const res = await api.put(
-    `/api/purchase-order/${id}`,
+    `/purchase-order/${id}`,
     payload
   );
 
@@ -50,7 +50,7 @@ export const deletePurchaseOrder = async (
   id: number
 ) => {
   const res = await api.delete(
-    `/api/purchase-order/${id}`
+    `/purchase-order/${id}`
   );
 
   return res.data;
@@ -63,7 +63,7 @@ export const deletePurchaseOrder = async (
  * line has insufficient stock.
  */
 export const approvePurchaseOrder = async (id: number) => {
-  const res = await api.patch(`/api/purchase-order/${id}/approve`);
+  const res = await api.patch(`/purchase-order/${id}/approve`);
   return res.data;
 };
 
@@ -72,7 +72,7 @@ export const approvePurchaseOrder = async (id: number) => {
  * Transitions status Draft → Pending Approval.
  */
 export const requestPurchaseOrderApproval = async (id: number) => {
-  const res = await api.patch(`/api/purchase-order/${id}/request-approval`);
+  const res = await api.patch(`/purchase-order/${id}/request-approval`);
   return res.data;
 };
 
@@ -81,14 +81,14 @@ export const requestPurchaseOrderApproval = async (id: number) => {
  * Transitions status Pending Approval → Draft, optionally with a reason.
  */
 export const rejectPurchaseOrderApproval = async (id: number, reason?: string) => {
-  const res = await api.patch(`/api/purchase-order/${id}/reject`, { reason: reason ?? "" });
+  const res = await api.patch(`/purchase-order/${id}/reject`, { reason: reason ?? "" });
   return res.data;
 };
 
 // ─── Purchase Order Detail ─────────────────────────────────────
 export const getPurchaseOrderDetails = async () => {
   const res = await api.get(
-    "/api/purchase-order-detail"
+    "/purchase-order-detail"
   );
 
   return res.data;
@@ -129,7 +129,7 @@ export const createPurchaseOrderDetail = async (
   payload: any
 ) => {
   const res = await api.post(
-    "/api/purchase-order-detail",
+    "/purchase-order-detail",
     payload
   );
 
@@ -141,7 +141,7 @@ export const updatePurchaseOrderDetail = async (
   payload: any
 ) => {
   const res = await api.put(
-    `/api/purchase-order-detail/${id}`,
+    `/purchase-order-detail/${id}`,
     payload
   );
 
@@ -152,7 +152,7 @@ export const deletePurchaseOrderDetail = async (
   id: number
 ) => {
   const res = await api.delete(
-    `/api/purchase-order-detail/${id}`
+    `/purchase-order-detail/${id}`
   );
 
   return res.data;

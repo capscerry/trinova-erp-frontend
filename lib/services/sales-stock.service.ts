@@ -50,7 +50,7 @@ function mapStock(item: InventoryStockApi): ProductWarehouseStock {
 
 export const salesStockService = {
   async getByProduct(productId: number): Promise<ProductStockSummary> {
-    const response = await api.get<InventoryStockApi[]>("/api/InventoryStock");
+    const response = await api.get<InventoryStockApi[]>("/InventoryStock");
     const warehouses = (response.data ?? [])
       .filter((item) => Number(item.product_id) === Number(productId))
       .map(mapStock);

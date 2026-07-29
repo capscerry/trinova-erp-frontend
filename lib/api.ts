@@ -74,7 +74,7 @@ api.interceptors.response.use(
       const status =  err.response?.status;
       const url =  err.config?.url ?? "";
 
-      const isExpectedError = status === 401 && url.includes("/api/auth/login");
+      const isExpectedError = status === 401 && url.includes("/auth/login");
       if(!isExpectedError) {
         console.warn(
            `[API Error] ${err.config?.method?.toUpperCase()} ${url}`,
@@ -89,7 +89,7 @@ api.interceptors.response.use(
 
     const status = err.response?.status;
     const url = err.config?.url ?? "";
-    const isLoginRequest = url.includes("/api/auth/login");
+    const isLoginRequest = url.includes("/auth/login");
 
     if (status === 401 && !isLoginRequest) {
       clearAuthSessionAndRedirect();

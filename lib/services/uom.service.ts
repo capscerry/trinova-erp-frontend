@@ -10,7 +10,7 @@ export interface Uom {
 // ─── GET UOMS ─────────────────────────────────────────────────────────────────
 export async function getUoms() {
   const response = await api.get(
-    "/api/MasterUom/GetAllMasterUom"
+    "/MasterUom/GetAllMasterUom"
   );
 
   return response.data.data;

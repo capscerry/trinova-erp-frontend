@@ -7,7 +7,7 @@ export interface Category {
 
 export async function getCategories() {
   const response = await api.get(
-    "/api/master-product-category"
+    "/master-product-category"
   );
 
   return response.data.data;
@@ -19,7 +19,7 @@ export async function createCategory(
   }
 ) {
   const response = await api.post(
-    "/api/master-product-category",
+    "/master-product-category",
     data
   );
 
@@ -30,7 +30,7 @@ export async function updateCategory(
   data: Category
 ) {
   const response = await api.put(
-    "/api/master-product-category",
+    "/master-product-category",
     data
   );
 
@@ -41,7 +41,7 @@ export async function deleteCategory(
   id: number
 ) {
   const response = await api.delete(
-    `/api/master-product-category/${id}`
+    `/master-product-category/${id}`
   );
 
   return response.data;

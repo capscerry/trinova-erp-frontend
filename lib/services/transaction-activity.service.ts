@@ -46,7 +46,7 @@ export interface ActivityRecord {
 
 async function fetchPOAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/purchase-order");
+    const res = await api.get("/purchase-order");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);
@@ -79,7 +79,7 @@ async function fetchPOAlerts(): Promise<ActivityRecord[]> {
 
 async function fetchDPAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/purchase-down-payment");
+    const res = await api.get("/purchase-down-payment");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);
@@ -112,7 +112,7 @@ async function fetchDPAlerts(): Promise<ActivityRecord[]> {
 
 async function fetchGRAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/goods-receipt");
+    const res = await api.get("/goods-receipt");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);
@@ -144,7 +144,7 @@ async function fetchGRAlerts(): Promise<ActivityRecord[]> {
 
 async function fetchInvoiceAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/purchase-invoice");
+    const res = await api.get("/purchase-invoice");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);
@@ -178,7 +178,7 @@ async function fetchInvoiceAlerts(): Promise<ActivityRecord[]> {
 
 async function fetchPaymentAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/purchase-payment");
+    const res = await api.get("/purchase-payment");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);
@@ -211,7 +211,7 @@ async function fetchPaymentAlerts(): Promise<ActivityRecord[]> {
 
 async function fetchReturnAlerts(): Promise<ActivityRecord[]> {
   try {
-    const res = await api.get("/api/purchase-return");
+    const res = await api.get("/purchase-return");
     const rows: any[] = Array.isArray(res.data)
       ? res.data
       : (res.data?.data ?? []);

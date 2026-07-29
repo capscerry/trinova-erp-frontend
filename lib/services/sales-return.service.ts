@@ -120,12 +120,12 @@ export interface SalesReturnPayload {
 
 export const salesReturnService = {
   async getAll(): Promise<SalesReturn[]> {
-    const response = await api.get<ApiResponse<SalesReturnHeaderApi[]>>("/api/sales-return");
+    const response = await api.get<ApiResponse<SalesReturnHeaderApi[]>>("/sales-return");
     return (response.data.data ?? []).map(mapSalesReturn);
   },
 
   async getDetailById(id: number | string): Promise<SalesReturnFullDetail> {
-    const response = await api.get<ApiResponse<SalesReturnDetailResponseApi>>(`/api/sales-return/${id}`);
+    const response = await api.get<ApiResponse<SalesReturnDetailResponseApi>>(`/sales-return/${id}`);
     const { header, detail } = response.data.data;
     return {
       ...mapSalesReturn(header),
@@ -136,13 +136,13 @@ export const salesReturnService = {
   /** Sisa qty yang masih bisa diretur per produk untuk satu Delivery Order (qty dikirim - yang sudah pernah diretur). */
   async getReturnableQty(deliveryOrderId: number | string): Promise<Record<number, number>> {
     const response = await api.get<ApiResponse<Record<number, number>>>(
-      `/api/sales-return/returnable/${deliveryOrderId}`
+      `/sales-return/returnable/${deliveryOrderId}`
     );
     return response.data.data ?? {};
   },
 
   async create(payload: SalesReturnPayload): Promise<SalesReturn> {
-    const response = await api.post<ApiResponse<{ id: number }>>("/api/sales-return", payload);
+    const response = await api.post<ApiResponse<{ id: number }>>("/sales-return", payload);
     return mapSalesReturn({
       id: response.data.data.id,
       returnNumber: payload.header.returnNumber,

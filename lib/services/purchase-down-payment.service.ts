@@ -5,7 +5,7 @@ import { api } from "../api";
 export const getPurchaseDownPayments =
   async () => {
     const res = await api.get(
-      "/api/purchase-down-payment"
+      "/purchase-down-payment"
     );
 
     return res.data;
@@ -14,7 +14,7 @@ export const getPurchaseDownPayments =
 export const createPurchaseDownPayment =
   async (payload: any) => {
     const res = await api.post(
-      "/api/purchase-down-payment",
+      "/purchase-down-payment",
       payload
     );
 
@@ -24,7 +24,7 @@ export const createPurchaseDownPayment =
 export const updatePurchaseDownPayment =
   async (id: number, payload: any) => {
     const res = await api.put(
-      `/api/purchase-down-payment/${id}`,
+      `/purchase-down-payment/${id}`,
       payload
     );
 
@@ -34,7 +34,7 @@ export const updatePurchaseDownPayment =
 export const deletePurchaseDownPayment =
   async (id: number) => {
     const res = await api.delete(
-      `/api/purchase-down-payment/${id}`
+      `/purchase-down-payment/${id}`
     );
 
     return res.data;

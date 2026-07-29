@@ -21,7 +21,7 @@ function toArray(data: unknown): any[] {
 export const getPurchaseInvoices = async () => {
   try {
     console.log("[Invoice] Loading Purchase Invoices...");
-    const res = await api.get("/api/purchase-invoice");
+    const res = await api.get("/purchase-invoice");
     // Normalise: some backends return { data: [...] }, others return [...] directly
     const raw = res.data;
     if (Array.isArray(raw)) {
@@ -48,7 +48,7 @@ export const createPurchaseInvoice = async (payload: any) => {
     throw new Error("supplier_id diperlukan untuk membuat Purchase Invoice.");
   }
   console.log("[Invoice] Creating Purchase Invoice for GR:", payload.goods_receipt_id);
-  const res = await api.post("/api/purchase-invoice", payload);
+  const res = await api.post("/purchase-invoice", payload);
   return res.data ?? {};
 };
 
@@ -56,7 +56,7 @@ export const createPurchaseInvoice = async (payload: any) => {
 export const updatePurchaseInvoice = async (id: number, payload: any) => {
   if (!id || id <= 0) throw new Error("ID Purchase Invoice tidak valid.");
   console.log(`[Invoice] Updating Purchase Invoice ${id}...`);
-  const res = await api.put(`/api/purchase-invoice/${id}`, payload);
+  const res = await api.put(`/purchase-invoice/${id}`, payload);
   return res.data ?? {};
 };
 
@@ -64,7 +64,7 @@ export const updatePurchaseInvoice = async (id: number, payload: any) => {
 export const deletePurchaseInvoice = async (id: number) => {
   if (!id || id <= 0) throw new Error("ID Purchase Invoice tidak valid.");
   console.log(`[Invoice] Deleting Purchase Invoice ${id}...`);
-  const res = await api.delete(`/api/purchase-invoice/${id}`);
+  const res = await api.delete(`/purchase-invoice/${id}`);
   return res.data ?? {};
 };
 
@@ -72,7 +72,7 @@ export const deletePurchaseInvoice = async (id: number) => {
 export const getUnpaidInvoicesBySupplier = async (supplierId: number): Promise<any[]> => {
   try {
     if (!supplierId || supplierId <= 0) return [];
-    const res = await api.get(`/api/purchase-invoice/unpaid/${supplierId}`);
+    const res = await api.get(`/purchase-invoice/unpaid/${supplierId}`);
     return toArray(res.data);
   } catch (err: any) {
     console.error(`[Invoice] getUnpaidInvoicesBySupplier(${supplierId}) failed:`, err?.message ?? err);
@@ -88,7 +88,7 @@ export const getUnpaidInvoicesBySupplier = async (supplierId: number): Promise<a
 export const getUnpaidInvoicesForReturn = async (purchaseReturnId: number): Promise<any[]> => {
   try {
     if (!purchaseReturnId || purchaseReturnId <= 0) return [];
-    const res = await api.get(`/api/purchase-return/${purchaseReturnId}/invoices`);
+    const res = await api.get(`/purchase-return/${purchaseReturnId}/invoices`);
     return toArray(res.data);
   } catch (err: any) {
     console.error(`[Invoice] getUnpaidInvoicesForReturn(${purchaseReturnId}) failed:`, err?.message ?? err);
@@ -103,7 +103,7 @@ export const getUnpaidInvoicesForReturn = async (purchaseReturnId: number): Prom
  */
 export const getNextTaxInvoiceNumber = async (): Promise<string> => {
   try {
-    const res = await api.get("/api/purchase-invoice/next-tax-number");
+    const res = await api.get("/purchase-invoice/next-tax-number");
     return (
       res.data?.nomor_faktur_pajak ??
       res.data?.next_number ??
@@ -124,7 +124,7 @@ export const getNextTaxInvoiceNumber = async (): Promise<string> => {
  */
 export const syncAllInvoiceStatuses = async () => {
   try {
-    const res = await api.post("/api/purchase-invoice/sync-status");
+    const res = await api.post("/purchase-invoice/sync-status");
     return res.data ?? {};
   } catch (err: any) {
     // Non-fatal: log and continue — pages load even if sync fails
