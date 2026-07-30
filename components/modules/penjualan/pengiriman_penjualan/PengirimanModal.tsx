@@ -289,7 +289,7 @@ export function PengirimanModal({
       return;
     }
     if (form.items.some((it) => !it.warehouseId)) {
-      alert("⚠️ Pilih gudang untuk setiap barang");
+      notify.warning("Pilih gudang untuk setiap barang");
       return;
     }
 

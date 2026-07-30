@@ -19,6 +19,7 @@ import {
 
 import { uangMukaService } from "@/lib/services/penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
+import { notify } from "@/lib/notify";
 import {
   type UangMukaFormData,
   EMPTY_FORM,
@@ -320,12 +321,12 @@ export function UangMukaModal({
     // Validasi DULU, sebelum setIsSubmitting(true) — supaya tombol tidak
     // sempat menampilkan status "Menyimpan..." untuk validasi yang gagal.
     if (!form.customerId) {
-      alert("⚠️ Pelanggan wajib dipilih");
+      notify.warning("Pelanggan wajib dipilih");
       return;
     }
 
     if (!form.noFaktur.trim()) {
-      alert("⚠️ No Faktur wajib diisi");
+      notify.warning("No Faktur wajib diisi");
       return;
     }
 
@@ -357,9 +358,9 @@ export function UangMukaModal({
       setSaved(true);
     } catch (error: unknown) {
       console.error("Gagal menyimpan Uang Muka:", error);
-      alert(
-        "Gagal menyimpan data: " +
-          (error instanceof Error ? error.message : "Terjadi kesalahan")
+      notify.error(
+        "Gagal menyimpan Uang Muka",
+        error instanceof Error ? error.message : "Terjadi kesalahan"
       );
     } finally {
       setIsSubmitting(false);
@@ -391,7 +392,7 @@ export function UangMukaModal({
 
   const handleProsesClick = () => {
     if (!form.id) {
-      alert("Uang Muka belum memiliki ID. Simpan ulang dokumen terlebih dahulu.");
+      notify.warning("Uang Muka belum memiliki ID", "Simpan ulang dokumen terlebih dahulu.");
       return;
     }
 

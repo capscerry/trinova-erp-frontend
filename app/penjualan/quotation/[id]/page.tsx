@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import {
   salesQuotationService,
   type SalesQuotationDetail,
@@ -233,7 +234,7 @@ export default function SalesQuotationDetailPage() {
       fetchData();
     } catch (err) {
       console.error("Gagal menyimpan perubahan:", err);
-      alert("Gagal menyimpan perubahan Penawaran Penjualan");
+      notify.error("Gagal menyimpan perubahan Penawaran Penjualan");
     }
   };
 

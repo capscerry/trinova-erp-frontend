@@ -16,6 +16,7 @@ import {
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import {
   type SalesQuotation,
   type SalesQuotationFormData,
@@ -258,10 +259,9 @@ export default function SalesQuotationPage() {
       setModalOpen(false);
       loadData();
     } catch (err) {
-      alert(
-        err instanceof Error
-          ? err.message
-          : "Failed to save data"
+      notify.error(
+        "Gagal menyimpan Penawaran Penjualan",
+        err instanceof Error ? err.message : undefined
       );
     } finally {
       setSubmitting(false);

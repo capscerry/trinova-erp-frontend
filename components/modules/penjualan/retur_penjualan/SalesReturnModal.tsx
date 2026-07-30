@@ -6,6 +6,7 @@ import {
   RefreshCw, PenLine, Package, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import { customerService } from "@/lib/services/customer.service";
 import {
   type PengirimanPenjualan,
@@ -187,19 +188,19 @@ export function SalesReturnModal({ open, onClose, onSubmit }: SalesReturnModalPr
 
   const handleSubmit = async () => {
     if (!form.customerId) {
-      alert("Pelanggan wajib dipilih");
+      notify.warning("Pelanggan wajib dipilih");
       return;
     }
     if (!form.deliveryOrderId) {
-      alert("Pilih Delivery Order sebagai sumber retur");
+      notify.warning("Pilih Delivery Order sebagai sumber retur");
       return;
     }
     if (form.items.length === 0) {
-      alert("Tambahkan minimal 1 barang untuk diretur");
+      notify.warning("Tambahkan minimal 1 barang untuk diretur");
       return;
     }
     if (form.items.some((it) => it.qty <= 0)) {
-      alert("Qty retur harus lebih dari 0 untuk semua baris");
+      notify.warning("Qty retur harus lebih dari 0 untuk semua baris");
       return;
     }
 
@@ -226,8 +227,7 @@ export function SalesReturnModal({ open, onClose, onSubmit }: SalesReturnModalPr
       onSubmit();
     } catch (err: unknown) {
       console.error("Gagal menyimpan retur penjualan:", err);
-      const message = err instanceof Error ? err.message : "Terjadi kesalahan";
-      alert("Gagal menyimpan retur: " + message);
+      notify.error("Gagal menyimpan retur", err instanceof Error ? err.message : "Terjadi kesalahan");
     } finally {
       setIsSubmitting(false);
     }

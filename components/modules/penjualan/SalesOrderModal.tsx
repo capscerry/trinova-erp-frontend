@@ -192,11 +192,9 @@ export function SalesOrderModal({
       }
     } catch (error) {
       console.error("Gagal menyimpan SO:", error);
-      alert(error instanceof Error
-        ? error.message
-        : isEdit
-          ? "Gagal menyimpan perubahan Sales Order"
-          : "Gagal menyimpan Sales Order"
+      notify.error(
+        isEdit ? "Gagal menyimpan perubahan Sales Order" : "Gagal menyimpan Sales Order",
+        error instanceof Error ? error.message : undefined
       );
     } finally {
       setIsSubmitting(false);
