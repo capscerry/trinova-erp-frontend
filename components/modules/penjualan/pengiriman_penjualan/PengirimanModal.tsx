@@ -632,107 +632,109 @@ export function PengirimanModal({
                   Belum ada barang. {form.salesOrderId ? "Pilih ulang pesanan untuk memuat barang." : 'Klik "Tambah Baris" atau ambil dari Pesanan Penjualan.'}
                 </div>
               ) : (
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Nama Barang</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Satuan</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[18%]">Gudang</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Qty Dipesan</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Qty Dikirim</th>
-                        {!form.salesOrderId && <th className="px-3 py-2.5 w-[5%]"></th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {form.items.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/60">
-                          <td className="px-3 py-2">
-                            {form.salesOrderId ? (
-                              <span className="font-medium text-slate-700">{item.productName}</span>
-                            ) : (
-                              <input
-                                type="text"
-                                value={item.productName}
-                                onChange={(e) => updateItem(item.id, { productName: e.target.value })}
-                                placeholder="Nama barang..."
-                                className={cn(inputClass, "py-1.5")}
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            {form.salesOrderId ? (
-                              <span className="text-slate-500">{item.satuan}</span>
-                            ) : (
-                              <input
-                                type="text"
-                                value={item.satuan}
-                                onChange={(e) => updateItem(item.id, { satuan: e.target.value })}
-                                placeholder="PCS"
-                                className={cn(inputClass, "py-1.5")}
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <select
-                              value={item.warehouseId ?? ""}
-                              disabled={loadingWarehouses}
-                              onChange={(e) => {
-                                const found = warehouseOptions.find(
-                                  (w) => String(w.warehouse_id) === e.target.value
-                                );
-                                if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
-                              }}
-                              className={cn(inputClass, "py-1.5")}
-                            >
-                              <option value="" disabled>
-                                {loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
-                              </option>
-                              {warehouseOptions.map((w) => (
-                                <option key={w.warehouse_id} value={w.warehouse_id}>
-                                  {w.warehouse_name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
+                <div className="space-y-3">
+                  {form.items.map((item, index) => (
+                    <div key={item.id}
+                      className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                                 hover:border-slate-300 hover:shadow-sm transition-all">
+
+                      {/* Baris atas: nomor urut + nama barang + hapus */}
+                      <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-navy-900 text-[11px] font-extrabold text-gold-400">
+                          {index + 1}
+                        </div>
+                        {form.salesOrderId ? (
+                          <span className="flex-1 text-sm font-semibold text-slate-700">{item.productName}</span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={item.productName}
+                            onChange={(e) => updateItem(item.id, { productName: e.target.value })}
+                            placeholder="Nama barang..."
+                            className={cn(inputClass, "flex-1 py-2 text-sm font-semibold")}
+                          />
+                        )}
+                        {!form.salesOrderId && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.id)}
+                            title="Hapus baris"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Baris tengah: satuan / gudang */}
+                      <div className="grid grid-cols-2 gap-3 px-3.5 py-3 border-b border-dashed border-slate-100">
+                        <PengirimanFieldLabel label="Satuan">
+                          {form.salesOrderId ? (
+                            <span className="block py-2 text-sm text-slate-500">{item.satuan || "-"}</span>
+                          ) : (
                             <input
-                              type="number"
-                              min={0}
-                              value={item.qtyDipesan}
-                              disabled={!!form.salesOrderId}
-                              onChange={(e) => updateItem(item.id, { qtyDipesan: Number(e.target.value) })}
-                              className={cn(inputClass, "py-1.5 text-right")}
+                              type="text"
+                              value={item.satuan}
+                              onChange={(e) => updateItem(item.id, { satuan: e.target.value })}
+                              placeholder="PCS"
+                              className={cn(inputClass, "py-2")}
                             />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              max={item.qtyDipesan || undefined}
-                              value={item.qtyDikirim}
-                              onChange={(e) => updateItem(item.id, { qtyDikirim: Number(e.target.value) })}
-                              className={cn(inputClass, "py-1.5 text-right")}
-                            />
-                          </td>
-                          {!form.salesOrderId && (
-                            <td className="px-2 py-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => removeItem(item.id)}
-                                className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </td>
                           )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </PengirimanFieldLabel>
+
+                        <PengirimanFieldLabel label="Gudang">
+                          <select
+                            value={item.warehouseId ?? ""}
+                            disabled={loadingWarehouses}
+                            onChange={(e) => {
+                              const found = warehouseOptions.find(
+                                (w) => String(w.warehouse_id) === e.target.value
+                              );
+                              if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                            }}
+                            className={cn(inputClass, "py-2")}
+                          >
+                            <option value="" disabled>
+                              {loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
+                            </option>
+                            {warehouseOptions.map((w) => (
+                              <option key={w.warehouse_id} value={w.warehouse_id}>
+                                {w.warehouse_name}
+                              </option>
+                            ))}
+                          </select>
+                        </PengirimanFieldLabel>
+                      </div>
+
+                      {/* Baris bawah: qty dipesan vs qty dikirim — dua angka
+                          yang paling penting dibandingkan saat konfirmasi kirim. */}
+                      <div className="grid grid-cols-2 gap-3 px-3.5 py-3">
+                        <PengirimanFieldLabel label="Qty Dipesan">
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.qtyDipesan}
+                            disabled={!!form.salesOrderId}
+                            onChange={(e) => updateItem(item.id, { qtyDipesan: Number(e.target.value) })}
+                            className={cn(inputClass, "py-2.5 text-center text-sm font-semibold")}
+                          />
+                        </PengirimanFieldLabel>
+                        <PengirimanFieldLabel label="Qty Dikirim">
+                          <input
+                            type="number"
+                            min={0}
+                            max={item.qtyDipesan || undefined}
+                            value={item.qtyDikirim}
+                            onChange={(e) => updateItem(item.id, { qtyDikirim: Number(e.target.value) })}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center text-base font-extrabold text-navy-900 transition-all focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-600/20"
+                          />
+                        </PengirimanFieldLabel>
+                      </div>
+                    </div>
+                  ))}
 
                   {/* Total */}
-                  <div className="px-3 py-2.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-6 text-xs">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2.5 flex items-center justify-end gap-6 text-xs">
                     <div className="text-right">
                       <span className="text-slate-400">Total Dipesan: </span>
                       <span className="font-semibold text-slate-700">{totalDipesan}</span>
@@ -790,6 +792,17 @@ function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   return "Terjadi kesalahan";
+}
+
+// Label kecil di atas tiap input dalam kartu baris barang (beda dari
+// FormField di bawah yang dipakai untuk field header pengiriman).
+function PengirimanFieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
 }
 
 function FormField({

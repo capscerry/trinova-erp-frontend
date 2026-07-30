@@ -17,6 +17,7 @@ import {
 import { customerService } from "@/lib/services/customer.service";
 import { DropdownField } from "../DropdownField";
 import { ProductStockBadge } from "./ProductStockBadge";
+import { CurrencyInput } from "./CurrencyInput";
 
 // ─── Props (UI-specific, tetap lokal) ─────────────────────────────────────────
 interface SalesQuotationModalProps {
@@ -349,81 +350,88 @@ export function SalesQuotationModal({
                   <Plus size={12} /> Tambah Baris
                 </button>
               }>
-              <div className="border border-slate-200 rounded-xl overflow-visible">
-                <table className="w-full border-collapse text-xs table-fixed min-w-[1000px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[17%]">Produk</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Deskripsi</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Qty</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[9%]">Satuan</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[14%]">Stok Tersedia</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Harga</th>
-                      <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Diskon %</th>
-                      <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Subtotal</th>
-                      <th className="px-3 py-2.5 w-[5%]"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {form.items.map((item) => (
-                      <tr key={item.id} className="group hover:bg-slate-50/50">
-                        <td className="px-3 py-2">
-                          <ProductSearchField
-                            value={item.produk}
-                            placeholder={loadingProduk ? "Memuat..." : "Cari produk..."}
-                            options={productList}
-                            disabled={loadingProduk}
-                            onChange={(v) => selectProduk(item.id, v)} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="text" value={item.deskripsi}
-                            onChange={(e) => updateItem(item.id, { deskripsi: e.target.value })}
-                            placeholder="Opsional..." className={cn(inputCompact, "w-full")} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="number" min={1} value={item.qty}
-                            onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-full text-center")} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <SelectField value={item.satuan} placeholder="Pilih..."
-                            options={satuanOptions}
-                            onChange={(v) => updateItem(item.id, { satuan: v })} compact />
-                        </td>
-                        <td className="px-3 py-2">
+              <div className="space-y-3">
+                {form.items.map((item, index) => (
+                  <div key={item.id}
+                    className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                               hover:border-slate-300 hover:shadow-sm transition-all">
+
+                    {/* Baris atas: nomor urut + pencarian produk + hapus */}
+                    <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-navy-900 text-[11px] font-extrabold text-gold-400">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <ProductSearchField
+                          value={item.produk}
+                          placeholder={loadingProduk ? "Memuat..." : "Cari produk berdasarkan nama atau kode..."}
+                          options={productList}
+                          disabled={loadingProduk}
+                          onChange={(v) => selectProduk(item.id, v)} />
+                      </div>
+                      <button onClick={() => removeItem(item.id)}
+                        disabled={form.items.length === 1}
+                        title="Hapus baris"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg
+                                   text-slate-300 hover:text-red-500 hover:bg-red-50
+                                   disabled:opacity-20 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    {/* Baris tengah: deskripsi / qty / satuan / stok */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-3.5 py-3 border-b border-dashed border-slate-100">
+                      <QuotationFieldLabel label="Deskripsi">
+                        <input type="text" value={item.deskripsi}
+                          onChange={(e) => updateItem(item.id, { deskripsi: e.target.value })}
+                          placeholder="Opsional..." className={cn(inputCompact, "w-full")} />
+                      </QuotationFieldLabel>
+
+                      <QuotationFieldLabel label="Qty">
+                        <input type="number" min={1} value={item.qty}
+                          onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })}
+                          className={cn(inputCompact, "w-full text-center")} />
+                      </QuotationFieldLabel>
+
+                      <QuotationFieldLabel label="Satuan">
+                        <SelectField value={item.satuan} placeholder="Pilih..."
+                          options={satuanOptions}
+                          onChange={(v) => updateItem(item.id, { satuan: v })} compact />
+                      </QuotationFieldLabel>
+
+                      <QuotationFieldLabel label="Stok Tersedia">
+                        <div className="pt-1.5">
                           <ProductStockBadge
                             hasProduct={!!item.productId}
                             stock={productList.find((p) => p.id === item.productId)?.stock}
                           />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="number" min={0}
-                            value={item.harga || ""}
-                            placeholder="0"
-                            onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-full")} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="number" min={0} max={100} value={item.diskon}
-                            onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
-                            className={cn(inputCompact, "w-full text-center")} />
-                        </td>
-                        <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap text-right">
-                          {formatRupiah(item.subtotal)}
-                        </td>
-                        <td className="px-2 py-2">
-                          <button onClick={() => removeItem(item.id)}
-                            disabled={form.items.length === 1}
-                            className="w-6 h-6 flex items-center justify-center rounded-md
-                                       text-slate-300 hover:text-red-500 hover:bg-red-50
-                                       disabled:opacity-20 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </QuotationFieldLabel>
+                    </div>
+
+                    {/* Baris bawah: harga / diskon / subtotal — bagian nominal,
+                        dibuat lebih menonjol karena paling sering dicek ulang. */}
+                    <div className="grid grid-cols-3 gap-3 px-3.5 py-3 items-end">
+                      <QuotationFieldLabel label="Harga Satuan">
+                        <CurrencyInput
+                          value={item.harga}
+                          onChange={(v) => updateItem(item.id, { harga: v })}
+                        />
+                      </QuotationFieldLabel>
+
+                      <QuotationFieldLabel label="Diskon %">
+                        <input type="number" min={0} max={100} value={item.diskon}
+                          onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-all focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-600/20" />
+                      </QuotationFieldLabel>
+
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">Subtotal</span>
+                        <span className="whitespace-nowrap text-[17px] font-extrabold text-navy-900">{formatRupiah(item.subtotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Ringkasan: Subtotal → Diskon → Pajak → Total */}
@@ -514,6 +522,17 @@ function FormField({
         {required && <span className="text-red-400 font-bold">*</span>}
         {hint && <span className="ml-auto text-[10px] font-normal text-slate-400 normal-case tracking-normal">{hint}</span>}
       </label>
+      {children}
+    </div>
+  );
+}
+
+// Label kecil di atas tiap input dalam kartu baris produk (beda dari
+// FormField di atas yang dipakai untuk field header quotation).
+function QuotationFieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">{label}</label>
       {children}
     </div>
   );

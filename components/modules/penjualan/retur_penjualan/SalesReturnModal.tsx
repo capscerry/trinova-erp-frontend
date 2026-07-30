@@ -416,62 +416,66 @@ export function SalesReturnModal({ open, onClose, onSubmit }: SalesReturnModalPr
                   Belum ada barang. Pilih Delivery Order untuk memuat barang yang bisa diretur.
                 </div>
               ) : (
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Nama Barang</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Gudang</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[12%]">Maks Retur</th>
-                        <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[14%]">Qty Retur</th>
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[20%]">Alasan</th>
-                        <th className="px-3 py-2.5 w-[5%]"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {form.items.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/60">
-                          <td className="px-3 py-2">
-                            <span className="font-medium text-slate-700">{item.productName}</span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-500">{item.warehouseName || "—"}</td>
-                          <td className="px-3 py-2 text-right text-slate-500">{item.maxReturnable}</td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              max={item.maxReturnable}
-                              value={item.qty}
-                              onChange={(e) =>
-                                updateItem(item.id, {
-                                  qty: Math.max(0, Math.min(Number(e.target.value), item.maxReturnable)),
-                                })
-                              }
-                              className={cn(inputClass, "py-1.5 text-right")}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              value={item.reason}
-                              onChange={(e) => updateItem(item.id, { reason: e.target.value })}
-                              placeholder="Opsional..."
-                              className={cn(inputClass, "py-1.5")}
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => removeItem(item.id)}
-                              className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {form.items.map((item, index) => (
+                    <div key={item.id}
+                      className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                                 hover:border-slate-300 hover:shadow-sm transition-all">
+
+                      {/* Baris atas: nomor urut + nama barang + hapus */}
+                      <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-navy-900 text-[11px] font-extrabold text-gold-400">
+                          {index + 1}
+                        </div>
+                        <span className="flex-1 text-sm font-semibold text-slate-700">{item.productName}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          title="Hapus baris"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      {/* Baris tengah: gudang / maks retur */}
+                      <div className="grid grid-cols-2 gap-3 px-3.5 py-3 border-b border-dashed border-slate-100">
+                        <ReturFieldLabel label="Gudang">
+                          <span className="block py-2 text-sm text-slate-500">{item.warehouseName || "-"}</span>
+                        </ReturFieldLabel>
+                        <ReturFieldLabel label="Maks Retur">
+                          <span className="block py-2 text-sm text-slate-500">{item.maxReturnable}</span>
+                        </ReturFieldLabel>
+                      </div>
+
+                      {/* Baris bawah: qty retur (ditonjolkan) + alasan */}
+                      <div className="grid grid-cols-2 gap-3 px-3.5 py-3">
+                        <ReturFieldLabel label="Qty Retur">
+                          <input
+                            type="number"
+                            min={0}
+                            max={item.maxReturnable}
+                            value={item.qty}
+                            onChange={(e) =>
+                              updateItem(item.id, {
+                                qty: Math.max(0, Math.min(Number(e.target.value), item.maxReturnable)),
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center text-base font-extrabold text-navy-900 transition-all focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-600/20"
+                          />
+                        </ReturFieldLabel>
+                        <ReturFieldLabel label="Alasan">
+                          <input
+                            type="text"
+                            value={item.reason}
+                            onChange={(e) => updateItem(item.id, { reason: e.target.value })}
+                            placeholder="Opsional..."
+                            className={cn(inputClass, "py-2")}
+                          />
+                        </ReturFieldLabel>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -503,6 +507,17 @@ export function SalesReturnModal({ open, onClose, onSubmit }: SalesReturnModalPr
         onConfirm={handleDoConfirm}
       />
     </>
+  );
+}
+
+// Label kecil di atas tiap input dalam kartu baris barang (beda dari
+// FormField di bawah yang dipakai untuk field header retur).
+function ReturFieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">{label}</label>
+      {children}
+    </div>
   );
 }
 

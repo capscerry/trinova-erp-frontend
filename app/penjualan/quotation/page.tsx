@@ -20,11 +20,10 @@ import { notify } from "@/lib/notify";
 import {
   type SalesQuotation,
   type SalesQuotationFormData,
-  type QuotationStatus,
   salesQuotationService,
 } from "@/lib/services/penjualan.service";
 import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 
 const PAGE_SIZE = 10;
@@ -477,18 +476,7 @@ export default function SalesQuotationPage() {
                     </td>
 
                     <td className="px-5 py-3">
-                      <SalesStatusSelect<QuotationStatus>
-                        module="quotation"
-                        id={row.id}
-                        value={row.status}
-                        onUpdated={(status) =>
-                          setData((current) =>
-                            current.map((item) =>
-                              item.id === row.id ? { ...item, status } : item
-                            )
-                          )
-                        }
-                      />
+                      <SalesStatusBadge module="quotation" value={row.status} />
                     </td>
 
                     <td className="px-5 py-3">

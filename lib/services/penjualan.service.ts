@@ -6,10 +6,8 @@ import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
 
 export type SalesOrderStatus =
   | "Draft"
-  | "Approved"
-  | "Confirmed"
   | "Processing"
-  | "Shipped"
+  | "In Delivery"
   | "Completed"
   | "Cancelled";
 

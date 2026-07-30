@@ -52,8 +52,10 @@ export async function generateQuotationPdf(
       throw new Error("Gagal menyiapkan dokumen penawaran untuk PDF.");
     }
 
+    // scale 1.5 (bukan 2) -- render+encode jauh lebih cepat, hasil cetak
+    // tetap tajam untuk dokumen bisnis. Lihat catatan sama di invoicePdf.tsx.
     const canvas = await html2canvas(pageEl, {
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
       backgroundColor: "#ffffff",
     });

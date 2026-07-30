@@ -12,6 +12,33 @@ import {
 import { salesStatusService } from "@/lib/services/sales-status.service";
 import { cn } from "@/lib/utils";
 
+// ─── SalesStatusBadge ───────────────────────────────────────────────────────
+// Tampilan status read-only (bukan dropdown) -- status sekarang murni hasil
+// dari aksi bisnis (buat invoice, lunasi, buat DO, tandai diterima, dst),
+// jadi tidak lagi bisa diubah manual sembarangan lewat dropdown generik.
+// Satu-satunya transisi status manual yang masih ada adalah tombol khusus
+// "Tandai Diterima" di Delivery Order (lihat PengirimanPenjualanContent.tsx).
+export function SalesStatusBadge({
+  module,
+  value,
+}: {
+  module: SalesStatusModule;
+  value?: string | null;
+}) {
+  const status = normalizeSalesStatus(module, value);
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+        getStatusTone(status)
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
 interface SalesStatusSelectProps<T extends string = string> {
   module: SalesStatusModule;
   id: number | string;

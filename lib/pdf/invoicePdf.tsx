@@ -49,8 +49,12 @@ export async function generateInvoicePdf(
       throw new Error("Gagal menyiapkan dokumen faktur untuk PDF.");
     }
 
+    // scale 1.5 (bukan 2) -- render+encode jauh lebih cepat sementara hasil
+    // cetak tetap tajam untuk dokumen bisnis (bukan foto). Ini kontributor
+    // terbesar lambatnya "Kirim Email" karena tahap ini jalan SEBELUM email
+    // sama sekali dikirim ke backend.
     const canvas = await html2canvas(pageEl, {
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
       backgroundColor: "#ffffff",
     });

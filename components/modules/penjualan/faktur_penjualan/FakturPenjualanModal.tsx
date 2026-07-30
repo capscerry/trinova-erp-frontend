@@ -678,65 +678,88 @@ export function FakturPenjualanModal({
               {form.items.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">Belum ada barang. Ambil dari Sales Order atau tambah baris manual.</div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Barang</th>
-                        <th className="w-[10%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Satuan</th>
-                        {isDirectSale && (
-                          <th className="w-[16%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Gudang</th>
-                        )}
-                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Qty</th>
-                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Harga Satuan</th>
-                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Diskon %</th>
-                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Subtotal</th>
-                        <th className="w-10" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {form.items.map((item) => {
-                        const gross = Number(item.qty || 0) * Number(item.harga || 0);
-                        const lineTotal = gross - gross * (Number(item.diskon || 0) / 100);
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-2">
-                              <input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} />
-                            </td>
-                            <td className="px-3 py-2"><input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
-                            {isDirectSale && (
-                              <td className="px-3 py-2">
-                                <select
-                                  value={item.warehouseId ?? ""}
-                                  disabled={loadingWarehouses}
-                                  onChange={(e) => {
-                                    const found = warehouseOptions.find(
-                                      (w) => String(w.warehouse_id) === e.target.value
-                                    );
-                                    if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
-                                    else updateItem(item.id, { warehouseId: undefined, warehouseName: "" });
-                                  }}
-                                  className={cn(inputClass, "py-1.5")}
-                                >
-                                  <option value="">Jasa (tanpa stok)</option>
-                                  {warehouseOptions.map((w) => (
-                                    <option key={w.warehouse_id} value={w.warehouse_id}>
-                                      {w.warehouse_name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                            )}
-                            <td className="px-3 py-2"><input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
-                            <td className="px-3 py-2"><CurrencyInput value={item.harga} onChange={(v) => updateItem(item.id, { harga: v })} compact /></td>
-                            <td className="px-3 py-2"><input type="number" min={0} max={100} value={item.diskon} onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
-                            <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatRupiah(lineTotal)}</td>
-                            <td className="px-2 py-2 text-center"><button type="button" onClick={() => removeItem(item.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 size={13} /></button></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {form.items.map((item, index) => {
+                    const gross = Number(item.qty || 0) * Number(item.harga || 0);
+                    const lineTotal = gross - gross * (Number(item.diskon || 0) / 100);
+                    return (
+                      <div key={item.id}
+                        className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                                   hover:border-slate-300 hover:shadow-sm transition-all">
+
+                        {/* Baris atas: nomor urut + nama barang + hapus */}
+                        <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-navy-900 text-[11px] font-extrabold text-gold-400">
+                            {index + 1}
+                          </div>
+                          <input
+                            value={item.productName}
+                            onChange={(e) => updateItem(item.id, { productName: e.target.value })}
+                            placeholder="Nama barang..."
+                            className={cn(inputClass, "flex-1 py-2 text-sm font-semibold")}
+                          />
+                          <button type="button" onClick={() => removeItem(item.id)} title="Hapus baris"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {/* Baris tengah: satuan / gudang / qty */}
+                        <div className={cn(
+                          "grid gap-3 px-3.5 py-3 border-b border-dashed border-slate-100",
+                          isDirectSale ? "grid-cols-3" : "grid-cols-2"
+                        )}>
+                          <FieldLabel label="Satuan">
+                            <input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-2")} />
+                          </FieldLabel>
+
+                          {isDirectSale && (
+                            <FieldLabel label="Gudang">
+                              <select
+                                value={item.warehouseId ?? ""}
+                                disabled={loadingWarehouses}
+                                onChange={(e) => {
+                                  const found = warehouseOptions.find(
+                                    (w) => String(w.warehouse_id) === e.target.value
+                                  );
+                                  if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                                  else updateItem(item.id, { warehouseId: undefined, warehouseName: "" });
+                                }}
+                                className={cn(inputClass, "py-2")}
+                              >
+                                <option value="">Jasa (tanpa stok)</option>
+                                {warehouseOptions.map((w) => (
+                                  <option key={w.warehouse_id} value={w.warehouse_id}>
+                                    {w.warehouse_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </FieldLabel>
+                          )}
+
+                          <FieldLabel label="Qty">
+                            <input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-2 text-center")} />
+                          </FieldLabel>
+                        </div>
+
+                        {/* Baris bawah: harga / diskon / subtotal — bagian nominal,
+                            dibuat lebih menonjol karena paling sering dicek ulang. */}
+                        <div className="grid grid-cols-3 gap-3 px-3.5 py-3 items-end">
+                          <FieldLabel label="Harga Satuan">
+                            <CurrencyInput value={item.harga} onChange={(v) => updateItem(item.id, { harga: v })} />
+                          </FieldLabel>
+                          <FieldLabel label="Diskon %">
+                            <input type="number" min={0} max={100} value={item.diskon} onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-all focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-600/20" />
+                          </FieldLabel>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">Subtotal</span>
+                            <span className="whitespace-nowrap text-[17px] font-extrabold text-navy-900">{formatRupiah(lineTotal)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -829,6 +852,17 @@ export function FakturPenjualanModal({
 
 function FormField({ label, icon, required, hint, children }: { label: string; icon?: ReactNode; required?: boolean; hint?: string; children: ReactNode }) {
   return <div className="space-y-1.5"><label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">{icon && <span className="text-slate-400">{icon}</span>}{label}{required && <span className="font-bold text-red-400">*</span>}{hint && <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-slate-400">{hint}</span>}</label>{children}</div>;
+}
+
+// Label kecil di atas tiap input dalam kartu baris barang (beda dari
+// FormField di atas yang dipakai untuk field header faktur).
+function FieldLabel({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {

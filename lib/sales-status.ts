@@ -7,15 +7,17 @@ export type SalesStatusModule =
   | "sales-receipt";
 
 export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
+  // Bahasa Inggris konsisten lintas semua dokumen Sales (sebelumnya sempat
+  // dicampur dengan istilah Indonesia "Belum Diproses"/"Diproses").
   quotation: ["Draft", "Sent", "Approved", "Processed", "Rejected", "Cancelled"],
   // Disederhanakan (flow baru, lihat plan "Redesain Flow & Status Sales
-  // Module"): "Diproses" mencakup seluruh tahap penagihan & pembayaran
+  // Module"): "Processing" mencakup seluruh tahap penagihan & pembayaran
   // (invoice reguler maupun proforma DP/pelunasan untuk barang indent) --
   // status invoice-nya sendiri sudah cukup granular, SO tidak perlu
   // duplikasi. "In Delivery" & "Completed" sekarang murni dipicu oleh
   // Delivery Order (dibuat / ditandai diterima), bukan lagi oleh pelunasan
   // invoice semata.
-  "sales-order": ["Belum Diproses", "Diproses", "In Delivery", "Completed", "Cancelled"],
+  "sales-order": ["Draft", "Processing", "In Delivery", "Completed", "Cancelled"],
   "down-payment": ["Draft", "Unpaid", "Partially Paid", "Received", "Used", "Cancelled"],
   // Disederhanakan: DO sekarang selalu dibuat SETELAH invoice terkait lunas
   // 100%, jadi statusnya langsung "In Delivery" begitu dibuat (bukan lagi
@@ -32,9 +34,9 @@ export function normalizeSalesStatus(
   status?: string | null
 ) {
   const value = (status || "").trim();
-  // Default per module (bukan selalu "Draft" lagi) -- sales-order default ke
-  // "Belum Diproses", delivery-order ke "In Delivery" (keduanya kebetulan
-  // elemen pertama di SALES_STATUS_OPTIONS masing-masing), sisanya tetap "Draft".
+  // Default per module -- sales-order & quotation default ke "Draft",
+  // delivery-order ke "In Delivery" (elemen pertama di SALES_STATUS_OPTIONS
+  // masing-masing).
   if (!value) return SALES_STATUS_OPTIONS[module][0];
 
   const canonical = SALES_STATUS_OPTIONS[module].find(
@@ -46,16 +48,16 @@ export function normalizeSalesStatus(
   const aliases: Record<string, string> = {
     draft: "Draft",
 
-    "belum diproses": "Belum Diproses",
-    "belum terproses": "Belum Diproses",
+    "belum diproses": "Draft",
+    "belum terproses": "Draft",
 
     dikirim: module === "quotation" ? "Sent" : "In Delivery",
     disetujui: "Approved",
     ditolak: "Rejected",
     dibatalkan: "Cancelled",
 
-    diproses: module === "quotation" ? "Processed" : module === "sales-order" ? "Diproses" : "Processing",
-    terproses: module === "sales-order" ? "Diproses" : "Processed",
+    diproses: module === "quotation" ? "Processed" : "Processing",
+    terproses: module === "sales-order" ? "Processing" : "Processed",
     processed: module === "quotation" ? "Processed" : "Processing",
     dikonfirmasi: "Confirmed",
     selesai: "Completed",
@@ -65,7 +67,7 @@ export function normalizeSalesStatus(
 
     diterima: "Received",
     terpakai: "Used",
-    ditagih: module === "sales-order" ? "Diproses" : "Issued",
+    ditagih: module === "sales-order" ? "Processing" : "Issued",
 
     terbit: "Issued",
     issued: module === "down-payment" ? "Unpaid" : "Issued",
@@ -90,7 +92,7 @@ export function isApprovedForPicker(
 
   const selectableStatuses: Record<SalesStatusModule, string[]> = {
     quotation: ["Draft", "Sent", "Approved"],
-    "sales-order": ["Belum Diproses", "Diproses"],
+    "sales-order": ["Draft", "Processing"],
     "down-payment": ["Received"],
     "delivery-order": ["In Delivery"],
     "sales-invoice": ["Issued", "Partially Paid", "Overdue"],
@@ -116,7 +118,7 @@ export function getStatusTone(status?: string | null) {
     return "bg-sky-100 text-sky-700 border-sky-200";
   }
 
-  if (["Diproses", "Partially Paid", "Overdue", "Unpaid"].includes(normalized)) {
+  if (["Processing", "Partially Paid", "Overdue", "Unpaid"].includes(normalized)) {
     return "bg-amber-100 text-amber-700 border-amber-200";
   }
 

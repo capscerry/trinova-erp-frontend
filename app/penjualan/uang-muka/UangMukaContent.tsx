@@ -11,7 +11,7 @@ import type { Column } from "@/components/ui";
 import { useRouter, useSearchParams } from "next/navigation";
 import { uangMukaService } from "@/lib/services/penjualan.service";
 import { Eye } from "lucide-react";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
 
@@ -77,7 +77,7 @@ const COLUMNS: Column<UangMuka>[] = [
     label: "Status",
     width: "150px",
     render: (_: unknown, row: UangMuka) => (
-      <SalesStatusSelect module="down-payment" id={row.id} value={row.status} />
+      <SalesStatusBadge module="down-payment" value={row.status} />
     ),
   },
 ];

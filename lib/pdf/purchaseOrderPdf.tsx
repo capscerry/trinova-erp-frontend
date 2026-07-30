@@ -50,8 +50,10 @@ export async function generatePurchaseOrderPdf(
       throw new Error("Gagal menyiapkan dokumen Purchase Order untuk PDF.");
     }
 
+    // scale 1.5 (bukan 2) -- render+encode jauh lebih cepat, hasil cetak
+    // tetap tajam untuk dokumen bisnis. Lihat catatan sama di invoicePdf.tsx.
     const canvas = await html2canvas(pageEl, {
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
       backgroundColor: "#ffffff",
     });

@@ -133,124 +133,118 @@ export function SalesOrderDetailForm({
         </button>
       </div>
 
-      <div className="border border-slate-200 rounded-xl overflow-visible">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs table-fixed min-w-[1180px]">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[15%]">Produk</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Deskripsi</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[6%]">Qty</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Gudang</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Stok di Gudang</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Harga Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Diskon %</th>
-                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Subtotal</th>
-                <th className="px-3 py-2.5 w-[4%]"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
-                <tr key={item.id} className="group hover:bg-slate-50/50">
+      <div className="space-y-3">
+        {items.map((item, index) => (
+          <div key={item.id}
+            className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                       hover:border-slate-300 hover:shadow-sm transition-all">
 
-                  {/* Produk */}
-                  <td className="px-3 py-2">
-                    <ProductSearchField
-                      value={item.productName ?? ""}  // ← fix: pakai productName
-                      placeholder={loadingProduk ? "Memuat..." : "Cari produk..."}
-                      options={produkOptions}
-                      disabled={loadingProduk}
-                      onChange={(v) => selectProduk(item.id, v)}
-                    />
-                  </td>
+            {/* Baris atas: nomor urut + pencarian produk + hapus */}
+            <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+              <div className="w-6 h-6 rounded-md bg-navy-900 text-gold-400 text-[11px] font-extrabold
+                               flex items-center justify-center shrink-0">
+                {index + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <ProductSearchField
+                  value={item.productName ?? ""}
+                  placeholder={loadingProduk ? "Memuat..." : "Cari produk berdasarkan nama atau kode..."}
+                  options={produkOptions}
+                  disabled={loadingProduk}
+                  onChange={(v) => selectProduk(item.id, v)}
+                />
+                {item.productCode && (
+                  <div className="text-[10px] text-slate-400 mt-1 pl-0.5">
+                    {item.productCode}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => removeItem(item.id)} disabled={items.length === 1}
+                title="Hapus baris"
+                className="w-8 h-8 flex items-center justify-center rounded-lg shrink-0
+                           text-slate-300 hover:text-red-500 hover:bg-red-50
+                           disabled:opacity-20 transition-colors">
+                <Trash2 size={14} />
+              </button>
+            </div>
 
-                  {/* Deskripsi */}
-                  <td className="px-3 py-2">
-                    <input type="text" value={item.deskripsi}
-                      onChange={(e) => updateItem(item.id, { deskripsi: e.target.value })}
-                      placeholder="Opsional..."
-                      className={cn(inputCompact, "w-full")} />
-                  </td>
+            {/* Baris tengah: deskripsi / qty / satuan / gudang+stok */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-3.5 py-3 border-b border-dashed border-slate-100">
+              <Field label="Deskripsi">
+                <input type="text" value={item.deskripsi}
+                  onChange={(e) => updateItem(item.id, { deskripsi: e.target.value })}
+                  placeholder="Opsional..."
+                  className={cn(inputCompact, "w-full")} />
+              </Field>
 
-                  {/* Qty */}
-                  <td className="px-3 py-2">
-                    <input type="number" min={1} value={item.qty}
-                      onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })}
-                      className={cn(inputCompact, "w-full text-center")} />
-                  </td>
+              <Field label="Qty">
+                <input type="number" min={1} value={item.qty}
+                  onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })}
+                  className={cn(inputCompact, "w-full text-center")} />
+              </Field>
 
-                  {/* Satuan */}
-                  <td className="px-3 py-2">
-                    <SelectField
-                      value={item.satuan}
-                      placeholder="Pilih..."
-                      options={satuanOptions}
-                      onChange={(v) => updateItem(item.id, { satuan: v })}
-                      compact
-                    />
-                  </td>
+              <Field label="Satuan">
+                <SelectField
+                  value={item.satuan}
+                  placeholder="Pilih..."
+                  options={satuanOptions}
+                  onChange={(v) => updateItem(item.id, { satuan: v })}
+                  compact
+                />
+              </Field>
 
-                  {/* Gudang */}
-                  <td className="px-3 py-2">
-                    <SelectField
-                      value={item.warehouseName ?? ""}
-                      placeholder={loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
-                      options={warehouseOptions.map((w) => w.warehouse_name)}
-                      onChange={(v) => {
-                        const found = warehouseOptions.find((w) => w.warehouse_name === v);
-                        if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
-                      }}
-                      compact
-                    />
-                  </td>
+              <Field label="Gudang · Stok">
+                <SelectField
+                  value={item.warehouseName ?? ""}
+                  placeholder={loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
+                  options={warehouseOptions.map((w) => w.warehouse_name)}
+                  onChange={(v) => {
+                    const found = warehouseOptions.find((w) => w.warehouse_name === v);
+                    if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                  }}
+                  compact
+                />
+                <div className="mt-1.5">
+                  <ProductStockInfo
+                    productId={item.productId}
+                    warehouseId={item.warehouseId}
+                    warehouseName={item.warehouseName}
+                    requestedQty={item.qty}
+                    compact
+                  />
+                </div>
+              </Field>
+            </div>
 
-                  {/* Stok di gudang terpilih (fallback: total semua gudang sebelum gudang dipilih) */}
-                  <td className="px-3 py-2">
-                    <ProductStockInfo
-                      productId={item.productId}
-                      warehouseId={item.warehouseId}
-                      warehouseName={item.warehouseName}
-                      requestedQty={item.qty}
-                      compact
-                    />
-                  </td>
+            {/* Baris bawah: harga / diskon / subtotal — bagian nominal, dibuat
+                lebih menonjol karena ini yang paling sering dicek ulang. */}
+            <div className="grid grid-cols-3 gap-3 px-3.5 py-3 items-end">
+              <Field label="Harga Satuan">
+                <CurrencyInput
+                  value={item.harga}
+                  onChange={(v) => updateItem(item.id, { harga: v })}
+                />
+              </Field>
 
-                  {/* Harga */}
-                  <td className="px-3 py-2">
-                    <CurrencyInput
-                      value={item.harga}
-                      onChange={(v) => updateItem(item.id, { harga: v })}
-                      compact
-                    />
-                  </td>
+              <Field label="Diskon %">
+                <input type="number" min={0} max={100} value={item.diskon}
+                  onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
+                  className="w-full px-3 py-2.5 text-sm font-semibold text-center rounded-lg
+                             border border-slate-200 bg-white text-slate-700
+                             focus:outline-none focus:ring-2 focus:ring-navy-600/20 focus:border-navy-500 transition-all" />
+              </Field>
 
-                  {/* Diskon */}
-                  <td className="px-3 py-2">
-                    <input type="number" min={0} max={100} value={item.diskon}
-                      onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
-                      className={cn(inputCompact, "w-full text-center")} />
-                  </td>
-
-                  {/* Subtotal */}
-                  <td className="px-3 py-2 font-semibold text-slate-700 whitespace-nowrap text-right">
-                    {formatRupiah(item.subtotal)}
-                  </td>
-
-                  {/* Hapus */}
-                  <td className="px-2 py-2">
-                    <button onClick={() => removeItem(item.id)} disabled={items.length === 1}
-                      className="w-6 h-6 flex items-center justify-center rounded-md
-                                 text-slate-300 hover:text-red-500 hover:bg-red-50
-                                 disabled:opacity-20 transition-colors">
-                      <Trash2 size={13} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Subtotal
+                </span>
+                <span className="text-[17px] font-extrabold text-navy-900 whitespace-nowrap">
+                  {formatRupiah(item.subtotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="flex justify-end mt-3">
@@ -277,6 +271,21 @@ export function SalesOrderDetailForm({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Field ────────────────────────────────────────────────────────────────────
+// Label kecil di atas tiap input dalam kartu baris produk — supaya mata tidak
+// perlu "hafal" kolom apa saat scroll ke baris kedua/ketiga (beda dari tabel
+// lama yang cuma punya header di paling atas).
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

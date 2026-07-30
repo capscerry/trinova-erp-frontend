@@ -161,16 +161,12 @@ const COMPLETED_STATUSES = new Set(["Completed"]);
 
 // ─── Colour palette ───────────────────────────────────────────────────────────
 
+// Selaras dengan 5 status Sales Order kanonis di lib/sales-status.ts
+// (SALES_STATUS_OPTIONS["sales-order"]) hasil redesain flow indent/non-indent.
 const STATUS_COLORS: Record<string, string> = {
   Draft: "#94a3b8",
-  Approved: "#6366f1",
-  Confirmed: "#3b82f6",
-  Processing: "#f97316",
-  "Delivery Overdue": "#f43f5e",
+  Processing: "#f59e0b",
   "In Delivery": "#0ea5e9",
-  Delivered: "#14b8a6",
-  Invoiced: "#8b5cf6",
-  "Partially Paid": "#eab308",
   Completed: "#10b981",
   Cancelled: "#ef4444",
 };
