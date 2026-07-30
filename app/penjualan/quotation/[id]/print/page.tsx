@@ -27,87 +27,38 @@ export default function SalesQuotationPrintPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-sm text-gray-500">
-        Memuat dokumen...
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-sm text-red-500">
-        {error ?? "Data tidak ditemukan"}
-      </div>
-    );
-  }
+  if (loading) return <div className="screen-state">Memuat dokumen...</div>;
+  if (error || !data) return <div className="screen-state error">{error || "Data tidak ditemukan"}</div>;
 
   return (
     <>
-      {/* ── Print/Toolbar CSS — tampilan dokumen sendiri sudah ada di dalam
-           QuotationPrintDocument (class ber-prefix "qpd-"), di sini tinggal
-           gaya layar (toolbar, background abu-abu) & override saat @media print. ── */}
+      {/* Tampilan dokumen sendiri sudah ada di QuotationPrintDocument (class
+          ber-prefix "qpd-"). Di sini tinggal gaya layar (toolbar, background
+          abu-abu) & override saat @media print. */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Arial&display=swap');
-
+        * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
-
-        .toolbar {
-          position: fixed;
-          top: 16px;
-          right: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          z-index: 100;
-        }
-        .toolbar button {
-          padding: 8px 20px;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          border: none;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .btn-print  { background: #1e3a5f; color: #fff; }
-        .btn-close  { background: #ef4444; color: #fff; }
-        .btn-print:hover { background: #2d5a8e; }
-        .btn-close:hover { background: #dc2626; }
-
+        body { background: #edf1f5; font-family: Arial, Helvetica, sans-serif; }
+        .screen-state { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 14px; }
+        .screen-state.error { color: #dc2626; }
+        .toolbar { position: fixed; right: 18px; top: 18px; z-index: 10; display: flex; flex-direction: column; gap: 8px; }
+        .toolbar button { border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; padding: 9px 18px; }
+        .btn-print { background: #0d1b2a; color: #e8d08a; }
+        .btn-close { background: #ffffff; color: #334155; border: 1px solid #dbe3ea !important; }
+        .qpd-page { margin: 18px auto; box-shadow: 0 24px 70px rgba(15, 23, 42, .15); }
+        @page { size: A4; margin: 0; }
         @media print {
+          body { background: #fff; }
           .toolbar { display: none !important; }
-          body { margin: 0; }
-          .qpd-page {
-            width: 100%;
-            padding: 8mm 10mm;
-            margin: 0;
-          }
-        }
-
-        @media screen {
-          body { background: #e5e7eb; }
-          .qpd-page {
-            box-shadow: 0 4px 24px rgba(0,0,0,0.15);
-            margin: 20px auto 40px;
-          }
+          .qpd-page { box-shadow: none; margin: 0; min-height: 297mm; width: 210mm; }
         }
       `}</style>
 
-      {/* ── Toolbar (hanya layar) ─────────────────────────────────────────── */}
       <div className="toolbar">
-        <button className="btn-print" onClick={() => window.print()}>
-          🖨️ Cetak / Save PDF
-        </button>
-        <button className="btn-close" onClick={() => window.close()}>
-          ✕ Tutup
-        </button>
+        <button className="btn-print" onClick={() => window.print()}>Print / Save PDF</button>
+        <button className="btn-close" onClick={() => window.close()}>Tutup</button>
       </div>
 
-      {/* ── Halaman Dokumen ───────────────────────────────────────────────── */}
       <QuotationPrintDocument data={data} />
     </>
   );
