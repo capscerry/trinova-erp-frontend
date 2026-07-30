@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Printer,
   Edit,
+  Mail,
   Package,
   Calendar,
   Hash,
@@ -14,6 +15,7 @@ import {
   FileText,
   AlertCircle,
   TrendingUp,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +25,8 @@ import {
   type QuotationItem,
 } from "@/lib/services/penjualan.service";
 import { SalesQuotationModal } from "@/components/modules/penjualan/SalesQuotationModal";
+import { SendQuotationEmailModal } from "@/components/modules/penjualan/SendQuotationEmailModal";
+import { generateQuotationPdf } from "@/lib/pdf/quotationPdf";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +104,8 @@ export default function SalesQuotationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [banner, setBanner] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   const fetchData = async () => {
     if (!id) return;
@@ -119,6 +125,36 @@ export default function SalesQuotationDetailPage() {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (!banner) return;
+    const timer = setTimeout(() => setBanner(null), 4000);
+    return () => clearTimeout(timer);
+  }, [banner]);
+
+  const handleSendEmail = async (message: string) => {
+    if (!data) throw new Error("Data penawaran belum siap.");
+
+    try {
+      // 1. Render halaman Cetak/PDF di luar layar → tangkap jadi file PDF
+      //    (byte-for-byte sama dengan yang tampil di /print).
+      const pdf = await generateQuotationPdf(data);
+
+      // 2. Kirim ke backend sebagai lampiran base64.
+      const msg = await salesQuotationService.sendEmail(id, message, {
+        base64: pdf.base64,
+        fileName: pdf.fileName,
+      });
+
+      setEmailModalOpen(false);
+      setBanner({ type: "success", msg });
+    } catch (err) {
+      // Dilempar ulang supaya modal (yang menampilkan error di dalam dirinya
+      // sendiri) tetap terbuka dan menunjukkan pesan kegagalan ke user —
+      // baik kegagalan saat generate PDF maupun saat kirim email.
+      throw err;
+    }
+  };
 
   // Konversi SalesQuotationDetail (hasil GET) → SalesQuotationFormData
   // (bentuk yang dipakai modal create/edit). productId/uomId per item
@@ -236,6 +272,13 @@ export default function SalesQuotationDetailPage() {
               <Printer size={13} /> Cetak / PDF
             </button>
             <button
+              onClick={() => setEmailModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
+                         bg-navy-50 text-navy-700 border border-navy-200 hover:bg-navy-100 transition-colors"
+            >
+              <Mail size={13} /> Kirim Email
+            </button>
+            <button
               onClick={() => setEditModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
                          bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
@@ -245,6 +288,25 @@ export default function SalesQuotationDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Banner sukses/gagal kirim email — auto-dismiss 4 detik */}
+      {banner && (
+        <div
+          className={cn(
+            "no-print fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold",
+            banner.type === "success"
+              ? "bg-emerald-600 text-white shadow-emerald-600/30"
+              : "bg-red-600 text-white shadow-red-600/30"
+          )}
+        >
+          {banner.type === "success" ? (
+            <CheckCircle2 size={16} />
+          ) : (
+            <AlertCircle size={16} />
+          )}
+          {banner.msg}
+        </div>
+      )}
 
       {loading ? (
         <DetailSkeleton />
@@ -485,6 +547,17 @@ export default function SalesQuotationDetailPage() {
           onClose={() => setEditModalOpen(false)}
           onSubmit={handleEditSubmit}
           initialData={toFormData(data)}
+        />
+      )}
+
+      {data && (
+        <SendQuotationEmailModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          onSend={handleSendEmail}
+          quotationNumber={data.nomor}
+          customerName={data.pelanggan}
+          customerEmail={data.pelangganEmail}
         />
       )}
     </AppShell>

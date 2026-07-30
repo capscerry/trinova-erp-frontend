@@ -14,6 +14,7 @@ import {
   newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
+import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
@@ -63,6 +64,7 @@ export function SalesOrderModal({
   const [savedSo, setSavedSo] = useState<SavedSalesOrderResponse | null>(null);
   const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
+  const [pengirimanReady, setPengirimanReady] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -78,8 +80,42 @@ export function SalesOrderModal({
       setSuccessMessage("");
       setSavedSo(null);
       setEditSaved(false);
+      setPengirimanReady(false);
     }
   }, [open, initialData]);
+
+  // Cek ringan (UX saja, backend tetap penjaga utama): tombol "Pengiriman"
+  // baru aktif kalau seluruh invoice/proforma milik SO yang baru disimpan
+  // ini sudah lunas 100%. Baru selesai disimpan biasanya belum ada invoice
+  // sama sekali, jadi secara alami tombol ini tetap nonaktif sampai user
+  // membuat & melunasi faktur dulu.
+  useEffect(() => {
+    const orderId = savedSo?.id ?? savedSo?.header?.orderId ?? savedSo?.orderId;
+    if (!isSubmitted || !orderId) {
+      setPengirimanReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const invoices = await salesInvoiceService.getAll();
+        const related = invoices.filter((inv) => inv.salesOrderId === orderId);
+        const ready =
+          related.length > 0 &&
+          related.some((inv) => inv.status !== "Cancelled") &&
+          related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
+        if (!cancelled) setPengirimanReady(ready);
+      } catch (error) {
+        console.error("Gagal cek status pelunasan invoice SO:", error);
+        if (!cancelled) setPengirimanReady(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSubmitted, savedSo]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -97,18 +133,16 @@ export function SalesOrderModal({
     items: SalesOrderItem[],
     quotation: { id: number; nomor: string ,alamat : string,kenaPajak : boolean}
   ) => {
-    // Gabungkan: hapus baris kosong default, lalu tambahkan item dari quotation
-    const existingItems = form.items.filter(
-      (i) => i.productId && i.productId > 0
-    );
-    const merged = [...existingItems, ...items];
-
+    // Ganti (replace) seluruh baris item dengan isi quotation yang baru
+    // dipilih -- bukan digabung dengan quotation sebelumnya. "Ambil dari
+    // Penawaran Penjualan" adalah aksi impor sekali pilih, jadi memilih
+    // quotation lain harus mengganti data lama, bukan menumpuknya.
     patchForm({
       quotationId: quotation.id,
       quotationNumber: quotation.nomor,
       ...(quotation.alamat ? {alamatPengiriman : quotation.alamat} : {}),
       kenaPajak: quotation.kenaPajak,
-      items: merged.length > 0 ? merged : [newItem()],
+      items: items.length > 0 ? items : [newItem()],
     });
     setQuotationPickerOpen(false);
   };
@@ -304,7 +338,12 @@ export function SalesOrderModal({
               <div className="grid grid-cols-3 gap-3">
                 {PROSES_LINKS.map(
                   ({ key, label, desc, icon: Icon, color, bg }) => {
-                    const isActive = isSubmitted && !!savedSo;
+                    const isActive =
+                      isSubmitted && !!savedSo && (key !== "pengiriman" || pengirimanReady);
+                    const effectiveDesc =
+                      key === "pengiriman" && isSubmitted && !!savedSo && !pengirimanReady
+                        ? "Aktif setelah seluruh faktur SO ini lunas 100%"
+                        : desc;
 
                     return (
                       <button
@@ -348,7 +387,7 @@ export function SalesOrderModal({
                             {label}
                           </p>
                           <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                            {desc}
+                            {effectiveDesc}
                           </p>
                         </div>
                       </button>

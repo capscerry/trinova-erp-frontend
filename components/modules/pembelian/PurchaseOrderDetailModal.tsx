@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   X,
   Calendar,
@@ -10,8 +11,17 @@ import {
   Scissors,
   Download,
   Hash,
+  Printer,
+  Mail,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
+import { SendPurchaseOrderEmailModal } from "@/components/modules/pembelian/SendPurchaseOrderEmailModal";
+import {
+  getPurchaseOrderPrintDetail,
+  sendPurchaseOrderEmail,
+  type PurchaseOrderPrintDetail,
+} from "@/lib/services/purchase-order-print.service";
+import { generatePurchaseOrderPdf } from "@/lib/pdf/purchaseOrderPdf";
 
 // -------------------------------------------------------------
 // TYPES
@@ -40,6 +50,8 @@ interface PurchaseOrderItem {
 }
 
 interface PurchaseOrderDetailData {
+  purchase_order_id?: number;
+
   po_number: string;
 
   supplier_name: string;
@@ -107,10 +119,61 @@ export default function PurchaseOrderDetailModal({
   onClose,
   data,
 }: PurchaseOrderDetailModalProps) {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailDetail, setEmailDetail] = useState<PurchaseOrderPrintDetail | null>(null);
+  const [loadingEmailDetail, setLoadingEmailDetail] = useState(false);
+  const [banner, setBanner] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  useEffect(() => {
+    if (!banner) return;
+    const timer = setTimeout(() => setBanner(null), 4000);
+    return () => clearTimeout(timer);
+  }, [banner]);
 
   if (!open || !data) {
     return null;
   }
+
+  const poId = data.purchase_order_id;
+
+  const handleOpenPrint = () => {
+    if (!poId) return;
+    window.open(`/pembelian/po/${poId}/print`, "_blank");
+  };
+
+  const handleOpenEmailModal = async () => {
+    if (!poId) return;
+    setLoadingEmailDetail(true);
+    try {
+      const detail = await getPurchaseOrderPrintDetail(poId);
+      setEmailDetail(detail);
+      setEmailModalOpen(true);
+    } catch (err) {
+      setBanner({
+        type: "error",
+        msg: err instanceof Error ? err.message : "Gagal memuat data Purchase Order untuk email.",
+      });
+    } finally {
+      setLoadingEmailDetail(false);
+    }
+  };
+
+  const handleSendEmail = async (message: string) => {
+    if (!poId || !emailDetail) throw new Error("Data Purchase Order belum siap.");
+
+    // 1. Render halaman Print di luar layar → tangkap jadi file PDF
+    //    (byte-for-byte sama dengan yang tampil di /print).
+    const pdf = await generatePurchaseOrderPdf(emailDetail);
+
+    // 2. Kirim ke backend sebagai lampiran base64.
+    const msg = await sendPurchaseOrderEmail(poId, message, {
+      base64: pdf.base64,
+      fileName: pdf.fileName,
+    });
+
+    setEmailModalOpen(false);
+    setBanner({ type: "success", msg });
+  };
 
   const itemsTotal =
     data.items.reduce(
@@ -725,13 +788,35 @@ export default function PurchaseOrderDetailModal({
 
           {/* FOOTER */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
-            <button
-              onClick={exportToExcel}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <Download size={14} />
-              Export Excel
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
+
+              {poId && (
+                <>
+                  <button
+                    onClick={handleOpenPrint}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    <Printer size={14} />
+                    Print PDF
+                  </button>
+                  <button
+                    onClick={handleOpenEmailModal}
+                    disabled={loadingEmailDetail}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-navy-50 border border-navy-200 rounded-lg hover:bg-navy-100 disabled:opacity-50"
+                  >
+                    <Mail size={14} />
+                    {loadingEmailDetail ? "Memuat..." : "Kirim Email"}
+                  </button>
+                </>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
@@ -743,6 +828,29 @@ export default function PurchaseOrderDetailModal({
         </div>
 
       </div>
+
+      {banner && (
+        <div
+          className={`fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold ${
+            banner.type === "success"
+              ? "bg-emerald-600 text-white shadow-emerald-600/30"
+              : "bg-red-600 text-white shadow-red-600/30"
+          }`}
+        >
+          {banner.msg}
+        </div>
+      )}
+
+      {emailDetail && (
+        <SendPurchaseOrderEmailModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          onSend={handleSendEmail}
+          poNumber={emailDetail.header.po_number}
+          supplierName={emailDetail.supplier?.supplier_name || data.supplier_name}
+          supplierEmail={emailDetail.supplier?.email}
+        />
+      )}
     </>
   );
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
 import { DataTable } from "@/components/ui";
 import type { Column } from "@/components/ui";
-import { Eye } from "lucide-react";
+import { Eye, PackageCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PengirimanModal } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanModal";
 import {
@@ -48,7 +48,12 @@ const COLUMNS: Column<PengirimanPenjualan>[] = [
     label: "Status",
     width: "16%",
     render: (_v, row) => (
-      <SalesStatusSelect module="delivery-order" id={row.id} value={row.status} />
+      <SalesStatusSelect
+        module="delivery-order"
+        id={row.id}
+        value={row.status}
+        excludeOptions={["Received"]}
+      />
     ),
   },
 ];
@@ -131,6 +136,27 @@ function PengirimanPenjualanInner() {
     router.push(`/penjualan/pengiriman-penjualan/${row.id}`);
   };
 
+  const [markingId, setMarkingId] = useState<number | null>(null);
+
+  const handleMarkReceived = async (row: PengirimanPenjualan) => {
+    if (!confirm(`Tandai ${row.noSuratJalan} sebagai sudah diterima customer?`)) return;
+
+    try {
+      setMarkingId(row.id);
+      await pengirimanPenjualanService.markReceived(row.id);
+      notify.success("Delivery Order ditandai sudah diterima");
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      notify.error(
+        "Gagal menandai diterima",
+        err instanceof Error ? err.message : "Terjadi kesalahan"
+      );
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
   const handleModalSubmit = () => {
     setModalOpen(false);
     setInitialFormData(undefined);
@@ -173,7 +199,7 @@ function PengirimanPenjualanInner() {
         }}
         className="[&_table]:table-fixed [&_th:last-child]:w-16 [&_td:last-child]:w-16"
         renderActions={(row) => (
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center gap-1">
             <button
               onClick={() => handleDetail(row)}
               disabled={isLoading}
@@ -183,6 +209,17 @@ function PengirimanPenjualanInner() {
             >
               <Eye size={15} />
             </button>
+            {row.status === "In Delivery" && (
+              <button
+                onClick={() => handleMarkReceived(row)}
+                disabled={isLoading || markingId === row.id}
+                title="Tandai Diterima"
+                className="p-1.5 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50
+                           disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <PackageCheck size={15} />
+              </button>
+            )}
           </div>
         )}
       />

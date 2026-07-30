@@ -8,6 +8,7 @@ import {
   type SalesOrder,
   type SalesOrderDetailItem,
 } from "@/lib/services/penjualan.service";
+import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 export interface PengirimanSOPickerResultItem {
@@ -43,6 +44,9 @@ export function PengirimanSOPickerModal({
 }: PengirimanSOPickerModalProps) {
   const [soList, setSoList] = useState<SalesOrder[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  // Cek ringan (UX saja, backend tetap penjaga utama): SO yang belum lunas
+  // seluruh invoice/proforma-nya belum bisa dipakai membuat Delivery Order.
+  const [invoiceReadyMap, setInvoiceReadyMap] = useState<Record<number, boolean>>({});
 
   const [selectedSoId, setSelectedSoId] = useState<number | string | null>(null);
   const [detailItems, setDetailItems] = useState<SalesOrderDetailItem[]>([]);
@@ -64,11 +68,25 @@ export function PengirimanSOPickerModal({
     const load = async () => {
       setLoadingList(true);
       try {
-        const data = await salesOrderService.getByCustomerId(customerId);
+        const [data, invoices] = await Promise.all([
+          salesOrderService.getByCustomerId(customerId),
+          salesInvoiceService.getAll().catch(() => []),
+        ]);
         setSoList(data);
+
+        const readyMap: Record<number, boolean> = {};
+        data.forEach((so) => {
+          const related = invoices.filter((inv) => inv.salesOrderId === so.id);
+          readyMap[so.id] =
+            related.length > 0 &&
+            related.some((inv) => inv.status !== "Cancelled") &&
+            related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
+        });
+        setInvoiceReadyMap(readyMap);
       } catch (err) {
         console.error("Gagal memuat pesanan penjualan:", err);
         setSoList([]);
+        setInvoiceReadyMap({});
       } finally {
         setLoadingList(false);
       }
@@ -262,31 +280,53 @@ export function PengirimanSOPickerModal({
                           : "Pesanan tidak ditemukan"}
                       </div>
                     ) : (
-                      filteredSo.map((so) => (
-                        <button
-                          key={so.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedSoId(so.id);
-                            setSearchSo("");
-                          }}
-                          className="w-full flex items-center justify-between gap-3 px-4 py-2.5
-                                     text-left text-xs hover:bg-slate-50 border-b border-slate-100
-                                     last:border-b-0 transition-colors"
-                        >
-                          <span className="font-mono font-semibold text-slate-700">
-                            {so.nomor}
-                          </span>
-                          <span className="text-slate-400">
-                            {so.tanggal ? new Date(so.tanggal).toLocaleDateString("id-ID") : ""}
-                          </span>
-                        </button>
-                      ))
+                      filteredSo.map((so) => {
+                        const ready = invoiceReadyMap[so.id] ?? false;
+                        return (
+                          <button
+                            key={so.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSoId(so.id);
+                              setSearchSo("");
+                            }}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-2.5
+                                       text-left text-xs hover:bg-slate-50 border-b border-slate-100
+                                       last:border-b-0 transition-colors"
+                          >
+                            <span className="font-mono font-semibold text-slate-700">
+                              {so.nomor}
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide",
+                                  ready
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-amber-100 text-amber-700"
+                                )}
+                              >
+                                {ready ? "Lunas" : "Belum Lunas"}
+                              </span>
+                              <span className="text-slate-400">
+                                {so.tanggal ? new Date(so.tanggal).toLocaleDateString("id-ID") : ""}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </>
               )}
             </div>
+
+            {selectedSoId && !(invoiceReadyMap[Number(selectedSoId)] ?? false) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                SO ini belum lunas sepenuhnya. Delivery Order baru bisa dibuat setelah seluruh
+                faktur (termasuk 2 invoice proforma DP/Pelunasan untuk barang indent) lunas 100%.
+              </div>
+            )}
 
             {selectedSoId && (
               <div className="space-y-2">

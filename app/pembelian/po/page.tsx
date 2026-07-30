@@ -1025,6 +1025,9 @@ export default function PurchaseOrderPage() {
                 }
 
                 setSelectedPO({
+                  purchase_order_id:
+                    poId,
+
                   po_number:
                     row.nomor,
 

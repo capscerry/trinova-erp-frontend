@@ -53,6 +53,7 @@ export interface SalesOrderDetailApi {
   taxTotal?: number;
   isTaxAble?: boolean;
   status?: SalesOrderStatus;
+  isIndent?: boolean;
   quotationId?: number;
   quotationNumber?: string;
   detail: SalesOrderDetailItem[];
@@ -144,6 +145,7 @@ export interface SalesOrderApi {
   notes: string;
   subTotal: number;
   status: SalesOrderStatus;
+  isIndent?: boolean;
 }
 
 interface SalesOrderByCustomerApi {
@@ -168,6 +170,7 @@ interface SalesOrderByCustomerApi {
   taxTotal?: number;
   subTotal?: number;
   total?: number;
+  isIndent?: boolean;
 }
 
 export interface SalesOrder {
@@ -183,6 +186,7 @@ export interface SalesOrder {
   kenaPajak?: boolean;
   isTaxIncluded?: boolean;
   taxTotal?: number;
+  isIndent?: boolean;
   total: number;
   items: SalesOrderItemApi[];
 }
@@ -203,6 +207,7 @@ export interface SalesOrderDetail {
   discountTotal: number;
   taxTotal: number;
   kenaPajak: boolean;
+  isIndent?: boolean;
   quotationId?: number;
   quotationNumber?: string;
   items: SalesOrderDetailItem[];
@@ -299,6 +304,7 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
     pelanggan: item.customerName,
     keterangan: item.notes,
     status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+    isIndent: item.isIndent ?? false,
     total: item.subTotal,
     items: [],
   };
@@ -320,6 +326,7 @@ export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail
     taxTotal: item.taxTotal ?? 0,
     kenaPajak: item.isTaxAble ?? false,
     status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+    isIndent: item.isIndent ?? false,
     quotationId: item.quotationId ?? undefined,
     quotationNumber: item.quotationNumber ?? undefined,
     items: item.detail ?? [],
@@ -426,6 +433,7 @@ export const salesOrderService = {
         kenaPajak: Boolean(item.isTaxAble ?? item.isTaxable ?? false),
         isTaxIncluded: Boolean(item.isTaxIncluded ?? item.isTaxAble ?? item.isTaxable ?? false),
         taxTotal: Number(item.taxTotal ?? 0),
+        isIndent: Boolean(item.isIndent ?? false),
         total: item.subTotal ?? item.total ?? 0,
         items: [],
       }))
@@ -598,6 +606,7 @@ export interface SalesQuotationHeaderDetailApi {
     customerId: number;
     quotationNumber: string;
     customerName: string;
+    customerEmail?: string;
     quotationDate: string;
     address?: string;
     notes: string;
@@ -626,6 +635,7 @@ export interface SalesQuotationDetail {
   nomor: string;
   tanggal: string;
   pelanggan: string;
+  pelangganEmail?: string;
   alamat: string;
   keterangan: string;
   /** Grand total final dari API â€” sudah dikurangi diskon, ditambah pajak */
@@ -673,6 +683,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     nomor: item.header.quotationNumber,
     tanggal: item.header.quotationDate,
     pelanggan: item.header.customerName,
+    pelangganEmail: item.header.customerEmail ?? "",
     alamat: item.header.address ?? "",
     keterangan: item.header.notes ?? "",
     subtotal: item.header.subtotal,
@@ -728,6 +739,29 @@ export const salesQuotationService = {
     );
 
     return mapSalesQuotationDetail(response.data.data);
+  },
+
+  /**
+   * Kirim penawaran ke email pelanggan terdaftar (SMTP di backend).
+   * `attachment` (opsional) adalah PDF hasil render halaman Cetak/PDF di
+   * sisi frontend (lihat lib/pdf/quotationPdf.tsx) — dikirim sebagai base64
+   * supaya backend tinggal melampirkannya ke email, bukan generate ulang.
+   */
+  async sendEmail(
+    id: number | string,
+    message?: string,
+    attachment?: { base64: string; fileName: string }
+  ): Promise<string> {
+    const response = await api.post<ApiResponse<null>>(
+      `/SalesQuotation/${id}/send-email`,
+      {
+        message: message && message.length > 0 ? message : undefined,
+        attachmentBase64: attachment?.base64,
+        attachmentFileName: attachment?.fileName,
+      }
+    );
+
+    return response.data.message ?? "Email penawaran berhasil dikirim.";
   },
 
   /** Ambil daftar quotation berdasarkan customer */

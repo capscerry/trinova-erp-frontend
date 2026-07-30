@@ -33,6 +33,9 @@ export interface FakturPenjualanFormData {
   kenaPajak: boolean;
   uangMuka: number;
   biayaKirim: number;
+  /** Label tahap proforma untuk SO barang indent: "DP" (30%), "Final" (70%),
+   * atau null untuk invoice reguler non-indent. */
+  proformaStage?: "DP" | "Final" | null;
   items: FakturPenjualanItem[];
 }
 
@@ -85,6 +88,7 @@ export const EMPTY_FORM: FakturPenjualanFormData = {
   kenaPajak: false,
   uangMuka: 0,
   biayaKirim: 0,
+  proformaStage: null,
   items: [],
 };
 
@@ -131,6 +135,7 @@ export function mapFormToApiPayload(form: FakturPenjualanFormData): SalesInvoice
       downPaymentAmount: Number(form.uangMuka || 0),
       shippingCost: Number(form.biayaKirim || 0),
       grandTotal: totals.grandTotal,
+      proformaStage: form.proformaStage ?? null,
     },
     detail: form.items.map((item) => {
       const gross = Number(item.qty || 0) * Number(item.harga || 0);

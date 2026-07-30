@@ -65,6 +65,11 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
 
     kenaPajak?: boolean;
 
+    /** Barang indent (pesanan khusus/made-to-order) -- menentukan apakah
+     * Sales Staff diarahkan membuat 1 invoice reguler atau 2 invoice
+     * proforma (DP 30% + Pelunasan 70%) di tahap Faktur nanti. */
+    isIndent?: boolean;
+
     items: SalesOrderItem[];
   }
 
@@ -197,6 +202,7 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
     keterangan: "",
 
     kenaPajak: false,
+    isIndent: false,
 
     items: [newItem()],
   };
@@ -248,6 +254,8 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
         isTaxAble: form.kenaPajak ?? false,
 
         isTaxIncluded: form.kenaPajak ?? false,
+
+        isIndent: form.isIndent ?? false,
 
         address: form.alamatPengiriman,
 

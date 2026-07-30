@@ -250,4 +250,9 @@ export const pengirimanPenjualanService = {
   async update(id: number | string, payload: PengirimanPenjualanPayload): Promise<void> {
     await api.put(`/delivery-order/${id}`, payload);
   },
+
+  /** Tandai DO sudah diterima customer -- cascade SO terkait ke "Completed" di backend */
+  async markReceived(id: number | string): Promise<void> {
+    await api.patch(`/delivery-order/${id}/mark-received`);
+  },
 };

@@ -304,7 +304,7 @@ export default function PenjualanDashboardPage() {
           activeFilters={activeFilters}
           onActiveFiltersChange={setActiveFilters}
           customers={customerOptions}
-          statuses={["Draft", "Approved", "Confirmed", "Processing", "Shipped", "Completed", "Cancelled"]}
+          statuses={["Belum Diproses", "Diproses", "In Delivery", "Completed", "Cancelled"]}
           loading={kpiLoading}
         />
 

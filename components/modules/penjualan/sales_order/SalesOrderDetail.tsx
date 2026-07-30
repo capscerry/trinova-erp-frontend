@@ -13,6 +13,7 @@ import {
 import { productDropdownService, type Product } from "@/lib/services/penjualan.service";
 import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
 import { ProductStockInfo } from "../ProductStockInfo";
+import { CurrencyInput } from "../CurrencyInput";
 
 const SATUAN_OPTIONS_FALLBACK = [
   "Unit", "Pcs", "Box", "Rim", "Botol", "Pack", "Lusin", "Kg", "Liter", "Meter",
@@ -137,15 +138,15 @@ export function SalesOrderDetailForm({
           <table className="w-full border-collapse text-xs table-fixed min-w-[1180px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[16%]">Produk</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Deskripsi</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[15%]">Produk</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Deskripsi</th>
                 <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[6%]">Qty</th>
                 <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[8%]">Satuan</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Gudang</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Stok di Gudang</th>
-                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[10%]">Harga</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Gudang</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[12%]">Stok di Gudang</th>
+                <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">Harga Satuan</th>
                 <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[7%]">Diskon %</th>
-                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[13%]">Subtotal</th>
+                <th className="px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[15%]">Subtotal</th>
                 <th className="px-3 py-2.5 w-[4%]"></th>
               </tr>
             </thead>
@@ -217,13 +218,10 @@ export function SalesOrderDetailForm({
 
                   {/* Harga */}
                   <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      value={item.harga || ""}
-                      placeholder="0"
-                      onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })}
-                      className={cn(inputCompact, "w-full")}
+                    <CurrencyInput
+                      value={item.harga}
+                      onChange={(v) => updateItem(item.id, { harga: v })}
+                      compact
                     />
                   </td>
 

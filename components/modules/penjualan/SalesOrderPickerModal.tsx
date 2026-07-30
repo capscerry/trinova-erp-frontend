@@ -24,6 +24,7 @@ interface SalesOrderPickerModalProps {
     kenaPajak?: boolean;
     isTaxIncluded?: boolean;
     taxTotal?: number;
+    isIndent?: boolean;
   }) => void;
 }
 
@@ -123,6 +124,7 @@ export function SalesOrderPickerModal({
       kenaPajak: selectedSo.kenaPajak ?? false,
       isTaxIncluded: selectedSo.isTaxIncluded ?? selectedSo.kenaPajak ?? false,
       taxTotal: selectedSo.taxTotal ?? 0,
+      isIndent: selectedSo.isIndent ?? false,
     });
   };
 
@@ -241,11 +243,16 @@ export function SalesOrderPickerModal({
                                    text-left text-xs hover:bg-slate-50 border-b border-slate-100
                                    last:border-b-0 transition-colors"
                       >
-                        <div>
+                        <div className="flex items-center gap-1.5">
                           <span className="font-mono font-semibold text-slate-700">
                             {so.nomor}
                           </span>
-                          <span className="text-slate-400 ml-2">
+                          {so.isIndent && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700">
+                              Indent
+                            </span>
+                          )}
+                          <span className="text-slate-400 ml-1">
                             {so.tanggal ? new Date(so.tanggal).toLocaleDateString("id-ID") : ""}
                           </span>
                         </div>
