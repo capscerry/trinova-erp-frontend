@@ -836,7 +836,7 @@ export default function PurchaseOrderFormModal({
 
               {/* -- AHP-TOPSIS Supplier Recommendations (new PO only) ----------- */}
               {!isEdit && !rankLoading && recommendationDataset && recommendationDataset.presets.length > 0 && (
-                <div className="rounded-xl border border-gold-200 bg-gradient-to-br from-gold-50 to-amber-50 p-4 space-y-3">
+                <div className="rounded-xl border border-gold-200 bg-linear-to-br from-gold-50 to-amber-50 p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-gold-400/20 flex items-center justify-center shrink-0">
                       <Brain size={12} className="text-gold-600" />
@@ -897,7 +897,7 @@ export default function PurchaseOrderFormModal({
               )}
 
               {!isEdit && rankLoading && (
-                <div className="rounded-xl border border-gold-200 bg-gradient-to-br from-gold-50 to-amber-50 p-4">
+                <div className="rounded-xl border border-gold-200 bg-linear-to-br from-gold-50 to-amber-50 p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <RefreshCw size={12} className="text-gold-600 animate-spin" />
                     <p className="text-[11px] font-bold uppercase tracking-widest text-gold-800">
@@ -906,7 +906,7 @@ export default function PurchaseOrderFormModal({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="h-[62px] bg-white/60 rounded-lg border border-gold-200 animate-pulse" />
+                      <div key={i} className="h-15.5 bg-white/60 rounded-lg border border-gold-200 animate-pulse" />
                     ))}
                   </div>
                 </div>
@@ -1006,7 +1006,7 @@ export default function PurchaseOrderFormModal({
               <PurchaseOrderItemTable items={form.items} products={filteredProducts} uoms={uoms}
                 onUpdateItem={updateItem} onRemoveItem={removeItem} />
               <div className="flex justify-end mt-3">
-                <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-[220px]">
+                <div className="bg-navy-900 text-white rounded-xl px-5 py-3 min-w-55">
                   <div className="flex items-center justify-between gap-8">
                     <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Total</span>
                     <span className="text-base font-bold text-gold-400">{formatRupiah(grandTotal)}</span>
@@ -1117,8 +1117,8 @@ export default function PurchaseOrderFormModal({
       {/* -- PR Picker sub-modal (z-60) -------------------------------------- */}
       {prPickerOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setPrPickerOpen(false)} />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 z-58" onClick={() => setPrPickerOpen(false)} />
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden max-h-[80vh] flex flex-col">
 
               {/* Header */}
@@ -1199,7 +1199,7 @@ export default function PurchaseOrderFormModal({
                               {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(pr.tanggal))}
                             </td>
                             <td className="px-4 py-3 text-slate-600 text-xs">{pr.warehouse_name || "-"}</td>
-                            <td className="px-4 py-3 text-slate-500 text-xs max-w-[160px] truncate">{pr.keterangan || "-"}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs max-w-40 truncate">{pr.keterangan || "-"}</td>
                             <td className="px-4 py-3">
                               <span className={cn(
                                 "inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap border",
@@ -1248,8 +1248,8 @@ export default function PurchaseOrderFormModal({
 
       {approvalOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setApprovalOpen(false)} />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 z-58" onClick={() => setApprovalOpen(false)} />
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
                 <div>
@@ -1310,8 +1310,8 @@ export default function PurchaseOrderFormModal({
       {/* -- Down Payment sub-modal (z-60) -- */}
       {dpOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setDpOpen(false)} />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 z-58" onClick={() => setDpOpen(false)} />
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600">
                 <div>
@@ -1396,8 +1396,8 @@ export default function PurchaseOrderFormModal({
       {/* -- Goods Receipt sub-modal (z-60) -- */}
       {grOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setGrOpen(false)} />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 z-58" onClick={() => setGrOpen(false)} />
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>
@@ -1531,8 +1531,8 @@ export default function PurchaseOrderFormModal({
 
       {invoiceOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[58]" onClick={() => setInvoiceOpen(false)} />
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 z-58" onClick={() => setInvoiceOpen(false)} />
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
                 <div>

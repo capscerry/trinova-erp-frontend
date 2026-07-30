@@ -53,7 +53,7 @@ import {
 function SectionTitle({ icon: Icon, label, sub }: { icon: React.ElementType; label: string; sub?: string }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
-      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-navy-900 to-navy-600 flex items-center justify-center shrink-0">
+      <div className="w-7 h-7 rounded-lg bg-linear-to-br from-navy-900 to-navy-600 flex items-center justify-center shrink-0">
         <Icon size={13} className="text-gold-400" />
       </div>
       <div>
@@ -164,8 +164,8 @@ function SpendBarChart({ data }: { data: SpendSummary["spendByMonth"] }) {
                   className={cn(
                     "w-full rounded-t-lg transition-all duration-700",
                     isMax
-                      ? "bg-gradient-to-t from-gold-600 to-gold-400"
-                      : "bg-gradient-to-t from-navy-900 to-navy-500 group-hover:from-navy-700 group-hover:to-navy-400"
+                      ? "bg-linear-to-t from-gold-600 to-gold-400"
+                      : "bg-linear-to-t from-navy-900 to-navy-500 group-hover:from-navy-700 group-hover:to-navy-400"
                   )}
                   style={{ height: `${pct}%` }}
                 />
@@ -217,7 +217,7 @@ function SupplierRankTable({
   const fmtInvoice = (n: number) => `${n} ${n === 1 ? "invoice" : "invoices"}`;
 
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
+    <div className="overflow-x-auto overflow-y-auto max-h-120">
       <table className="w-full text-[12px] border-collapse">
         <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50 border-b border-slate-100">
@@ -255,7 +255,7 @@ function SupplierRankTable({
                   {r.rank <= 3 ? (
                     <span className={cn(
                       "inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-extrabold",
-                      r.rank === 1 && "bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900",
+                      r.rank === 1 && "bg-linear-to-br from-gold-400 to-gold-600 text-navy-900",
                       r.rank === 2 && "bg-slate-200 text-slate-600",
                       r.rank === 3 && "bg-amber-100 text-amber-700",
                     )}>{r.rank}</span>
@@ -276,7 +276,7 @@ function SupplierRankTable({
                 {/* -- Score bar + numeric: both from TopsisResult.score -- */}
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-15">
                       <div
                         className={cn(
                           "h-full rounded-full transition-all duration-700",
@@ -519,7 +519,7 @@ function buildAltFromErp(
 
 function RankMedal({ rank }: { rank: number }) {
   if (rank === 1) return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">1</span>
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-linear-to-br from-yellow-400 to-yellow-600 text-white text-[10px] font-extrabold shadow-sm shrink-0">1</span>
   );
   if (rank === 2) return (
     <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-[10px] font-extrabold shrink-0">2</span>
@@ -623,7 +623,7 @@ function AhpPresetTable({ preset, loading }: { preset: AhpPresetRanking; loading
     <div className={cn("bg-white rounded-xl border border-slate-200 border-l-4 shadow-sm overflow-hidden", style.border)}>
       {/* header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
-        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-navy-900 to-navy-700 flex items-center justify-center shrink-0">
+        <div className="w-6 h-6 rounded-md bg-linear-to-br from-navy-900 to-navy-700 flex items-center justify-center shrink-0">
           <Icon size={11} className="text-gold-400" />
         </div>
         <div className="min-w-0 flex-1">
@@ -650,7 +650,7 @@ function AhpPresetTable({ preset, loading }: { preset: AhpPresetRanking; loading
       ) : preset.results.length === 0 ? (
         <p className="text-[12px] text-slate-400 text-center py-6">Belum ada data ERP</p>
       ) : (
-        <div className="divide-y divide-slate-50 overflow-y-auto max-h-[420px]">
+        <div className="divide-y divide-slate-50 overflow-y-auto max-h-105">
           {preset.results.map((r) => {
             const pct = Math.round(r.score * 100);
             const barColor =
@@ -1271,7 +1271,7 @@ export default function PurchasingInsightPage() {
                     <div key={r.alternativeId} className={cn(
                       "rounded-xl border p-4",
                       r.rank === 1
-                        ? "bg-gradient-to-br from-navy-900 to-navy-700 border-navy-600"
+                        ? "bg-linear-to-br from-navy-900 to-navy-700 border-navy-600"
                         : "bg-slate-50 border-slate-100",
                     )}>
                       <div className="min-w-0">
@@ -1364,7 +1364,7 @@ export default function PurchasingInsightPage() {
         {/* section header */}
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-navy-900 to-navy-600 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-navy-900 to-navy-600 flex items-center justify-center shrink-0">
               <Brain size={13} className="text-gold-400" />
             </div>
             <div>
@@ -1406,7 +1406,7 @@ export default function PurchasingInsightPage() {
           {rankLoading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="rounded-xl border border-slate-200 border-l-4 border-l-slate-200 overflow-hidden bg-white shadow-sm">
-                  <div className="h-[52px] bg-slate-50 border-b border-slate-100 animate-pulse" />
+                  <div className="h-13 bg-slate-50 border-b border-slate-100 animate-pulse" />
                   <div className="p-4 space-y-2">
                     {Array.from({ length: 5 }).map((_, j) => (
                       <div key={j} className="animate-pulse h-8 bg-slate-100 rounded" />
