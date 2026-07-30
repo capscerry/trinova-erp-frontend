@@ -1322,33 +1322,6 @@ export default function PurchaseOrderPage() {
                     description: `Purchase Order dengan status "${row.status}" tidak dapat dihapus.`,
                   });
                   return;
-<<<<<<< HEAD
-                }
-
-                const confirmed =
-                  confirm(
-                    `Hapus Purchase Order ${row.nomor}?`
-                  );
-
-                if (!confirmed) return;
-
-                try {
-
-                  await deletePurchaseOrder(
-                    Number(row.id)
-                  );
-
-                  await fetchPurchaseOrders();
-
-                  notify.success("Purchase Order berhasil dihapus");
-
-                } catch (error) {
-
-                  console.error(error);
-
-                  notify.error("Gagal menghapus Purchase Order");
-=======
->>>>>>> 456634e53bc8789d153e344f036d14c56aad4cff
                 }
 
                 setConfirmDeletePO({ open: true, row });

@@ -98,7 +98,7 @@ export function SalesStatusSelect<T extends string = string>({
       ? createPortal(
           <>
             <div
-              className="fixed inset-0 z-[9998]"
+              className="fixed inset-0 z-9998"
               onClick={() => setOpen(false)}
             />
 
