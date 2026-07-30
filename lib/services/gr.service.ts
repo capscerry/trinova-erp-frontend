@@ -92,10 +92,14 @@ export const createGoodsReceipt = async (payload: any) => {
 };
 
 // ─── UPDATE GR ────────────────────────────────────────────────────────────────
+/**
+ * Updates non-status fields of a Goods Receipt.
+ * Status is always determined by the backend based on received vs ordered
+ * quantities — it must not be passed from the frontend.
+ */
 export const updateGoodsReceipt = async (
   id: number,
   payload: Partial<{
-    status: string;
     received_by: string;
     receipt_date: string;
     transaction_name: string;
@@ -106,6 +110,40 @@ export const updateGoodsReceipt = async (
   console.log(`[GR] Updating Goods Receipt ${id}...`);
   const res = await api.put(`/goods-receipt/${id}`, payload);
   return res.data ?? {};
+};
+
+// ─── CANCEL GR ────────────────────────────────────────────────────────────────
+/**
+ * Cancels a Goods Receipt via the dedicated backend endpoint.
+ * The backend sets status = "Cancelled" — the frontend never sets status directly.
+ */
+export const cancelGoodsReceipt = async (id: number) => {
+  if (!id || id <= 0) throw new Error("ID Goods Receipt tidak valid.");
+  console.log(`[GR] Cancelling Goods Receipt ${id}...`);
+  const res = await api.patch(`/goods-receipt/${id}/cancel`);
+  return res.data ?? {};
+};
+
+// ─── RECALCULATE GR STATUS ────────────────────────────────────────────────────
+/**
+ * Asks the backend to recalculate and persist the status of a single GR.
+ * Rules (applied by backend):
+ *   - Cancelled  → if GR is already marked cancelled
+ *   - Open       → received quantity = 0
+ *   - Partial    → total received < ordered quantity
+ *   - Received   → total received = ordered quantity
+ * Call this after any GR creation, edit, or cancellation to ensure the
+ * status returned on the next GET reflects the latest quantities.
+ */
+export const recalculateGRStatus = async (id: number): Promise<void> => {
+  if (!id || id <= 0) return;
+  try {
+    console.log(`[GR] Recalculating status for GR ${id}...`);
+    await api.patch(`/goods-receipt/${id}/recalculate-status`);
+  } catch (err: any) {
+    // Non-fatal: log and continue — the next full refresh will pick up the right status.
+    console.warn(`[GR] recalculateGRStatus failed for GR ${id}:`, err?.message ?? err);
+  }
 };
 
 // ─── CREATE GR DETAIL ────────────────────────────────────────────────────────

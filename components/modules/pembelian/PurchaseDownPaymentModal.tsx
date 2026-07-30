@@ -218,11 +218,16 @@ export default function PurchaseDownPaymentModal({
                       selected.transaction_name ?? "",
                     transaction_detail:
                       selected.transaction_detail ?? "",
+                    // If Full Payment is active, keep amount in sync with the new PO total
+                    ...(form.payment_type === "Full" ? { amount: selected.total_amount ?? 0 } : {}),
                   });
 
                   // Re-evaluate amount against the new PO total
                   const newMax = selected.total_amount ?? 0;
-                  if (newMax > 0 && form.amount > newMax) {
+                  if (form.payment_type === "Full") {
+                    // Amount is locked to the new PO total — no error possible
+                    setAmountError(null);
+                  } else if (newMax > 0 && form.amount > newMax) {
                     setAmountError(
                       `Melebihi total PO (Rp ${newMax.toLocaleString("id-ID")})`
                     );
@@ -301,13 +306,53 @@ export default function PurchaseDownPaymentModal({
 
             </FormField>
 
+            <FormField label="Payment Type">
+
+              <select
+                value={form.payment_type}
+                onChange={(e) => {
+                  const newType = e.target.value;
+                  const outstanding = selectedPO?.total_amount ?? 0;
+
+                  if (newType === "Full") {
+                    // Auto-fill amount with outstanding PO total and clear errors
+                    setForm({ ...form, payment_type: newType, amount: outstanding });
+                    setAmountError(null);
+                  } else {
+                    // Re-enable editing; preserve the current amount value
+                    setForm({ ...form, payment_type: newType });
+                    // Re-validate the existing amount against the PO max
+                    if (outstanding > 0 && form.amount > outstanding) {
+                      setAmountError(
+                        `Melebihi total PO (Rp ${outstanding.toLocaleString("id-ID")})`
+                      );
+                    } else {
+                      setAmountError(null);
+                    }
+                  }
+                }}
+                className={inputBase}
+              >
+                <option value="Partial">
+                  Partial
+                </option>
+
+                <option value="Full">
+                  Full
+                </option>
+              </select>
+
+            </FormField>
+
             <FormField label="Amount" required>
 
               <input
                 type="number"
                 step="0.01"
+                readOnly={form.payment_type === "Full"}
                 value={form.amount}
                 onChange={(e) => {
+                  if (form.payment_type === "Full") return;
                   const value = Math.round(parseFloat(e.target.value || "0") * 100) / 100;
                   const max = selectedPO?.total_amount ?? 0;
 
@@ -323,39 +368,22 @@ export default function PurchaseDownPaymentModal({
                 }}
                 className={cn(
                   inputBase,
+                  form.payment_type === "Full" && "bg-slate-50 cursor-not-allowed",
                   amountError && "border-red-400 focus:ring-red-300"
                 )}
               />
+
+              {form.payment_type === "Full" && (
+                <p className="text-xs text-slate-400 mt-1">
+                  Amount dikunci otomatis sesuai total PO untuk Full Payment.
+                </p>
+              )}
 
               {amountError && (
                 <p className="text-xs text-red-500 font-medium mt-1">
                   {amountError}
                 </p>
               )}
-
-            </FormField>
-
-            <FormField label="Payment Type">
-
-              <select
-                value={form.payment_type}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    payment_type:
-                      e.target.value,
-                  })
-                }
-                className={inputBase}
-              >
-                <option value="Partial">
-                  Partial
-                </option>
-
-                <option value="Full">
-                  Full
-                </option>
-              </select>
 
             </FormField>
 
@@ -496,6 +524,14 @@ export default function PurchaseDownPaymentModal({
                     if (max > 0 && form.amount > max) {
                       setAmountError(
                         `Melebihi total PO (Rp ${max.toLocaleString("id-ID")})`
+                      );
+                      return;
+                    }
+
+                    // Guard: Full Payment must exactly equal the outstanding PO total
+                    if (form.payment_type === "Full" && max > 0 && form.amount !== max) {
+                      setAmountError(
+                        `Full Payment harus sama dengan total PO (Rp ${max.toLocaleString("id-ID")})`
                       );
                       return;
                     }

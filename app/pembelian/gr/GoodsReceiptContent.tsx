@@ -313,7 +313,6 @@ function GoodsReceiptInner() {
         receipt_number:    form.receipt_number,
         receipt_date:      form.receipt_date,
         received_by:       form.received_by ?? "",
-        status:            form.status,
         transaction_name:  form.transaction_name ?? "",
         transaction_detail: form.transaction_detail ?? "",
       });
@@ -339,6 +338,8 @@ function GoodsReceiptInner() {
           );
         }
       }
+      
+      // Refresh list to get backend-calculated status
       await fetchGoodsReceipts();
       notify.success("Goods Receipt berhasil dibuat");
     } catch (err: any) {

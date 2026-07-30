@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
@@ -9,22 +9,16 @@ import {
   ShoppingCart, Truck, Clock3, Building2, TrendingUp,
   RefreshCw, ArrowRight, Brain, Trophy, Star, Zap,
   CreditCard, BarChart2, RotateCcw, ChevronRight,
-  Package, FileText, DollarSign, AlertTriangle,
+  FileText, DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // -- Services ------------------------------------------------------------------
 import {
   fetchPurchasingKpis,
-  getDateBounds,
   type PurchasingKpiData,
   type DateFilter,
 } from "@/lib/services/purchasing-kpi.service";
-import {
-  purchasingDashboardService,
-  EMPTY_PURCHASING_DASHBOARD,
-  type PurchasingDashboard,
-} from "@/lib/services/purchasing-dashboard.service";
 import { getSuppliers } from "@/lib/services/supplier.service";
 
 // -- Hooks ---------------------------------------------------------------------
@@ -66,35 +60,6 @@ function pctChange(current: number, prev: number): number | undefined {
   if (prev === 0) return undefined;
   return ((current - prev) / prev) * 100;
 }
-
-const toValidDate = (value?: string | null) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-const fmtDay   = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { weekday: "long" }) ?? "-";
-const fmtDayN  = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { day: "2-digit" }) ?? "--";
-const fmtMonth = (v?: string | null) => toValidDate(v)?.toLocaleDateString("id-ID", { month: "short" }) ?? "-";
-const fmtTime  = (v?: string | null) => toValidDate(v)?.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) ?? "--:--";
-const getDateKey = (v?: string | null) => toValidDate(v)?.toISOString().slice(0, 10) ?? "";
-
-const activityHref = (refTable?: string | null, refId?: number | null) => {
-  if (!refTable || !refId) return null;
-  const map: Record<string, string> = {
-    purchase_order: "/pembelian/po",
-    purchase_invoice: "/pembelian/invoice",
-    goods_receipt: "/pembelian/gr",
-    purchase_payment: "/pembelian/payment",
-    purchase_down_payment: "/pembelian/pdp",
-  };
-  return map[refTable] ?? null;
-};
-
-const priorityCls: Record<string, string> = {
-  danger:  "border-red-200 bg-red-50 text-red-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
-  normal:  "border-slate-200 bg-slate-50 text-slate-600",
-};
 
 // -----------------------------------------------------------------------------
 // Shared chart-card wrapper
@@ -615,116 +580,6 @@ function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
 }
 
 // -----------------------------------------------------------------------------
-// Activity feed panels (kept from original - no business logic changed)
-// -----------------------------------------------------------------------------
-
-function ActivityFeed() {
-  const { user } = useAuth();
-  const [dashboard, setDashboard] = useState<PurchasingDashboard>(EMPTY_PURCHASING_DASHBOARD);
-  const [loading, setLoading] = useState(true);
-
-  const fetchDashboard = useCallback(async () => {
-    try {
-      setLoading(true);
-      setDashboard(await purchasingDashboardService.getDashboard());
-    } catch (err) {
-      console.error("Gagal memuat activity feed:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
-
-  return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 mt-2">
-      {/* Recent Activities */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex h-11 items-center justify-between border-b border-slate-100 px-4">
-          <p className="text-sm font-bold text-slate-800">Aktivitas Terakhir</p>
-          <button onClick={fetchDashboard} disabled={loading} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
-        <div className="h-[260px] overflow-y-auto px-4 py-3">
-          {loading ? (
-            <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />)}</div>
-          ) : dashboard.recentActivities.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-400 text-sm">Tidak ada aktivitas</div>
-          ) : (
-            <div>
-              {dashboard.recentActivities.map((item, index) => {
-                const href = activityHref(item.refTable, item.refId);
-                const dateKey = getDateKey(item.createdAt);
-                const prevDateKey = index > 0 ? getDateKey(dashboard.recentActivities[index - 1]?.createdAt) : "";
-                const showDate = index === 0 || dateKey !== prevDateKey;
-                const content = (
-                  <div className="group grid grid-cols-[72px_1fr] gap-3">
-                    <div className="pt-1 text-slate-500">
-                      {showDate && (<><p className="text-xs">{fmtDay(item.createdAt)}</p><p className="leading-none text-[40px] font-light">{fmtDayN(item.createdAt)}</p><p className="-mt-1 text-xl">{fmtMonth(item.createdAt)}</p></>)}
-                    </div>
-                    <div className="relative border-l border-slate-200 pb-6 pl-7">
-                      <span className="absolute -left-[7px] top-2 h-3 w-3 rounded-full border border-blue-400 bg-blue-100" />
-                      <div className="grid grid-cols-[52px_1fr] gap-2">
-                        <p className="text-xs font-bold text-slate-700">{fmtTime(item.createdAt)}</p>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm text-slate-600 group-hover:text-slate-900">{item.title}</p>
-                          {(item.description || item.refNumber) && <p className="mt-0.5 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-                return href ? <Link key={item.id} href={href} className="block">{content}</Link> : <div key={item.id}>{content}</div>;
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Upcoming Activities */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex h-11 items-center justify-between border-b border-slate-100 px-4">
-          <p className="text-sm font-bold text-slate-800">Kegiatan Mendatang</p>
-          <button onClick={fetchDashboard} disabled={loading} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
-        </div>
-        <div className="h-[260px] overflow-y-auto px-4 py-3">
-          {loading ? (
-            <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}</div>
-          ) : dashboard.upcomingActivities.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-400 text-sm">Tidak ada kegiatan</div>
-          ) : (
-            <div className="space-y-2">
-              {dashboard.upcomingActivities.map((item, index) => {
-                const href = activityHref(item.refTable, item.refId);
-                const badgeCls = priorityCls[item.priority] ?? priorityCls.normal;
-                const content = (
-                  <div className="grid grid-cols-[60px_1fr] gap-4 rounded-xl border border-slate-100 px-3 py-3 hover:bg-slate-50 transition-colors">
-                    <div className="text-slate-500"><p className="text-xs">{fmtDay(item.activityDate)}</p><p className="leading-none text-2xl font-light">{fmtDayN(item.activityDate)}</p><p className="text-xs">{fmtMonth(item.activityDate)}</p></div>
-                    <div className="min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-800">{item.title}</p>
-                          {(item.description || item.refNumber) && <p className="mt-0.5 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>}
-                        </div>
-                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${badgeCls}`}>{item.priority}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-                return href ? <Link key={`${item.activityType}-${item.refId ?? index}-${item.activityDate}`} href={href} className="block">{content}</Link> : <div key={`${item.activityType}-${index}`}>{content}</div>;
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
 // Role-based wrapper components
 // -----------------------------------------------------------------------------
 
@@ -735,7 +590,6 @@ function PurchasingStaffDashboard() {
       subtitle="Executive overview aktivitas pembelian dan supplier"
     >
       <KpiDashboard isProcurementManager={false} />
-      <ActivityFeed />
       {/* Full-width enterprise activity timeline — newest 20 transactions */}
       <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
     </AppShell>
@@ -749,7 +603,6 @@ function ProcurementManagerDashboard() {
       subtitle="Strategic procurement analytics & supplier intelligence"
     >
       <KpiDashboard isProcurementManager={true} />
-      <ActivityFeed />
       {/* Full-width enterprise activity timeline — newest 20 transactions */}
       <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
     </AppShell>

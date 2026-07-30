@@ -167,7 +167,7 @@ export default function PurchaseOrderFormModal({
   const [grSavedId, setGrSavedId] = useState<number | null>(null);
   const [grForm, setGrForm] = useState({
     receipt_number: "", receipt_date: todayStr(),
-    received_by: "", status: "Received",
+    received_by: "",
   });
 
   const [invoiceOpen, setInvoiceOpen] = useState(false);
@@ -241,7 +241,7 @@ export default function PurchaseOrderFormModal({
       setDpOpen(false); setDpSaving(false);
       setDpForm({ payment_date: todayStr(), amount: 0, payment_type: "Partial", notes: "" });
       setGrOpen(false); setGrSaving(false);
-      setGrForm({ receipt_number: "", receipt_date: todayStr(), received_by: "", status: "Received" });
+      setGrForm({ receipt_number: "", receipt_date: todayStr(), received_by: "" });
       setInvoiceOpen(false); setInvoiceSaving(false); setSavedInvoice(null);
       setPaymentOpen(false); setPaymentDone(false); setPaymentSaving(false);
       setPaymentForm({ payment_date: todayStr(), amount: 0, payment_method: "Transfer", notes: "" });
@@ -543,7 +543,6 @@ export default function PurchaseOrderFormModal({
         receipt_number: grForm.receipt_number,
         receipt_date: grForm.receipt_date,
         received_by: grForm.received_by,
-        status: grForm.status,
         transaction_name: form.transaction_name ?? "",
         transaction_detail: form.transaction_detail ?? "",
       }, poLineItems);
@@ -1481,19 +1480,6 @@ export default function PurchaseOrderFormModal({
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Diterima Oleh</label>
                   <input type="text" value={grForm.received_by} placeholder="Nama penerima..."
                     onChange={e => setGrForm(f => ({ ...f, received_by: e.target.value }))} className={inputBase} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
-                  <div className="flex gap-2">
-                    {["Received", "Partial", "Cancelled"].map(s => (
-                      <button key={s} type="button"
-                        onClick={() => setGrForm(f => ({ ...f, status: s }))}
-                        className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                          grForm.status === s ? "bg-navy-900 text-gold-400 border-navy-900" : "bg-white border-slate-200 text-slate-500")}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
                 </div>
                 {poLineItems.length > 0 && (
                   <div className="rounded-xl border border-slate-200 overflow-hidden">

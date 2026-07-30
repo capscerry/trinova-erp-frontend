@@ -9,7 +9,6 @@ import {
   Calendar,
   Package,
   User,
-  ToggleLeft,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -44,7 +43,6 @@ export interface GoodsReceiptFormData {
   receipt_number: string;
   receipt_date: string;
   received_by: string;
-  status: string;
   transaction_name: string;
   transaction_detail: string;
 }
@@ -100,7 +98,6 @@ export default function GoodsReceiptFormModal({
       receipt_number: "",
       receipt_date: todayStr(),
       received_by: "",
-      status: "Received",
       transaction_name: "",
       transaction_detail: "",
     });
@@ -119,7 +116,6 @@ export default function GoodsReceiptFormModal({
       receipt_number: "",
       receipt_date: todayStr(),
       received_by: "",
-      status: "Received",
       transaction_name: "",
       transaction_detail: "",
     });
@@ -432,59 +428,6 @@ export default function GoodsReceiptFormModal({
                   placeholder="Nama penerima..."
                   className={inputBase}
                 />
-
-              </FormField>
-
-              <FormField
-                label="Status"
-                icon={<ToggleLeft size={13} />}
-              >
-
-                <div className="flex gap-2">
-
-                  {[
-                    "Received",
-                    "Partial",
-                    "Cancelled",
-                  ].map((status) => (
-
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() =>
-                        setField(
-                          "status",
-                          status
-                        )
-                      }
-                      className={cn(
-                        `
-                          px-3
-                          py-1.5
-                          rounded-lg
-                          text-xs
-                          font-semibold
-                          border
-                        `,
-                        form.status === status
-                          ? `
-                            bg-navy-900
-                            text-gold-400
-                            border-navy-900
-                          `
-                          : `
-                            bg-white
-                            border-slate-200
-                            text-slate-400
-                          `
-                      )}
-                    >
-                      {status}
-                    </button>
-
-                  ))}
-
-                </div>
 
               </FormField>
 
