@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, RefreshCcw, Scissors, Banknote, Download, FileText } from "lucide-react";
+import { X, RefreshCcw, Scissors, Banknote, Download, FileText, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
@@ -495,6 +495,13 @@ export default function PurchaseReturnDetailModal({
               >
                 <FileText size={14} />
                 {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
+              </button>
+              <button
+                onClick={() => window.open(`/pembelian/retur/${data.purchase_return_id}/print`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Printer size={14} />
+                Cetak / PDF
               </button>
             </div>
             <button

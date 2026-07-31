@@ -11,6 +11,7 @@ import {
   Scissors,
   Download,
   FileText,
+  Printer,
   Hash,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
@@ -768,6 +769,15 @@ export default function PurchaseOrderDetailModal({
                 <FileText size={14} />
                 {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
               </button>
+              {(data as any).purchase_order_id != null && (
+                <button
+                  onClick={() => window.open(`/pembelian/po/${(data as any).purchase_order_id}/print`, "_blank")}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  <Printer size={14} />
+                  Cetak / PDF
+                </button>
+              )}
             </div>
             <button
               onClick={onClose}

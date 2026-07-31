@@ -9,6 +9,7 @@ import {
   BadgeCheck,
   Download,
   FileText,
+  Printer,
   Wallet,
   CreditCard,
   Hash,
@@ -810,6 +811,13 @@ export default function PurchaseInvoiceDetailModal({
               >
                 <FileText size={14} />
                 {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
+              </button>
+              <button
+                onClick={() => window.open(`/pembelian/invoice/${invoice.id}/print`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Printer size={14} />
+                Cetak / PDF
               </button>
             </div>
             <button

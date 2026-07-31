@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, CreditCard, ArrowRight, Download, FileText } from "lucide-react";
+import { X, CreditCard, ArrowRight, Download, FileText, Printer } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
 import { notify } from "@/lib/notify";
@@ -589,6 +589,15 @@ export default function GoodsReceiptDetailModal({
                   <FileText size={14} />
                   {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
                 </button>
+                {(data.goods_receipt_id ?? data.id) != null && (
+                  <button
+                    onClick={() => window.open(`/pembelian/gr/${data.goods_receipt_id ?? data.id}/print`, "_blank")}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <Printer size={14} />
+                    Cetak / PDF
+                  </button>
+                )}
               </div>
               <button
                 onClick={onClose}
