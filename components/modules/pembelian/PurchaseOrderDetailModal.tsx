@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   Calendar,
@@ -13,12 +13,18 @@ import {
   FileText,
   Printer,
   Hash,
-  Printer,
   Mail,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
 import { notify } from "@/lib/notify";
+import {
+  getPurchaseOrderPrintDetail,
+  sendPurchaseOrderEmail,
+  type PurchaseOrderPrintDetail,
+} from "@/lib/services/purchase-order-print.service";
+import { generatePurchaseOrderPdf } from "@/lib/pdf/purchaseOrderPdf";
+import { SendPurchaseOrderEmailModal } from "@/components/modules/pembelian/SendPurchaseOrderEmailModal";
 
 // -------------------------------------------------------------
 // TYPES
@@ -152,6 +158,51 @@ export default function PurchaseOrderDetailModal({
     } finally {
       setPdfLoading(false);
     }
+  };
+
+  // -- Open email modal (fetches full print detail if not yet loaded) ----------
+  const openEmailModal = async () => {
+    if (!data.purchase_order_id) {
+      setBanner({ type: "error", msg: "ID Purchase Order tidak ditemukan." });
+      return;
+    }
+    if (emailDetail) {
+      setEmailModalOpen(true);
+      return;
+    }
+    setLoadingEmailDetail(true);
+    try {
+      const detail = await getPurchaseOrderPrintDetail(data.purchase_order_id);
+      setEmailDetail(detail);
+      setEmailModalOpen(true);
+    } catch (err) {
+      console.error("[Email Detail Fetch Error]", err);
+      setBanner({ type: "error", msg: "Gagal memuat detail PO untuk email." });
+    } finally {
+      setLoadingEmailDetail(false);
+    }
+  };
+
+  // -- Send PO email with generated PDF attachment -----------------------------
+  const handleSendEmail = async (message: string) => {
+    if (!emailDetail || !data.purchase_order_id) {
+      throw new Error("Data Purchase Order tidak lengkap.");
+    }
+    let attachment: { base64: string; fileName: string } | undefined;
+    try {
+      const generated = await generatePurchaseOrderPdf(emailDetail);
+      attachment = { base64: generated.base64, fileName: generated.fileName };
+    } catch (err) {
+      console.error("[PDF Generate Error]", err);
+      // Non-fatal: send email without attachment if PDF generation fails
+    }
+    const successMsg = await sendPurchaseOrderEmail(
+      data.purchase_order_id,
+      message || undefined,
+      attachment
+    );
+    setBanner({ type: "success", msg: successMsg });
+    setEmailModalOpen(false);
   };
 
   const itemsTotal =
@@ -783,9 +834,17 @@ export default function PurchaseOrderDetailModal({
                 <FileText size={14} />
                 {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
               </button>
-              {(data as any).purchase_order_id != null && (
+              <button
+                onClick={openEmailModal}
+                disabled={loadingEmailDetail}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Mail size={14} />
+                {loadingEmailDetail ? "Memuat..." : "Kirim Email"}
+              </button>
+              {data.purchase_order_id != null && (
                 <button
-                  onClick={() => window.open(`/pembelian/po/${(data as any).purchase_order_id}/print`, "_blank")}
+                  onClick={() => window.open(`/pembelian/po/${data.purchase_order_id}/print`, "_blank")}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   <Printer size={14} />
