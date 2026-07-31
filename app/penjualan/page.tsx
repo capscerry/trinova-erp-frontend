@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -304,7 +304,7 @@ export default function PenjualanDashboardPage() {
           activeFilters={activeFilters}
           onActiveFiltersChange={setActiveFilters}
           customers={customerOptions}
-          statuses={["Draft", "Approved", "Confirmed", "Processing", "Shipped", "Completed", "Cancelled"]}
+          statuses={["Draft", "Processing", "In Delivery", "Completed", "Cancelled"]}
           loading={kpiLoading}
         />
 

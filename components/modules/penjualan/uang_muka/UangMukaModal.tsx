@@ -19,6 +19,7 @@ import {
 
 import { uangMukaService } from "@/lib/services/penjualan.service";
 import { customerService } from "@/lib/services/customer.service";
+import { notify } from "@/lib/notify";
 import {
   type UangMukaFormData,
   EMPTY_FORM,
@@ -150,6 +151,7 @@ export function UangMukaModal({
 
   // Handle customer selection
   const handleSelectCustomer = (customer: { id: number; name: string; address: string }) => {
+    setSoIsIndent(false);
     setForm((prev) => ({
       ...prev,
       pelanggan: customer.name,
@@ -174,6 +176,10 @@ export function UangMukaModal({
   // sekaligus auto-fill nominal Uang Muka dengan Total Harga Pesanan
   // (so.total — nilai final setelah diskon & pajak). User tetap bisa
   // mengubahnya manual sesudahnya kalau uang muka tidak sama dengan total.
+  // SO barang indent: nominal Uang Muka default 30% dari total SO (representasi
+  // DP), bukan 100% seperti SO reguler -- tetap bisa diubah manual sesudahnya.
+  const [soIsIndent, setSoIsIndent] = useState(false);
+
   const handleSoConfirm = (so: {
     id: number;
     nomor: string;
@@ -184,11 +190,15 @@ export function UangMukaModal({
     kenaPajak?: boolean;
     isTaxIncluded?: boolean;
     taxTotal?: number;
+    isIndent?: boolean;
   }) => {
     const isTaxable = Boolean(so.kenaPajak);
     const isTaxIncluded = Boolean(so.isTaxIncluded ?? so.kenaPajak);
-    const taxAmount = calculateIncludedTax(so.total, isTaxable && isTaxIncluded);
+    const isIndent = Boolean(so.isIndent);
+    const defaultUangMuka = isIndent ? Math.round(so.total * 0.3) : so.total;
+    const taxAmount = calculateIncludedTax(defaultUangMuka, isTaxable && isTaxIncluded);
 
+    setSoIsIndent(isIndent);
     setForm((prev) => ({
       ...prev,
       noPesanan: so.nomor,
@@ -198,7 +208,7 @@ export function UangMukaModal({
       alamat: so.alamat || prev.alamat,
       keterangan: so.keterangan || prev.keterangan,
       totalHargaPesanan: so.total,
-      uangMuka: so.total,
+      uangMuka: defaultUangMuka,
       isTaxable,
       isTaxIncluded,
       taxAmount,
@@ -279,6 +289,7 @@ export function UangMukaModal({
     });
 
     setSaved(false);
+    setSoIsIndent(false);
     setActiveTab("uang-muka");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -310,12 +321,12 @@ export function UangMukaModal({
     // Validasi DULU, sebelum setIsSubmitting(true) — supaya tombol tidak
     // sempat menampilkan status "Menyimpan..." untuk validasi yang gagal.
     if (!form.customerId) {
-      alert("⚠️ Pelanggan wajib dipilih");
+      notify.warning("Pelanggan wajib dipilih");
       return;
     }
 
     if (!form.noFaktur.trim()) {
-      alert("⚠️ No Faktur wajib diisi");
+      notify.warning("No Faktur wajib diisi");
       return;
     }
 
@@ -347,9 +358,9 @@ export function UangMukaModal({
       setSaved(true);
     } catch (error: unknown) {
       console.error("Gagal menyimpan Uang Muka:", error);
-      alert(
-        "Gagal menyimpan data: " +
-          (error instanceof Error ? error.message : "Terjadi kesalahan")
+      notify.error(
+        "Gagal menyimpan Uang Muka",
+        error instanceof Error ? error.message : "Terjadi kesalahan"
       );
     } finally {
       setIsSubmitting(false);
@@ -381,7 +392,7 @@ export function UangMukaModal({
 
   const handleProsesClick = () => {
     if (!form.id) {
-      alert("Uang Muka belum memiliki ID. Simpan ulang dokumen terlebih dahulu.");
+      notify.warning("Uang Muka belum memiliki ID", "Simpan ulang dokumen terlebih dahulu.");
       return;
     }
 
@@ -682,7 +693,8 @@ export function UangMukaModal({
                                 <button
                                   type="button"
                                   disabled={saved}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    setSoIsIndent(false);
                                     setForm((prev) => ({
                                       ...prev,
                                       noPesanan: "",
@@ -693,8 +705,8 @@ export function UangMukaModal({
                                       isTaxable: false,
                                       isTaxIncluded: false,
                                       taxAmount: 0,
-                                    }))
-                                  }
+                                    }));
+                                  }}
                                   className="hover:text-violet-900 transition-colors disabled:opacity-50"
                                 >
                                   <X size={10} />
@@ -784,7 +796,15 @@ export function UangMukaModal({
                     label="Uang Muka"
                     icon={<CreditCard size={14} />}
                     required
+                    hint={soIsIndent ? "Default 30% (barang indent)" : undefined}
                   >
+                    {soIsIndent && (
+                      <p className="mb-1.5 text-[11px] leading-snug text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        SO ini barang indent — nominal DP diisi otomatis 30% dari total pesanan
+                        ({formatCurrency(Math.round(form.totalHargaPesanan * 0.3))}). Anda tetap bisa
+                        mengubahnya manual.
+                      </p>
+                    )}
                     <div className="relative">
                       <input
                         type="text"

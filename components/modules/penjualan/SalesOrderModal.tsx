@@ -84,18 +84,11 @@ export function SalesOrderModal({
     }
   }, [open, initialData]);
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
-
-  // Light UX check: enable the "Pengiriman" shortcut only once all invoices
-  // for this newly-saved SO are fully paid. Backend remains the authoritative
-  // guard — this just prevents the button from appearing prematurely.
+  // Cek ringan (UX saja, backend tetap penjaga utama): tombol "Pengiriman"
+  // baru aktif kalau seluruh invoice/proforma milik SO yang baru disimpan
+  // ini sudah lunas 100%. Baru selesai disimpan biasanya belum ada invoice
+  // sama sekali, jadi secara alami tombol ini tetap nonaktif sampai user
+  // membuat & melunasi faktur dulu.
   useEffect(() => {
     const orderId = savedSo?.id ?? savedSo?.header?.orderId ?? savedSo?.orderId;
     if (!isSubmitted || !orderId) {
@@ -113,13 +106,26 @@ export function SalesOrderModal({
           related.some((inv) => inv.status !== "Cancelled") &&
           related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
         if (!cancelled) setPengirimanReady(ready);
-      } catch {
+      } catch (error) {
+        console.error("Gagal cek status pelunasan invoice SO:", error);
         if (!cancelled) setPengirimanReady(false);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isSubmitted, savedSo]);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
   const patchForm = (patch: Partial<SalesOrderFormData>) =>
     setForm((prev) => ({ ...prev, ...patch }));
 
@@ -127,9 +133,10 @@ export function SalesOrderModal({
     items: SalesOrderItem[],
     quotation: { id: number; nomor: string ,alamat : string,kenaPajak : boolean}
   ) => {
-    // Replace (not merge) all items with those from the selected quotation.
-    // "Ambil dari Penawaran Penjualan" is a one-shot import action — selecting
-    // a different quotation must replace previous data, not stack on top of it.
+    // Ganti (replace) seluruh baris item dengan isi quotation yang baru
+    // dipilih -- bukan digabung dengan quotation sebelumnya. "Ambil dari
+    // Penawaran Penjualan" adalah aksi impor sekali pilih, jadi memilih
+    // quotation lain harus mengganti data lama, bukan menumpuknya.
     patchForm({
       quotationId: quotation.id,
       quotationNumber: quotation.nomor,
@@ -329,7 +336,12 @@ export function SalesOrderModal({
               <div className="grid grid-cols-3 gap-3">
                 {PROSES_LINKS.map(
                   ({ key, label, desc, icon: Icon, color, bg }) => {
-                    const isActive = isSubmitted && !!savedSo;
+                    const isActive =
+                      isSubmitted && !!savedSo && (key !== "pengiriman" || pengirimanReady);
+                    const effectiveDesc =
+                      key === "pengiriman" && isSubmitted && !!savedSo && !pengirimanReady
+                        ? "Aktif setelah seluruh faktur SO ini lunas 100%"
+                        : desc;
 
                     return (
                       <button
@@ -373,7 +385,7 @@ export function SalesOrderModal({
                             {label}
                           </p>
                           <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                            {desc}
+                            {effectiveDesc}
                           </p>
                         </div>
                       </button>

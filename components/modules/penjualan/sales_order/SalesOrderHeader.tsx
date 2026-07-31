@@ -262,7 +262,26 @@ export function SalesOrderHeaderForm({
             PPN (11%)
           </span>
         </label>
+
+        {/* Barang Indent */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.isIndent ?? false}
+            onChange={(e) => setField("isIndent", e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm text-slate-700 font-medium">
+            Barang Indent?
+          </span>
+        </label>
       </div>
+      {form.isIndent && (
+        <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Barang indent (pesanan khusus/made-to-order): di tahap Faktur nanti, buat 2 Invoice
+          Proforma berurutan -- DP 30% lalu Pelunasan 70% -- sebelum Delivery Order bisa dibuat.
+        </p>
+      )}
     </Section>
   );
 }

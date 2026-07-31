@@ -110,7 +110,7 @@ function InfoRow({
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
           {label}
         </p>
-        <p className="text-sm font-semibold text-slate-700 break-words">
+        <p className="text-sm font-semibold text-slate-700 wrap-break-word">
           {value || "—"}
         </p>
       </div>

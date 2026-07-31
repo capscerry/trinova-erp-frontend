@@ -1,4 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
+﻿import { type ClassValue, clsx } from "clsx";
 import type { StatusVariant } from "@/types";
 
 /** Merge Tailwind class names safely */

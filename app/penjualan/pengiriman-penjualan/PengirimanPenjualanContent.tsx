@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/layout";
@@ -16,7 +16,7 @@ import {
   pengirimanPenjualanService,
   type PengirimanPenjualan,
 } from "@/lib/services/pengiriman-penjualan.service";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
 
@@ -47,9 +47,7 @@ const COLUMNS: Column<PengirimanPenjualan>[] = [
     key: "status",
     label: "Status",
     width: "16%",
-    render: (_v, row) => (
-      <SalesStatusSelect module="delivery-order" id={row.id} value={row.status} />
-    ),
+    render: (_v, row) => <SalesStatusBadge module="delivery-order" value={row.status} />,
   },
 ];
 
@@ -135,6 +133,7 @@ function PengirimanPenjualanInner() {
 
   const handleMarkReceived = async (row: PengirimanPenjualan) => {
     if (!confirm(`Tandai ${row.noSuratJalan} sebagai sudah diterima customer?`)) return;
+
     try {
       setMarkingId(row.id);
       await pengirimanPenjualanService.markReceived(row.id);

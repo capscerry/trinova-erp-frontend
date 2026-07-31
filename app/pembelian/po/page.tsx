@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -1025,6 +1025,9 @@ export default function PurchaseOrderPage() {
                 }
 
                 setSelectedPO({
+                  purchase_order_id:
+                    poId,
+
                   po_number:
                     row.nomor,
 

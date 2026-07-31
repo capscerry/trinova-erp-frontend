@@ -246,6 +246,7 @@ export const salesInvoiceService = {
         attachmentFileName: attachment?.fileName,
       }
     );
+
     return response.data.message ?? "Email faktur berhasil dikirim.";
   },
 };

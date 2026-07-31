@@ -15,7 +15,7 @@ import {
   salesOrderService,
   type SalesOrder,
 } from "@/lib/services/penjualan.service";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
 
@@ -62,17 +62,7 @@ const COLUMNS: Column<SalesOrder>[] = [
     key: "status",
     label: "Status",
     width: "16%",
-    render: (_value, row) => (
-      <SalesStatusSelect
-        module="sales-order"
-        id={row.id}
-        value={row.status}
-        excludeOptions={["Cancelled"]}
-        onUpdated={(status) => {
-          row.status = status as SalesOrder["status"];
-        }}
-      />
-    ),
+    render: (_value, row) => <SalesStatusBadge module="sales-order" value={row.status} />,
   },
 ];
 export default function SalesOrderPage() {

@@ -264,7 +264,7 @@ function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
 
       {/* ══ AI INSIGHTS HERO ═════════════════════════════════════════════════ */}
       <Link href="/pembelian/insight" className="block group">
-        <div className="rounded-2xl border border-navy-800 bg-gradient-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
+        <div className="rounded-2xl border border-navy-800 bg-linear-to-r from-navy-900 to-navy-700 p-6 shadow-lg hover:shadow-xl hover:from-navy-800 hover:to-navy-600 transition-all duration-200">
           <div className="flex items-start justify-between gap-6">
 
             {/* Left — text + AhpTopsisBestPreview cards */}
@@ -290,7 +290,7 @@ function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
             </div>
 
             {/* Right — live preset pills (desktop only) */}
-            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-[220px]">
+            <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-55">
               <div className="flex items-center justify-between mb-0.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400">
                   Supplier Terbaik · AHP+TOPSIS
@@ -301,7 +301,7 @@ function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
               </div>
 
               {recLoading && Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 animate-pulse h-[52px]" />
+                <div key={i} className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 animate-pulse h-13" />
               ))}
 
               {!recLoading && recDataset && recDataset.presets.map((preset) => {
@@ -644,7 +644,7 @@ function ActivityFeed() {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-        <div className="h-[260px] overflow-y-auto px-4 py-3">
+        <div className="h-65 overflow-y-auto px-4 py-3">
           {loading ? (
             <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />)}</div>
           ) : dashboard.recentActivities.length === 0 ? (
@@ -662,7 +662,7 @@ function ActivityFeed() {
                       {showDate && (<><p className="text-xs">{fmtDay(item.createdAt)}</p><p className="leading-none text-[40px] font-light">{fmtDayN(item.createdAt)}</p><p className="-mt-1 text-xl">{fmtMonth(item.createdAt)}</p></>)}
                     </div>
                     <div className="relative border-l border-slate-200 pb-6 pl-7">
-                      <span className="absolute -left-[7px] top-2 h-3 w-3 rounded-full border border-blue-400 bg-blue-100" />
+                      <span className="absolute -left-1.75 top-2 h-3 w-3 rounded-full border border-blue-400 bg-blue-100" />
                       <div className="grid grid-cols-[52px_1fr] gap-2">
                         <p className="text-xs font-bold text-slate-700">{fmtTime(item.createdAt)}</p>
                         <div className="min-w-0">
@@ -688,7 +688,7 @@ function ActivityFeed() {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-        <div className="h-[260px] overflow-y-auto px-4 py-3">
+        <div className="h-65 overflow-y-auto px-4 py-3">
           {loading ? (
             <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}</div>
           ) : dashboard.upcomingActivities.length === 0 ? (

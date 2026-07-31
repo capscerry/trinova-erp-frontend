@@ -2,17 +2,19 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CreditCard, Edit, Printer } from "lucide-react";
+import { ArrowLeft, CreditCard, Edit, Mail, Printer } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui";
 import {
   FakturPenjualanModal,
   type FakturPenjualanFormData,
 } from "@/components/modules/penjualan/faktur_penjualan/FakturPenjualanModal";
+import { SendInvoiceEmailModal } from "@/components/modules/penjualan/SendInvoiceEmailModal";
 import {
   salesInvoiceService,
   type SalesInvoiceFullDetail,
 } from "@/lib/services/sales-invoice.service";
+import { generateInvoicePdf } from "@/lib/pdf/invoicePdf";
 import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
@@ -50,6 +52,7 @@ export default function SalesInvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -129,6 +132,29 @@ export default function SalesInvoiceDetailPage() {
     await fetchData();
   };
 
+  const handleSendEmail = async (message: string) => {
+    if (!data) throw new Error("Data faktur belum siap.");
+
+    try {
+      // 1. Render halaman Print di luar layar → tangkap jadi file PDF
+      //    (byte-for-byte sama dengan yang tampil di /print).
+      const pdf = await generateInvoicePdf(data);
+
+      // 2. Kirim ke backend sebagai lampiran base64.
+      const msg = await salesInvoiceService.sendEmail(id, message, {
+        base64: pdf.base64,
+        fileName: pdf.fileName,
+      });
+
+      setEmailModalOpen(false);
+      notify.success("Email faktur terkirim", msg);
+    } catch (err) {
+      // Dilempar ulang supaya modal tetap terbuka dan menampilkan error-nya
+      // sendiri — baik kegagalan generate PDF maupun kegagalan kirim email.
+      throw err;
+    }
+  };
+
   return (
     <AppShell title="Detail Faktur Penjualan" subtitle="Rincian tagihan pelanggan">
       <div className="mb-5 flex items-center justify-between gap-3">
@@ -159,6 +185,14 @@ export default function SalesInvoiceDetailPage() {
             >
               <Edit size={15} />
               Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setEmailModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-navy-200 bg-navy-50 px-4 py-2 text-sm font-semibold text-navy-700 transition-colors hover:bg-navy-100"
+            >
+              <Mail size={15} />
+              Kirim Email
             </button>
             <button
               type="button"
@@ -256,6 +290,17 @@ export default function SalesInvoiceDetailPage() {
         onSubmit={handleEditSubmit}
         initialData={editInitialData}
       />
+
+      {data && (
+        <SendInvoiceEmailModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          onSend={handleSendEmail}
+          invoiceNumber={data.invoiceNumber}
+          customerName={data.customerName}
+          customerEmail={data.customerEmail}
+        />
+      )}
     </AppShell>
   );
 }

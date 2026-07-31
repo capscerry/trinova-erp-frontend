@@ -33,6 +33,7 @@ import {
   type PengirimanDetailItem,
 } from "@/lib/services/pengiriman-penjualan.service";
 import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
+import { CurrencyInput } from "../CurrencyInput";
 import {
   EMPTY_FORM,
   addDays,
@@ -83,6 +84,10 @@ export function FakturPenjualanModal({
   const [uangMukaNote, setUangMukaNote] = useState("Belum ada SO yang dipilih");
   const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [selectedSoIsIndent, setSelectedSoIsIndent] = useState(false);
+  const [soBaseItems, setSoBaseItems] = useState<FakturPenjualanItem[]>([]);
+  const [proformaNote, setProformaNote] = useState("");
+  const [resolvingProformaStage, setResolvingProformaStage] = useState(false);
 
   // Baris cash sale (tanpa SO/DO) butuh gudang per baris supaya stoknya bisa
   // dipotong — item yang berasal dari SO/DO sudah ditangani di sana.
@@ -99,6 +104,9 @@ export function FakturPenjualanModal({
       jatuhTempo: initialData?.jatuhTempo || addDays(initialData?.tanggal || EMPTY_FORM.tanggal, 30),
       items: initialData?.items?.length ? initialData.items : [],
     });
+    setSelectedSoIsIndent(false);
+    setSoBaseItems([]);
+    setProformaNote("");
   }, [open, initialData]);
 
   useEffect(() => {
@@ -156,9 +164,13 @@ export function FakturPenjualanModal({
       noPengiriman: "",
       noPO: "",
       uangMuka: 0,
+      proformaStage: null,
       items: [],
     });
     setUangMukaNote("Belum ada SO yang dipilih");
+    setSelectedSoIsIndent(false);
+    setSoBaseItems([]);
+    setProformaNote("");
     setShowCustomerDropdown(false);
     setFilterCustomer("");
   };
@@ -220,6 +232,10 @@ export function FakturPenjualanModal({
         harga: Number(item.productPrice || 0),
         diskon: Number(item.productDiscount || 0),
       }));
+      const isIndent = Boolean(so.isIndent);
+      setSelectedSoIsIndent(isIndent);
+      setSoBaseItems(items);
+      setProformaNote("");
       patchForm({
         salesOrderId: Number(so.id),
         noSo: so.nomor,
@@ -229,6 +245,7 @@ export function FakturPenjualanModal({
         alamat: typeof soRecord.alamat === "string" ? soRecord.alamat : form.alamat,
         kenaPajak: typeof soRecord.kenaPajak === "boolean" ? soRecord.kenaPajak : form.kenaPajak,
         uangMuka: uangMuka.amount,
+        proformaStage: null,
         items,
       });
       setUangMukaNote(
@@ -242,6 +259,92 @@ export function FakturPenjualanModal({
       notify.error("Gagal memuat detail Sales Order");
     } finally {
       setLoadingSo(false);
+    }
+  };
+
+  const handleProformaStageChange = async (stage: "" | "DP" | "Final") => {
+    const baseSubtotal = soBaseItems.reduce((s, it) => s + it.harga * it.qty, 0);
+    if (baseSubtotal <= 0) return;
+
+    setResolvingProformaStage(true);
+    try {
+      if (!stage) {
+        // Reguler: kembalikan harga penuh + uang muka (kalau ada) sebagai
+        // pengurang -- perilaku standar sebelum barang ini ditandai indent.
+        const uangMuka = await getUangMukaBySalesOrder(form.noSo, form.customerId);
+        patchForm({ proformaStage: null, items: soBaseItems, uangMuka: uangMuka.amount });
+        setUangMukaNote(
+          uangMuka.count > 0
+            ? `${uangMuka.count} uang muka terpakai dari SO ini`
+            : "Tidak ada uang muka untuk SO ini"
+        );
+        setProformaNote("");
+        return;
+      }
+
+      if (stage === "DP") {
+        let target = baseSubtotal * 0.3;
+        let note = "Nominal DP dihitung otomatis 30% dari total SO (belum ada record Uang Muka).";
+        try {
+          const list = await uangMukaService.getAll();
+          const matched = list.filter(
+            (item) =>
+              Number(item.customerId) === Number(form.customerId) &&
+              item.nomorSo?.trim().toLowerCase() === (form.noSo ?? "").trim().toLowerCase() &&
+              isApprovedForPicker("down-payment", item.status)
+          );
+          if (matched.length > 0) {
+            target = matched.reduce((s, m) => s + Number(m.nominalUangMuka || m.totalAmount || 0), 0);
+            note = `Nominal DP diambil dari Uang Muka ${matched.map((m) => m.noFaktur).join(", ")}: ${formatRupiah(target)}.`;
+          }
+        } catch (err) {
+          console.error("Gagal memuat Uang Muka terkait SO:", err);
+        }
+
+        const factor = target / baseSubtotal;
+        patchForm({
+          proformaStage: "DP",
+          // Bukan pengurang di sini -- invoice DP ini SENDIRI adalah dokumen
+          // tagihan uang mukanya, jadi tidak boleh dipotong lagi.
+          uangMuka: 0,
+          items: soBaseItems.map((item) => ({ ...item, harga: item.harga * factor })),
+        });
+        setProformaNote(note);
+        return;
+      }
+
+      // stage === "Final"
+      let dpInvoiced = 0;
+      let note = "Nominal pelunasan dihitung 70% dari total SO (belum ada invoice DP tercatat).";
+      try {
+        const invoices = await salesInvoiceService.getAll();
+        const dpInvoices = invoices.filter(
+          (inv) =>
+            inv.salesOrderId === form.salesOrderId &&
+            inv.proformaStage === "DP" &&
+            inv.status !== "Cancelled"
+        );
+        if (dpInvoices.length > 0) {
+          dpInvoiced = dpInvoices.reduce((s, inv) => s + Number(inv.subtotal || 0), 0);
+          const remaining = Math.max(0, baseSubtotal - dpInvoiced);
+          note = `Nominal pelunasan = sisa setelah invoice DP ${dpInvoices
+            .map((i) => i.invoiceNumber)
+            .join(", ")}: ${formatRupiah(remaining)}.`;
+        }
+      } catch (err) {
+        console.error("Gagal memuat invoice DP terkait SO:", err);
+      }
+
+      const target = dpInvoiced > 0 ? Math.max(0, baseSubtotal - dpInvoiced) : baseSubtotal * 0.7;
+      const factor = target / baseSubtotal;
+      patchForm({
+        proformaStage: "Final",
+        uangMuka: 0,
+        items: soBaseItems.map((item) => ({ ...item, harga: item.harga * factor })),
+      });
+      setProformaNote(note);
+    } finally {
+      setResolvingProformaStage(false);
     }
   };
 
@@ -308,6 +411,9 @@ export function FakturPenjualanModal({
       };
     });
 
+    setSelectedSoIsIndent(false);
+    setSoBaseItems([]);
+    setProformaNote("");
     patchForm({
       deliveryOrderId: delivery.id,
       noPengiriman: delivery.noSuratJalan,
@@ -317,6 +423,7 @@ export function FakturPenjualanModal({
       alamat: delivery.alamatPengiriman || form.alamat,
       keterangan: delivery.keterangan || form.keterangan,
       uangMuka: uangMuka.amount,
+      proformaStage: null,
       items,
     });
     setUangMukaNote(
@@ -509,6 +616,37 @@ export function FakturPenjualanModal({
               </div>
             </div>
 
+            {selectedSoIsIndent && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+                <FormField
+                  label="Jenis Invoice"
+                  icon={<FileText size={14} />}
+                  hint={resolvingProformaStage ? "Menghitung nominal..." : undefined}
+                >
+                  <select
+                    value={form.proformaStage ?? ""}
+                    disabled={resolvingProformaStage}
+                    onChange={(e) => handleProformaStageChange(e.target.value as "" | "DP" | "Final")}
+                    className={inputClass}
+                  >
+                    <option value="">Reguler (100%)</option>
+                    <option value="DP">Proforma DP 30%</option>
+                    <option value="Final">Proforma Pelunasan 70%</option>
+                  </select>
+                </FormField>
+                <p className="mt-2 text-[11px] leading-snug text-amber-700">
+                  SO ini ditandai sebagai barang indent. Buat 2 invoice proforma berurutan — DP 30%
+                  (idealnya diambil dari record Uang Muka SO ini) lalu Pelunasan 70% — sebelum
+                  Delivery Order bisa dibuat.
+                </p>
+                {proformaNote && (
+                  <p className="mt-1.5 text-[11px] leading-snug font-medium text-amber-800">
+                    {proformaNote}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField label="No PO" icon={<Hash size={14} />}>
                 <input value={form.noPO ?? ""} onChange={(e) => patchForm({ noPO: e.target.value })} placeholder="Nomor PO..." className={inputClass} />
@@ -540,65 +678,88 @@ export function FakturPenjualanModal({
               {form.items.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">Belum ada barang. Ambil dari Sales Order atau tambah baris manual.</div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Barang</th>
-                        <th className="w-[10%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Satuan</th>
-                        {isDirectSale && (
-                          <th className="w-[16%] px-3 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Gudang</th>
-                        )}
-                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Qty</th>
-                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Harga</th>
-                        <th className="w-[10%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Diskon %</th>
-                        <th className="w-[16%] px-3 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Subtotal</th>
-                        <th className="w-10" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {form.items.map((item) => {
-                        const gross = Number(item.qty || 0) * Number(item.harga || 0);
-                        const lineTotal = gross - gross * (Number(item.diskon || 0) / 100);
-                        return (
-                          <tr key={item.id} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-2">
-                              <input value={item.productName} onChange={(e) => updateItem(item.id, { productName: e.target.value })} className={cn(inputClass, "py-1.5")} />
-                            </td>
-                            <td className="px-3 py-2"><input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-1.5")} /></td>
-                            {isDirectSale && (
-                              <td className="px-3 py-2">
-                                <select
-                                  value={item.warehouseId ?? ""}
-                                  disabled={loadingWarehouses}
-                                  onChange={(e) => {
-                                    const found = warehouseOptions.find(
-                                      (w) => String(w.warehouse_id) === e.target.value
-                                    );
-                                    if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
-                                    else updateItem(item.id, { warehouseId: undefined, warehouseName: "" });
-                                  }}
-                                  className={cn(inputClass, "py-1.5")}
-                                >
-                                  <option value="">Jasa (tanpa stok)</option>
-                                  {warehouseOptions.map((w) => (
-                                    <option key={w.warehouse_id} value={w.warehouse_id}>
-                                      {w.warehouse_name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                            )}
-                            <td className="px-3 py-2"><input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
-                            <td className="px-3 py-2"><input type="number" min={0} value={item.harga} onChange={(e) => updateItem(item.id, { harga: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
-                            <td className="px-3 py-2"><input type="number" min={0} max={100} value={item.diskon} onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })} className={cn(inputClass, "py-1.5 text-right")} /></td>
-                            <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatRupiah(lineTotal)}</td>
-                            <td className="px-2 py-2 text-center"><button type="button" onClick={() => removeItem(item.id)} className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 size={13} /></button></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {form.items.map((item, index) => {
+                    const gross = Number(item.qty || 0) * Number(item.harga || 0);
+                    const lineTotal = gross - gross * (Number(item.diskon || 0) / 100);
+                    return (
+                      <div key={item.id}
+                        className="rounded-xl border border-slate-200 bg-white overflow-hidden
+                                   hover:border-slate-300 hover:shadow-sm transition-all">
+
+                        {/* Baris atas: nomor urut + nama barang + hapus */}
+                        <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-slate-100 bg-slate-50/60">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-navy-900 text-[11px] font-extrabold text-gold-400">
+                            {index + 1}
+                          </div>
+                          <input
+                            value={item.productName}
+                            onChange={(e) => updateItem(item.id, { productName: e.target.value })}
+                            placeholder="Nama barang..."
+                            className={cn(inputClass, "flex-1 py-2 text-sm font-semibold")}
+                          />
+                          <button type="button" onClick={() => removeItem(item.id)} title="Hapus baris"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {/* Baris tengah: satuan / gudang / qty */}
+                        <div className={cn(
+                          "grid gap-3 px-3.5 py-3 border-b border-dashed border-slate-100",
+                          isDirectSale ? "grid-cols-3" : "grid-cols-2"
+                        )}>
+                          <FieldLabel label="Satuan">
+                            <input value={item.satuan} onChange={(e) => updateItem(item.id, { satuan: e.target.value })} className={cn(inputClass, "py-2")} />
+                          </FieldLabel>
+
+                          {isDirectSale && (
+                            <FieldLabel label="Gudang">
+                              <select
+                                value={item.warehouseId ?? ""}
+                                disabled={loadingWarehouses}
+                                onChange={(e) => {
+                                  const found = warehouseOptions.find(
+                                    (w) => String(w.warehouse_id) === e.target.value
+                                  );
+                                  if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                                  else updateItem(item.id, { warehouseId: undefined, warehouseName: "" });
+                                }}
+                                className={cn(inputClass, "py-2")}
+                              >
+                                <option value="">Jasa (tanpa stok)</option>
+                                {warehouseOptions.map((w) => (
+                                  <option key={w.warehouse_id} value={w.warehouse_id}>
+                                    {w.warehouse_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </FieldLabel>
+                          )}
+
+                          <FieldLabel label="Qty">
+                            <input type="number" min={0} value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} className={cn(inputClass, "py-2 text-center")} />
+                          </FieldLabel>
+                        </div>
+
+                        {/* Baris bawah: harga / diskon / subtotal — bagian nominal,
+                            dibuat lebih menonjol karena paling sering dicek ulang. */}
+                        <div className="grid grid-cols-3 gap-3 px-3.5 py-3 items-end">
+                          <FieldLabel label="Harga Satuan">
+                            <CurrencyInput value={item.harga} onChange={(v) => updateItem(item.id, { harga: v })} />
+                          </FieldLabel>
+                          <FieldLabel label="Diskon %">
+                            <input type="number" min={0} max={100} value={item.diskon} onChange={(e) => updateItem(item.id, { diskon: Number(e.target.value) })}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700 transition-all focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-600/20" />
+                          </FieldLabel>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">Subtotal</span>
+                            <span className="whitespace-nowrap text-[17px] font-extrabold text-navy-900">{formatRupiah(lineTotal)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -691,6 +852,17 @@ export function FakturPenjualanModal({
 
 function FormField({ label, icon, required, hint, children }: { label: string; icon?: ReactNode; required?: boolean; hint?: string; children: ReactNode }) {
   return <div className="space-y-1.5"><label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">{icon && <span className="text-slate-400">{icon}</span>}{label}{required && <span className="font-bold text-red-400">*</span>}{hint && <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-slate-400">{hint}</span>}</label>{children}</div>;
+}
+
+// Label kecil di atas tiap input dalam kartu baris barang (beda dari
+// FormField di atas yang dipakai untuk field header faktur).
+function FieldLabel({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="block text-[9.5px] font-extrabold uppercase tracking-wider text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {

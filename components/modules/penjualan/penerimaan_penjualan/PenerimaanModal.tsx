@@ -214,7 +214,7 @@ export function PenerimaanModal({
       setShowUangMukaPicker(true);
     } catch (err) {
       console.error("Gagal memuat uang muka:", err);
-      alert("Gagal memuat uang muka");
+      notify.error("Gagal memuat uang muka");
     } finally {
       setLoadingUangMuka(false);
     }

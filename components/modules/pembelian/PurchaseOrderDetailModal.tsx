@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X,
   Calendar,
@@ -13,6 +13,8 @@ import {
   FileText,
   Printer,
   Hash,
+  Printer,
+  Mail,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
@@ -45,6 +47,8 @@ interface PurchaseOrderItem {
 }
 
 interface PurchaseOrderDetailData {
+  purchase_order_id?: number;
+
   po_number: string;
 
   supplier_name: string;
@@ -112,6 +116,16 @@ export default function PurchaseOrderDetailModal({
   onClose,
   data,
 }: PurchaseOrderDetailModalProps) {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailDetail, setEmailDetail] = useState<PurchaseOrderPrintDetail | null>(null);
+  const [loadingEmailDetail, setLoadingEmailDetail] = useState(false);
+  const [banner, setBanner] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  useEffect(() => {
+    if (!banner) return;
+    const timer = setTimeout(() => setBanner(null), 4000);
+    return () => clearTimeout(timer);
+  }, [banner]);
 
   const pdfRef = useRef<HTMLDivElement>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -790,6 +804,29 @@ export default function PurchaseOrderDetailModal({
         </div>
 
       </div>
+
+      {banner && (
+        <div
+          className={`fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold ${
+            banner.type === "success"
+              ? "bg-emerald-600 text-white shadow-emerald-600/30"
+              : "bg-red-600 text-white shadow-red-600/30"
+          }`}
+        >
+          {banner.msg}
+        </div>
+      )}
+
+      {emailDetail && (
+        <SendPurchaseOrderEmailModal
+          open={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          onSend={handleSendEmail}
+          poNumber={emailDetail.header.po_number}
+          supplierName={emailDetail.supplier?.supplier_name || data.supplier_name}
+          supplierEmail={emailDetail.supplier?.email}
+        />
+      )}
     </>
   );
 }

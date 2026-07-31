@@ -12,10 +12,12 @@ import {
 import { salesStatusService } from "@/lib/services/sales-status.service";
 import { cn } from "@/lib/utils";
 
-// ─── SalesStatusBadge ────────────────────────────────────────────────────────
-// Read-only status display — used in contexts where status is driven purely
-// by business actions (create invoice, settle, create DO, mark received, etc.)
-// and manual dropdown editing is not appropriate.
+// ─── SalesStatusBadge ───────────────────────────────────────────────────────
+// Tampilan status read-only (bukan dropdown) -- status sekarang murni hasil
+// dari aksi bisnis (buat invoice, lunasi, buat DO, tandai diterima, dst),
+// jadi tidak lagi bisa diubah manual sembarangan lewat dropdown generik.
+// Satu-satunya transisi status manual yang masih ada adalah tombol khusus
+// "Tandai Diterima" di Delivery Order (lihat PengirimanPenjualanContent.tsx).
 export function SalesStatusBadge({
   module,
   value,
@@ -24,6 +26,7 @@ export function SalesStatusBadge({
   value?: string | null;
 }) {
   const status = normalizeSalesStatus(module, value);
+
   return (
     <span
       className={cn(
@@ -130,7 +133,7 @@ export function SalesStatusSelect<T extends string = string>({
       ? createPortal(
           <>
             <div
-              className="fixed inset-0 z-[9998]"
+              className="fixed inset-0 z-9998"
               onClick={() => setOpen(false)}
             />
 

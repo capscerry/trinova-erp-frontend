@@ -14,7 +14,7 @@ import {
   salesInvoiceService,
   type SalesInvoice,
 } from "@/lib/services/sales-invoice.service";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
 
@@ -62,7 +62,7 @@ const COLUMNS: Column<SalesInvoice>[] = [
     label: "Status",
     width: "16%",
     render: (_v, row) => (
-      <SalesStatusSelect module="sales-invoice" id={row.id} value={row.status} />
+      <SalesStatusBadge module="sales-invoice" value={row.status} />
     ),
   },
 ];

@@ -19,8 +19,8 @@ import ForecastSummary
 
 import { Forecast } from "@/types/forecast.type";
 
+
 import {
-  getDemandForecast,
   getRealtimeForecast,
   generateMonthlyForecast,
   getLatestMonthlyForecast,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/services/demandForecastService";
 
 import { Button } from "@/components/ui/Button";
+
 import {
   Clock3,
   Sparkles,
@@ -35,7 +36,6 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react";
-
 
 function formatDate(date: string) {
   if (!date) return "-";
@@ -60,10 +60,6 @@ export default function DemandForecastPage() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  const [monthlyGeneratedAt, setMonthlyGeneratedAt] = useState("");
-
-  const [downloading, setDownloading] = useState(false);
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -83,6 +79,7 @@ export default function DemandForecastPage() {
           latest[0].generated_at
         );
       }
+
     } catch (error) {
 
       console.error(error);
@@ -150,39 +147,6 @@ export default function DemandForecastPage() {
     }
   }
 
-  const handleDownload = async () => {
-    try {
-      setDownloading(true);
-
-      const blob = await downloadForecast();
-
-      const url = window.URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.download = `DemandForecast_${new Date()
-        .toISOString()
-        .slice(0, 10)}.xlsx`;
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Forecast downloaded successfully.");
-    } catch (error) {
-      console.error(error);
-
-      toast.error("Failed to download forecast.");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   const totalProducts =
     data.length;
 
@@ -207,6 +171,43 @@ export default function DemandForecastPage() {
     data.length > 0
       ? data[0].generated_at
       : "";
+
+    const [monthlyGeneratedAt, setMonthlyGeneratedAt] = useState("");
+
+    const [downloading, setDownloading] = useState(false);
+
+    const handleDownload = async () => {
+      try {
+        setDownloading(true);
+
+        const blob = await downloadForecast();
+
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = `DemandForecast_${new Date()
+          .toISOString()
+          .slice(0, 10)}.xlsx`;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        link.remove();
+
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Forecast downloaded successfully.");
+      } catch (error) {
+        console.error(error);
+
+        toast.error("Failed to download forecast.");
+      } finally {
+        setDownloading(false);
+      }
+    };
 
   return (
     <AppShell

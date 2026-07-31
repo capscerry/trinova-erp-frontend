@@ -16,7 +16,7 @@ import {
   penerimaanPenjualanService,
   type PenerimaanPenjualan,
 } from "@/lib/services/penjualan.service";
-import { SalesStatusSelect } from "@/components/modules/penjualan/SalesStatusSelect";
+import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
 
@@ -59,7 +59,7 @@ const COLUMNS: Column<PenerimaanPenjualan>[] = [
     label: "Status",
     width: "16%",
     render: (_v, row) => (
-      <SalesStatusSelect module="sales-receipt" id={row.id} value={row.status} />
+      <SalesStatusBadge module="sales-receipt" value={row.status} />
     ),
   },
 ];

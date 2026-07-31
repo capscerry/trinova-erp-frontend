@@ -42,6 +42,8 @@ function getRedirectPath(role: AuthUser["role"]) {
     case "pembelian":
     case "procurement_manager":
       return "/pembelian";
+    case "procurement_manager":
+      return "/pembelian";
     case "persediaan":
       return "/persediaan";
     case "admin":

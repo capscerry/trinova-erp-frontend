@@ -6,10 +6,8 @@ import { isApprovedForPicker, normalizeSalesStatus } from "@/lib/sales-status";
 
 export type SalesOrderStatus =
   | "Draft"
-  | "Approved"
-  | "Confirmed"
   | "Processing"
-  | "Shipped"
+  | "In Delivery"
   | "Completed"
   | "Cancelled";
 
@@ -433,6 +431,7 @@ export const salesOrderService = {
         kenaPajak: Boolean(item.isTaxAble ?? item.isTaxable ?? false),
         isTaxIncluded: Boolean(item.isTaxIncluded ?? item.isTaxAble ?? item.isTaxable ?? false),
         taxTotal: Number(item.taxTotal ?? 0),
+        isIndent: Boolean(item.isIndent ?? false),
         total: item.subTotal ?? item.total ?? 0,
         items: [],
       }))
@@ -605,6 +604,7 @@ export interface SalesQuotationHeaderDetailApi {
     customerId: number;
     quotationNumber: string;
     customerName: string;
+    customerEmail?: string;
     quotationDate: string;
     address?: string;
     notes: string;
@@ -633,6 +633,7 @@ export interface SalesQuotationDetail {
   nomor: string;
   tanggal: string;
   pelanggan: string;
+  pelangganEmail?: string;
   alamat: string;
   keterangan: string;
   /** Grand total final dari API — sudah dikurangi diskon, ditambah pajak */
@@ -680,6 +681,7 @@ export function mapSalesQuotationDetail(item: SalesQuotationHeaderDetailApi): Sa
     nomor: item.header.quotationNumber,
     tanggal: item.header.quotationDate,
     pelanggan: item.header.customerName,
+    pelangganEmail: item.header.customerEmail ?? "",
     alamat: item.header.address ?? "",
     keterangan: item.header.notes ?? "",
     subtotal: item.header.subtotal,
@@ -735,6 +737,29 @@ export const salesQuotationService = {
     );
 
     return mapSalesQuotationDetail(response.data.data);
+  },
+
+  /**
+   * Kirim penawaran ke email pelanggan terdaftar (SMTP di backend).
+   * `attachment` (opsional) adalah PDF hasil render halaman Cetak/PDF di
+   * sisi frontend (lihat lib/pdf/quotationPdf.tsx) — dikirim sebagai base64
+   * supaya backend tinggal melampirkannya ke email, bukan generate ulang.
+   */
+  async sendEmail(
+    id: number | string,
+    message?: string,
+    attachment?: { base64: string; fileName: string }
+  ): Promise<string> {
+    const response = await api.post<ApiResponse<null>>(
+      `/SalesQuotation/${id}/send-email`,
+      {
+        message: message && message.length > 0 ? message : undefined,
+        attachmentBase64: attachment?.base64,
+        attachmentFileName: attachment?.fileName,
+      }
+    );
+
+    return response.data.message ?? "Email penawaran berhasil dikirim.";
   },
 
   /** Ambil daftar quotation berdasarkan customer */

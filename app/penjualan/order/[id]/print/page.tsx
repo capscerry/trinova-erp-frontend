@@ -5,539 +5,61 @@ import { useParams } from "next/navigation";
 import {
   salesOrderService,
   type SalesOrderDetail,
-  type SalesOrderDetailItem,
 } from "@/lib/services/penjualan.service";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const formatRupiah = (n: number) =>
-  new Intl.NumberFormat("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n ?? 0);
-
-const formatDate = (d?: string | null) => {
-  if (!d) return "—";
-  const date = new Date(d);
-  if (isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-};
-
-// Konversi angka ke terbilang (Bahasa Indonesia)
-function terbilang(n: number): string {
-  const satuan = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan",
-    "sepuluh", "sebelas", "dua belas", "tiga belas", "empat belas", "lima belas",
-    "enam belas", "tujuh belas", "delapan belas", "sembilan belas"];
-
-  function convert(num: number): string {
-    if (num < 20) return satuan[num];
-    if (num < 100) return satuan[Math.floor(num / 10) * 10 - 10 + 10] === satuan[0]
-      ? satuan[Math.floor(num / 10)] + " puluh" + (num % 10 ? " " + satuan[num % 10] : "")
-      : satuan[Math.floor(num / 10)] + " puluh" + (num % 10 ? " " + satuan[num % 10] : "");
-    if (num < 200) return "seratus" + (num % 100 ? " " + convert(num % 100) : "");
-    if (num < 1000) return satuan[Math.floor(num / 100)] + " ratus" + (num % 100 ? " " + convert(num % 100) : "");
-    if (num < 2000) return "seribu" + (num % 1000 ? " " + convert(num % 1000) : "");
-    if (num < 1000000) return convert(Math.floor(num / 1000)) + " ribu" + (num % 1000 ? " " + convert(num % 1000) : "");
-    if (num < 1000000000) return convert(Math.floor(num / 1000000)) + " juta" + (num % 1000000 ? " " + convert(num % 1000000) : "");
-    return convert(Math.floor(num / 1000000000)) + " miliar" + (num % 1000000000 ? " " + convert(num % 1000000000) : "");
-  }
-
-  if (n === 0) return "nol";
-  const result = convert(Math.floor(n));
-  // Capitalize first letter
-  return result.charAt(0).toUpperCase() + result.slice(1);
-}
-
-// ─── Komponen Utama ───────────────────────────────────────────────────────────
+import { SalesOrderPrintDocument } from "@/components/modules/penjualan/SalesOrderPrintDocument";
 
 export default function SalesOrderPrintPage() {
   const params = useParams();
   const id = params?.id as string;
-
   const [data, setData] = useState<SalesOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
     salesOrderService
       .getById(id)
       .then(setData)
-      .catch(() => setError("Gagal memuat data"))
+      .catch((err) => {
+        console.error("Gagal memuat print Sales Order:", err);
+        setError("Gagal memuat dokumen Sales Order.");
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-sm text-gray-500">
-        Memuat dokumen...
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-sm text-red-500">
-        {error ?? "Data tidak ditemukan"}
-      </div>
-    );
-  }
-
-  // Semua nilai (total final, discountTotal, taxTotal) datang LANGSUNG dari
-  // API — tidak ada kalkulasi pajak/diskon manual di frontend.
-  const grandTotal = data.total ?? 0;
-  const grossAmount = data.total + data.discountTotal - data.taxTotal;
-  const terbilangText = terbilang(grandTotal);
+  if (loading) return <div className="screen-state">Memuat dokumen...</div>;
+  if (error || !data) return <div className="screen-state error">{error || "Data Sales Order tidak ditemukan."}</div>;
 
   return (
     <>
-      {/* ── Print CSS ────────────────────────────────────────────────────────── */}
+      {/* Tampilan dokumen sendiri sudah ada di SalesOrderPrintDocument (class
+          ber-prefix "sop-"). Di sini tinggal gaya layar (toolbar, background
+          abu-abu) & override saat @media print. */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Arial&display=swap');
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-          font-family: Arial, sans-serif;
-          font-size: 11px;
-          color: #000;
-          background: #fff;
-        }
-
-        .page {
-          width: 210mm;
-          min-height: 297mm;
-          margin: 0 auto;
-          padding: 10mm 12mm;
-          background: #fff;
-        }
-
-        /* Toolbar — hanya muncul di layar, tidak di print */
-        .toolbar {
-          position: fixed;
-          top: 16px;
-          right: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          z-index: 100;
-        }
-        .toolbar button {
-          padding: 8px 20px;
-          border-radius: 6px;
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          border: none;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .btn-print  { background: #1e3a5f; color: #fff; }
-        .btn-close  { background: #ef4444; color: #fff; }
-        .btn-print:hover { background: #2d5a8e; }
-        .btn-close:hover { background: #dc2626; }
-
-        /* Kop Surat */
-        .header {
-          display: flex;
-          align-items: flex-start;
-          margin-bottom: 8px;
-          border-bottom: 2px solid #000;
-          padding-bottom: 6px;
-        }
-        .header-logo {
-          width: 60px;
-          height: 60px;
-          object-fit: contain;
-          margin-right: 12px;
-          flex-shrink: 0;
-        }
-        .header-company h1 {
-          font-size: 18px;
-          font-weight: bold;
-          text-transform: uppercase;
-          line-height: 1.2;
-        }
-        .header-company p {
-          font-size: 10px;
-          color: #444;
-          margin-top: 2px;
-        }
-
-        /* Judul Dokumen */
-        .doc-title {
-          text-align: center;
-          font-size: 14px;
-          font-weight: bold;
-          margin: 10px 0 8px;
-          text-decoration: underline;
-        }
-
-        /* Grid Kepada + Info Kanan */
-        .info-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 0;
-          margin-bottom: 10px;
-          border: 1px solid #000;
-        }
-        .info-left {
-          padding: 6px 8px;
-          border-right: 1px solid #000;
-        }
-        .info-left .label {
-          font-size: 10px;
-          margin-bottom: 4px;
-          text-decoration: underline;
-        }
-        .info-left .value {
-          font-size: 11px;
-          font-weight: 600;
-          line-height: 1.4;
-        }
-        .info-right {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-        }
-        .info-cell {
-          padding: 5px 8px;
-          border-bottom: 1px dashed #999;
-          border-right: 1px dashed #999;
-        }
-        .info-cell:nth-child(2n) { border-right: none; }
-        .info-cell:nth-last-child(-n+2) { border-bottom: none; }
-        .info-cell .cell-label {
-          font-size: 9px;
-          color: #555;
-          margin-bottom: 2px;
-        }
-        .info-cell .cell-value {
-          font-size: 11px;
-          font-weight: 600;
-        }
-        .tax-status {
-          display: inline-block;
-          font-size: 9px;
-          font-weight: 700;
-          padding: 1px 6px;
-          border-radius: 3px;
-        }
-        .tax-status.included {
-          background: #dcfce7;
-          color: #166534;
-          border: 1px solid #166534;
-        }
-        .tax-status.excluded {
-          background: #fef3c7;
-          color: #92400e;
-          border: 1px solid #92400e;
-        }
-
-        /* Tabel Produk */
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 8px;
-          font-size: 11px;
-        }
-        .items-table th {
-          background: #f0f0f0;
-          border: 1px solid #000;
-          padding: 4px 6px;
-          text-align: center;
-          font-weight: bold;
-        }
-        .items-table td {
-          border: 1px solid #000;
-          padding: 3px 6px;
-        }
-        .items-table td.right { text-align: right; }
-        .items-table td.center { text-align: center; }
-        .items-table tbody tr:nth-child(even) { background: #fafafa; }
-
-        /* Terbilang */
-        .terbilang-row {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          margin-bottom: 8px;
-          font-size: 11px;
-        }
-        .terbilang-label { white-space: nowrap; font-weight: 600; }
-        .terbilang-value {
-          flex: 1;
-          border: 1px solid #999;
-          padding: 4px 8px;
-          background: #fafafa;
-        }
-
-        /* Bagian bawah: Keterangan + Summary */
-        .footer-grid {
-          display: grid;
-          grid-template-columns: 1fr 220px;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-        .keterangan-box {
-          border: 1px solid #999;
-          min-height: 80px;
-          padding: 6px 8px;
-          font-size: 10px;
-          color: #555;
-          position: relative;
-        }
-        .keterangan-label {
-          font-size: 10px;
-          margin-bottom: 4px;
-        }
-
-        /* Summary total */
-        .summary-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 11px;
-        }
-        .summary-table td {
-          border: 1px solid #999;
-          padding: 4px 8px;
-        }
-        .summary-table td:last-child { text-align: right; font-weight: 600; }
-        .summary-table tr.grand-total td {
-          font-weight: bold;
-          font-size: 12px;
-          border: 1.5px solid #000;
-        }
-
-        /* TTD */
-        .ttd-row {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 8px;
-        }
-        .ttd-box {
-          text-align: center;
-          width: 140px;
-        }
-        .ttd-box .ttd-title {
-          font-size: 10px;
-          margin-bottom: 40px;
-        }
-        .ttd-box .ttd-line {
-          border-top: 1px solid #000;
-          font-size: 10px;
-          padding-top: 2px;
-        }
-
-        /* Print media */
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body { background: #edf1f5; font-family: Arial, Helvetica, sans-serif; }
+        .screen-state { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 14px; }
+        .screen-state.error { color: #dc2626; }
+        .toolbar { position: fixed; right: 18px; top: 18px; z-index: 10; display: flex; flex-direction: column; gap: 8px; }
+        .toolbar button { border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; padding: 9px 18px; }
+        .btn-print { background: #0d1b2a; color: #e8d08a; }
+        .btn-close { background: #ffffff; color: #334155; border: 1px solid #dbe3ea !important; }
+        .sop-page { margin: 18px auto; box-shadow: 0 24px 70px rgba(15, 23, 42, .15); }
+        @page { size: A4; margin: 0; }
         @media print {
+          body { background: #fff; }
           .toolbar { display: none !important; }
-          body { margin: 0; }
-          .page {
-            width: 100%;
-            padding: 8mm 10mm;
-            margin: 0;
-          }
-        }
-
-        @media screen {
-          body { background: #e5e7eb; }
-          .page {
-            box-shadow: 0 4px 24px rgba(0,0,0,0.15);
-            margin: 20px auto 40px;
-          }
+          .sop-page { box-shadow: none; margin: 0; min-height: 297mm; width: 210mm; }
         }
       `}</style>
 
-      {/* ── Toolbar (hanya layar) ─────────────────────────────────────────── */}
       <div className="toolbar">
-        <button className="btn-print" onClick={() => window.print()}>
-          🖨️ Cetak / Save PDF
-        </button>
-        <button className="btn-close" onClick={() => window.close()}>
-          ✕ Tutup
-        </button>
+        <button className="btn-print" onClick={() => window.print()}>Print / Save PDF</button>
+        <button className="btn-close" onClick={() => window.close()}>Tutup</button>
       </div>
 
-      {/* ── Halaman Dokumen ───────────────────────────────────────────────── */}
-      <div className="page">
-
-        {/* Kop Surat */}
-        <div className="header">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/trinova-logo.png" alt="Trinova" className="header-logo" />
-          <div className="header-company">
-            <h1>PT Hang Song Machinery Indonesia</h1>
-            <p>Kab. Bekasi Jawa Barat, Indonesia</p>
-            <p>Telp: (021) 000-0000 | Email: info@company.com</p>
-          </div>
-        </div>
-
-        {/* Judul */}
-        <div className="doc-title">Pesanan Penjualan</div>
-
-        {/* Info Grid: Kepada + Detail SO */}
-        <div className="info-grid">
-          {/* Kiri: Kepada */}
-          <div className="info-left">
-            <div className="label">Kepada</div>
-            <div className="value">
-              {data.pelanggan || "—"}
-              {data.alamat && (
-                <div style={{ fontWeight: "normal", marginTop: 4, fontSize: 10, color: "#444" }}>
-                  {data.alamat}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Kanan: Grid info 2x3 */}
-          <div className="info-right">
-            <div className="info-cell">
-              <div className="cell-label">Tanggal</div>
-              <div className="cell-value">{formatDate(data.tanggal)}</div>
-            </div>
-            <div className="info-cell">
-              <div className="cell-label">Nomor</div>
-              <div className="cell-value">{data.nomor}</div>
-            </div>
-            <div className="info-cell">
-              <div className="cell-label">Status Pajak</div>
-              <div className="cell-value">
-                <span className={`tax-status ${data.taxTotal > 0 ? "included" : "excluded"}`}>
-                  {data.taxTotal > 0 ? "Sudah termasuk PPN" : "Belum termasuk PPN"}
-                </span>
-              </div>
-            </div>
-            <div className="info-cell">
-              <div className="cell-label">FOB</div>
-              <div className="cell-value">—</div>
-            </div>
-            <div className="info-cell">
-              <div className="cell-label">PO No</div>
-              <div className="cell-value">{data.poNumber || "—"}</div>
-            </div>
-            <div className="info-cell">
-              <div className="cell-label">Tanggal Pengiriman</div>
-              <div className="cell-value">{formatDate(data.tanggalKirim)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabel Produk */}
-        <table className="items-table">
-          <thead>
-            <tr>
-              <th style={{ width: "12%" }}>Kode Barang</th>
-              <th style={{ width: "38%" }}>Nama Barang</th>
-              <th style={{ width: "8%" }}>Kts.</th>
-              <th style={{ width: "20%" }}>@Harga</th>
-              <th style={{ width: "10%" }}>Diskon</th>
-              <th style={{ width: "12%" }}>Total Harga</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data.items ?? []).map((item: SalesOrderDetailItem, idx: number) => (
-              <tr key={idx}>
-                <td className="center">{item.productCode || (idx + 1).toString().padStart(6, "0")}</td>
-                <td>{item.productName}</td>
-                <td className="center">{item.productQty}</td>
-                <td className="right">{formatRupiah(item.productPrice)}</td>
-                <td className="right">{item.productDiscount > 0 ? `${item.productDiscount}%` : "—"}</td>
-                <td className="right">{formatRupiah(item.totalPrice)}</td>
-              </tr>
-            ))}
-            {/* Baris kosong agar tabel tidak terlalu pendek */}
-            {(data.items?.length ?? 0) < 5 &&
-              Array.from({ length: 5 - (data.items?.length ?? 0) }).map((_, i) => (
-                <tr key={`empty-${i}`}>
-                  <td>&nbsp;</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-
-        {/* Terbilang */}
-        <div className="terbilang-row">
-          <span className="terbilang-label">Terbilang :</span>
-          <div className="terbilang-value">{terbilangText} rupiah</div>
-        </div>
-
-        {/* Footer: Keterangan + Summary */}
-        <div className="footer-grid">
-          {/* Keterangan */}
-          <div>
-            <div className="keterangan-label">Keterangan :</div>
-            <div className="keterangan-box">
-              {data.keterangan || ""}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div>
-            <table className="summary-table">
-              <tbody>
-                <tr>
-                  <td>Subtotal</td>
-                  <td>{formatRupiah(grossAmount)}</td>
-                </tr>
-                {data.discountTotal > 0 && (
-                  <tr>
-                    <td>Diskon</td>
-                    <td>-{formatRupiah(data.discountTotal)}</td>
-                  </tr>
-                )}
-                {data.taxTotal > 0 && (
-                  <tr>
-                    <td>PPN</td>
-                    <td>{formatRupiah(data.taxTotal)}</td>
-                  </tr>
-                )}
-                <tr className="grand-total">
-                  <td>Total</td>
-                  <td>{formatRupiah(grandTotal)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p
-              style={{
-                fontSize: "9px",
-                color: "#666",
-                marginTop: "4px",
-                textAlign: "right",
-              }}
-            >
-              * Total di atas {data.taxTotal > 0 ? "sudah termasuk PPN" : "belum termasuk PPN"}
-            </p>
-          </div>
-        </div>
-
-        {/* TTD */}
-        <div className="ttd-row">
-          <div className="ttd-box">
-            <div className="ttd-title">Disetujui,</div>
-            <div className="ttd-line">( _________________ )</div>
-          </div>
-          <div className="ttd-box">
-            <div className="ttd-title">Diperiksa,</div>
-            <div className="ttd-line">( _________________ )</div>
-          </div>
-          <div className="ttd-box">
-            <div className="ttd-title">Dibuat oleh,</div>
-            <div className="ttd-line">( _________________ )</div>
-          </div>
-        </div>
-
-      </div>
+      <SalesOrderPrintDocument data={data} />
     </>
   );
 }
