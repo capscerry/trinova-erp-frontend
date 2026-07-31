@@ -1,4 +1,4 @@
-﻿import type { NavModule } from "@/types";
+import type { NavModule } from "@/types";
 import type { Role } from "@/types/auth";
 
 // Tambah allowedRoles: role mana saja yang boleh akses modul ini

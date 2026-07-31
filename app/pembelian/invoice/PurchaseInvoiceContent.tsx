@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import PurchaseInvoiceFormModal from "@/components/modules/pembelian/PurchaseInvoiceFormModal";
 import PurchaseInvoiceDetailModal from "@/components/modules/pembelian/PurchaseInvoiceDetailModal";

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Upload } from "lucide-react";
 
 interface SupplierFormModalProps {
   open: boolean;
@@ -240,7 +240,8 @@ export default function SupplierFormModal({
                       htmlFor="catalog-upload"
                       className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
                     >
-                      ≡ƒôñ Upload Catalog
+                      <Upload size={14} />
+                      Upload Catalog
                     </label>
 
                     <input

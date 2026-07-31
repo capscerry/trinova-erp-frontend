@@ -842,7 +842,7 @@ export default function PurchaseOrderFormModal({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-gold-800">
-                        Rekomendasi Supplier ┬╖ AHP+TOPSIS
+                      Rekomendasi Supplier • AHP+TOPSIS
                       </p>
                       <p className="text-[10px] text-amber-600 mt-0.5">
                         Supplier terbaik berdasarkan 4 strategi prioritas

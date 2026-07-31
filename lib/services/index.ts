@@ -1,4 +1,4 @@
-﻿export * from "./customer.service";
+export * from "./customer.service";
 export * from "./category-customer.service";
 export * from "./penjualan.service";
 export * from "./supplier.service";

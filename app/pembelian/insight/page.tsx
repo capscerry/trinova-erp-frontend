@@ -803,7 +803,7 @@ function AhpMethodNote() {
         {criteria.map((c) => (
           <div key={c.label} className="bg-white border border-blue-100 rounded-lg px-3 py-2 text-[11px]">
             <span className="font-bold text-navy-900">{c.label}</span>
-            <span className="text-slate-400 mx-1">┬╖</span>
+            <span className="text-slate-400 mx-1">•</span>
             <span className="font-bold text-blue-600">{c.weight}</span>
             <span className={cn(
               "ml-1 text-[10px] font-bold",
@@ -1100,7 +1100,7 @@ export default function PurchasingInsightPage() {
             <KpiCard label="Rata-rata Nilai Pesanan" value={`Rp ${fmtCompact(spend.avgOrderValue)}`}
               sub="per pesanan rata-rata" trend="neutral" />
             <KpiCard label="PO Disetujui" value={String(spend.totalApproved)}
-              sub={`${spend.totalPending} pending ┬╖ ${spend.totalCancelled} batal`}
+              sub={`${spend.totalPending} pending • ${spend.totalCancelled} batal`}
               trend={spend.totalPending > 5 ? "down" : "up"}
               color={spend.totalApproved > 0 ? "text-green-600" : "text-slate-700"} />
             <KpiCard label="Supplier Aktif" value={String(spend.spendBySupplier.length)}
@@ -1391,7 +1391,7 @@ export default function PurchasingInsightPage() {
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-serif font-bold text-navy-900 text-[14px] leading-none">Risk Detection</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">XGBoost ┬╖ dilatih dari data ERP terbaru ┬╖ diurutkan dari risiko tertinggi</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">XGBoost • dilatih dari data ERP terbaru • diurutkan dari risiko tertinggi</p>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 shrink-0">
               XGBoost

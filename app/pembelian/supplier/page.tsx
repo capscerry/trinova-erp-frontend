@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useAuth } from "@/lib/AuthContext";
 import { Sidebar } from "./Sidebar";

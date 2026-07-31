@@ -1,4 +1,4 @@
-﻿import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { StatCardData } from "@/types";
 
 interface StatCardProps extends StatCardData {

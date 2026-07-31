@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { StatCard } from "@/components/ui";
 import type { StatCardData, NavModule } from "@/types";
 

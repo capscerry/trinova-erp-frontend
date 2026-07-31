@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { AppShell } from "@/components/layout";

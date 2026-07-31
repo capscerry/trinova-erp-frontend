@@ -260,7 +260,7 @@ function KpiDashboard({ isProcurementManager = false }: KpiDashboardProps) {
             <div className="hidden lg:flex flex-col gap-2.5 shrink-0 min-w-[220px]">
               <div className="flex items-center justify-between mb-0.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gold-400">
-                  Supplier Terbaik ┬╖ AHP+TOPSIS
+                  Supplier Terbaik • AHP+TOPSIS
                 </p>
                 {recLoading && (
                   <RefreshCw size={10} className="text-slate-400 animate-spin" />

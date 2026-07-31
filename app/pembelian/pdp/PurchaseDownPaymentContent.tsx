@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { AppShell } from "@/components/layout";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -127,7 +127,7 @@ function PurchaseDownPaymentInner() {
     const [purchaseOrders, setPurchaseOrders] =
     useState<any[]>([]);
 
-    // Full unfiltered PO list â€” used for nomor_faktur_pajak lookups
+    // Full unfiltered PO list – used for nomor_faktur_pajak lookups
     // (the DP's PO may have advanced to Completed by the time Detail is opened)
     const [allPurchaseOrders, setAllPurchaseOrders] =
     useState<any[]>([]);
@@ -338,8 +338,8 @@ function PurchaseDownPaymentInner() {
                   const r = 4 + i;
                   ws[C(r, 0)] = { v: i + 1,                              t: "n", s: sCell };
                   ws[C(r, 1)] = { v: formatDPNumber(dp.dp_number),       t: "s", s: sCell };
-                  ws[C(r, 2)] = { v: dp.supplier_name ?? "â€”",            t: "s", s: sCellLeft };
-                  ws[C(r, 3)] = { v: dp.payment_date ? formatDateCell(dp.payment_date) : "â€”", t: "s", s: sCell };
+                  ws[C(r, 2)] = { v: dp.supplier_name ?? "–",            t: "s", s: sCellLeft };
+                  ws[C(r, 3)] = { v: dp.payment_date ? formatDateCell(dp.payment_date) : "–", t: "s", s: sCell };
                   ws[C(r, 4)] = { v: Number(dp.amount ?? 0),             t: "n", s: sNum };
                   grandTotal += Number(dp.amount ?? 0);
                 });
