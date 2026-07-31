@@ -53,6 +53,7 @@ export interface SalesOrderDetailApi {
   taxTotal?: number;
   isTaxAble?: boolean;
   status?: SalesOrderStatus;
+  isIndent?: boolean;
   quotationId?: number;
   quotationNumber?: string;
   detail: SalesOrderDetailItem[];
@@ -144,6 +145,7 @@ export interface SalesOrderApi {
   notes: string;
   subTotal: number;
   status: SalesOrderStatus;
+  isIndent?: boolean;
 }
 
 interface SalesOrderByCustomerApi {
@@ -168,6 +170,7 @@ interface SalesOrderByCustomerApi {
   taxTotal?: number;
   subTotal?: number;
   total?: number;
+  isIndent?: boolean;
 }
 
 export interface SalesOrder {
@@ -183,6 +186,7 @@ export interface SalesOrder {
   kenaPajak?: boolean;
   isTaxIncluded?: boolean;
   taxTotal?: number;
+  isIndent?: boolean;
   total: number;
   items: SalesOrderItemApi[];
 }
@@ -203,6 +207,7 @@ export interface SalesOrderDetail {
   discountTotal: number;
   taxTotal: number;
   kenaPajak: boolean;
+  isIndent?: boolean;
   quotationId?: number;
   quotationNumber?: string;
   items: SalesOrderDetailItem[];
@@ -299,6 +304,7 @@ export function mapSalesOrder(item: SalesOrderApi): SalesOrder {
     pelanggan: item.customerName,
     keterangan: item.notes,
     status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+    isIndent: item.isIndent ?? false,
     total: item.subTotal,
     items: [],
   };
@@ -320,6 +326,7 @@ export function mapSalesOrderDetail(item: SalesOrderDetailApi): SalesOrderDetail
     taxTotal: item.taxTotal ?? 0,
     kenaPajak: item.isTaxAble ?? false,
     status: normalizeSalesStatus("sales-order", item.status) as SalesOrderStatus,
+    isIndent: item.isIndent ?? false,
     quotationId: item.quotationId ?? undefined,
     quotationNumber: item.quotationNumber ?? undefined,
     items: item.detail ?? [],

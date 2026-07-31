@@ -14,6 +14,7 @@ import {
   newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
+import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
@@ -63,6 +64,7 @@ export function SalesOrderModal({
   const [savedSo, setSavedSo] = useState<SavedSalesOrderResponse | null>(null);
   const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
+  const [pengirimanReady, setPengirimanReady] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -78,6 +80,7 @@ export function SalesOrderModal({
       setSuccessMessage("");
       setSavedSo(null);
       setEditSaved(false);
+      setPengirimanReady(false);
     }
   }, [open, initialData]);
 
@@ -90,6 +93,33 @@ export function SalesOrderModal({
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
+  // Light UX check: enable the "Pengiriman" shortcut only once all invoices
+  // for this newly-saved SO are fully paid. Backend remains the authoritative
+  // guard — this just prevents the button from appearing prematurely.
+  useEffect(() => {
+    const orderId = savedSo?.id ?? savedSo?.header?.orderId ?? savedSo?.orderId;
+    if (!isSubmitted || !orderId) {
+      setPengirimanReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const invoices = await salesInvoiceService.getAll();
+        const related = invoices.filter((inv) => inv.salesOrderId === orderId);
+        const ready =
+          related.length > 0 &&
+          related.some((inv) => inv.status !== "Cancelled") &&
+          related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
+        if (!cancelled) setPengirimanReady(ready);
+      } catch {
+        if (!cancelled) setPengirimanReady(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isSubmitted, savedSo]);
   const patchForm = (patch: Partial<SalesOrderFormData>) =>
     setForm((prev) => ({ ...prev, ...patch }));
 
@@ -97,18 +127,15 @@ export function SalesOrderModal({
     items: SalesOrderItem[],
     quotation: { id: number; nomor: string ,alamat : string,kenaPajak : boolean}
   ) => {
-    // Gabungkan: hapus baris kosong default, lalu tambahkan item dari quotation
-    const existingItems = form.items.filter(
-      (i) => i.productId && i.productId > 0
-    );
-    const merged = [...existingItems, ...items];
-
+    // Replace (not merge) all items with those from the selected quotation.
+    // "Ambil dari Penawaran Penjualan" is a one-shot import action — selecting
+    // a different quotation must replace previous data, not stack on top of it.
     patchForm({
       quotationId: quotation.id,
       quotationNumber: quotation.nomor,
       ...(quotation.alamat ? {alamatPengiriman : quotation.alamat} : {}),
       kenaPajak: quotation.kenaPajak,
-      items: merged.length > 0 ? merged : [newItem()],
+      items: items.length > 0 ? items : [newItem()],
     });
     setQuotationPickerOpen(false);
   };
@@ -158,11 +185,9 @@ export function SalesOrderModal({
       }
     } catch (error) {
       console.error("Gagal menyimpan SO:", error);
-      alert(error instanceof Error
-        ? error.message
-        : isEdit
-          ? "Gagal menyimpan perubahan Sales Order"
-          : "Gagal menyimpan Sales Order"
+      notify.error(
+        isEdit ? "Gagal menyimpan perubahan Sales Order" : "Gagal menyimpan Sales Order",
+        error instanceof Error ? error.message : undefined
       );
     } finally {
       setIsSubmitting(false);

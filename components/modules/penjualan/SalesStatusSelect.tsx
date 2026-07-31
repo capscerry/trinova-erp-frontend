@@ -12,6 +12,30 @@ import {
 import { salesStatusService } from "@/lib/services/sales-status.service";
 import { cn } from "@/lib/utils";
 
+// ─── SalesStatusBadge ────────────────────────────────────────────────────────
+// Read-only status display — used in contexts where status is driven purely
+// by business actions (create invoice, settle, create DO, mark received, etc.)
+// and manual dropdown editing is not appropriate.
+export function SalesStatusBadge({
+  module,
+  value,
+}: {
+  module: SalesStatusModule;
+  value?: string | null;
+}) {
+  const status = normalizeSalesStatus(module, value);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+        getStatusTone(status)
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
 interface SalesStatusSelectProps<T extends string = string> {
   module: SalesStatusModule;
   id: number | string;

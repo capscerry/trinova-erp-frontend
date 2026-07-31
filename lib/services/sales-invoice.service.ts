@@ -19,12 +19,14 @@ export interface SalesInvoiceApi {
   jatuhTempo?: string;
   customerId: number;
   customerName?: string;
+  customerEmail?: string;
   salesOrderId?: number | null;
   salesOrderNumber?: string;
   soNumber?: string;
   deliveryOrderId?: number | null;
   deliveryOrderNumber?: string;
   doNumber?: string;
+  proformaStage?: "DP" | "Final" | null;
   subtotal?: number;
   discountTotal?: number;
   taxTotal?: number;
@@ -44,10 +46,12 @@ export interface SalesInvoice {
   dueDate: string;
   customerId: number;
   customerName: string;
+  customerEmail?: string;
   salesOrderId?: number;
   salesOrderNumber?: string;
   deliveryOrderId?: number;
   deliveryOrderNumber?: string;
+  proformaStage?: "DP" | "Final" | null;
   subtotal: number;
   discountTotal: number;
   taxTotal: number;
@@ -68,6 +72,7 @@ export interface SalesInvoicePayload {
     customerId: number;
     salesOrderId?: number | null;
     deliveryOrderId?: number | null;
+    proformaStage?: "DP" | "Final" | null;
     notes?: string;
     subtotal: number;
     discountTotal: number;
@@ -142,10 +147,12 @@ export function mapSalesInvoice(item: SalesInvoiceApi): SalesInvoice {
     dueDate: item.dueDate ?? item.jatuhTempo ?? "",
     customerId: item.customerId,
     customerName: item.customerName ?? "",
+    customerEmail: item.customerEmail ?? "",
     salesOrderId: item.salesOrderId ?? undefined,
     salesOrderNumber: item.salesOrderNumber ?? item.soNumber ?? undefined,
     deliveryOrderId: item.deliveryOrderId ?? undefined,
     deliveryOrderNumber: item.deliveryOrderNumber ?? item.doNumber ?? undefined,
+    proformaStage: item.proformaStage ?? null,
     subtotal: item.subtotal ?? 0,
     discountTotal: item.discountTotal ?? 0,
     taxTotal: item.taxTotal ?? 0,
@@ -219,5 +226,26 @@ export const salesInvoiceService = {
 
   async confirm(id: number | string): Promise<void> {
     await api.patch(`/sales-invoice/${id}/confirm`);
+  },
+
+  /**
+   * Kirim faktur ke email pelanggan terdaftar (SMTP di backend).
+   * `attachment` (opsional) adalah PDF hasil render halaman Print di sisi
+   * frontend (lihat lib/pdf/invoicePdf.tsx).
+   */
+  async sendEmail(
+    id: number | string,
+    message?: string,
+    attachment?: { base64: string; fileName: string }
+  ): Promise<string> {
+    const response = await api.post<ApiResponse<null>>(
+      `/sales-invoice/${id}/send-email`,
+      {
+        message: message && message.length > 0 ? message : undefined,
+        attachmentBase64: attachment?.base64,
+        attachmentFileName: attachment?.fileName,
+      }
+    );
+    return response.data.message ?? "Email faktur berhasil dikirim.";
   },
 };

@@ -90,20 +90,6 @@ export const NAV_CONFIG: (NavModule & { allowedRoles: Role[] })[] = [
     allowedRoles: ["procurement_manager"],
     children: [
       {
-        group: "Approval",
-        items: [
-          { id: "pembelian.track_po",    label: "Track PO Status",  href: "/pembelian/track-po-status" },
-          { id: "pembelian.po_approval", label: "PO Approval List", href: "/pembelian/po-approval-list" },
-        ],
-      },
-    ],
-  },
-  {
-    id: "pembelian",
-    label: "Pembelian",
-    allowedRoles: ["procurement_manager"],
-    children: [
-      {
         group: "Persetujuan PO",
         items: [
           { id: "pembelian.track_po_status",  label: "Track PO Status",   href: "/pembelian/track-po-status" },
