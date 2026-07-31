@@ -1,7 +1,10 @@
 "use client";
 
-import { X, CreditCard, ArrowRight, Download } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, CreditCard, ArrowRight, Download, FileText } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
+import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
+import { notify } from "@/lib/notify";
 
 const formatRupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -23,7 +26,26 @@ export default function GoodsReceiptDetailModal({
   onNavigateToPayment,
 }: GoodsReceiptDetailModalProps) {
 
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   if (!open || !data) return null;
+
+  const exportToPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const safeName = (data.receipt_number as string).replace(/[^A-Za-z0-9-]/g, "_");
+      await exportModalToPdf({
+        element: pdfRef.current,
+        fileName: `GoodsReceipt_${safeName}.pdf`,
+      });
+      notify.success("PDF berhasil diunduh");
+    } catch {
+      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const itemsTotal: number = data.items?.reduce(
     (sum: number, item: any) => sum + item.subtotal, 0
@@ -259,7 +281,7 @@ export default function GoodsReceiptDetailModal({
 
           {/* BODY */}
 
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          <div ref={pdfRef} className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
             {/* INFO */}
 
@@ -547,13 +569,23 @@ export default function GoodsReceiptDetailModal({
             )}
 
             <div className="flex justify-between items-center">
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <Download size={14} />
-                Export Excel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <Download size={14} />
+                  Export Excel
+                </button>
+                <button
+                  onClick={exportToPdf}
+                  disabled={pdfLoading}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <FileText size={14} />
+                  {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
+                </button>
+              </div>
               <button
                 onClick={onClose}
                 className="

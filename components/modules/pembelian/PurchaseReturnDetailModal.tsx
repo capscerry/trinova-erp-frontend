@@ -1,8 +1,11 @@
 "use client";
 
-import { X, RefreshCcw, Scissors, Banknote, Download } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, RefreshCcw, Scissors, Banknote, Download, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
+import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
+import { notify } from "@/lib/notify";
 
 // --- Helpers ------------------------------------------------------------------
 
@@ -84,7 +87,26 @@ export default function PurchaseReturnDetailModal({
   onClose,
   data,
 }: PurchaseReturnDetailModalProps) {
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   if (!open || !data) return null;
+
+  const exportToPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const safeName = data.purchase_return_number.replace(/[^A-Za-z0-9-]/g, "_");
+      await exportModalToPdf({
+        element: pdfRef.current,
+        fileName: `PurchaseReturn_${safeName}.pdf`,
+      });
+      notify.success("PDF berhasil diunduh");
+    } catch {
+      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const settlementNotes = data.notes
     ? data.notes.split(".").map((s) => s.trim()).filter(Boolean)
@@ -289,7 +311,7 @@ export default function PurchaseReturnDetailModal({
           </div>
 
           {/* Body */}
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          <div ref={pdfRef} className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
             {/* Status badge */}
             <div className="flex items-center gap-2">
@@ -454,13 +476,23 @@ export default function PurchaseReturnDetailModal({
 
           {/* Footer */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
-            <button
-              onClick={exportToExcel}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <Download size={14} />
-              Export Excel
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
+              <button
+                onClick={exportToPdf}
+                disabled={pdfLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <FileText size={14} />
+                {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
+              </button>
+            </div>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"

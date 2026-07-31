@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   ReceiptText,
@@ -8,6 +8,7 @@ import {
   Calendar,
   BadgeCheck,
   Download,
+  FileText,
   Wallet,
   CreditCard,
   Hash,
@@ -15,6 +16,8 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
+import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
+import { notify } from "@/lib/notify";
 
 // -------------------------------------------------------------
 // TYPES
@@ -118,6 +121,8 @@ export default function PurchaseInvoiceDetailModal({
   products = [],
   downPayments = [],
 }: PurchaseInvoiceDetailModalProps) {
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -146,6 +151,22 @@ export default function PurchaseInvoiceDetailModal({
   }, [open, invoice]);
 
   if (!open || !invoice) return null;
+
+  const exportToPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const safeNum = formatINVNumber(invoice.invoice_number).replace(/[^A-Za-z0-9-]/g, "_");
+      await exportModalToPdf({
+        element: pdfRef.current,
+        fileName: `PurchaseInvoice_${safeNum}.pdf`,
+      });
+      notify.success("PDF berhasil diunduh");
+    } catch {
+      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   // -- Resolve the PO ID for this invoice via goods_receipt --
   const inv = invoice as any;
@@ -501,7 +522,7 @@ export default function PurchaseInvoiceDetailModal({
             </button>
           </div>
 
-          <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          <div ref={pdfRef} className="overflow-y-auto flex-1 p-6 space-y-6">
 
             {/* -- INVOICE INFO GRID -- */}
             <div>
@@ -770,13 +791,23 @@ export default function PurchaseInvoiceDetailModal({
 
           {/* FOOTER */}
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/60 shrink-0">
-            <button
-              onClick={exportToExcel}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
-              <Download size={14} />
-              Export Excel
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Export Excel
+              </button>
+              <button
+                onClick={exportToPdf}
+                disabled={pdfLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <FileText size={14} />
+                {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
+              </button>
+            </div>
             <button
               onClick={onClose}
               className="px-5 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
