@@ -1,8 +1,8 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
-  "https://trinova-erp-backend-production-2.up.railway.app";
+  "https://trinova-erp-backend-production-2.up.railway.app/api";
 
 function clearAuthSessionAndRedirect() {
   if (typeof window === "undefined") return;
