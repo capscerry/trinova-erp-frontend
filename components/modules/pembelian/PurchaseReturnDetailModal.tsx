@@ -101,8 +101,12 @@ export default function PurchaseReturnDetailModal({
         fileName: `PurchaseReturn_${safeName}.pdf`,
       });
       notify.success("PDF berhasil diunduh");
-    } catch {
-      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } catch (error) {
+      console.error("[PDF Export Error – PurchaseReturn]", error);
+      notify.error(
+        "Gagal mengekspor PDF",
+        error instanceof Error ? error.message : "Silakan coba lagi"
+      );
     } finally {
       setPdfLoading(false);
     }

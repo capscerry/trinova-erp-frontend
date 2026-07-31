@@ -40,8 +40,12 @@ export default function GoodsReceiptDetailModal({
         fileName: `GoodsReceipt_${safeName}.pdf`,
       });
       notify.success("PDF berhasil diunduh");
-    } catch {
-      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } catch (error) {
+      console.error("[PDF Export Error – GoodsReceipt]", error);
+      notify.error(
+        "Gagal mengekspor PDF",
+        error instanceof Error ? error.message : "Silakan coba lagi"
+      );
     } finally {
       setPdfLoading(false);
     }

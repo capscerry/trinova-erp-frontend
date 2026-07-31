@@ -161,8 +161,12 @@ export default function PurchaseInvoiceDetailModal({
         fileName: `PurchaseInvoice_${safeNum}.pdf`,
       });
       notify.success("PDF berhasil diunduh");
-    } catch {
-      notify.error("Gagal mengekspor PDF", "Silakan coba lagi");
+    } catch (error) {
+      console.error("[PDF Export Error – PurchaseInvoice]", error);
+      notify.error(
+        "Gagal mengekspor PDF",
+        error instanceof Error ? error.message : "Silakan coba lagi"
+      );
     } finally {
       setPdfLoading(false);
     }
