@@ -7,6 +7,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
 import StockTransferDetailModal from "@/components/modules/persediaan/stock-transfer/StockTransferDetailFormModal";
 import StockTransferForm, {StockTransferFormData,} from "@/components/modules/persediaan/stock-transfer/StockTransferFormModal";
+import { notify } from "@/lib/notify";
 
 import {
   getTransfers,
@@ -172,7 +173,7 @@ export default function StokTransferPage() {
     } catch (err) {
       console.error(err);
 
-      alert(
+      notify.error(
         "Failed to load transfer detail."
       );
     }
@@ -304,7 +305,7 @@ const COLUMNS: Column<StokTransfer>[] =
       } catch (error) {
         console.error(error);
 
-        alert(
+        notify.error(
           "Failed to create transfer"
         );
       } finally {
@@ -326,7 +327,7 @@ const COLUMNS: Column<StokTransfer>[] =
     } catch (err) {
       console.error(err);
 
-      alert("Failed to process transfer.");
+      notify.error("Failed to process transfer.");
     }
   };
 
@@ -344,7 +345,7 @@ const COLUMNS: Column<StokTransfer>[] =
     } catch (err) {
       console.error(err);
 
-      alert("Failed to complete transfer.");
+      notify.error("Failed to complete transfer.");
     }
   };
 
@@ -362,7 +363,7 @@ const COLUMNS: Column<StokTransfer>[] =
     } catch (err) {
       console.error(err);
 
-      alert("Failed to cancel transfer.");
+      notify.error("Failed to cancel transfer.");
     }
   };
 

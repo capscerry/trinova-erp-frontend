@@ -161,31 +161,6 @@ export default function MasterUserPage() {
     console.log("DETAIL USER:", row);
   };
 
-  // ACTIVATE/DEACTIVATE
-  const handleToggleStatus = async (
-    id: number,
-    username: string, 
-    currentStatus: boolean
-  ) => {
-    const action = currentStatus ? "Nonaktifkan" : "Aktifkan";
-
-    if (!confirm(`${action} account "${username}"?`)) return;
-
-    try {
-      const success = await masterUserService.toggleStatus(id);
-
-      if (success) {
-        showToast(`Account "${username}" berhasil diupdate`, "success");
-        await fetchUser();
-      } else {
-        showToast(`Gagal update account "${username}"`, "error");
-      }
-    } catch (err) {
-      console.error("Gagal update status user", err);
-      showToast("Gagal update status user", "error");
-    }
-  };
-
   const confirmToggleStatus = async () => {
     if (!confirmStatus) return;
 

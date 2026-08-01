@@ -2,6 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -294,7 +295,7 @@ export default function PurchaseOrderItemTable({
                         qty > stock
                       ) {
 
-                        alert(
+                        notify.error(
                           `Qty melebihi stock supplier (${stock})`
                         );
 

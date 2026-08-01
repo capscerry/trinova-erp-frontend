@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X, Upload } from "lucide-react";
+import { emailError, phoneError, sanitizePhoneInput } from "@/lib/validation";
 
 interface SupplierFormModalProps {
   open: boolean;
@@ -38,14 +39,17 @@ interface SupplierFormModalProps {
 
 const inputBase =
   "w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 transition";
+const errorInputClass = "!border-red-400 focus:!ring-red-500/30";
 
 function FormField({
   label,
   required,
+  error,
   children,
 }: {
   label: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -55,6 +59,7 @@ function FormField({
         {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
       </label>
       {children}
+      {error && <p className="text-xs font-medium text-red-500">{error}</p>}
     </div>
   );
 }
@@ -70,6 +75,7 @@ export default function SupplierFormModal({
   setCatalogFile,
 }: SupplierFormModalProps) {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
+  const [errors, setErrors] = useState<{ email?: string; no_telp_bisnis?: string }>({});
 
   if (!open) return null;
 
@@ -77,6 +83,16 @@ export default function SupplierFormModal({
   const activeCategories = categories.filter(
     (c) => c.is_active === undefined || c.is_active === true
   );
+
+  const handleSave = () => {
+    const nextErrors = {
+      email: emailError(formData.email),
+      no_telp_bisnis: phoneError(formData.no_telp_bisnis),
+    };
+    setErrors(nextErrors);
+    if (nextErrors.email || nextErrors.no_telp_bisnis) return;
+    onSave();
+  };
 
   return (
     <>
@@ -160,27 +176,29 @@ export default function SupplierFormModal({
                 </select>
               </FormField>
 
-              <FormField label="Telepon">
+              <FormField label="Telepon" error={errors.no_telp_bisnis}>
                 <input
                   type="text"
                   placeholder="08123456789"
                   value={formData.no_telp_bisnis}
-                  onChange={(e) =>
-                    setFormData({ ...formData, no_telp_bisnis: e.target.value })
-                  }
-                  className={inputBase}
+                  onChange={(e) => {
+                    setFormData({ ...formData, no_telp_bisnis: sanitizePhoneInput(e.target.value) });
+                    if (errors.no_telp_bisnis) setErrors((prev) => ({ ...prev, no_telp_bisnis: undefined }));
+                  }}
+                  className={`${inputBase} ${errors.no_telp_bisnis ? errorInputClass : ""}`}
                 />
               </FormField>
 
-              <FormField label="Email">
+              <FormField label="Email" error={errors.email}>
                 <input
                   type="email"
                   placeholder="supplier@email.com"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className={inputBase}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  className={`${inputBase} ${errors.email ? errorInputClass : ""}`}
                 />
               </FormField>
 
@@ -287,7 +305,7 @@ export default function SupplierFormModal({
               Batal
             </button>
             <button
-              onClick={onSave}
+              onClick={handleSave}
               className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition"
             >
               {isEdit ? "Update Supplier" : "Simpan Supplier"}

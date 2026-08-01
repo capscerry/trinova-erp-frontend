@@ -30,6 +30,7 @@ import {
 
 export type { UangMukaFormData };
 import { SalesOrderPickerModal } from "@/components/modules/penjualan/SalesOrderPickerModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type UangMukaInitialData = Partial<UangMukaFormData> & {
   orderId?: number;
@@ -369,14 +370,14 @@ export function UangMukaModal({
 
   // Tutup modal — kalau data sudah disimpan, ini juga jadi sinyal supaya
   // halaman daftar refresh data terbarunya.
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+
   const handleRequestClose = () => {
     if (isSubmitting) return; // jangan tutup di tengah proses simpan
 
     if (!saved && hasUnsavedInput()) {
-      const confirmLeave = window.confirm(
-        "Data belum disimpan. Yakin ingin menutup form ini?"
-      );
-      if (!confirmLeave) return;
+      setConfirmCloseOpen(true);
+      return;
     }
 
     onClose();
@@ -1009,6 +1010,20 @@ export function UangMukaModal({
         customerId={form.customerId ?? 0}
         customerName={form.pelanggan ?? ""}
         onConfirm={handleSoConfirm}
+      />
+
+      <ConfirmDialog
+        open={confirmCloseOpen}
+        title="Tutup form ini?"
+        message="Data belum disimpan. Yakin ingin menutup form ini?"
+        confirmLabel="Tutup"
+        cancelLabel="Lanjutkan Isi"
+        variant="danger"
+        onConfirm={() => {
+          setConfirmCloseOpen(false);
+          onClose();
+        }}
+        onCancel={() => setConfirmCloseOpen(false)}
       />
     </>
   );

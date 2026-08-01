@@ -19,6 +19,7 @@ import {
 import { SalesStatusBadge } from "@/components/modules/penjualan/SalesStatusSelect";
 import { SALES_STATUS_OPTIONS } from "@/lib/sales-status";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const formatDate = (d?: string | null) => {
   if (!d) return "-";
@@ -130,9 +131,15 @@ function PengirimanPenjualanInner() {
   };
 
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [pendingReceiveRow, setPendingReceiveRow] = useState<PengirimanPenjualan | null>(null);
 
-  const handleMarkReceived = async (row: PengirimanPenjualan) => {
-    if (!confirm(`Tandai ${row.noSuratJalan} sebagai sudah diterima customer?`)) return;
+  const handleMarkReceived = (row: PengirimanPenjualan) => {
+    setPendingReceiveRow(row);
+  };
+
+  const confirmMarkReceived = async () => {
+    const row = pendingReceiveRow;
+    if (!row) return;
 
     try {
       setMarkingId(row.id);
@@ -147,6 +154,7 @@ function PengirimanPenjualanInner() {
       );
     } finally {
       setMarkingId(null);
+      setPendingReceiveRow(null);
     }
   };
 
@@ -222,6 +230,17 @@ function PengirimanPenjualanInner() {
         onClose={handleModalClose}
         onSubmit={handleModalSubmit}
         initialData={initialFormData}
+      />
+
+      <ConfirmDialog
+        open={pendingReceiveRow !== null}
+        title="Tandai sudah diterima?"
+        message={`Tandai ${pendingReceiveRow?.noSuratJalan} sebagai sudah diterima customer?`}
+        confirmLabel="Tandai Diterima"
+        variant="primary"
+        loading={markingId === pendingReceiveRow?.id}
+        onConfirm={confirmMarkReceived}
+        onCancel={() => setPendingReceiveRow(null)}
       />
     </AppShell>
   );

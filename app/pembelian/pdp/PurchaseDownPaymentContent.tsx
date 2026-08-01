@@ -138,6 +138,9 @@ function PurchaseDownPaymentInner() {
     const [openDetail, setOpenDetail] =
     useState(false);
 
+    const [deleteRow, setDeleteRow] = useState<any>(null);
+    const [deleting, setDeleting] = useState(false);
+
   // Tracks which PO was used in the most recent successful create,
   // so onNavigateToGR can pass the correct po_id to the GR route.
   const lastCreatedPORef = useRef<{ purchase_order_id: number; po_number: string } | null>(null);
@@ -166,6 +169,27 @@ function PurchaseDownPaymentInner() {
 
         console.error(error);
 
+        }
+    };
+
+    const confirmDeleteDP = async () => {
+        if (!deleteRow) return;
+        try {
+            setDeleting(true);
+            await deletePurchaseDownPayment(
+                Number(deleteRow.purchase_down_payment_id)
+            );
+            await fetchDownPayments();
+            notify.success("Down Payment berhasil dihapus");
+        } catch (error) {
+            console.error("Gagal menghapus Down Payment", error);
+            notify.error(
+                "Gagal menghapus Down Payment",
+                error instanceof Error ? error.message : "Terjadi kesalahan"
+            );
+        } finally {
+            setDeleting(false);
+            setDeleteRow(null);
         }
     };
 
@@ -437,32 +461,7 @@ function PurchaseDownPaymentInner() {
                 <Button
                 variant="danger"
                 size="sm"
-                onClick={async () => {
-
-                    const confirmed = confirm(
-                    `Hapus Down Payment ${formatDPNumber(row.dp_number)}?`
-                    );
-
-                    if (!confirmed) return;
-
-                    try {
-
-                    await deletePurchaseDownPayment(
-                        Number(row.purchase_down_payment_id)
-                    );
-
-                    await fetchDownPayments();
-
-                    } catch (error) {
-
-                    console.error(
-                        "Gagal menghapus Down Payment",
-                        error
-                    );
-
-                    }
-
-                }}
+                onClick={() => setDeleteRow(row)}
                 >
                 Hapus
                 </Button>
@@ -558,6 +557,17 @@ function PurchaseDownPaymentInner() {
             `/pembelian/gr?po_id=${poId}&po_number=${encodeURIComponent(poNumber)}`
           );
         }}
+        />
+
+        <ConfirmDialog
+          open={deleteRow !== null}
+          title="Hapus Down Payment?"
+          message={`Hapus Down Payment ${deleteRow ? formatDPNumber(deleteRow.dp_number) : ""}?`}
+          confirmLabel="Hapus"
+          variant="danger"
+          loading={deleting}
+          onConfirm={confirmDeleteDP}
+          onCancel={() => setDeleteRow(null)}
         />
     </AppShell>
   );

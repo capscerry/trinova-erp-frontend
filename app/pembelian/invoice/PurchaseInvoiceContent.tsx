@@ -10,6 +10,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 import {
   useEffect,
@@ -262,6 +263,9 @@ function PurchaseInvoiceInner() {
   const [downPayments, setDownPayments] =
     useState<any[]>([]);
 
+  const [deleteRow, setDeleteRow] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [openModal, setOpenModal] =
     useState(false);
 
@@ -332,6 +336,26 @@ function PurchaseInvoiceInner() {
       console.error("[Invoice Page] Purchase Invoice retrieval failed:", msg);
     }
   }, []);
+
+  const confirmDeleteInvoice = async () => {
+    if (!deleteRow) return;
+    try {
+      setDeleting(true);
+      await deletePurchaseInvoice(Number(deleteRow.id));
+      await fetchInvoices();
+      notify.success("Purchase Invoice berhasil dihapus");
+    } catch (err) {
+      console.error(err);
+      notify.error(
+        "Gagal menghapus Purchase Invoice",
+        err instanceof Error ? err.message : "Terjadi kesalahan"
+      );
+    } finally {
+      setDeleting(false);
+      setDeleteRow(null);
+    }
+  };
+
 const fetchGoodsReceipt = async (poList?: any[]) => {
     try {
       const list = await getGoodsReceipts();
@@ -678,21 +702,7 @@ const fetchGoodsReceipt = async (poList?: any[]) => {
       <Button
         variant="danger"
         size="sm"
-        onClick={async () => {
-
-          const ok =
-            confirm(
-              `Hapus invoice ${formatINVNumber(row.invoice_number)}?`
-            );
-
-          if (!ok) return;
-
-          await deletePurchaseInvoice(
-            Number(row.id)
-          );
-
-          await fetchInvoices();
-        }}
+        onClick={() => setDeleteRow(row)}
       >
         Hapus
       </Button>
@@ -1081,6 +1091,16 @@ const fetchGoodsReceipt = async (poList?: any[]) => {
 
 )}
 
+      <ConfirmDialog
+        open={deleteRow !== null}
+        title="Hapus Purchase Invoice?"
+        message={`Hapus invoice ${deleteRow ? formatINVNumber(deleteRow.invoice_number) : ""}?`}
+        confirmLabel="Hapus"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteInvoice}
+        onCancel={() => setDeleteRow(null)}
+      />
     </AppShell>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { getInventoryStocks } from "@/lib/services/inventory-stock.service";
+import { notify } from "@/lib/notify";
 
 import { Package, X } from "lucide-react";
 
@@ -134,7 +135,7 @@ export default function OrderFulfillmentFormModal({
     e.preventDefault();
 
     if (formData.quantity <= 0) {
-      alert(
+      notify.error(
         "Quantity must be greater than zero."
       );
       return;
@@ -145,7 +146,7 @@ export default function OrderFulfillmentFormModal({
       formData.quantity >
         selectedStock.qty_available
     ) {
-      alert(
+      notify.error(
         `Maximum available stock is ${selectedStock.qty_available}`
       );
       return;

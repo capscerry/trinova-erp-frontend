@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Download, AlertCircle, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
@@ -141,6 +142,9 @@ export default function PurchasePaymentPage() {
   // Page-level error for retry banner
   const [pageError, setPageError] = useState<string | null>(null);
 
+  const [deleteRow, setDeleteRow] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // ─── Load data ───────────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
@@ -208,20 +212,24 @@ export default function PurchasePaymentPage() {
 
   // --- Delete ---------------------------------
 
-  const handleDelete = async (row: any) => {
-    const confirmed = confirm(
-      `Yakin ingin menghapus payment ${formatPAYNumber(row.payment_number)}?`
-    );
-    if (!confirmed) return;
+  const handleDelete = (row: any) => {
+    setDeleteRow(row);
+  };
 
+  const confirmDelete = async () => {
+    if (!deleteRow) return;
     try {
-      await deletePurchasePayment(row.purchase_payment_id);
+      setDeleting(true);
+      await deletePurchasePayment(deleteRow.purchase_payment_id);
       notify.success("Purchase Payment berhasil dihapus");
       await loadData();
       await fetchInvoices();
     } catch (err) {
       console.error(err);
       notify.error("Gagal menghapus Purchase Payment");
+    } finally {
+      setDeleting(false);
+      setDeleteRow(null);
     }
   };
 
@@ -732,6 +740,16 @@ export default function PurchasePaymentPage() {
         </div>
       )}
 
+      <ConfirmDialog
+        open={deleteRow !== null}
+        title="Hapus Purchase Payment?"
+        message={`Yakin ingin menghapus payment ${deleteRow ? formatPAYNumber(deleteRow.payment_number) : ""}?`}
+        confirmLabel="Hapus"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteRow(null)}
+      />
     </AppShell>
   );
 }

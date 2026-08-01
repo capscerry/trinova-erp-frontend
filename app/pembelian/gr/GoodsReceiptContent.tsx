@@ -323,6 +323,7 @@ function GoodsReceiptInner() {
         item => Number(item.purchase_order_id) === Number(form.purchase_order_id)
       );
       console.log(`[GR Page] Creating ${detailItems.length} GR detail line(s)...`);
+      const failedItems: string[] = [];
       for (const item of detailItems) {
         try {
           await createGoodsReceiptDetail({
@@ -331,17 +332,29 @@ function GoodsReceiptInner() {
             quantity:         Number(item.quantity ?? 0),
           });
         } catch (detailErr: any) {
-          // Non-fatal: log per-line failure, continue creating remaining lines
+          // Continue creating remaining lines, but track the failure -- a
+          // silently-dropped line here means its stock never gets recorded
+          // in stock_transaction / inventory_stock, so the user must know.
+          const productName = item.product?.product_name ?? `Product ${item.product_id}`;
+          failedItems.push(productName);
           console.error(
             `[GR Page] GR detail line failed — product_id ${item.product_id}:`,
             detailErr?.message ?? detailErr
           );
         }
       }
-      
+
       // Refresh list to get backend-calculated status
       await fetchGoodsReceipts();
-      notify.success("Goods Receipt berhasil dibuat");
+
+      if (failedItems.length > 0) {
+        notify.warning(
+          "Goods Receipt dibuat sebagian",
+          `Gagal mencatat stok untuk: ${failedItems.join(", ")}. Item ini TIDAK akan muncul di Stock Transaction — coba edit ulang GR ini untuk mengulang item yang gagal.`
+        );
+      } else {
+        notify.success("Goods Receipt berhasil dibuat");
+      }
     } catch (err: any) {
       const msg = err?.message ?? "Gagal membuat Goods Receipt";
       console.error("[GR Page] handleSubmit failed:", msg, "| PurchaseOrderId:", form.purchase_order_id);

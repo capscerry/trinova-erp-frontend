@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, User, Mail, Phone, MapPin, Hash, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { emailError, phoneError, sanitizePhoneInput } from "@/lib/validation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface CustomerFormData {
@@ -46,6 +47,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
   const [form, setForm] = useState<CustomerFormData>(EMPTY_FORM);
   const [categories, setCategories] = useState<Array<{ id: number; namaKategori: string }>>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; telepon?: string }>({});
 
   // Fetch kategori customer untuk dropdown
   useEffect(() => {
@@ -91,6 +93,10 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = () => {
+    const nextErrors = { email: emailError(form.email), telepon: phoneError(form.telepon) };
+    setErrors(nextErrors);
+    if (nextErrors.email || nextErrors.telepon) return;
+
     onSubmit(form);
     onClose();
   };
@@ -181,23 +187,29 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
 
             {/* Email & Telepon - 2 kolom */}
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Email" icon={<Mail size={16} />} required>
+              <FormField label="Email" icon={<Mail size={16} />} required error={errors.email}>
                 <input
                   type="email"
                   value={form.email}
-                  onChange={(e) => set("email", e.target.value)}
+                  onChange={(e) => {
+                    set("email", e.target.value);
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
                   placeholder="email@company.com"
-                  className={inputClass}
+                  className={cn(inputClass, errors.email && errorInputClass)}
                 />
               </FormField>
 
-              <FormField label="No. Telepon" icon={<Phone size={16} />} required>
+              <FormField label="No. Telepon" icon={<Phone size={16} />} required error={errors.telepon}>
                 <input
                   type="text"
                   value={form.telepon}
-                  onChange={(e) => set("telepon", e.target.value)}
+                  onChange={(e) => {
+                    set("telepon", sanitizePhoneInput(e.target.value));
+                    if (errors.telepon) setErrors((prev) => ({ ...prev, telepon: undefined }));
+                  }}
                   placeholder="021-xxxxxxx"
-                  className={inputClass}
+                  className={cn(inputClass, errors.telepon && errorInputClass)}
                 />
               </FormField>
             </div>
@@ -271,12 +283,14 @@ function FormField({
   icon,
   hint,
   required,
+  error,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
   hint?: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -288,6 +302,7 @@ function FormField({
         {hint && <span className="ml-auto text-[11px] font-normal text-slate-400 normal-case tracking-normal">{hint}</span>}
       </label>
       {children}
+      {error && <p className="text-xs font-medium text-red-500">{error}</p>}
     </div>
   );
 }
@@ -299,3 +314,4 @@ const inputClass = `
   focus:outline-none focus:ring-2 focus:ring-navy-600/30 focus:border-navy-500
   transition-all
 `;
+const errorInputClass = "border-red-400 focus:ring-red-500/30 focus:border-red-500";

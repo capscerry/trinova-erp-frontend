@@ -6,7 +6,7 @@ import { notify } from "@/lib/notify";
 import { useAuth } from "@/lib/AuthContext";
 import { requestPurchaseOrderApproval } from "@/lib/services/po.service";
 import {
-  X, Hash, Calendar, Building2, Plus, ToggleLeft,
+  X, Hash, Calendar, Building2, Plus,
   CreditCard, Package, FileText, ArrowRight,
   ShieldCheck, Loader2, Check, ClipboardList, Search,
   CheckCircle2, AlertCircle, Clock, Trophy, Brain,
@@ -18,6 +18,19 @@ import { purchaseRequisitionService, type PurchaseRequisition } from "@/lib/serv
 import { getNextPONumber } from "@/lib/services/po.service";
 import { getNextGRNumber } from "@/lib/services/gr.service";
 import { useSupplierRecommendations } from "@/lib/hooks/useSupplierRecommendations";
+
+// Read-only badge colors for the PO status shown in the modal header.
+// Status itself is driven entirely by the workflow (save = Draft, approval
+// flow = Pending Approval/Approved, GR/payment = Completed/Paid, etc.) — it
+// is never set by manually clicking a status button.
+const PO_STATUS_BADGE: Record<string, string> = {
+  "Draft": "bg-white/10 text-slate-300",
+  "Pending Approval": "bg-amber-400/20 text-amber-300",
+  "Approved": "bg-blue-400/20 text-blue-300",
+  "Completed": "bg-emerald-400/20 text-emerald-300",
+  "Paid": "bg-emerald-400/20 text-emerald-300",
+  "Cancelled": "bg-red-400/20 text-red-300",
+};
 
 interface Supplier { id: string; nama: string; status?: string; }
 interface Product {
@@ -765,9 +778,19 @@ export default function PurchaseOrderFormModal({
 
           <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-navy-900 to-navy-600 shrink-0">
             <div>
-              <h2 className="text-white font-semibold text-[15px] tracking-tight">
-                {isEdit ? "Edit Purchase Order" : "Tambah Purchase Order"}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-white font-semibold text-[15px] tracking-tight">
+                  {isEdit ? "Edit Purchase Order" : "Tambah Purchase Order"}
+                </h2>
+                {isEdit && (
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide",
+                    PO_STATUS_BADGE[form.status] ?? "bg-white/10 text-slate-300"
+                  )}>
+                    {form.status}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-400 text-xs mt-0.5">
                 {isEdit ? "Perbarui data purchase order" : "Buat pesanan pembelian baru"}
               </p>
@@ -929,23 +952,6 @@ export default function PurchaseOrderFormModal({
                     }}
                   />
                 )}
-              </FormField>
-
-              <FormField label="Status" icon={<ToggleLeft size={13} />}>
-                <div className="flex gap-2">
-                  {["Draft", "Approved", "Completed"].map(status => (
-                    <button key={status} type="button"
-                      disabled={isCompleted}
-                      onClick={() => setField("status", status)}
-                      className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
-                        form.status === status
-                          ? "bg-navy-900 text-gold-400 border-navy-900"
-                          : "bg-white border-slate-200 text-slate-400"
-                      )}>
-                      {status}
-                    </button>
-                  ))}
-                </div>
               </FormField>
 
               <FormField label="Transaction Name">

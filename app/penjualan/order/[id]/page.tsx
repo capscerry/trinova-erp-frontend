@@ -33,6 +33,7 @@ import {
   type UangMuka,
 } from "@/lib/services/penjualan.service";
 import { SalesOrderModal } from "@/components/modules/penjualan/SalesOrderModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { SalesOrderFormData, SalesOrderItem } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,6 +115,7 @@ export default function SalesOrderDetailPage() {
   const [activeTab, setActiveTab] = useState<"items" | "order" | "downPayment">("items");
   const [downPayments, setDownPayments] = useState<UangMuka[]>([]);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
@@ -186,11 +188,13 @@ export default function SalesOrderDetailPage() {
     })),
   });
 
-  const handleCancel = async () => {
+  const handleCancel = () => {
     if (!id || cancelling) return;
-    if (!window.confirm("Batalkan Sales Order ini? Reservasi stok untuk barang yang belum dikirim akan dilepas.")) {
-      return;
-    }
+    setConfirmCancelOpen(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!id) return;
     try {
       setCancelling(true);
       await salesOrderService.cancel(id);
@@ -203,6 +207,7 @@ export default function SalesOrderDetailPage() {
       );
     } finally {
       setCancelling(false);
+      setConfirmCancelOpen(false);
     }
   };
 
@@ -726,6 +731,17 @@ export default function SalesOrderDetailPage() {
           initialData={toFormData(data)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmCancelOpen}
+        title="Batalkan Sales Order?"
+        message="Batalkan Sales Order ini? Reservasi stok untuk barang yang belum dikirim akan dilepas."
+        confirmLabel="Batalkan SO"
+        variant="danger"
+        loading={cancelling}
+        onConfirm={confirmCancel}
+        onCancel={() => setConfirmCancelOpen(false)}
+      />
     </AppShell>
   );
 }

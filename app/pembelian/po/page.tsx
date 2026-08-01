@@ -746,17 +746,38 @@ export default function PurchaseOrderPage() {
     const grResponse = await createGoodsReceipt(receiptData);
     const goodsReceiptId = grResponse.goods_receipt_id;
 
+    // Track per-line failures instead of letting one bad line abort the rest
+    // silently -- a dropped line never gets recorded in stock_transaction /
+    // inventory_stock, which is exactly what makes GR data "disappear" from
+    // the Stock Transaction menu.
+    const failedItems: string[] = [];
     for (const item of lineItems) {
-      await createGoodsReceiptDetail({
-        goods_receipt_id: goodsReceiptId,
-        product_id: item.product_id,
-        quantity: item.quantity,
-      });
+      try {
+        await createGoodsReceiptDetail({
+          goods_receipt_id: goodsReceiptId,
+          product_id: item.product_id,
+          quantity: item.quantity,
+        });
+      } catch (detailErr: any) {
+        failedItems.push(item.product_name ?? `Product ${item.product_id}`);
+        console.error(
+          `[PO Page] GR detail line failed — product_id ${item.product_id}:`,
+          detailErr?.message ?? detailErr
+        );
+      }
     }
 
     await fetchPurchaseOrderDetails();
     await fetchWorkflowData();
-    notify.success("Goods Receipt berhasil dibuat");
+
+    if (failedItems.length > 0) {
+      notify.warning(
+        "Goods Receipt dibuat sebagian",
+        `Gagal mencatat stok untuk: ${failedItems.join(", ")}. Item ini TIDAK akan muncul di Stock Transaction — coba ulangi item yang gagal.`
+      );
+    } else {
+      notify.success("Goods Receipt berhasil dibuat");
+    }
     return grResponse;
   };
 

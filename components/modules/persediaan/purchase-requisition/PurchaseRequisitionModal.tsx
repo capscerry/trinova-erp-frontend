@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import Modal from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { notify } from "@/lib/notify";
 
 import { getProducts } from "@/lib/services/product.service";
 import { getWarehouses } from "@/lib/services/warehouse.service";
@@ -135,14 +136,14 @@ export default function PurchaseRequisitionModal({
   const handleSave = async () => {
     try {
       if (!warehouseId) {
-        alert(
+        notify.error(
           "Warehouse wajib dipilih"
         );
         return;
       }
 
       if (details.length === 0) {
-        alert("Minimal 1 item");
+        notify.error("Minimal 1 item");
         return;
       }
 
@@ -156,7 +157,7 @@ export default function PurchaseRequisitionModal({
         );
 
       if (invalid) {
-        alert(
+        notify.error(
           "Lengkapi detail item"
         );
         return;
@@ -196,7 +197,7 @@ export default function PurchaseRequisitionModal({
     } catch (error) {
       console.error(error);
 
-      alert(
+      notify.error(
         "Gagal menyimpan Purchase Requisition"
       );
     } finally {

@@ -8,6 +8,8 @@ import { getInventoryStocks } from "@/lib/services/inventory-stock.service";
 
 import { getWarehouses, Warehouse, } from "@/lib/services/warehouse.service";
 
+import { notify } from "@/lib/notify";
+
 import { X } from "lucide-react";
 
 export interface StockTransferFormData {
@@ -178,7 +180,7 @@ export default function StockTransferForm({
       formData.source_warehouse_id ===
       formData.destination_warehouse_id
     ) {
-      alert(
+      notify.error(
         "Source and destination warehouse cannot be the same."
       );
 
@@ -188,7 +190,7 @@ export default function StockTransferForm({
     if (
       formData.quantity <= 0
     ) {
-      alert(
+      notify.error(
         "Quantity must be greater than zero."
       );
 
@@ -200,7 +202,7 @@ export default function StockTransferForm({
       formData.quantity >
         selectedStock.qty_available
     ) {
-      alert(
+      notify.error(
         `Maximum available stock is ${selectedStock.qty_available}`
       );
 

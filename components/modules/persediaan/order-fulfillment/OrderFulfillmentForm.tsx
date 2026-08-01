@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 import { getInventoryStocks } from "@/lib/services/inventory-stock.service";
+import { notify } from "@/lib/notify";
 
 export interface OrderFulfillmentFormData {
   product_id: number;
@@ -130,7 +131,7 @@ export default function OrderFulfillmentForm({
     if (
       formData.quantity <= 0
     ) {
-      alert(
+      notify.error(
         "Quantity must be greater than zero."
       );
 
@@ -142,7 +143,7 @@ export default function OrderFulfillmentForm({
       formData.quantity >
         selectedStock.qty_available
     ) {
-      alert(
+      notify.error(
         `Maximum available stock is ${selectedStock.qty_available}`
       );
 

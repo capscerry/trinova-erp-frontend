@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { X, Plus, Trash2 } from "lucide-react";
+import { notify } from "@/lib/notify";
 
 import { getProducts } from "@/lib/services/product.service";
 import { getWarehouses } from "@/lib/services/warehouse.service";
@@ -145,14 +146,14 @@ export default function PurchaseRequisitionModal({
   const handleSave = async () => {
     try {
       if (!warehouseId) {
-        alert(
+        notify.error(
           "Warehouse wajib dipilih"
         );
         return;
       }
 
       if (details.length === 0) {
-        alert(
+        notify.error(
           "Minimal 1 item"
         );
         return;
@@ -168,7 +169,7 @@ export default function PurchaseRequisitionModal({
         );
 
       if (invalid) {
-        alert(
+        notify.error(
           "Lengkapi detail item"
         );
         return;
@@ -206,7 +207,7 @@ export default function PurchaseRequisitionModal({
     } catch (err) {
       console.error(err);
 
-      alert(
+      notify.error(
         "Gagal menyimpan Purchase Requisition"
       );
     } finally {

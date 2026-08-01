@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Truck, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 
 interface PurchaseOrder {
   purchase_order_id: number;
@@ -515,7 +516,7 @@ export default function PurchaseDownPaymentModal({
 
                     // Guard: payment_date is required
                     if (!form.payment_date) {
-                      alert("Tanggal pembayaran harus diisi.");
+                      notify.error("Tanggal pembayaran harus diisi.");
                       return;
                     }
 
