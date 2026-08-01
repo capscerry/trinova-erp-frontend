@@ -14,9 +14,9 @@ import {
   Printer,
   Hash,
   Mail,
+  ExternalLink,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
-import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
 import { notify } from "@/lib/notify";
 import {
   getPurchaseOrderPrintDetail,
@@ -140,14 +140,31 @@ export default function PurchaseOrderDetailModal({
     return null;
   }
 
+  // Downloads the SAME official template used for "Kirim Email" and the
+  // print page (PurchaseOrderPrintDocument), instead of screenshotting the
+  // detail modal itself -- keeps every PO PDF visually identical regardless
+  // of which button produced it.
   const exportToPdf = async () => {
+    if (!data.purchase_order_id) {
+      notify.error("Gagal mengekspor PDF", "ID Purchase Order tidak ditemukan.");
+      return;
+    }
     setPdfLoading(true);
     try {
-      const safeName = data.po_number.replace(/[^A-Za-z0-9-]/g, "_");
-      await exportModalToPdf({
-        element: pdfRef.current,
-        fileName: `PurchaseOrder_${safeName}.pdf`,
-      });
+      const detail = emailDetail ?? (await getPurchaseOrderPrintDetail(data.purchase_order_id));
+      if (!emailDetail) setEmailDetail(detail);
+
+      const { blob, fileName } = await generatePurchaseOrderPdf(detail);
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
       notify.success("PDF berhasil diunduh");
     } catch (error) {
       console.error("[PDF Export Error – PurchaseOrder]", error);
@@ -843,13 +860,26 @@ export default function PurchaseOrderDetailModal({
                 {loadingEmailDetail ? "Memuat..." : "Kirim Email"}
               </button>
               {data.purchase_order_id != null && (
-                <button
-                  onClick={() => window.open(`/pembelian/po/${data.purchase_order_id}/print`, "_blank")}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-                >
-                  <Printer size={14} />
-                  Cetak / PDF
-                </button>
+                <>
+                  <button
+                    onClick={() => window.open(`/pembelian/po/${data.purchase_order_id}/print`, "_blank")}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                  >
+                    <Printer size={14} />
+                    Cetak / PDF
+                  </button>
+                  {/* "Detail" & "View" sekarang langsung navigasi ke halaman
+                      /pembelian/po/{id} -- modal ini dipertahankan untuk alur
+                      lain yang masih memakainya (mis. workflow proses PO).
+                  <button
+                    onClick={() => window.open(`/pembelian/po/${data.purchase_order_id}`, "_blank")}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+                  >
+                    <ExternalLink size={14} />
+                    Lihat Halaman Detail Baru
+                  </button>
+                  */}
+                </>
               )}
             </div>
             <button

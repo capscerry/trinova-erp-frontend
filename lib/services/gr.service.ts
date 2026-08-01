@@ -38,14 +38,9 @@ export const getGoodsReceipts = async (): Promise<any[]> => {
  * Purchase Return creation form.
  */
 export const getGoodsReceiptsForReturn = async (): Promise<any[]> => {
-  try {
-    console.log("[GR] Loading Goods Receipts for return...");
-    const res = await api.get("/goods-receipt/for-purchase-return");
-    return toArray(res.data);
-  } catch (err: any) {
-    console.error("[GR] getGoodsReceiptsForReturn failed:", err?.message ?? err);
-    return [];
-  }
+  console.log("[GR] Loading Goods Receipts for return...");
+  const res = await api.get("/goods-receipt/for-purchase-return");
+  return toArray(res.data);
 };
 
 // ─── GET AVAILABLE RETURN DETAILS FOR A SPECIFIC GR ──────────────────────────
@@ -56,18 +51,13 @@ export const getGoodsReceiptsForReturn = async (): Promise<any[]> => {
  *                   quantity, remaining_qty, product_name }
  */
 export const getAvailableReturnDetails = async (grId: number): Promise<any[]> => {
-  try {
-    if (!grId || grId <= 0) {
-      console.warn("[GR] getAvailableReturnDetails called with invalid grId:", grId);
-      return [];
-    }
-    console.log(`[GR] Loading available return details for GR ${grId}...`);
-    const res = await api.get(`/api/purchase-return/gr/${grId}/available-details`);
-    return toArray(res.data);
-  } catch (err: any) {
-    console.error(`[GR] getAvailableReturnDetails failed for GR ${grId}:`, err?.message ?? err);
+  if (!grId || grId <= 0) {
+    console.warn("[GR] getAvailableReturnDetails called with invalid grId:", grId);
     return [];
   }
+  console.log(`[GR] Loading available return details for GR ${grId}...`);
+  const res = await api.get(`/api/purchase-return/gr/${grId}/available-details`);
+  return toArray(res.data);
 };
 
 // ─── GET NEXT GR NUMBER ───────────────────────────────────────────────────────
@@ -79,6 +69,13 @@ export const getNextGRNumber = async () => {
     console.error("[GR] getNextGRNumber failed:", err?.message ?? err);
     return {};
   }
+};
+
+// ─── GET GR BY ID (header + items) ───────────────────────────────────────────
+/** Same endpoint the print page uses -- header fields plus a nested items[] array. */
+export const getGoodsReceiptById = async (id: number): Promise<any> => {
+  const res = await api.get(`/goods-receipt/${id}`);
+  return res.data?.data ?? res.data;
 };
 
 // ─── CREATE GR ────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, RefreshCcw, Scissors, Banknote, Download, FileText, Printer } from "lucide-react";
+import { X, RefreshCcw, Scissors, Banknote, Download, FileText, Printer, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
@@ -503,6 +503,17 @@ export default function PurchaseReturnDetailModal({
                 <Printer size={14} />
                 Cetak / PDF
               </button>
+              {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                  /pembelian/retur/{id} -- modal ini dipertahankan untuk
+                  alur lain yang masih memakainya.
+              <button
+                onClick={() => window.open(`/pembelian/retur/${data.purchase_return_id}`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+              >
+                <ExternalLink size={14} />
+                Lihat Halaman Detail Baru
+              </button>
+              */}
             </div>
             <button
               onClick={onClose}

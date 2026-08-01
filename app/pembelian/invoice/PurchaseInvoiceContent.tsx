@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import PurchaseInvoiceFormModal from "@/components/modules/pembelian/PurchaseInvoiceFormModal";
 import PurchaseInvoiceDetailModal from "@/components/modules/pembelian/PurchaseInvoiceDetailModal";
 import { AppShell } from "@/components/layout";
@@ -243,6 +244,7 @@ const COLUMNS: Column<PurchaseInvoice>[] = [
 
 function PurchaseInvoiceInner() {
 
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [invoices, setInvoices] =
@@ -668,13 +670,7 @@ const fetchGoodsReceipt = async (poList?: any[]) => {
     <Button
       variant="secondary"
       size="sm"
-      onClick={() => {
-
-        setSelectedInvoice(row);
-
-        setOpenDetailModal(true);
-
-      }}
+      onClick={() => router.push(`/pembelian/invoice/${row.id}`)}
     >
       Detail
     </Button>

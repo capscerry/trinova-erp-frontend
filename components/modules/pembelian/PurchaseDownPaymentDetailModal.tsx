@@ -14,6 +14,8 @@ import {
   ArrowRight,
   Download,
   FileText,
+  Printer,
+  ExternalLink,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
@@ -557,6 +559,28 @@ export default function PurchaseDownPaymentDetailModal({
                   <FileText size={14} />
                   {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
                 </button>
+                {data?.purchase_down_payment_id != null && (
+                  <>
+                    <button
+                      onClick={() => window.open(`/pembelian/pdp/${data.purchase_down_payment_id}/print`, "_blank")}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                    >
+                      <Printer size={14} />
+                      Cetak / PDF
+                    </button>
+                    {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                        /pembelian/pdp/{id} -- modal ini dipertahankan untuk
+                        alur lain yang masih memakainya.
+                    <button
+                      onClick={() => window.open(`/pembelian/pdp/${data.purchase_down_payment_id}`, "_blank")}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+                    >
+                      <ExternalLink size={14} />
+                      Lihat Halaman Detail Baru
+                    </button>
+                    */}
+                  </>
+                )}
               </div>
               <button
                 onClick={onClose}

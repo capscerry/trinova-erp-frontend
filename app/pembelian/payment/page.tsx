@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { notify } from "@/lib/notify";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Download, AlertCircle, RefreshCw } from "lucide-react";
+import { Download, AlertCircle, RefreshCw, ExternalLink } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 import { AppShell } from "@/components/layout";
@@ -236,8 +236,7 @@ export default function PurchasePaymentPage() {
   // --- Detail ---------------------------------
 
   const handleDetail = (row: any) => {
-    setDetailData(row);
-    setOpenDetail(true);
+    router.push(`/pembelian/payment/${row.purchase_payment_id}`);
   };
 
   // --- Submit (Create / Edit) ------------------
@@ -721,13 +720,28 @@ export default function PurchasePaymentPage() {
                 bg-slate-50/60
               "
             >
-              <button
-                onClick={() => exportDetail(detailData)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-              >
-                <Download size={14} />
-                Export Excel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => exportDetail(detailData)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                >
+                  <Download size={14} />
+                  Export Excel
+                </button>
+                {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                    /pembelian/payment/{id} -- modal ini dipertahankan untuk
+                    alur lain yang masih memakainya.
+                {detailData?.purchase_payment_id != null && (
+                  <button
+                    onClick={() => window.open(`/pembelian/payment/${detailData.purchase_payment_id}`, "_blank")}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+                  >
+                    <ExternalLink size={14} />
+                    Lihat Halaman Detail Baru
+                  </button>
+                )}
+                */}
+              </div>
               <Button
                 variant="ghost"
                 onClick={() => setOpenDetail(false)}

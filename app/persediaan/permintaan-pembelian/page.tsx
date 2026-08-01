@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -64,6 +65,7 @@ function PRStatusBadge({
 // ─── Page ───────────────────────────────────────────────────────────────
 
 export default function PurchaseRequisitionPage() {
+  const router = useRouter();
   const [data, setData] =
     useState<PurchaseRequisition[]>(
       []
@@ -113,24 +115,10 @@ export default function PurchaseRequisitionPage() {
       }
     };
 
-  const handleView = async (
+  const handleView = (
     row: PurchaseRequisition
   ) => {
-    try {
-      const detail =
-        await getPurchaseRequisitionDetail(
-          row.pr_id
-        );
-
-      setSelectedPR(detail);
-
-      setOpenDetail(true);
-    } catch (error) {
-      console.error(
-        "Failed to fetch PR detail",
-        error
-      );
-    }
+    router.push(`/persediaan/permintaan-pembelian/${row.pr_id}`);
   };
 
   useEffect(() => {

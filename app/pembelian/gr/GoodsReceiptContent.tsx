@@ -441,41 +441,7 @@ function GoodsReceiptInner() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                const detailItems = purchaseOrderDetails.filter(
-                  item => Number(item.purchase_order_id) === Number(row.purchase_order_id)
-                );
-                const matchedPO = allPurchaseOrders.find(
-                  po => po.purchase_order_id === Number(row.purchase_order_id)
-                );
-                const resolvedPoNumber        = matchedPO?.po_number ?? row.po_number ?? "-";
-                const resolvedTransactionName = matchedPO?.transaction_name ?? row.transaction_name ?? "";
-                const resolvedTransactionDetail = matchedPO?.transaction_detail ?? row.transaction_detail ?? "";
-                const mappedItems = detailItems.map(item => ({
-                  product_id:   item.product_id,
-                  product_name: item.product?.product_name ?? productMap[Number(item.product_id)] ?? `Product ${item.product_id}`,
-                  quantity:     item.quantity,
-                  price:        item.price,
-                  subtotal:     item.subtotal,
-                }));
-                const totalAmount = mappedItems.reduce((sum, item) => sum + (item.subtotal ?? 0), 0);
-                setSelectedGR({
-                  receipt_number:     row.receipt_number,
-                  receipt_date:       row.receipt_date,
-                  po_number:          resolvedPoNumber,
-                  received_by:        row.received_by ?? "",
-                  status:             row.status,
-                  purchase_order_id:  row.purchase_order_id,
-                  transaction_name:   resolvedTransactionName,
-                  transaction_detail: resolvedTransactionDetail,
-                  total_amount:       totalAmount,
-                  nomor_faktur_pajak: allPurchaseOrders.find(
-                    po => po.purchase_order_id === row.purchase_order_id
-                  )?.nomor_faktur_pajak ?? "",
-                  items: mappedItems,
-                });
-                setOpenDetail(true);
-              }}
+              onClick={() => router.push(`/pembelian/gr/${row.id}`)}
             >
               Detail
             </Button>

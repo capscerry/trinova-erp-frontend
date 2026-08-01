@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { notify } from "@/lib/notify";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AppShell } from "@/components/layout";
@@ -140,6 +141,7 @@ const COLUMNS: Column<PurchaseReturn>[] = [
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PurchaseReturnsPage() {
+  const router = useRouter();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [goodsReceipts, setGoodsReceipts] = useState<GoodsReceiptOption[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
@@ -556,20 +558,7 @@ export default function PurchaseReturnsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => {
-                    // Enrich transaction_detail names before opening detail modal
-                    try {
-                      const parsed: ReturnLineItem[] = JSON.parse(row.transaction_detail ?? "[]");
-                      if (Array.isArray(parsed) && parsed.length > 0) {
-                        const enriched = enrichReturnItemNames(parsed);
-                        setDetailTarget({ ...row, transaction_detail: JSON.stringify(enriched) });
-                      } else {
-                        setDetailTarget(row);
-                      }
-                    } catch {
-                      setDetailTarget(row);
-                    }
-                  }}
+                  onClick={() => router.push(`/pembelian/retur/${row.purchase_return_id}`)}
                   title="Lihat detail retur"
                 >
                   Lihat

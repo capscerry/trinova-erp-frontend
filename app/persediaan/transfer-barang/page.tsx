@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { AppShell } from "@/components/layout";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -107,6 +108,7 @@ function TransferStatusBadge({status,}: {
 // ─────────────────────────────────────────────────────────────
 
 export default function StokTransferPage() {
+  const router = useRouter();
   const [transfers, setTransfers] = useState<StokTransfer[]>([]);
 
   const [openModal, setOpenModal] = useState(false);
@@ -160,23 +162,10 @@ export default function StokTransferPage() {
     }
   };
 
-  const handleView = async (
+  const handleView = (
     id: number
   ) => {
-    try {
-      const data =
-        await getTransferById(id);
-
-      setSelectedTransfer(data);
-
-      setOpenDetailModal(true);
-    } catch (err) {
-      console.error(err);
-
-      notify.error(
-        "Failed to load transfer detail."
-      );
-    }
+    router.push(`/persediaan/transfer-barang/${id}`);
   };
 
 // ─────────────────────────────────────────────────────────────

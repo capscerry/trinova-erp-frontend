@@ -33,6 +33,20 @@ export const getPurchasePayments = async () => {
   }
 };
 
+// ─── GET PAYMENT BY ID ────────────────────────────────────────────────────────
+/**
+ * Backend has no single-record GET endpoint for Purchase Payment -- fetch
+ * the full list and filter client-side, same pattern as Purchase Return.
+ */
+export const getPurchasePaymentById = async (id: number): Promise<any | null> => {
+  const res = await api.get("/purchase-payment");
+  const list = toArray(res.data);
+  return (
+    list.find((p: any) => Number(p.purchase_payment_id ?? p.id) === Number(id)) ??
+    null
+  );
+};
+
 // ─── GET PAYMENTS BY INVOICE ──────────────────────────────────────────────────
 export const getPaymentsByInvoice = async (invoiceId: number): Promise<any[]> => {
   try {

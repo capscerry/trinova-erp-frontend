@@ -12,6 +12,13 @@ function toArray(data: unknown): any[] {
   return [];
 }
 
+// ─── GET INVOICE BY ID ────────────────────────────────────────────────────────
+/** Same endpoint the print page uses. */
+export const getPurchaseInvoiceById = async (id: number): Promise<any> => {
+  const res = await api.get(`/purchase-invoice/${id}`);
+  return res.data?.data ?? res.data;
+};
+
 // ─── GET ALL INVOICE ──────────────────────────────────────────────────────────
 /**
  * Fetches all Purchase Invoices.

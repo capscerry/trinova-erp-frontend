@@ -2,6 +2,7 @@
 
 import Modal from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { ExternalLink } from "lucide-react";
 
 type TransferStatus =
   | "CREATED"
@@ -187,8 +188,24 @@ export default function StockTransferDetailModal({
 
         {/* Footer */}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-between items-center gap-2">
 
+          {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+              /persediaan/transfer-barang/{id} -- modal ini dipertahankan
+              untuk alur lain yang masih memakainya.
+          {data.id != null && (
+            <button
+              type="button"
+              onClick={() => window.open(`/persediaan/transfer-barang/${data.id}`, "_blank")}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+            >
+              <ExternalLink size={14} />
+              Lihat Halaman Detail Baru
+            </button>
+          )}
+          */}
+
+          <div className="flex gap-2">
           {data.status === "CREATED" && (
             <>
               <Button
@@ -226,6 +243,7 @@ export default function StockTransferDetailModal({
               Close
             </Button>
           )}
+          </div>
 
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
   CreditCard,
   Hash,
   ArrowDownCircle,
+  ExternalLink,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
@@ -819,6 +820,17 @@ export default function PurchaseInvoiceDetailModal({
                 <Printer size={14} />
                 Cetak / PDF
               </button>
+              {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                  /pembelian/invoice/{id} -- modal ini dipertahankan untuk
+                  alur lain yang masih memakainya.
+              <button
+                onClick={() => window.open(`/pembelian/invoice/${invoice.id}`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+              >
+                <ExternalLink size={14} />
+                Lihat Halaman Detail Baru
+              </button>
+              */}
             </div>
             <button
               onClick={onClose}

@@ -427,20 +427,7 @@ function PurchaseDownPaymentInner() {
                 <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-
-                    setDetailData({
-                    ...row,
-                    dp_number: formatDPNumber(row.dp_number),
-                    nomor_faktur_pajak:
-                      allPurchaseOrders.find(
-                        (po: any) => Number(po.purchase_order_id) === Number(row.purchase_order_id)
-                      )?.nomor_faktur_pajak ?? "",
-                    });
-
-                    setOpenDetail(true);
-
-                }}
+                onClick={() => router.push(`/pembelian/pdp/${row.purchase_down_payment_id}`)}
                 >
                 Detail
                 </Button>

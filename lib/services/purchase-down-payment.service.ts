@@ -11,6 +11,12 @@ export const getPurchaseDownPayments =
     return res.data;
   };
 
+/** Same endpoint the print page uses. */
+export const getPurchaseDownPaymentById = async (id: number): Promise<any> => {
+  const res = await api.get(`/purchase-down-payment/${id}`);
+  return res.data?.data ?? res.data;
+};
+
 export const createPurchaseDownPayment =
   async (payload: any) => {
     const res = await api.post(

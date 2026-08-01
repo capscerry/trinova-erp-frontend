@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
-import { X } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
 
 interface PurchaseRequisitionDetailModalProps {
   isOpen: boolean;
@@ -174,7 +174,22 @@ export default function PurchaseRequisitionDetailModal({
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between gap-3">
+
+            {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                /persediaan/permintaan-pembelian/{id} -- modal ini
+                dipertahankan untuk alur lain yang masih memakainya.
+            {data?.pr_id != null && (
+              <button
+                type="button"
+                onClick={() => window.open(`/persediaan/permintaan-pembelian/${data.pr_id}`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+              >
+                <ExternalLink size={14} />
+                Lihat Halaman Detail Baru
+              </button>
+            )}
+            */}
 
             <Button
               type="button"

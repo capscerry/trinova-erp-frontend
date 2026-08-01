@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -16,6 +17,7 @@ import {
 import { OrderFulfillment } from "./types";
 
 export default function OrderFulfillmentPage() {
+  const router = useRouter();
   const [fulfillments, setFulfillments] =
     useState<OrderFulfillment[]>([]);
 
@@ -86,8 +88,7 @@ export default function OrderFulfillmentPage() {
   function handleView(
     row: OrderFulfillment
   ) {
-    setSelected(row);
-    setDetailOpen(true);
+    router.push(`/persediaan/penyelesaian-pesanan/${row.movement_id}`);
   }
 
   function handleCloseDetail() {

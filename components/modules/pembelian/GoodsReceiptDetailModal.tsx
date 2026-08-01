@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, CreditCard, ArrowRight, Download, FileText, Printer } from "lucide-react";
+import { X, CreditCard, ArrowRight, Download, FileText, Printer, ExternalLink } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { exportModalToPdf } from "@/lib/pdf/exportModalToPdf";
 import { notify } from "@/lib/notify";
@@ -590,13 +590,26 @@ export default function GoodsReceiptDetailModal({
                   {pdfLoading ? "Mengekspor..." : "Convert to PDF"}
                 </button>
                 {(data.goods_receipt_id ?? data.id) != null && (
-                  <button
-                    onClick={() => window.open(`/pembelian/gr/${data.goods_receipt_id ?? data.id}/print`, "_blank")}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    <Printer size={14} />
-                    Cetak / PDF
-                  </button>
+                  <>
+                    <button
+                      onClick={() => window.open(`/pembelian/gr/${data.goods_receipt_id ?? data.id}/print`, "_blank")}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      <Printer size={14} />
+                      Cetak / PDF
+                    </button>
+                    {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                        /pembelian/gr/{id} -- modal ini dipertahankan untuk
+                        alur lain yang masih memakainya.
+                    <button
+                      onClick={() => window.open(`/pembelian/gr/${data.goods_receipt_id ?? data.id}`, "_blank")}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+                    >
+                      <ExternalLink size={14} />
+                      Lihat Halaman Detail Baru
+                    </button>
+                    */}
+                  </>
                 )}
               </div>
               <button

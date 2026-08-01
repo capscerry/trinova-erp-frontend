@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -201,7 +201,22 @@ export default function OrderFulfillmentDetailFormModal({
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-end">
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
+
+            {/* "Detail"/"View" sekarang langsung navigasi ke halaman
+                /persediaan/penyelesaian-pesanan/{id} -- modal ini
+                dipertahankan untuk alur lain yang masih memakainya.
+            {data.movement_id != null && (
+              <button
+                type="button"
+                onClick={() => window.open(`/persediaan/penyelesaian-pesanan/${data.movement_id}`, "_blank")}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-navy-700 bg-gold-50 border border-gold-200 rounded-lg hover:bg-gold-100"
+              >
+                <ExternalLink size={14} />
+                Lihat Halaman Detail Baru
+              </button>
+            )}
+            */}
 
             <Button
               type="button"

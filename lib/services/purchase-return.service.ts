@@ -25,6 +25,22 @@ export const getPurchaseReturns = async () => {
   return response.data;
 };
 
+/**
+ * Backend has no single-record GET endpoint for Purchase Return -- fetch the
+ * full list and filter client-side. Fine at this data scale (same pattern
+ * would need revisiting if the list grows very large).
+ */
+export const getPurchaseReturnById = async (id: number): Promise<any | null> => {
+  const response = await api.get("/purchase-return");
+  const list = response.data?.data ?? response.data ?? [];
+  const arr = Array.isArray(list) ? list : [];
+  return (
+    arr.find(
+      (r: any) => Number(r.purchase_return_id ?? r.id) === Number(id)
+    ) ?? null
+  );
+};
+
 export const getNextReturnNumber = async (): Promise<string> => {
   const response = await api.get("/purchase-return/next-number");
   return response.data?.next_number ?? response.data;
