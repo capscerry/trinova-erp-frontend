@@ -44,6 +44,63 @@ const fmtDate = (v?: string | null) => {
   if (isNaN(d.getTime())) return "-";
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(d);
 };
+const fmtPR = (raw: string | number) => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^RET-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `RET-${digits.padStart(10, "0")}`;
+};
+
+function terbilang(n: number): string {
+  const words = [
+    "",
+    "satu",
+    "dua",
+    "tiga",
+    "empat",
+    "lima",
+    "enam",
+    "tujuh",
+    "delapan",
+    "sembilan",
+    "sepuluh",
+    "sebelas",
+  ];
+
+  const convert = (num: number): string => {
+    if (num < 12) return words[num];
+    if (num < 20) return `${convert(num - 10)} belas`;
+    if (num < 100)
+      return `${convert(Math.floor(num / 10))} puluh${
+        num % 10 ? ` ${convert(num % 10)}` : ""
+      }`;
+    if (num < 200)
+      return `seratus${num % 100 ? ` ${convert(num % 100)}` : ""}`;
+    if (num < 1000)
+      return `${convert(Math.floor(num / 100))} ratus${
+        num % 100 ? ` ${convert(num % 100)}` : ""
+      }`;
+    if (num < 2000)
+      return `seribu${num % 1000 ? ` ${convert(num % 1000)}` : ""}`;
+    if (num < 1000000)
+      return `${convert(Math.floor(num / 1000))} ribu${
+        num % 1000 ? ` ${convert(num % 1000)}` : ""
+      }`;
+    if (num < 1000000000)
+      return `${convert(Math.floor(num / 1000000))} juta${
+        num % 1000000 ? ` ${convert(num % 1000000)}` : ""
+      }`;
+
+    return `${convert(Math.floor(num / 1000000000))} miliar${
+      num % 1000000000 ? ` ${convert(num % 1000000000)}` : ""
+    }`;
+  };
+
+  if (!n) return "Nol rupiah";
+
+  const result = convert(Math.floor(n));
+  return `${result.charAt(0).toUpperCase()}${result.slice(1)} rupiah`;
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -130,7 +187,7 @@ export default function PurchaseReturnPrintPage() {
           </div>
           <div className="pp-doc-box">
             <div className="pp-doc-title">Purchase Return</div>
-            <div className="pp-doc-number">{data.purchase_return_number}</div>
+            <div className="pp-doc-number">{fmtPR(data.purchase_return_number)}</div>
             {data.status && <div className="pp-doc-status">{data.status}</div>}
           </div>
         </section>
@@ -150,7 +207,7 @@ export default function PurchaseReturnPrintPage() {
             <div className="pp-panel-title">Informasi Dokumen</div>
             <div className="pp-panel-body">
               <div className="pp-meta-row"><div className="pp-meta-label">Tgl Retur</div><div className="pp-meta-value">{fmtDate(data.return_date)}</div></div>
-              <div className="pp-meta-row"><div className="pp-meta-label">No. Retur</div><div className="pp-meta-value">{data.purchase_return_number}</div></div>
+              <div className="pp-meta-row"><div className="pp-meta-label">No. Retur</div><div className="pp-meta-value">{fmtPR(data.purchase_return_number)}</div></div>
               <div className="pp-meta-row"><div className="pp-meta-label">No. PO</div><div className="pp-meta-value">{data.purchase_order_number || "-"}</div></div>
               {data.goods_receipt_id && (
                 <div className="pp-meta-row"><div className="pp-meta-label">Ref. GR</div><div className="pp-meta-value">#{data.goods_receipt_id}</div></div>
@@ -194,6 +251,18 @@ export default function PurchaseReturnPrintPage() {
           </table>
         )}
 
+        {/* ── Amount Banner ── */}
+        <div className="pp-amount-banner">
+          Rp {fmt(displayTotal)}
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div className="pp-terbilang">
+            <strong>Terbilang</strong>
+            {terbilang(displayTotal)}
+          </div>
+        </div>
+
         {/* ── Settlement + Summary ── */}
         <section className="pp-bottom-grid" style={{ marginTop: 18 }}>
           <div className="pp-note">
@@ -208,6 +277,41 @@ export default function PurchaseReturnPrintPage() {
             </div>
           </div>
         </section>
+
+        {/* ── Transaction Info ── */}
+        {(data.transaction_name || data.transaction_detail) && (
+          <div className="pp-full-panel" style={{ marginTop: 16 }}>
+            <div
+              style={{
+                color: "#526273",
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Keterangan Transaksi
+            </div>
+
+            {data.transaction_name && (
+              <div style={{ marginBottom: 4 }}>
+                <span style={{ color: "#64748b", fontSize: 10 }}>
+                  Nama:
+                </span>{" "}
+                <strong style={{ color: "#172033" }}>
+                  {data.transaction_name}
+                </strong>
+              </div>
+            )}
+
+            {data.transaction_detail && (
+              <div style={{ color: "#334155", lineHeight: 1.6 }}>
+                {data.transaction_detail}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Signatures ── */}
         <section className="pp-signatures">
@@ -226,7 +330,7 @@ export default function PurchaseReturnPrintPage() {
         </section>
 
         <div className="pp-footer">
-          Dokumen ini dicetak otomatis dari Trinova ERP. Purchase Return {data.purchase_return_number} — {fmtDate(data.return_date)}.
+          Dokumen ini dicetak otomatis dari Trinova ERP. Purchase Return {fmtPR(data.purchase_return_number)} — {fmtDate(data.return_date)}.
         </div>
 
       </main>
