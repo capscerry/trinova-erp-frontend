@@ -45,11 +45,11 @@ const fmtDate = (v?: string | null) => {
   if (isNaN(d.getTime())) return "-";
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(d);
 };
-const fmtPR = (raw: string | number) => {
+const fmtRTN = (raw: string | number) => {
   const str = String(raw ?? "");
-  const digits = str.replace(/^RET-?/i, "").replace(/\D/g, "");
+  const digits = str.replace(/^RTN-?/i, "").replace(/\D/g, "");
   if (!digits) return str;
-  return `RET-${digits.padStart(10, "0")}`;
+  return `RTN-${digits.padStart(10, "0")}`;
 };
 
 function terbilang(n: number): string {
@@ -165,6 +165,11 @@ export default function PurchaseReturnPrintPage() {
 
   const itemsTotal = items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0);
   const displayTotal = Number(data.total_amount ?? itemsTotal);
+  
+  const displayTransactionDetail =
+  data.transaction_detail?.trim().startsWith("[")
+    ? ""
+    : data.transaction_detail;
 
   return (
     <>
@@ -192,7 +197,7 @@ export default function PurchaseReturnPrintPage() {
           </div>
           <div className="pp-doc-box">
             <div className="pp-doc-title">Purchase Return</div>
-            <div className="pp-doc-number">{fmtPR(data.purchase_return_number)}</div>
+            <div className="pp-doc-number">{fmtRTN(data.purchase_return_number)}</div>
             {data.status && <div className="pp-doc-status">{data.status}</div>}
           </div>
         </section>
@@ -212,7 +217,7 @@ export default function PurchaseReturnPrintPage() {
             <div className="pp-panel-title">Informasi Dokumen</div>
             <div className="pp-panel-body">
               <div className="pp-meta-row"><div className="pp-meta-label">Tgl Retur</div><div className="pp-meta-value">{fmtDate(data.return_date)}</div></div>
-              <div className="pp-meta-row"><div className="pp-meta-label">No. Retur</div><div className="pp-meta-value">{fmtPR(data.purchase_return_number)}</div></div>
+              <div className="pp-meta-row"><div className="pp-meta-label">No. Retur</div><div className="pp-meta-value">{fmtRTN(data.purchase_return_number)}</div></div>
               <div className="pp-meta-row"><div className="pp-meta-label">No. PO</div><div className="pp-meta-value">{data.purchase_order_number || "-"}</div></div>
               {data.goods_receipt_id && (
                 <div className="pp-meta-row"><div className="pp-meta-label">Ref. GR</div><div className="pp-meta-value">#{data.goods_receipt_id}</div></div>
@@ -309,12 +314,11 @@ export default function PurchaseReturnPrintPage() {
                 </strong>
               </div>
             )}
-
-            {data.transaction_detail && (
-              <div style={{ color: "#334155", lineHeight: 1.6 }}>
-                {data.transaction_detail}
-              </div>
-            )}
+              {displayTransactionDetail && (
+                <div style={{ color: "#334155", lineHeight: 1.6 }}>
+                  {displayTransactionDetail}
+                </div>
+              )}
           </div>
         )}
 
@@ -335,7 +339,7 @@ export default function PurchaseReturnPrintPage() {
         </section>
 
         <div className="pp-footer">
-          Dokumen ini dicetak otomatis dari Trinova ERP. Purchase Return {fmtPR(data.purchase_return_number)} — {fmtDate(data.return_date)}.
+          Dokumen ini dicetak otomatis dari Trinova ERP. Purchase Return {fmtRTN(data.purchase_return_number)} — {fmtDate(data.return_date)}.
         </div>
 
       </main>
