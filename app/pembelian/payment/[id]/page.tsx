@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui";
 import {
   ArrowLeft,
+  Printer,
   Building2,
   Calendar,
   Hash,
@@ -163,11 +164,26 @@ export default function PurchasePaymentDetailPage() {
         <button
           onClick={() => router.push("/pembelian/payment")}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500
-                     hover:text-navy-900 transition-colors"
+                    hover:text-navy-900 transition-colors"
         >
           <ArrowLeft size={15} />
           Kembali ke Daftar
         </button>
+
+        {data && !loading && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                window.open(`/pembelian/payment/${id}/print`, "_blank")
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
+                        bg-navy-900 text-gold-400 hover:bg-navy-800 transition-colors"
+            >
+              <Printer size={13} />
+              Cetak / PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
