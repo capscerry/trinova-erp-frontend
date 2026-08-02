@@ -51,15 +51,25 @@ export const getGoodsReceiptsForReturn = async (): Promise<any[]> => {
  *                   quantity, remaining_qty, product_name }
  */
 export const getAvailableReturnDetails = async (grId: number): Promise<any[]> => {
-  if (!grId || grId <= 0) {
-    console.warn("[GR] getAvailableReturnDetails called with invalid grId:", grId);
+  try {
+    if (!grId || grId <= 0) {
+      console.warn("[GR] getAvailableReturnDetails called with invalid grId:", grId);
+      return [];
+    }
+
+    console.log(`[GR] Loading available return details for GR ${grId}...`);
+
+    const res = await api.get(`/purchase-return/gr/${grId}/available-details`);
+
+    return toArray(res.data);
+  } catch (err: any) {
+    console.error(
+      `[GR] getAvailableReturnDetails failed for GR ${grId}:`,
+      err?.message ?? err
+    );
     return [];
   }
-  console.log(`[GR] Loading available return details for GR ${grId}...`);
-  const res = await api.get(`/api/purchase-return/gr/${grId}/available-details`);
-  return toArray(res.data);
 };
-
 // ─── GET NEXT GR NUMBER ───────────────────────────────────────────────────────
 export const getNextGRNumber = async () => {
   try {
