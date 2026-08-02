@@ -23,17 +23,28 @@ import type { NotifType } from "./notification-types";
 
 // Module-level ref that the NotificationProvider writes to once it mounts.
 // This avoids a hard React context dependency from a non-component module.
-let _addNotification: ((type: NotifType, title: string, message?: string) => void) | null = null;
+let _addNotification:
+  | ((type: NotifType, title: string, message?: string, module?: string) => void)
+  | null = null;
 
 /** Called once by NotificationProvider on mount. */
 export function _registerNotificationHandler(
-  fn: (type: NotifType, title: string, message?: string) => void
+  fn: (type: NotifType, title: string, message?: string, module?: string) => void
 ) {
   _addNotification = fn;
 }
 
+// Derive the module a notification belongs to from the current URL, e.g.
+// "/pembelian/po/123" -> "pembelian". Used so the bell panel can be filtered
+// per role later (a Sales user shouldn't see Purchasing's notifications).
+function currentModule(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const segment = window.location.pathname.split("/").filter(Boolean)[0];
+  return segment || undefined;
+}
+
 function record(type: NotifType, title: string, message?: string) {
-  _addNotification?.(type, title, message);
+  _addNotification?.(type, title, message, currentModule());
 }
 
 export const notify = {

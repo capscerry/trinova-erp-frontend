@@ -116,6 +116,8 @@ export default function SupplierPage() {
         null
       );
 
+  const [saving,setSaving] = useState(false);
+
   // --- Delete confirmation -------------------------------------------------
   const [confirmDelete, setConfirmDelete] = useState<{
     open: boolean;
@@ -248,14 +250,12 @@ export default function SupplierPage() {
 
   // --- Submit -----------------------------------------------------------------
 
-  const handleSubmit =
-    async () => {
-
-      try {
-
-        if (isEdit) {
-
-          await updateSupplier(
+  const handleSubmit = async()=> {
+    if(saving) return;
+    setSaving(true);
+    try{
+      if(isEdit){
+         await updateSupplier(
             selectedId,
             {
               supplier_code:
@@ -281,13 +281,9 @@ export default function SupplierPage() {
               status: formData.status,
             }
           );
-
           notify.success("Supplier berhasil diupdate");
-
-        } else {
-
-          const response =
-            await createSupplier({
+      }else{
+        const response = await createSupplier({
               supplier_code:
                 formData.supplier_code,
 
@@ -311,25 +307,15 @@ export default function SupplierPage() {
               status: formData.status,
             });
 
-          const supplierId =
-            response.data.supplier_id;
+            const supplierId = response.data.supplier_id;
+            if(catalogFile){
+              await importSupplierCatalog(supplierId, catalogFile); 
+            }
+            notify.success("Supplier berhasil ditambahkan");
+      }
 
-          // --- Import Catalog -----------------
-
-          if (catalogFile) {
-
-            await importSupplierCatalog(
-              supplierId,
-              catalogFile
-            );
-          }
-
-          notify.success("Supplier berhasil ditambahkan");
-        }
-
-        fetchSuppliers();
-
-        setFormData({
+      fetchSuppliers();
+      setFormData({
           supplier_code: "",
           supplier_name: "",
           no_telp_bisnis: "",
@@ -338,22 +324,125 @@ export default function SupplierPage() {
           category_supplier: "",
           status: "Active",
         });
+      setCatalogFile(null);
+      setIsEdit(false);
+      setSelectedId("");
+      setOpenModal(false);
+    }catch (err: any) {
+      // console.error(err);
+      notify.error("Gagal simpan supplier", err.message);
+    }finally{
+      setSaving(false);
+    }
 
-        setCatalogFile(null);
+  }
 
-        setIsEdit(false);
+  // const handleSubmit =
+  //   async () => {
 
-        setSelectedId("");
+  //     try {
 
-        setOpenModal(false);
+  //       if (isEdit) {
 
-      } catch (err: any) {
+  //         await updateSupplier(
+  //           selectedId,
+  //           {
+  //             supplier_code:
+  //               formData.supplier_code,
 
-        console.error(err);
+  //             supplier_name:
+  //               formData.supplier_name,
 
-        notify.error("Gagal simpan supplier", err.message);
-      }
-    };
+  //             no_telp_bisnis:
+  //               formData.no_telp_bisnis,
+
+  //             email:
+  //               formData.email,
+
+  //             alamat:
+  //               formData.alamat,
+
+  //             category_supplier:
+  //               Number(
+  //                 formData.category_supplier
+  //               ),
+
+  //             status: formData.status,
+  //           }
+  //         );
+
+  //         notify.success("Supplier berhasil diupdate");
+
+  //       } else {
+
+  //         const response =
+  //           await createSupplier({
+  //             supplier_code:
+  //               formData.supplier_code,
+
+  //             supplier_name:
+  //               formData.supplier_name,
+
+  //             no_telp_bisnis:
+  //               formData.no_telp_bisnis,
+
+  //             email:
+  //               formData.email,
+
+  //             alamat:
+  //               formData.alamat,
+
+  //             category_supplier:
+  //               Number(
+  //                 formData.category_supplier
+  //               ),
+
+  //             status: formData.status,
+  //           });
+
+  //         const supplierId =
+  //           response.data.supplier_id;
+
+  //         // --- Import Catalog -----------------
+
+  //         if (catalogFile) {
+
+  //           await importSupplierCatalog(
+  //             supplierId,
+  //             catalogFile
+  //           );
+  //         }
+
+  //         notify.success("Supplier berhasil ditambahkan");
+  //       }
+
+  //       fetchSuppliers();
+
+  //       setFormData({
+  //         supplier_code: "",
+  //         supplier_name: "",
+  //         no_telp_bisnis: "",
+  //         email: "",
+  //         alamat: "",
+  //         category_supplier: "",
+  //         status: "Active",
+  //       });
+
+  //       setCatalogFile(null);
+
+  //       setIsEdit(false);
+
+  //       setSelectedId("");
+
+  //       setOpenModal(false);
+
+  //     } catch (err: any) {
+
+  //       console.error(err);
+
+  //       notify.error("Gagal simpan supplier", err.message);
+  //     }
+  //   };
 
   // --- Delete -----------------------------------------------------------------
 
@@ -533,6 +622,7 @@ export default function SupplierPage() {
         }
 
         onSave={handleSubmit}
+        saving = {saving}
 
         setCatalogFile={
           setCatalogFile

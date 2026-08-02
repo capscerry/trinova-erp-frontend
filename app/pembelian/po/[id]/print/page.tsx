@@ -31,9 +31,6 @@ export default function PurchaseOrderPrintPage() {
 
   return (
     <>
-      {/* Tampilan dokumen sendiri sudah ada di PurchaseOrderPrintDocument
-          (class ber-prefix "pop-"). Di sini tinggal gaya layar (toolbar,
-          background abu-abu) & override saat @media print. */}
       <style>{`
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }

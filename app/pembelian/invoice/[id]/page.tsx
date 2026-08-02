@@ -15,9 +15,14 @@ import {
   TrendingUp,
   Wallet,
   Package,
+  ArrowDownCircle,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPurchaseInvoiceById } from "@/lib/services/purchase-invoice.service";
+import { getPaymentsByInvoice } from "@/lib/services/purchase-payment.service";
+import { getDownPaymentsByPurchaseOrder } from "@/lib/services/purchase-down-payment.service";
+import { getGoodsReceiptById } from "@/lib/services/gr.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +41,32 @@ interface InvoiceData {
   transaction_detail?: string;
   nomor_faktur_pajak?: string;
 }
+
+interface PaymentRow {
+  purchase_payment_id?: number;
+  payment_number?: string;
+  payment_date?: string;
+  amount?: number;
+  payment_method?: string;
+  status?: string;
+}
+
+interface DownPaymentRow {
+  purchase_down_payment_id?: number;
+  purchase_order_id?: number;
+  dp_number?: string;
+  payment_date?: string;
+  payment_type?: string;
+  amount?: number;
+  status?: string;
+}
+
+const fmtPAY = (raw: string | number) => {
+  const str = String(raw ?? "");
+  const digits = str.replace(/^PAY-?/i, "").replace(/\D/g, "");
+  if (!digits) return str;
+  return `PAY-${digits.padStart(10, "0")}`;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +149,11 @@ export default function PurchaseInvoiceDetailPage() {
   const [data, setData] = useState<InvoiceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Riwayat DP & Pembayaran -- dulu ditampilkan di modal detail lama
+  // ("Riwayat Down Payment"/"Riwayat Pembayaran"), belum ada di halaman baru.
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [downPayments, setDownPayments] = useState<DownPaymentRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
@@ -126,6 +162,37 @@ export default function PurchaseInvoiceDetailPage() {
       setError(null);
       const result = await getPurchaseInvoiceById(Number(id));
       setData(result);
+
+      setHistoryLoading(true);
+      try {
+        // Riwayat pembayaran untuk invoice ini
+        const paymentList = await getPaymentsByInvoice(Number(id));
+        setPayments(
+          (Array.isArray(paymentList) ? paymentList : []).filter(
+            (p: any) =>
+              p.purchase_invoice_id == null ||
+              Number(p.purchase_invoice_id) === Number(id)
+          )
+        );
+
+        // Riwayat DP -- DP tercatat di level PO, jadi perlu resolve PO dari GR invoice ini
+        if (result?.goods_receipt_id) {
+          const gr = await getGoodsReceiptById(Number(result.goods_receipt_id));
+          const poId = gr?.purchase_order_id;
+          if (poId) {
+            const dpRes = await getDownPaymentsByPurchaseOrder(Number(poId));
+            const dpList = Array.isArray(dpRes) ? dpRes : dpRes?.data ?? [];
+            // Backend belum benar-benar memfilter query param di atas -- filter ulang di sini.
+            setDownPayments(
+              dpList.filter((dp: any) => Number(dp.purchase_order_id) === Number(poId))
+            );
+          }
+        }
+      } catch (historyErr) {
+        console.error("Gagal memuat riwayat pembayaran/DP:", historyErr);
+      } finally {
+        setHistoryLoading(false);
+      }
     } catch (err) {
       console.error("Gagal memuat detail Purchase Invoice:", err);
       setError("Gagal memuat data Purchase Invoice");
@@ -147,6 +214,15 @@ export default function PurchaseInvoiceDetailPage() {
     data?.outstanding_amount ?? Math.max(0, total - dpPaid - paymentPaid)
   );
   const totalPaid = dpPaid + paymentPaid;
+  const ageDays = (() => {
+    if (!data?.invoice_date) return null;
+    try {
+      return Math.floor((Date.now() - new Date(data.invoice_date).getTime()) / (1000 * 60 * 60 * 24));
+    } catch {
+      return null;
+    }
+  })();
+  const totalDPMade = downPayments.reduce((s, dp) => s + Number(dp.amount ?? 0), 0);
 
   return (
     <AppShell
@@ -284,6 +360,7 @@ export default function PurchaseInvoiceDetailPage() {
               </h3>
               <InfoRow label="No. Invoice" value={fmtINV(data.invoice_number)} icon={Hash} />
               <InfoRow label="Tanggal Invoice" value={formatDate(data.invoice_date)} icon={Calendar} />
+              <InfoRow label="Umur (Hari)" value={ageDays != null ? String(ageDays) : "—"} icon={Calendar} />
               <InfoRow label="Supplier" value={data.supplier_name} icon={Building2} />
               {data.goods_receipt_id && (
                 <InfoRow label="Referensi GR" value={`#${data.goods_receipt_id}`} icon={Package} />
@@ -330,6 +407,98 @@ export default function PurchaseInvoiceDetailPage() {
                     <StatusBadge status={status} />
                   </div>
                 </div>
+              </div>
+
+              {downPayments.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+                    <ArrowDownCircle size={14} className="text-slate-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                      Riwayat Down Payment
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">No. DP</th>
+                          <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Tanggal</th>
+                          <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Tipe</th>
+                          <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Jumlah</th>
+                          <th className="px-5 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {downPayments.map((dp, idx) => (
+                          <tr key={dp.purchase_down_payment_id ?? idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-5 py-3 font-mono font-semibold text-navy-700">{dp.dp_number ?? "—"}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(dp.payment_date)}</td>
+                            <td className="px-4 py-3 text-slate-600">{dp.payment_type ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatRupiah(Number(dp.amount ?? 0))}</td>
+                            <td className="px-5 py-3 text-center">
+                              <StatusBadge status={dp.status ?? "-"} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/60 border-t border-slate-100">
+                          <td colSpan={3} className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 text-right">Total DP</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-navy-900">{formatRupiah(totalDPMade)}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+                  <Receipt size={14} className="text-slate-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Riwayat Pembayaran
+                  </h3>
+                </div>
+                {historyLoading ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">Memuat data pembayaran...</div>
+                ) : payments.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">Belum ada pembayaran tercatat</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">No. Pembayaran</th>
+                          <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Tanggal</th>
+                          <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">Metode</th>
+                          <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">Jumlah</th>
+                          <th className="px-5 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {payments.map((p, idx) => (
+                          <tr key={p.purchase_payment_id ?? idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="px-5 py-3 font-mono font-semibold text-navy-700">{fmtPAY(p.payment_number ?? "")}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(p.payment_date)}</td>
+                            <td className="px-4 py-3 text-slate-600">{p.payment_method ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-700">{formatRupiah(Number(p.amount ?? 0))}</td>
+                            <td className="px-5 py-3 text-center">
+                              <StatusBadge status={p.status ?? "-"} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/60 border-t border-slate-100">
+                          <td colSpan={3} className="px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 text-right">Total Pembayaran</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-navy-900">{formatRupiah(paymentPaid)}</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {(data.transaction_detail || data.transaction_name) && (

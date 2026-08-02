@@ -27,7 +27,7 @@ import {
 interface ReturnItem {
   product_id: number;
   product_name?: string;
-  quantity?: number;
+  qty_available?: number;
   qty_return?: number;
   unit_price?: number;
   subtotal?: number;
@@ -138,13 +138,32 @@ export default function PurchaseReturnDetailPage() {
       }
       setData(result);
 
+      // Item yang BENAR-BENAR diretur (qty_return + subtotal harga) disimpan
+      // sebagai JSON di transaction_detail saat retur dibuat -- sama seperti
+      // yang dipakai modal detail lama & halaman print. Endpoint
+      // /purchase-return/{id}/details sengaja TIDAK dipakai di sini karena
+      // itu mengembalikan qty asli dari Goods Receipt (dipakai Accept Loss
+      // modal), bukan qty yang diretur.
       try {
-        const detailRes = await getReturnDetails(Number(id));
-        const list = detailRes?.data ?? detailRes ?? [];
-        setItems(Array.isArray(list) ? list : []);
-      } catch (detailErr) {
-        console.error("Gagal memuat item Purchase Return:", detailErr);
-        setItems([]);
+        const parsed = result.transaction_detail
+          ? JSON.parse(result.transaction_detail)
+          : null;
+        if (Array.isArray(parsed) && parsed.length > 0 && "product_id" in parsed[0]) {
+          setItems(parsed as ReturnItem[]);
+        } else {
+          throw new Error("transaction_detail bukan JSON item list");
+        }
+      } catch {
+        // Fallback: endpoint /details (qty asli GR, bukan qty_return) --
+        // lebih baik daripada tidak menampilkan apa-apa.
+        try {
+          const detailRes = await getReturnDetails(Number(id));
+          const list = detailRes?.data ?? detailRes ?? [];
+          setItems(Array.isArray(list) ? list : []);
+        } catch (detailErr) {
+          console.error("Gagal memuat item Purchase Return:", detailErr);
+          setItems([]);
+        }
       }
     } catch (err) {
       console.error("Gagal memuat detail Purchase Return:", err);
@@ -162,7 +181,7 @@ export default function PurchaseReturnDetailPage() {
   const status = data?.status ?? "Awaiting Replacement";
   const grandTotal = data?.total_amount ?? 0;
   const itemsTotal = items.reduce((s, i) => s + Number(i.subtotal ?? 0), 0);
-  const totalQty = items.reduce((s, i) => s + Number(i.qty_return ?? i.quantity ?? 0), 0);
+  const totalQty = items.reduce((s, i) => s + Number(i.qty_return ?? 0), 0);
 
   return (
     <AppShell
@@ -347,7 +366,7 @@ export default function PurchaseReturnDetailPage() {
                                 </p>
                               </td>
                               <td className="px-4 py-3 text-center text-slate-600 font-semibold">
-                                {item.qty_return ?? item.quantity ?? 0}
+                                {item.qty_return ?? 0}
                               </td>
                               <td className="px-4 py-3 text-right text-slate-600">
                                 {item.unit_price != null ? formatRupiah(item.unit_price) : "—"}

@@ -5,11 +5,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { NotifType, NotificationItem } from "./notification-types";
 import { _registerNotificationHandler } from "./notify";
+import { useAuth } from "./AuthContext";
+import type { Role } from "@/types/auth";
 
 export type { NotifType, NotificationItem };
 
@@ -26,6 +29,20 @@ interface NotificationContextValue {
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 const STORAGE_KEY = "trinova_notifications";
+
+// A notification is tagged with the top-level path segment it was fired from
+// (e.g. "pembelian", "penjualan", "persediaan" — see notify.ts). Users should
+// only see notifications from the module(s) their role can access; admin
+// sees everything. Untagged (module === undefined) notifications are global
+// and shown to everyone.
+function isModuleVisibleForRole(module: string | undefined, role: Role): boolean {
+  if (!module) return true;
+  if (role === "admin") return true;
+  if (role === "pembelian" || role === "procurement_manager") return module === "pembelian";
+  if (role === "penjualan") return module === "penjualan";
+  if (role === "persediaan") return module === "persediaan";
+  return true;
+}
 
 // Baca dari localStorage — dipanggil HANYA di client (dalam useEffect),
 // supaya tidak mismatch dengan render server-side Next.js.
@@ -44,6 +61,7 @@ function loadStoredNotifications(): NotificationItem[] {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const counterRef = useRef(0);
 
@@ -63,18 +81,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [notifications]);
 
-  const addNotification = useCallback((type: NotifType, title: string, message?: string) => {
-    counterRef.current += 1;
-    const item: NotificationItem = {
-      id: `notif-${Date.now()}-${counterRef.current}`,
-      type,
-      title,
-      message,
-      timestamp: new Date(),
-      read: false,
-    };
-    setNotifications((prev) => [item, ...prev].slice(0, 50));
-  }, []);
+  const addNotification = useCallback(
+    (type: NotifType, title: string, message?: string, module?: string) => {
+      counterRef.current += 1;
+      const item: NotificationItem = {
+        id: `notif-${Date.now()}-${counterRef.current}`,
+        type,
+        title,
+        message,
+        timestamp: new Date(),
+        read: false,
+        module,
+      };
+      setNotifications((prev) => [item, ...prev].slice(0, 50));
+    },
+    []
+  );
 
   // Register this instance's addNotification into notify.ts's module-level slot
   // so that notify.success / .error / etc. feed into this context.
@@ -85,17 +107,33 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, [addNotification]);
 
+  // Everything in `notifications` stays in localStorage regardless of role
+  // (so switching users on the same browser doesn't lose data), but each
+  // user only ever sees/marks/clears the subset their role can access.
+  const visibleNotifications = useMemo(() => {
+    if (!user) return [];
+    return notifications.filter((n) => isModuleVisibleForRole(n.module, user.role));
+  }, [notifications, user]);
+
   const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    if (!user) return;
+    setNotifications((prev) =>
+      prev.map((n) =>
+        isModuleVisibleForRole(n.module, user.role) ? { ...n, read: true } : n
+      )
+    );
+  }, [user]);
 
-  const clearAll = useCallback(() => setNotifications([]), []);
+  const clearAll = useCallback(() => {
+    if (!user) return;
+    setNotifications((prev) => prev.filter((n) => !isModuleVisibleForRole(n.module, user.role)));
+  }, [user]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = visibleNotifications.filter((n) => !n.read).length;
 
   return (
     <NotificationContext.Provider
-      value={{ notifications, unreadCount, addNotification, markAllRead, clearAll }}
+      value={{ notifications: visibleNotifications, unreadCount, addNotification, markAllRead, clearAll }}
     >
       {children}
     </NotificationContext.Provider>

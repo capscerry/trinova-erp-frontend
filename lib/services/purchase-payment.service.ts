@@ -51,8 +51,17 @@ export const getPurchasePaymentById = async (id: number): Promise<any | null> =>
 export const getPaymentsByInvoice = async (invoiceId: number): Promise<any[]> => {
   try {
     if (!invoiceId || invoiceId <= 0) return [];
-    const res = await api.get(`/api/purchase-payment?purchase_invoice_id=${invoiceId}`);
-    return toArray(res.data);
+    // Backend's GetAllPurchasePayment() tidak menerima query param sama
+    // sekali (route-nya cuma "/api/purchase-payment", tanpa parameter) --
+    // jadi query string di bawah ini diabaikan begitu saja oleh server dan
+    // HARUS difilter manual di sini. Juga: baseURL axios (`api`) sudah
+    // termasuk "/api", jadi path di sini TIDAK boleh diawali "/api/" lagi
+    // (dulu jadi "/api/api/purchase-payment" -> 404).
+    const res = await api.get("/purchase-payment");
+    const list = toArray(res.data);
+    return list.filter(
+      (p: any) => Number(p.purchase_invoice_id) === Number(invoiceId)
+    );
   } catch (err: any) {
     console.error(`[Payment] getPaymentsByInvoice(${invoiceId}) failed:`, err?.message ?? err);
     return [];

@@ -167,7 +167,7 @@ export function DataTable<T extends object>({
 
   React.useEffect(() => {
     setPage(1);
-  }, [data, search, dateFrom, dateTo, statusFilter, sortOrder]);
+  }, [search, dateFrom, dateTo, statusFilter, sortOrder]);
 
   function clearFilters() {
     setDateFrom("");

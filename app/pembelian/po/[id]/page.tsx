@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/ui";
 import {
   ArrowLeft,
   Printer,
-  Download,
   Building2,
   Package,
   Calendar,
@@ -15,14 +14,18 @@ import {
   FileText,
   AlertCircle,
   TrendingUp,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { notify } from "@/lib/notify";
 import {
   getPurchaseOrderPrintDetail,
+  sendPurchaseOrderEmail,
   type PurchaseOrderPrintDetail,
 } from "@/lib/services/purchase-order-print.service";
 import { generatePurchaseOrderPdf } from "@/lib/pdf/purchaseOrderPdf";
+import { getSupplierProductsBySupplier } from "@/lib/services/supplier-product.service";
+import { SendPurchaseOrderEmailModal } from "@/components/modules/pembelian/SendPurchaseOrderEmailModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +102,12 @@ export default function PurchaseOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"items" | "order">("items");
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  // product_id -> stok & lead time supplier ini -- dulu ditampilkan di modal
+  // detail lama (kolom "Stock"/"Lead Time"), belum ada di halaman baru.
+  const [stockMap, setStockMap] = useState<
+    Map<number, { available_stock?: number; lead_time_days?: number }>
+  >(new Map());
 
   const fetchData = async () => {
     if (!id) return;
@@ -108,6 +116,28 @@ export default function PurchaseOrderDetailPage() {
       setError(null);
       const result = await getPurchaseOrderPrintDetail(Number(id));
       setData(result);
+
+      const supplierId = result?.header?.supplier_id;
+      if (supplierId) {
+        try {
+          const supplierProducts = await getSupplierProductsBySupplier(supplierId);
+          const list: any[] = Array.isArray(supplierProducts)
+            ? supplierProducts
+            : supplierProducts?.data ?? [];
+          const map = new Map<number, { available_stock?: number; lead_time_days?: number }>();
+          list.forEach((p: any) => {
+            if (p?.product_id != null) {
+              map.set(Number(p.product_id), {
+                available_stock: p.available_stock ?? undefined,
+                lead_time_days: p.lead_time_days ?? undefined,
+              });
+            }
+          });
+          setStockMap(map);
+        } catch (stockErr) {
+          console.error("Gagal memuat stok supplier untuk detail PO:", stockErr);
+        }
+      }
     } catch (err) {
       console.error("Gagal memuat detail Purchase Order:", err);
       setError("Gagal memuat data Purchase Order");
@@ -121,42 +151,50 @@ export default function PurchaseOrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Downloads the SAME official template used for "Kirim Email" and the
-  // print page — keeps every PO PDF visually identical everywhere.
-  const handleDownloadPdf = async () => {
-    if (!data) return;
-    setPdfLoading(true);
-    try {
-      const { blob, fileName } = await generatePurchaseOrderPdf(data);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      notify.success("PDF berhasil diunduh");
-    } catch (err) {
-      console.error("[PDF Export Error – PurchaseOrder]", err);
-      notify.error(
-        "Gagal mengekspor PDF",
-        err instanceof Error ? err.message : "Silakan coba lagi"
-      );
-    } finally {
-      setPdfLoading(false);
+  // Kirim PO ke email supplier -- lampiran dibuat dari template resmi yang
+  // sama dengan tombol "Cetak" & halaman print, supaya PDF-nya identik di
+  // mana pun dihasilkan.
+  const handleSendEmail = async (message: string) => {
+    if (!data) throw new Error("Data Purchase Order belum termuat.");
+    if (data.header?.status !== "Approved") {
+      throw new Error("PO harus berstatus Approved sebelum email bisa dikirim ke supplier.");
     }
+    let attachment: { base64: string; fileName: string } | undefined;
+    try {
+      const generated = await generatePurchaseOrderPdf(data);
+      attachment = { base64: generated.base64, fileName: generated.fileName };
+    } catch (err) {
+      console.error("[PDF Generate Error]", err);
+      // Non-fatal: tetap kirim email tanpa lampiran kalau PDF gagal dibuat
+    }
+    const successMsg = await sendPurchaseOrderEmail(Number(id), message || undefined, attachment);
+    notify.success(successMsg);
+    setEmailModalOpen(false);
   };
 
   const header = data?.header;
-  const items = data?.details ?? [];
+  const items = (data?.details ?? []).map((item) => {
+    const stock = stockMap.get(item.productId);
+    const lineBase = item.quantity * item.price;
+    const taxAmount = item.taxAmount ?? 0;
+    const taxPercent = lineBase > 0 ? Math.round((taxAmount / lineBase) * 100) : 0;
+    return {
+      ...item,
+      available_stock: stock?.available_stock,
+      lead_time_days: stock?.lead_time_days,
+      tax_percent: taxPercent,
+      tax_amount: taxAmount,
+    };
+  });
   const status = header?.status ?? "Draft";
+  const isApproved = status === "Approved";
   const grandTotal = header?.total_amount ?? 0;
   const totalQty = items.reduce((s, i) => s + (i.quantity ?? 0), 0);
   const subtotal = items.reduce((s, i) => s + (i.subtotal ?? 0), 0);
   const taxAmount = header?.tax_amount ?? 0;
 
   return (
+    <>
     <AppShell
       title="Detail Purchase Order"
       subtitle={header ? `#${header.po_number}` : "Memuat..."}
@@ -175,20 +213,28 @@ export default function PurchaseOrderDetailPage() {
         {data && !loading && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.open(`/pembelian/po/${id}/print`, "_blank")}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
-                         border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              onClick={() => setEmailModalOpen(true)}
+              disabled={!isApproved}
+              title={
+                isApproved
+                  ? undefined
+                  : "PO harus berstatus Approved sebelum email bisa dikirim ke supplier"
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors",
+                isApproved
+                  ? "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  : "border-slate-100 text-slate-300 cursor-not-allowed"
+              )}
             >
-              <Printer size={13} /> Cetak
+              <Mail size={13} /> Kirim Email
             </button>
             <button
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading}
+              onClick={() => window.open(`/pembelian/po/${id}/print`, "_blank")}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
-                         bg-navy-900 text-gold-400 hover:bg-navy-800 disabled:opacity-50
-                         disabled:cursor-not-allowed transition-colors"
+                         bg-navy-900 text-gold-400 hover:bg-navy-800 transition-colors"
             >
-              <Download size={13} /> {pdfLoading ? "Membuat PDF..." : "Download PDF"}
+              <Printer size={13} /> Cetak
             </button>
           </div>
         )}
@@ -349,19 +395,31 @@ export default function PurchaseOrderDetailPage() {
                         <table className="w-full text-xs border-collapse">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
-                              <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[32%]">
+                              <th className="px-5 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">
                                 Produk
                               </th>
-                              <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400 w-[13%]">
+                              <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400">
+                                Stock
+                              </th>
+                              <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400">
+                                Lead Time
+                              </th>
+                              <th className="px-4 py-2.5 text-center font-bold uppercase tracking-wider text-slate-400">
                                 Qty
                               </th>
-                              <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400 w-[13%]">
+                              <th className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-400">
                                 Satuan
                               </th>
-                              <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[21%]">
+                              <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">
                                 Harga Satuan
                               </th>
-                              <th className="px-5 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400 w-[21%]">
+                              <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">
+                                Tax %
+                              </th>
+                              <th className="px-4 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">
+                                Tax Amount
+                              </th>
+                              <th className="px-5 py-2.5 text-right font-bold uppercase tracking-wider text-slate-400">
                                 Subtotal
                               </th>
                             </tr>
@@ -374,6 +432,12 @@ export default function PurchaseOrderDetailPage() {
                                     {item.productName || `Produk #${item.productId}`}
                                   </p>
                                 </td>
+                                <td className="px-4 py-3 text-center text-slate-600">
+                                  {item.available_stock ?? "—"}
+                                </td>
+                                <td className="px-4 py-3 text-center text-slate-600 whitespace-nowrap">
+                                  {item.lead_time_days != null ? `${item.lead_time_days} Hari` : "—"}
+                                </td>
                                 <td className="px-4 py-3 text-center text-slate-600 font-semibold">
                                   {item.quantity}
                                 </td>
@@ -382,6 +446,12 @@ export default function PurchaseOrderDetailPage() {
                                 </td>
                                 <td className="px-4 py-3 text-right text-slate-600">
                                   {formatRupiah(item.price)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-slate-500">
+                                  {item.tax_percent > 0 ? `${item.tax_percent}%` : "0%"}
+                                </td>
+                                <td className="px-4 py-3 text-right text-slate-400">
+                                  {item.tax_percent > 0 ? `+${formatRupiah(item.tax_amount)}` : "—"}
                                 </td>
                                 <td className="px-5 py-3 text-right font-bold text-slate-800">
                                   {formatRupiah(item.subtotal)}
@@ -502,5 +572,17 @@ export default function PurchaseOrderDetailPage() {
         </div>
       ) : null}
     </AppShell>
+
+    {data && (
+      <SendPurchaseOrderEmailModal
+        open={emailModalOpen}
+        onClose={() => setEmailModalOpen(false)}
+        onSend={handleSendEmail}
+        poNumber={data.header.po_number}
+        supplierName={data.supplier?.supplier_name ?? ""}
+        supplierEmail={data.supplier?.email}
+      />
+    )}
+    </>
   );
 }

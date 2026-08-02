@@ -32,6 +32,7 @@ interface DPData {
   po_total?: number;
   status?: string;
   notes?: string;
+  created_at?: string;
   transaction_name?: string;
   transaction_detail?: string;
   nomor_faktur_pajak?: string;
@@ -283,6 +284,7 @@ export default function PurchaseDownPaymentDetailPage() {
               <InfoRow label="Nomor PO" value={data.po_number || "—"} icon={FileText} />
               <InfoRow label="Supplier" value={data.supplier_name} icon={Building2} />
               <InfoRow label="Metode Pembayaran" value={data.payment_type || "—"} icon={CreditCard} />
+              <InfoRow label="Dibuat Pada" value={formatDate(data.created_at)} icon={Calendar} />
               <InfoRow label="Nomor Faktur Pajak" value={data.nomor_faktur_pajak || "—"} icon={FileText} />
             </div>
 

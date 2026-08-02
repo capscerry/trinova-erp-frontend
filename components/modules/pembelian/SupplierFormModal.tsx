@@ -34,6 +34,7 @@ interface SupplierFormModalProps {
   }[];
   onClose: () => void;
   onSave: () => void;
+  saving? :boolean;
   setCatalogFile: React.Dispatch<React.SetStateAction<File | null>>;
 }
 
@@ -72,6 +73,7 @@ export default function SupplierFormModal({
   categories,
   onClose,
   onSave,
+  saving = false,
   setCatalogFile,
 }: SupplierFormModalProps) {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
@@ -85,6 +87,7 @@ export default function SupplierFormModal({
   );
 
   const handleSave = () => {
+    if(saving) return;
     const nextErrors = {
       email: emailError(formData.email),
       no_telp_bisnis: phoneError(formData.no_telp_bisnis),
@@ -306,9 +309,10 @@ export default function SupplierFormModal({
             </button>
             <button
               onClick={handleSave}
-              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition"
+              disabled = {saving}
+              className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isEdit ? "Update Supplier" : "Simpan Supplier"}
+               {saving ? "Menyimpan..." : isEdit ? "Update Supplier" : "Simpan Supplier"}
             </button>
           </div>
 

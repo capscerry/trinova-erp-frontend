@@ -49,7 +49,7 @@ export const deletePurchaseDownPayment =
 export const getDownPaymentsByPurchaseOrder =
   async (purchaseOrderId: number) => {
     const res = await api.get(
-      `/api/purchase-down-payment?purchase_order_id=${purchaseOrderId}`
+      `/purchase-down-payment?purchase_order_id=${purchaseOrderId}`
     );
 
     return res.data;
