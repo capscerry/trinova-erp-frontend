@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { getPurchaseReturnById } from "@/lib/services/purchase-return.service";
 import { PURCHASE_PRINT_CSS } from "@/lib/print/purchasePrintStyles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,8 +120,12 @@ export default function PurchaseReturnPrintPage() {
     const load = async () => {
       try {
         // Fetch main return record
-        const res = await api.get(`/purchase-return/${id}`);
-        const raw: ReturnData = res.data?.data ?? res.data;
+        const raw = await getPurchaseReturnById(Number(id));
+
+        if (!raw) {
+          throw new Error("Purchase Return tidak ditemukan.");
+        }
+
         setData(raw);
 
         // Parse line items from transaction_detail (serialised JSON array)
