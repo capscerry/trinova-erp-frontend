@@ -46,18 +46,27 @@ function FormField({
   label,
   required,
   error,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
   error?: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-        {label}
-        {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
+      <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wide">
+        <span>
+          {label}
+          {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
+        </span>
+        {hint && (
+          <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-slate-400">
+            {hint}
+          </span>
+        )}
       </label>
       {children}
       {error && <p className="text-xs font-medium text-red-500">{error}</p>}
@@ -179,7 +188,7 @@ export default function SupplierFormModal({
                 </select>
               </FormField>
 
-              <FormField label="Telepon" error={errors.no_telp_bisnis}>
+              <FormField label="Telepon" error={errors.no_telp_bisnis} hint="Hanya angka">
                 <input
                   type="text"
                   placeholder="08123456789"

@@ -35,7 +35,6 @@ export interface PengirimanModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PengirimanFormData) => void;
-  onProses?: (data: PengirimanFormData) => void;
   initialData?: Partial<PengirimanFormData>;
 }
 
@@ -44,7 +43,6 @@ export function PengirimanModal({
   open,
   onClose,
   onSubmit,
-  onProses,
   initialData,
 }: PengirimanModalProps) {
   const isEdit = !!initialData?.id;
@@ -206,7 +204,7 @@ export function PengirimanModal({
 
   // ── SO Picker confirm ─────────────────────────────────
   const handleSoConfirm = (
-    so: { id: number; nomor: string; poNumber: string; alamat: string; tanggalKirim?: string },
+    so: { id: number; nomor: string; poNumber: string; alamat: string },
     items: PengirimanSOPickerResultItem[]
   ) => {
     console.log("🔍 [PengirimanModal] Items diterima dari SO Picker (handleSoConfirm):", items);
@@ -216,10 +214,9 @@ export function PengirimanModal({
       salesOrderId: so.id,
       noSo: so.nomor,
       noPO: so.poNumber || prev.noPO,
-      // Backend mengirim ISO datetime penuh (mis. "2026-07-15T00:00:00"),
-      // sedangkan <input type="date"> hanya menerima persis "YYYY-MM-DD" —
-      // kalau tidak dipotong, browser diam-diam menolak nilainya (tampil kosong).
-      tanggalKirim: so.tanggalKirim ? so.tanggalKirim.split("T")[0] : prev.tanggalKirim,
+      // Tanggal Kirim TIDAK lagi diambil dari SO -- SO tidak punya field ini
+      // lagi, tanggal kirim murni milik DO (prev.tanggalKirim, default hari
+      // ini, tetap dipertahankan / bisa diedit manual oleh user).
       alamatPengiriman: so.alamat || prev.alamatPengiriman,
       items: items.map((it) => ({
         id: crypto.randomUUID(),
@@ -471,7 +468,10 @@ export function PengirimanModal({
               </FormField>
             </div>
 
-            {/* Tanggal Kirim — di bawah Pelanggan; auto-terisi dari SO saat "Ambil dari Pesanan Penjualan" */}
+            {/* Tanggal Kirim — milik DO sendiri, default hari ini. Sengaja TIDAK
+                ikut ter-isi dari SO saat "Ambil dari Pesanan Penjualan" -- SO
+                tidak lagi punya field ini, tanggal aktual pengiriman baru
+                ditentukan di sini. */}
             <FormField label="Tanggal Kirim" icon={<Calendar size={14} />} required>
               <input
                 type="date"
@@ -756,13 +756,6 @@ export function PengirimanModal({
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
             >
               Batal
-            </button>
-            <button
-              onClick={() => onProses?.(form)}
-              disabled={!onProses || !form.id}
-              className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Process to Sales Invoice
             </button>
             <button
               onClick={handleSubmit}

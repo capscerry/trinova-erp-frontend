@@ -1,4 +1,4 @@
-import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
+import { CreditCard, Receipt } from "lucide-react";
 
   // ─── Types ────────────────────────────────────────────────────────────────────
   export interface SalesOrderItem {
@@ -53,7 +53,6 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
     quotationNumber?: string;
 
     tanggal: string;
-    tanggalKirim: string;
 
     pelanggan: string;
     customerId?: number;
@@ -105,6 +104,14 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
   }
 
   // ─── Proses Links Config ──────────────────────────────────────────────────────
+  // Setelah SO disimpan, langkah lanjutan yang boleh diambil langsung dari SO
+  // HANYA Uang Muka & Faktur. "Pengiriman" sengaja tidak ada di sini -- DO
+  // baru boleh dibuat setelah seluruh faktur/proforma SO ini lunas 100%, dan
+  // jalur resminya adalah dari halaman Pengiriman sendiri ("+ Tambah" ->
+  // pilih SO yang sudah lunas), bukan dari modal SO. "Penerimaan" juga
+  // sengaja tidak ada -- pembayaran harus selalu tercatat terhadap Uang Muka
+  // atau Faktur spesifik (bukan langsung ke SO), supaya jelas dokumen mana
+  // yang dilunasi dan status yang di-update konsisten.
   export const PROSES_LINKS = [
     {
       key: "uang-muka" as const,
@@ -115,28 +122,12 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
       bg: "bg-violet-50 hover:bg-violet-100 border-violet-200",
     },
     {
-      key: "pengiriman" as const,
-      label: "Pengiriman",
-      desc: "Buat dokumen pengiriman dari SO ini",
-      icon: Truck,
-      color: "text-sky-600",
-      bg: "bg-sky-50 hover:bg-sky-100 border-sky-200",
-    },
-    {
       key: "faktur" as const,
       label: "Faktur",
       desc: "Buat faktur penjualan dari SO ini",
       icon: Receipt,
       color: "text-emerald-600",
       bg: "bg-emerald-50 hover:bg-emerald-100 border-emerald-200",
-    },
-    {
-      key: "penerimaan" as const,
-      label: "Penerimaan",
-      desc: "Catat pembayaran langsung dari SO ini",
-      icon: WalletCards,
-      color: "text-amber-600",
-      bg: "bg-amber-50 hover:bg-amber-100 border-amber-200",
     },
   ];
 
@@ -191,7 +182,6 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
     quotationNumber: undefined,
 
     tanggal: todayStr(),
-    tanggalKirim: "",
 
     pelanggan: "",
     customerId: undefined,
@@ -244,10 +234,6 @@ import { CreditCard, Truck, Receipt, WalletCards } from "lucide-react";
         quotationId: form.quotationId ?? null,
 
         soDate: new Date(form.tanggal).toISOString(),
-
-        tanggalKirim: form.tanggalKirim
-          ? new Date(form.tanggalKirim).toISOString()
-          : null,
 
         customerId: form.customerId ?? 0,
 

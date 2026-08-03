@@ -110,11 +110,6 @@ export function TransactionOrchestrator() {
     setDraftPart("pengiriman", data);
   };
 
-  const handlePengirimanProses = (data: PengirimanFormData) => {
-    setDraftPart("pengiriman", data);
-    openModal("faktur");
-  };
-
   const handleFakturSubmit = (data: FakturPenjualanFormData) => {
     setDraftPart("faktur", data);
   };
@@ -234,6 +229,7 @@ export function TransactionOrchestrator() {
           alamat: getString(so, ["alamatPengiriman", "address"]),
           keterangan: getString(so, ["keterangan", "notes"]),
           kenaPajak: getBool(so, ["kenaPajak", "isTaxAble"]),
+          isIndent: getBool(so, ["isIndent"]),
           items: getItems(so).map((item) => ({
             id: crypto.randomUUID(),
             productId: getNumber(item, ["productId"]) || undefined,
@@ -313,7 +309,6 @@ export function TransactionOrchestrator() {
         open={activeModal === "pengiriman"}
         onClose={closeModal}
         onSubmit={handlePengirimanSubmit}
-        onProses={handlePengirimanProses}
         initialData={pengirimanInitialData}
       />
 

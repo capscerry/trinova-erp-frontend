@@ -14,7 +14,6 @@ import {
   newItem,
 } from "./sales_order/SalesOrderType";
 import { salesOrderService } from "@/lib/services/penjualan.service";
-import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
 import { SalesOrderHeaderForm } from "./sales_order/SalesOrderHeader";
 import { SalesOrderDetailForm } from "./sales_order/SalesOrderDetail";
 import { QuotationPickerModal } from "./QuotationPickerModal";
@@ -64,7 +63,6 @@ export function SalesOrderModal({
   const [savedSo, setSavedSo] = useState<SavedSalesOrderResponse | null>(null);
   const [quotationPickerOpen, setQuotationPickerOpen] = useState(false);
   const [editSaved, setEditSaved] = useState(false);
-  const [pengirimanReady, setPengirimanReady] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -80,42 +78,8 @@ export function SalesOrderModal({
       setSuccessMessage("");
       setSavedSo(null);
       setEditSaved(false);
-      setPengirimanReady(false);
     }
   }, [open, initialData]);
-
-  // Cek ringan (UX saja, backend tetap penjaga utama): tombol "Pengiriman"
-  // baru aktif kalau seluruh invoice/proforma milik SO yang baru disimpan
-  // ini sudah lunas 100%. Baru selesai disimpan biasanya belum ada invoice
-  // sama sekali, jadi secara alami tombol ini tetap nonaktif sampai user
-  // membuat & melunasi faktur dulu.
-  useEffect(() => {
-    const orderId = savedSo?.id ?? savedSo?.header?.orderId ?? savedSo?.orderId;
-    if (!isSubmitted || !orderId) {
-      setPengirimanReady(false);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const invoices = await salesInvoiceService.getAll();
-        const related = invoices.filter((inv) => inv.salesOrderId === orderId);
-        const ready =
-          related.length > 0 &&
-          related.some((inv) => inv.status !== "Cancelled") &&
-          related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
-        if (!cancelled) setPengirimanReady(ready);
-      } catch (error) {
-        console.error("Gagal cek status pelunasan invoice SO:", error);
-        if (!cancelled) setPengirimanReady(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isSubmitted, savedSo]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -333,15 +297,11 @@ export function SalesOrderModal({
                   : "Simpan Sales Order terlebih dahulu untuk mengaktifkan proses lanjutan."}
               </p>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {PROSES_LINKS.map(
                   ({ key, label, desc, icon: Icon, color, bg }) => {
-                    const isActive =
-                      isSubmitted && !!savedSo && (key !== "pengiriman" || pengirimanReady);
-                    const effectiveDesc =
-                      key === "pengiriman" && isSubmitted && !!savedSo && !pengirimanReady
-                        ? "Aktif setelah seluruh faktur SO ini lunas 100%"
-                        : desc;
+                    const isActive = isSubmitted && !!savedSo;
+                    const effectiveDesc = desc;
 
                     return (
                       <button

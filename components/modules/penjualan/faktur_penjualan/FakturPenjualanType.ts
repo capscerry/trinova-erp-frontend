@@ -36,6 +36,11 @@ export interface FakturPenjualanFormData {
   /** Label tahap proforma untuk SO barang indent: "DP" (30%), "Final" (70%),
    * atau null untuk invoice reguler non-indent. */
   proformaStage?: "DP" | "Final" | null;
+  /** Hint UI saja (SO ini barang indent atau tidak) -- dipakai untuk
+   * menampilkan pilihan "Jenis Invoice" saat modal dibuka lewat "Proses ke
+   * Faktur" dari SO (initialData sudah berisi salesOrderId, bukan lewat
+   * picker "Ganti" di dalam modal ini). TIDAK dikirim ke backend. */
+  isIndent?: boolean;
   items: FakturPenjualanItem[];
 }
 

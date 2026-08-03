@@ -200,7 +200,7 @@ export function CustomerModal({ open, onClose, onSubmit, initialData }: Customer
                 />
               </FormField>
 
-              <FormField label="No. Telepon" icon={<Phone size={16} />} required error={errors.telepon}>
+              <FormField label="No. Telepon" icon={<Phone size={16} />} required error={errors.telepon} hint="Hanya angka">
                 <input
                   type="text"
                   value={form.telepon}

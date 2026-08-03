@@ -12,7 +12,6 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Truck,
   User,
   X,
 } from "lucide-react";
@@ -27,11 +26,6 @@ import {
   uangMukaService,
 } from "@/lib/services/penjualan.service";
 import { salesInvoiceService } from "@/lib/services/sales-invoice.service";
-import {
-  pengirimanPenjualanService,
-  type PengirimanPenjualan,
-  type PengirimanDetailItem,
-} from "@/lib/services/pengiriman-penjualan.service";
 import { getWarehouses, type Warehouse } from "@/lib/services/warehouse.service";
 import { CurrencyInput } from "../CurrencyInput";
 import {
@@ -78,9 +72,6 @@ export function FakturPenjualanModal({
   const [soList, setSoList] = useState<SalesOrder[]>([]);
   const [showSoPicker, setShowSoPicker] = useState(false);
   const [loadingSo, setLoadingSo] = useState(false);
-  const [deliveryList, setDeliveryList] = useState<PengirimanPenjualan[]>([]);
-  const [showDeliveryPicker, setShowDeliveryPicker] = useState(false);
-  const [loadingDelivery, setLoadingDelivery] = useState(false);
   const [uangMukaNote, setUangMukaNote] = useState("Belum ada SO yang dipilih");
   const [warehouseOptions, setWarehouseOptions] = useState<Warehouse[]>([]);
   const [loadingWarehouses, setLoadingWarehouses] = useState(false);
@@ -88,6 +79,10 @@ export function FakturPenjualanModal({
   const [soBaseItems, setSoBaseItems] = useState<FakturPenjualanItem[]>([]);
   const [proformaNote, setProformaNote] = useState("");
   const [resolvingProformaStage, setResolvingProformaStage] = useState(false);
+  // true kalau SO ini sudah punya invoice Proforma DP 30% (belum Cancelled)
+  // sebelumnya -- dipakai untuk mengunci opsi "Proforma DP 30%" supaya tidak
+  // bisa ditagihkan dua kali untuk SO indent yang sama.
+  const [dpAlreadyBilled, setDpAlreadyBilled] = useState(false);
 
   // Baris cash sale (tanpa SO/DO) butuh gudang per baris supaya stoknya bisa
   // dipotong — item yang berasal dari SO/DO sudah ditangani di sana.
@@ -104,9 +99,28 @@ export function FakturPenjualanModal({
       jatuhTempo: initialData?.jatuhTempo || addDays(initialData?.tanggal || EMPTY_FORM.tanggal, 30),
       items: initialData?.items?.length ? initialData.items : [],
     });
-    setSelectedSoIsIndent(false);
-    setSoBaseItems([]);
+
+    // initialData bisa datang dari "Proses ke Faktur" langsung di SO (bukan
+    // lewat picker "Ganti" di dalam modal ini / handleSelectSo), jadi status
+    // indent-nya perlu di-seed dari sini juga -- kalau tidak, dropdown
+    // "Jenis Invoice" (Proforma DP/Pelunasan) tidak pernah muncul walau SO-nya
+    // memang barang indent.
+    const seedIsIndent = Boolean(initialData?.isIndent);
+    setSelectedSoIsIndent(seedIsIndent);
+    setSoBaseItems(seedIsIndent && initialData?.items?.length ? initialData.items : []);
     setProformaNote("");
+    setDpAlreadyBilled(false);
+
+    if (seedIsIndent && initialData?.noSo && initialData?.customerId) {
+      getUangMukaBySalesOrder(initialData.noSo, initialData.customerId).then((uangMuka) => {
+        setUangMukaNote(
+          uangMuka.count > 0
+            ? `${uangMuka.count} uang muka terpakai dari SO ini`
+            : "Tidak ada uang muka untuk SO ini"
+        );
+      });
+      checkDpAlreadyBilled(initialData.salesOrderId).then(setDpAlreadyBilled);
+    }
   }, [open, initialData]);
 
   useEffect(() => {
@@ -215,6 +229,25 @@ export function FakturPenjualanModal({
     }
   };
 
+  // SO indent cuma boleh punya 1 invoice Proforma DP 30% -- kalau sudah ada
+  // (dan belum Cancelled), opsi "Proforma DP 30%" dikunci di dropdown supaya
+  // DP tidak ketagih dua kali.
+  const checkDpAlreadyBilled = async (salesOrderId?: number): Promise<boolean> => {
+    if (!salesOrderId) return false;
+    try {
+      const invoices = await salesInvoiceService.getAll();
+      return invoices.some(
+        (inv) =>
+          inv.salesOrderId === salesOrderId &&
+          inv.proformaStage === "DP" &&
+          inv.status !== "Cancelled"
+      );
+    } catch (err) {
+      console.error("Gagal memeriksa invoice DP sebelumnya:", err);
+      return false;
+    }
+  };
+
   const handleSelectSo = async (so: SalesOrder) => {
     try {
       setLoadingSo(true);
@@ -236,6 +269,7 @@ export function FakturPenjualanModal({
       setSelectedSoIsIndent(isIndent);
       setSoBaseItems(items);
       setProformaNote("");
+      setDpAlreadyBilled(isIndent ? await checkDpAlreadyBilled(Number(so.id)) : false);
       patchForm({
         salesOrderId: Number(so.id),
         noSo: so.nomor,
@@ -265,6 +299,14 @@ export function FakturPenjualanModal({
   const handleProformaStageChange = async (stage: "" | "DP" | "Final") => {
     const baseSubtotal = soBaseItems.reduce((s, it) => s + it.harga * it.qty, 0);
     if (baseSubtotal <= 0) return;
+
+    if (stage === "DP" && dpAlreadyBilled) {
+      notify.warning(
+        "Invoice DP sudah pernah dibuat",
+        "SO ini sudah punya invoice Proforma DP 30% -- pilih Pelunasan 70% untuk sisa tagihan."
+      );
+      return;
+    }
 
     setResolvingProformaStage(true);
     try {
@@ -347,125 +389,6 @@ export function FakturPenjualanModal({
       setResolvingProformaStage(false);
     }
   };
-
-  const openDeliveryPicker = async () => {
-    if (!form.customerId) return;
-    setShowDeliveryPicker(true);
-    setLoadingDelivery(true);
-    try {
-      const result = await pengirimanPenjualanService.getAll();
-      setDeliveryList(
-        result.filter(
-          (item) =>
-            item.customerId === form.customerId &&
-            isApprovedForPicker("delivery-order", item.status)
-        )
-      );
-    } catch (err) {
-      console.error("Gagal memuat pengiriman:", err);
-      setDeliveryList([]);
-    } finally {
-      setLoadingDelivery(false);
-    }
-  };
-
-  const getSalesOrderPriceMap = async (salesOrderId?: number) => {
-    const priceMap = new Map<number, { harga: number; diskon: number }>();
-    if (!salesOrderId) return priceMap;
-
-    try {
-      const soItems = await salesOrderService.getDetailItems(salesOrderId);
-      soItems.forEach((item) => {
-        if (!item.productId) return;
-        priceMap.set(item.productId, {
-          harga: Number(item.productPrice || 0),
-          diskon: Number(item.productDiscount || 0),
-        });
-      });
-    } catch (err) {
-      console.error("Gagal memuat harga dari SO terkait pengiriman:", err);
-    }
-
-    return priceMap;
-  };
-
-  const loadFromDelivery = async (delivery: PengirimanPenjualan) => {
-    const [detail, priceMap] = await Promise.all([
-      pengirimanPenjualanService.getDetailItems(delivery.id),
-      getSalesOrderPriceMap(delivery.soId),
-    ]);
-    const uangMuka = await getUangMukaBySalesOrder(delivery.noSo, delivery.customerId);
-
-    const items: FakturPenjualanItem[] = detail.map((item: PengirimanDetailItem) => {
-      const price = item.productId ? priceMap.get(item.productId) : undefined;
-      return {
-        id: crypto.randomUUID(),
-        productId: item.productId,
-        productCode: item.productCode ?? "",
-        productName: item.productName,
-        uomId: item.uomId,
-        satuan: item.satuan ?? "",
-        qty: Number(item.qtyDikirim || 0),
-        harga: price?.harga ?? 0,
-        diskon: price?.diskon ?? 0,
-      };
-    });
-
-    setSelectedSoIsIndent(false);
-    setSoBaseItems([]);
-    setProformaNote("");
-    patchForm({
-      deliveryOrderId: delivery.id,
-      noPengiriman: delivery.noSuratJalan,
-      salesOrderId: delivery.soId,
-      noSo: delivery.noSo ?? "",
-      noPO: delivery.noPO ?? "",
-      alamat: delivery.alamatPengiriman || form.alamat,
-      keterangan: delivery.keterangan || form.keterangan,
-      uangMuka: uangMuka.amount,
-      proformaStage: null,
-      items,
-    });
-    setUangMukaNote(
-      uangMuka.count > 0
-        ? `${uangMuka.count} uang muka terpakai dari SO pengiriman ini`
-        : "Tidak ada uang muka untuk SO pengiriman ini"
-    );
-  };
-
-  const handleSelectDelivery = async (delivery: PengirimanPenjualan) => {
-    try {
-      setLoadingDelivery(true);
-      await loadFromDelivery(delivery);
-      setShowDeliveryPicker(false);
-    } catch (err) {
-      console.error("Gagal memuat detail pengiriman:", err);
-      notify.error("Gagal memuat detail Pengiriman Penjualan");
-    } finally {
-      setLoadingDelivery(false);
-    }
-  };
-
-  // Auto-load saat modal dibuka dari tombol "Process to Sales Invoice" di
-  // Delivery Order — initialData.deliveryOrderId sudah ada tapi items masih
-  // kosong (cuma customerId/pelanggan yang dioper lewat query param).
-  useEffect(() => {
-    if (!open || !initialData?.deliveryOrderId || form.items.length > 0) return;
-
-    const load = async () => {
-      try {
-        setLoadingDelivery(true);
-        const delivery = await pengirimanPenjualanService.getById(initialData.deliveryOrderId!);
-        await loadFromDelivery(delivery);
-      } catch (err) {
-        console.error("Gagal memuat pengiriman otomatis:", err);
-      } finally {
-        setLoadingDelivery(false);
-      }
-    };
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialData?.deliveryOrderId]);
 
   const addItem = () => patchForm({ items: [...form.items, newFakturItem()] });
   const updateItem = (id: string, patch: Partial<FakturPenjualanItem>) =>
@@ -584,7 +507,7 @@ export function FakturPenjualanModal({
               </FormField>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3">
               <div className={cn("rounded-xl border px-4 py-3", form.customerId ? "border-sky-200 bg-sky-50/50" : "border-slate-200 bg-slate-50/50 opacity-60")}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
@@ -596,21 +519,6 @@ export function FakturPenjualanModal({
                   </div>
                   <button type="button" disabled={!form.customerId} onClick={openSoPicker} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold", form.customerId ? "bg-sky-600 text-white hover:bg-sky-700" : "cursor-not-allowed bg-slate-200 text-slate-400")}>
                     <FileDown size={11} /> {form.noSo ? "Ganti" : "Pilih"}
-                  </button>
-                </div>
-              </div>
-
-              <div className={cn("rounded-xl border px-4 py-3", form.customerId ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50/50 opacity-60")}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Truck size={14} className={form.customerId ? "text-emerald-600" : "text-slate-400"} />
-                    <div>
-                      <p className="text-xs font-bold text-slate-600">Ambil dari Pengiriman</p>
-                      <p className="mt-0.5 text-[10px] text-slate-400">{form.noPengiriman || (form.customerId ? "Pilih surat jalan yang sudah dikirim" : "Pilih pelanggan terlebih dahulu")}</p>
-                    </div>
-                  </div>
-                  <button type="button" disabled={!form.customerId} onClick={openDeliveryPicker} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold", form.customerId ? "bg-emerald-600 text-white hover:bg-emerald-700" : "cursor-not-allowed bg-slate-200 text-slate-400")}>
-                    <Truck size={11} /> {form.noPengiriman ? "Ganti" : "Pilih"}
                   </button>
                 </div>
               </div>
@@ -630,7 +538,9 @@ export function FakturPenjualanModal({
                     className={inputClass}
                   >
                     <option value="">Reguler (100%)</option>
-                    <option value="DP">Proforma DP 30%</option>
+                    <option value="DP" disabled={dpAlreadyBilled}>
+                      Proforma DP 30%{dpAlreadyBilled ? " — sudah ditagihkan" : ""}
+                    </option>
                     <option value="Final">Proforma Pelunasan 70%</option>
                   </select>
                 </FormField>
@@ -639,6 +549,12 @@ export function FakturPenjualanModal({
                   (idealnya diambil dari record Uang Muka SO ini) lalu Pelunasan 70% — sebelum
                   Delivery Order bisa dibuat.
                 </p>
+                {dpAlreadyBilled && (
+                  <p className="mt-1.5 text-[11px] leading-snug font-medium text-amber-800">
+                    Invoice Proforma DP 30% untuk SO ini sudah pernah dibuat — pilih Pelunasan 70%
+                    untuk sisa tagihan.
+                  </p>
+                )}
                 {proformaNote && (
                   <p className="mt-1.5 text-[11px] leading-snug font-medium text-amber-800">
                     {proformaNote}
@@ -647,12 +563,9 @@ export function FakturPenjualanModal({
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               <FormField label="No PO" icon={<Hash size={14} />}>
                 <input value={form.noPO ?? ""} onChange={(e) => patchForm({ noPO: e.target.value })} placeholder="Nomor PO..." className={inputClass} />
-              </FormField>
-              <FormField label="No Pengiriman" icon={<Truck size={14} />}>
-                <input value={form.noPengiriman ?? ""} onChange={(e) => patchForm({ noPengiriman: e.target.value })} placeholder="Nomor surat jalan..." className={inputClass} />
               </FormField>
             </div>
 
@@ -823,29 +736,6 @@ export function FakturPenjualanModal({
         </>
       )}
 
-      {showDeliveryPicker && (
-        <>
-          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setShowDeliveryPicker(false)} />
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-              <div className="flex items-center justify-between bg-emerald-600 px-5 py-3.5">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">Pilih Pengiriman Penjualan</h3>
-                  <p className="text-xs text-emerald-100">{form.pelanggan}</p>
-                </div>
-                <button onClick={() => setShowDeliveryPicker(false)} className="text-emerald-100 hover:text-white"><X size={16} /></button>
-              </div>
-              <div className="max-h-96 overflow-y-auto p-4">
-                {loadingDelivery ? <div className="py-8 text-center text-xs text-slate-400">Memuat pengiriman...</div> : deliveryList.length === 0 ? <div className="py-8 text-center text-xs text-slate-400">Belum ada pengiriman untuk pelanggan ini</div> : (
-                  <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-                    {deliveryList.map((delivery) => <button key={delivery.id} type="button" onClick={() => handleSelectDelivery(delivery)} className="flex w-full items-center justify-between px-4 py-3 text-left text-sm transition-colors hover:bg-slate-50"><span className="font-mono font-semibold text-slate-700">{delivery.noSuratJalan}</span><span className="text-xs text-slate-400">{delivery.noSo || "Tanpa SO"}</span></button>)}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </>
   );
 }

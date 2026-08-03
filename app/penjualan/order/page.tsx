@@ -45,13 +45,7 @@ const COLUMNS: Column<SalesOrder>[] = [
     width: "14%",
     render: (_value, row) => formatDate(row.tanggal),
   },
-  { key: "pelanggan", label: "Customer", width: "24%" },
-  {
-    key: "tanggalKirim",
-    label: "Delivery Date",
-    width: "14%",
-    render: (_value, row) => formatDate(row.tanggalKirim),
-  },
+  { key: "pelanggan", label: "Customer", width: "28%" },
   {
     key: "total",
     label: "Total",

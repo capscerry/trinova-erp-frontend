@@ -217,7 +217,6 @@ export interface SalesOrderPayload {
   header: {
     orderId?: number;
     soNumber: string;
-    tanggalKirim: string | null;
     poNumber: string;
     soDate: string;
     customerId: number;

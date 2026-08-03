@@ -137,8 +137,8 @@ export function SalesOrderHeaderForm({
         </FormField>
       </div>
 
-      {/* Customer + Tanggal Kirim */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Customer */}
+      <div className="grid grid-cols-1 gap-4">
         <FormField label="Customer" icon={<Users size={13} />} required
           hint={isEdit ? (
             <span className="text-[10px] text-slate-400">Tidak dapat diubah</span>
@@ -163,11 +163,6 @@ export function SalesOrderHeaderForm({
             });
             }}
           />
-        </FormField>
-        <FormField label="Tanggal Kirim" icon={<Calendar size={13} />}>
-          <input type="date" value={form.tanggalKirim}
-            onChange={(e) => setField("tanggalKirim", e.target.value)}
-            className={inputBase} />
         </FormField>
       </div>
 

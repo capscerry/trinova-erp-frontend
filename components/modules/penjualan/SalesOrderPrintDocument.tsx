@@ -132,7 +132,6 @@ export function SalesOrderPrintDocument({ data }: Props) {
             <div className="sop-panel-title">Informasi Dokumen</div>
             <div className="sop-panel-body">
               <SopMeta label="Tanggal" value={formatDate(data.tanggal)} />
-              <SopMeta label="Tgl. Kirim" value={formatDate(data.tanggalKirim)} />
               <SopMeta label="No PO" value={data.poNumber || "-"} />
               <SopMeta label="No Quotation" value={data.quotationNumber || "-"} />
               <SopMeta label="Status" value={String(data.status || "-")} />

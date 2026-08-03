@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Printer,
   Edit,
-  Truck,
   CreditCard,
   ReceiptText,
   Package,
@@ -161,7 +160,6 @@ export default function SalesOrderDetailPage() {
     nomor: detail.nomor,
     noPO: detail.poNumber ?? "",
     tanggal: detail.tanggal?.split("T")[0] ?? detail.tanggal,
-    tanggalKirim: detail.tanggalKirim?.split("T")[0] ?? detail.tanggalKirim ?? "",
     pelanggan: detail.pelanggan,
     customerId: detail.customerId,
     dipesanOleh: detail.pelanggan,
@@ -324,7 +322,7 @@ export default function SalesOrderDetailPage() {
           </div>
 
           {/* ── Stats Row ────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
               {
                 label: "Total Pesanan",
@@ -332,12 +330,6 @@ export default function SalesOrderDetailPage() {
                 sub: `${data.items?.length ?? 0} item produk`,
                 icon: TrendingUp,
                 highlight: true,
-              },
-              {
-                label: "Tanggal Kirim",
-                value: formatDate(data.tanggalKirim),
-                sub: "Estimasi pengiriman",
-                icon: Truck,
               },
               {
                 label: "Jumlah Item",
@@ -401,7 +393,6 @@ export default function SalesOrderDetailPage() {
               </h3>
               <InfoRow label="Nomor SO"      value={data.nomor}                    icon={Hash} />
               <InfoRow label="Tanggal Order" value={formatDate(data.tanggal)}      icon={Calendar} />
-              <InfoRow label="Tanggal Kirim" value={formatDate(data.tanggalKirim)} icon={Truck} />
               <InfoRow label="Nomor PO"      value={data.poNumber || "—"}          icon={FileText} />
               <InfoRow label="Pelanggan"     value={data.pelanggan}                icon={User} />
               <InfoRow label="Alamat"        value={data.alamat}                   icon={MapPin} />
