@@ -52,7 +52,7 @@ function InfoRow({
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
           {label}
         </p>
-        <p className="text-sm font-semibold text-slate-700 break-words">
+        <p className="text-sm font-semibold text-slate-700 wrap-break-word">
           {value || "—"}
         </p>
       </div>
@@ -175,7 +175,7 @@ export default function OrderFulfillmentDetailPage() {
               },
               {
                 label: "Gudang Sumber",
-                value: data.warehouse_name || "—",
+                value: data.source_warehouse_name || "—",
                 sub: "Source Warehouse",
                 icon: Warehouse,
               },
@@ -206,7 +206,7 @@ export default function OrderFulfillmentDetailPage() {
                   </p>
                   <p
                     className={cn(
-                      "text-base font-bold break-words",
+                      "text-base font-bold wrap-break-word",
                       highlight ? "text-gold-400" : "text-navy-900"
                     )}
                   >
@@ -238,7 +238,7 @@ export default function OrderFulfillmentDetailPage() {
                 <InfoRow label="Qty" value={String(data.quantity)} icon={Boxes} />
               </div>
               <div>
-                <InfoRow label="Gudang Sumber" value={data.warehouse_name} icon={Warehouse} />
+                <InfoRow label="Gudang Sumber" value={data.source_warehouse_name} icon={Warehouse} />
                 <InfoRow label="Diproses Pada" value={formatDate(data.processed_at)} icon={Calendar} />
                 <InfoRow label="Selesai Pada" value={formatDate(data.completed_at)} icon={Calendar} />
                 <InfoRow label="Dibatalkan Pada" value={formatDate(data.canceled_at)} icon={Calendar} />

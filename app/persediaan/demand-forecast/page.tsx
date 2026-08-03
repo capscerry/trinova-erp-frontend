@@ -37,6 +37,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+import ForecastTrendChart
+from "@/components/modules/persediaan/demand-forecast/ForecastTrendChart";
+
+import TopForecastProductsChart
+from "@/components/modules/persediaan/demand-forecast/TopForecastProductsChart";
+
 function formatDate(date: string) {
   if (!date) return "-";
 
@@ -162,10 +168,14 @@ export default function DemandForecastPage() {
       ? 0
       : totalForecast / totalProducts;
 
-    const forecastMonth =
-    data.length > 0
-      ? data[0].forecast_month
-      : "";
+    const forecastMonth = (() => {
+      const date = new Date();
+      date.setMonth(date.getMonth() + 1);
+
+      return `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+    })();
 
     const generatedAt =
     data.length > 0
@@ -212,7 +222,7 @@ export default function DemandForecastPage() {
   return (
     <AppShell
       title="AI Demand Forecast"
-      subtitle="Forecast permintaan produk bulan berikutnya"
+      subtitle="Predict next month's inventory demand using Linear Regression AI."
     >
       <div className="space-y-6">
 
@@ -356,6 +366,20 @@ export default function DemandForecastPage() {
           forecastMonth={forecastMonth}
         />
 
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+          <ForecastTrendChart
+            data={data}
+            generatedAt={formatDate(generatedAt)}
+          />
+
+          <TopForecastProductsChart
+            data={data}
+            generatedAt={formatDate(generatedAt)}
+          />
+
+        </div>
+        
         <DemandForecastTable
           data={data}
           loading={loading}

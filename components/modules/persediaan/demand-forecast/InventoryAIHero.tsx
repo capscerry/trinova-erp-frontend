@@ -9,6 +9,21 @@ interface InventoryAIHeroProps {
   aiSummary: InventoryAiSummary;
 }
 
+function getPredictionMonth(period: string) {
+  if (!period) return "-";
+
+  const [year, month] = period.split("-").map(Number);
+
+  const date = new Date(year, month - 1);
+
+  // sementara backend belum mengembalikan prediction month
+  date.setMonth(date.getMonth() + 1);
+
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}`;
+}
+
 export function InventoryAIHero({
   aiSummary,
 }: InventoryAIHeroProps) {
@@ -61,7 +76,7 @@ export function InventoryAIHero({
             <InsightItem
                 icon={<Calendar size={13} className="text-blue-300" />}
                 label="Forecast Month"
-                value={aiSummary.forecastMonth}
+                value={getPredictionMonth(aiSummary.forecastMonth)}
             />
 
             <InsightItem

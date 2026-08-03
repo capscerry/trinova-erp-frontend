@@ -104,14 +104,14 @@ export default function MasterProductPage() {
 
       fetchProducts();
 
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+    console.error(error);
 
-      toast.error(
-        "Gagal menambahkan produk"
-      );
-
-    } finally {
+    toast.error(
+      error?.message ??
+      "Gagal menambahkan produk"
+    );
+  } finally {
       setSaving(false);
     }
   }
@@ -141,13 +141,13 @@ export default function MasterProductPage() {
 
       fetchProducts();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
 
       toast.error(
+        error?.message ??
         "Gagal memperbarui produk"
       );
-
     } finally {
       setSaving(false);
     }

@@ -591,7 +591,7 @@ function PurchasingStaffDashboard() {
     >
       <KpiDashboard isProcurementManager={false} />
       {/* Full-width enterprise activity timeline — newest 20 transactions */}
-      <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
+      <ActivityTimeline maxHeight={480} limit={20} module="purchasing" className="mt-4" />
     </AppShell>
   );
 }
@@ -604,7 +604,7 @@ function ProcurementManagerDashboard() {
     >
       <KpiDashboard isProcurementManager={true} />
       {/* Full-width enterprise activity timeline — newest 20 transactions */}
-      <ActivityTimeline maxHeight={480} limit={20} className="mt-4" />
+      <ActivityTimeline maxHeight={480} limit={20} module="purchasing" className="mt-4" />
     </AppShell>
   );
 }
