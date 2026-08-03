@@ -321,18 +321,24 @@ export default function SupplierPage() {
             }
           );
 
-          // Bug: sebelumnya file katalog yang dipilih saat Edit tidak pernah
-          // benar-benar di-upload -- input-nya juga sempat disembunyikan saat
-          // isEdit=true. Backend sudah mendukung re-upload sebagai upsert
-          // (MERGE per supplier_id+product_id, tidak dibatasi kategori), jadi
-          // di sisi sini tinggal benar-benar memanggilnya.
+          // If a catalog file was attached during edit, re-import it.
+          // The backend endpoint uses INSERT ... ON CONFLICT (supplier_id, product_id)
+          // DO UPDATE so every row is an upsert — existing rows are overwritten,
+          // new rows are inserted. Stock is REPLACED, not incremented.
           if (catalogFile) {
-            await importSupplierCatalog(Number(selectedId), catalogFile);
+
+            await importSupplierCatalog(
+              Number(selectedId),
+              catalogFile
+            );
           }
 
           notify.success("Supplier berhasil diupdate");
-      }else{
-        const response = await createSupplier({
+
+        } else {
+
+          const response =
+            await createSupplier({
               supplier_code:
                 formData.supplier_code,
 

@@ -31,6 +31,8 @@ import {
   getUoms,
 } from "@/lib/services";
 
+import { buildReservationMap } from "@/lib/services/supplier-product.service";
+
 import { getNextPONumber } from "@/lib/services/po.service";
 import {
   createPurchaseDownPayment,
@@ -110,7 +112,14 @@ interface Product {
 
   supplier_price?: number;
 
+  /** Raw available_stock from the API (post-approval deductions already applied by backend = Available To Order). */
   available_stock?: number;
+
+  /** Reconstructed original catalog stock = available_stock + reserved_quantity. */
+  catalog_stock?: number;
+
+  /** Outstanding PO quantity for Approved/Partially-processed POs. */
+  reserved_quantity?: number;
 
   lead_time_days?: number;
 }
@@ -420,23 +429,65 @@ export default function PurchaseOrderPage() {
   // FETCH PRODUCT
   // ---------------------------------------------------------
 
+  /**
+   * Load supplier-product rows and enrich each with:
+   *   - catalog_stock     = available_stock + reserved_quantity
+   *   - reserved_quantity = SUM of outstanding PO quantities (Approved/Partially-processed)
+   *   - available_stock   = as returned by the API (= Available To Order, post-deduction)
+   *
+   * We pull the latest PO list + details here so the reservation figures are
+   * always fresh even when called in isolation (e.g. after PO approval).
+   */
   const fetchProducts = async () => {
     try {
       console.log("[PO Page] Loading Supplier Products...");
-      const res = await getSupplierProducts();
-      const productList: any[] = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+
+      // Fetch products and PO data in parallel for efficiency
+      const [productRes, poRes, poDetailRes] = await Promise.all([
+        getSupplierProducts(),
+        getPurchaseOrders(),
+        getPurchaseOrderDetails(),
+      ]);
+
+      const productList: any[] = Array.isArray(productRes)
+        ? productRes
+        : (Array.isArray(productRes?.data) ? productRes.data : []);
+
+      const poList: any[] = Array.isArray(poRes)
+        ? poRes
+        : (Array.isArray(poRes?.data) ? poRes.data : []);
+
+      const poDetailList: any[] = Array.isArray(poDetailRes)
+        ? poDetailRes
+        : (Array.isArray(poDetailRes?.data) ? poDetailRes.data : []);
+
+      // Build reservation map: product_id → outstanding reserved quantity
+      const reservationMap = buildReservationMap(poList, poDetailList);
+
       const mappedData = productList
         .filter((item: any) => item?.product_id != null)
-        .map((item: any) => ({
-          id: String(item.product_id),
-          nama: item.product_name ?? "-",
-          uom_id: item.uom_id ?? 0,
-          supplier_id: item.supplier_id ?? null,
-          supplier_price: item.supplier_price ?? 0,
-          available_stock: item.available_stock ?? undefined,
-          lead_time_days: item.lead_time_days ?? undefined,
-        }));
-      console.log(`[PO Page] Loaded ${mappedData.length} product(s)`);
+        .map((item: any) => {
+          const availableStock = item.available_stock ?? undefined;
+          const reservedQty = reservationMap[String(item.product_id)] ?? 0;
+          const catalogStock =
+            availableStock !== undefined
+              ? availableStock + reservedQty
+              : undefined;
+
+          return {
+            id: String(item.product_id),
+            nama: item.product_name ?? "-",
+            uom_id: item.uom_id ?? 0,
+            supplier_id: item.supplier_id ?? null,
+            supplier_price: item.supplier_price ?? 0,
+            available_stock: availableStock,
+            catalog_stock: catalogStock,
+            reserved_quantity: reservedQty,
+            lead_time_days: item.lead_time_days ?? undefined,
+          };
+        });
+
+      console.log(`[PO Page] Loaded ${mappedData.length} product(s) with reservation data`);
       setProducts(mappedData);
       setFilteredProducts(mappedData);
     } catch (err: any) {
@@ -1032,7 +1083,123 @@ export default function PurchaseOrderPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => router.push(`/pembelian/po/${row.id}`)}
+              onClick={async () => {
+                const poId = Number(row.id);
+
+                let detailItems: any[] = [];
+                try {
+                  detailItems = await getPurchaseOrderDetailsByPO(poId);
+                } catch (err) {
+                  console.error("Failed to fetch PO details for detail view:", err);
+                  detailItems = purchaseOrderDetails.filter(
+                    (item: any) => Number(item.purchase_order_id) === poId
+                  );
+                }
+
+                setSelectedPO({
+                  purchase_order_id:
+                    poId,
+
+                  po_number:
+                    row.nomor,
+
+                  supplier_name:
+                    row.supplier,
+
+                  order_date:
+                    row.tanggal?.split("T")[0],
+
+                  expected_date:
+                    row.expected_date
+                      ? String(row.expected_date).split("T")[0]
+                      : null,
+
+                  status:
+                    row.status,
+
+                  transaction_name:
+                    row.transaction_name ?? "",
+
+                  transaction_detail:
+                    row.transaction_detail ?? "",
+
+                  nomor_faktur_pajak:
+                    row.nomor_faktur_pajak ?? "",
+
+                  total_amount:
+                    row.total,
+
+                  items:
+                    detailItems.map(
+                      (item: any, idx: number) => {
+                        console.log("[PO Detail] raw item:", JSON.stringify(item));
+                        const product = products.find(
+                          (p) => p.id === item.product_id?.toString()
+                        );
+                        return {
+                          id:
+                            item.purchase_order_detail_id != null
+                              ? `${item.purchase_order_detail_id}-${idx}`
+                              : crypto.randomUUID(),
+
+                          product_id:
+                            item.product_id?.toString(),
+
+                          product_name:
+                            product?.nama ||
+                            `Product ${item.product_id}`,
+
+                          isExisting: true,
+
+                          quantity:
+                            Number(item.quantity),
+
+                          uom_id:
+                            item.uom_id?.toString(),
+
+                          uom_name:
+                            item.uom?.uom_name ||
+                            uoms.find(
+                              (u) => u.id === item.uom_id?.toString()
+                            )?.nama ||
+                            "-",
+
+                          price:
+                            Number(item.price),
+
+                          tax_percent:
+                            Number(item.tax_percentage ?? item.tax_percent ?? 0),
+
+                          tax_amount: (() => {
+                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base * (taxPct / 100);
+                          })(),
+
+                          subtotal: (() => {
+                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
+                            const base = Number(item.quantity) * Number(item.price);
+                            return base + base * (taxPct / 100);
+                          })(),
+
+                          available_stock:
+                            product?.available_stock,
+
+                          catalog_stock:
+                            product?.catalog_stock,
+
+                          reserved_quantity:
+                            product?.reserved_quantity,
+
+                          lead_time_days:
+                            product?.lead_time_days,
+                        };
+                      }
+                    ),
+                });
+
+                setOpenDetail(true);
+              }}
             >
               Detail
             </Button>

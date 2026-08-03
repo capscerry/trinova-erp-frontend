@@ -41,7 +41,14 @@ interface Product {
 
   supplier_price?: number;
 
+  /** Raw available_stock from the API (= catalog stock already reduced by approved PO deductions). */
   available_stock?: number;
+
+  /** Reconstructed original catalog stock = available_stock + reserved_quantity. */
+  catalog_stock?: number;
+
+  /** Sum of outstanding PO quantities for Approved/Partially-processed POs. */
+  reserved_quantity?: number;
 
   lead_time_days?: number;
 
@@ -112,7 +119,9 @@ export default function PurchaseOrderItemTable({
 
               {[
                 "Product",
-                "Stock",
+                "Supplier Stock",
+                "Reserved",
+                "Available To Order",
                 "Lead Time",
                 "Qty",
                 "UOM",
@@ -237,17 +246,37 @@ export default function PurchaseOrderItemTable({
 
                 </td>
 
-                {/* STOCK */}
+                {/* SUPPLIER STOCK / RESERVED / AVAILABLE TO ORDER */}
 
-                <td className="px-3 py-2 text-slate-600">
+                <td className="px-3 py-2 text-right tabular-nums text-slate-700 font-medium">
+                  {(() => {
+                    const p = products.find((p) => p.id === item.product_id);
+                    if (!p) return <span className="text-slate-400">-</span>;
+                    const cs = p.catalog_stock ?? p.available_stock ?? 0;
+                    return cs;
+                  })()}
+                </td>
 
-                  {
-                    products.find(
-                      (p) =>
-                        p.id === item.product_id
-                    )?.available_stock ?? "-"
-                  }
+                <td className="px-3 py-2 text-right tabular-nums text-amber-600 font-medium">
+                  {(() => {
+                    const p = products.find((p) => p.id === item.product_id);
+                    if (!p) return <span className="text-slate-400">-</span>;
+                    const rq = p.reserved_quantity ?? 0;
+                    return rq > 0 ? rq : <span className="text-slate-400">0</span>;
+                  })()}
+                </td>
 
+                <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                  {(() => {
+                    const p = products.find((p) => p.id === item.product_id);
+                    if (!p) return <span className="text-slate-400">-</span>;
+                    const ato = p.available_stock ?? 0;
+                    return (
+                      <span className={ato <= 0 ? "text-rose-600" : "text-emerald-600"}>
+                        {ato}
+                      </span>
+                    );
+                  })()}
                 </td>
 
                 {/* LEAD TIME */}
@@ -295,8 +324,8 @@ export default function PurchaseOrderItemTable({
                         qty > stock
                       ) {
 
-                        notify.error(
-                          `Qty melebihi stock supplier (${stock})`
+                        alert(
+                          `Qty melebihi stok tersedia untuk dipesan (Available To Order: ${stock})`
                         );
 
                         return;

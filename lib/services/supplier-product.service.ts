@@ -1,5 +1,93 @@
 import { api } from "../api";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/** A computed stock summary for a single supplier-product row. */
+export interface SupplierStockSummary {
+  /** Raw available_stock stored on the supplier-product row (= catalog stock minus approved PO deductions already applied by backend). */
+  available_stock: number;
+  /** Sum of PO quantities for all active (Approved, non-cancelled) POs that have not been fully received. */
+  reserved_quantity: number;
+  /** Reconstructed original catalog stock = available_stock + reserved_quantity. */
+  catalog_stock: number;
+  /** What the user can still order = available_stock (already accounts for approved POs). */
+  available_to_order: number;
+}
+
+/**
+ * Build a per-product reservation map from the raw PO list and PO detail list.
+ *
+ * Logic:
+ *   reserved_quantity per product =
+ *     SUM( po_detail.quantity )
+ *     FOR all PO details where:
+ *       - the parent PO status is "Approved" (stock was deducted but goods not fully received)
+ *       - and NOT Cancelled / Completed
+ *
+ * "Received" GR quantities reduce the reservation on the backend by restoring
+ * available_stock as items are received — so the available_stock the API returns
+ * already reflects partial GR completions.  We therefore only need the approved
+ * PO quantities that are still outstanding to reconstruct "catalog_stock".
+ *
+ * @param poList    - raw array of purchase-order headers from the API
+ * @param poDetails - raw array of purchase-order-detail rows from the API
+ * @returns map of product_id (string) → outstanding reserved quantity
+ */
+export function buildReservationMap(
+  poList: any[],
+  poDetails: any[]
+): Record<string, number> {
+  // Build a set of PO IDs that are actively reserving stock (Approved but not fully done)
+  const activePoIds = new Set<number>(
+    poList
+      .filter((po: any) => {
+        const s = (po.status ?? po.informasi ?? "").toString();
+        return s === "Approved" || s === "Partially processed";
+      })
+      .map((po: any) => Number(po.purchase_order_id ?? po.id))
+  );
+
+  const map: Record<string, number> = {};
+
+  for (const detail of poDetails) {
+    const poId = Number(detail.purchase_order_id ?? 0);
+    if (!activePoIds.has(poId)) continue;
+
+    const productId = String(detail.product_id ?? "");
+    if (!productId) continue;
+
+    const qty = Number(detail.quantity ?? 0);
+    map[productId] = (map[productId] ?? 0) + qty;
+  }
+
+  return map;
+}
+
+/**
+ * Enrich a supplier-product row with stock summary fields.
+ * @param item         - raw supplier-product row from the API
+ * @param reservation  - output of buildReservationMap
+ */
+export function computeStockSummary(
+  item: any,
+  reservation: Record<string, number>
+): SupplierStockSummary {
+  const productId = String(item.product_id ?? "");
+  const availableStock = Number(item.available_stock ?? 0);
+  const reservedQty = reservation[productId] ?? 0;
+  // Reconstruct what the supplier originally uploaded:
+  // Backend already deducted approved PO quantities from available_stock,
+  // so the original catalog value = current available_stock + reserved.
+  const catalogStock = availableStock + reservedQty;
+
+  return {
+    available_stock: availableStock,
+    reserved_quantity: reservedQty,
+    catalog_stock: catalogStock,
+    available_to_order: availableStock,
+  };
+}
+
 export const getSupplierProducts =
   async () => {
 
