@@ -119,6 +119,11 @@ export function TransactionOrchestrator() {
     openModal("penerimaan");
   };
 
+  const handleFakturProsesUangMuka = (data: FakturPenjualanFormData & { remainingAmount?: number }) => {
+    setDraftPart("faktur", data);
+    openModal("uangMuka");
+  };
+
   const handlePenerimaanSubmit = (data: PenerimaanFormData) => {
     setDraftPart("penerimaan", data);
     closeModal();
@@ -133,7 +138,29 @@ export function TransactionOrchestrator() {
 
   const uangMukaInitialData: Partial<UangMukaFormData> | undefined =
     draft.uangMuka ??
-    (so
+    (faktur
+      ? {
+          // Datang dari "Proses ke Uang Muka" di modal Faktur (Proforma DP
+          // 30% yang baru disimpan) -- nominalnya sudah pasti dari
+          // remainingAmount (= total faktur DP itu), bukan estimasi ulang.
+          id: 0,
+          customerId: getNumber(faktur, ["customerId"]) || undefined,
+          pelanggan: getString(faktur, ["pelanggan", "customerName"]),
+          noFaktur: "",
+          noFakturMode: "auto" as const,
+          tanggal: new Date().toISOString().split("T")[0],
+          uangMuka: getNumber(faktur, ["remainingAmount"]) || getSalesOrderTotal(so ?? {}),
+          noPO: getString(faktur, ["noPO", "poNumber"]),
+          noSo: getString(faktur, ["noSo"]) || salesOrderNumber,
+          salesOrderId: getNumber(faktur, ["salesOrderId"]) || salesOrderId || undefined,
+          noPesanan: getString(faktur, ["noSo"]) || salesOrderNumber,
+          syaratPembayaran: "",
+          alamat: getString(faktur, ["alamat"]),
+          keterangan: `Uang muka untuk faktur proforma ${getString(faktur, ["noFaktur"])}`,
+          fakturType: "Faktur Penjualan",
+          totalHargaPesanan: getSalesOrderTotal(so ?? {}),
+        }
+      : so
       ? {
           id: 0,
           customerId: getNumber(so, ["customerId", "customer_id"]) || undefined,
@@ -317,6 +344,7 @@ export function TransactionOrchestrator() {
         onClose={closeModal}
         onSubmit={handleFakturSubmit}
         onProses={handleFakturProses}
+        onProsesUangMuka={handleFakturProsesUangMuka}
         initialData={fakturInitialData}
       />
 

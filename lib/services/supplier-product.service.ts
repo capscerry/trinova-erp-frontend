@@ -39,6 +39,15 @@ export const updateSupplierProduct = async (
 };
 
 /**
+ * Remove a single catalog row -- used from the Supplier Detail view to
+ * clean up a stray/duplicate entry left over from a bad Excel upload.
+ */
+export const deleteSupplierProduct = async (id: number) => {
+  const response = await api.delete(`/supplier-product/${id}`);
+  return response.data;
+};
+
+/**
  * Restore stock for a returned item.
  * Calls POST /api/supplier-product/restore-stock on the backend which
  * does an atomic available_stock += quantity — no race condition.

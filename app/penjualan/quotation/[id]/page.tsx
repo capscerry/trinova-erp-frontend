@@ -149,6 +149,7 @@ export default function SalesQuotationDetailPage() {
 
       setEmailModalOpen(false);
       setBanner({ type: "success", msg });
+      fetchData();
     } catch (err) {
       // Dilempar ulang supaya modal (yang menampilkan error di dalam dirinya
       // sendiri) tetap terbuka dan menunjukkan pesan kegagalan ke user —

@@ -7,6 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { SalesOrderFormData } from "@/components/modules/penjualan/sales_order/SalesOrderType";
 import type { UangMukaFormData } from "@/components/modules/penjualan/uang_muka/UangMukaType";
 import type { PengirimanFormData } from "@/components/modules/penjualan/pengiriman_penjualan/PengirimanType";
@@ -48,7 +49,21 @@ const WorkflowDraftContext = createContext<WorkflowDraftContextValue | undefined
   undefined
 );
 
+// Setiap modal di chain SO -> Uang Muka/Faktur -> Pengiriman/Penerimaan
+// "milik" halaman list dokumennya sendiri. Chain-nya sendiri selalu dimulai
+// dari /penjualan/order (satu-satunya halaman yang me-render
+// WorkflowDraftProvider + TransactionOrchestrator), jadi tanpa redirect user
+// akan selalu balik ke situ walau modal yang baru saja ditutup adalah Faktur,
+// Uang Muka, dst. -- padahal dokumen barunya ada di halaman lain.
+const MODAL_LIST_ROUTE: Partial<Record<Exclude<ModalKey, null>, string>> = {
+  uangMuka: "/penjualan/uang-muka",
+  pengiriman: "/penjualan/pengiriman-penjualan",
+  faktur: "/penjualan/invoice",
+  penerimaan: "/penjualan/penerimaan-penjualan",
+};
+
 export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<WorkflowDraft>({});
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -67,7 +82,17 @@ export function WorkflowDraftProvider({ children }: { children: ReactNode }) {
   );
 
   const openModal = useCallback((key: ModalKey) => setActiveModal(key), []);
-  const closeModal = useCallback(() => setActiveModal(null), []);
+  const closeModal = useCallback(() => {
+    const target = activeModal ? MODAL_LIST_ROUTE[activeModal] : undefined;
+    if (target) {
+      // Pindah ke halaman list dokumen yang baru saja diproses, supaya
+      // list-nya ikut ter-refresh (fetch on mount) dan user tidak nyangkut
+      // di /penjualan/order setelah selesai di step Faktur/Uang
+      // Muka/Pengiriman/Penerimaan.
+      router.push(target);
+    }
+    setActiveModal(null);
+  }, [activeModal, router]);
 
   const clearDraft = useCallback(() => {
     setDraft({});

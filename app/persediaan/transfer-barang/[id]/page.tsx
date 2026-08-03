@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout";
 import { StatusBadge } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import {
   ArrowLeft,
   Package,
@@ -14,12 +15,17 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getTransferById } from "@/lib/services/stock-transfer.service";
+import { notify } from "@/lib/notify";
+import {
+  getTransferById,
+  processTransfer,
+  completeTransfer,
+  cancelTransfer,
+} from "@/lib/services/stock-transfer.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TransferData {
-  id: number;
   reference_number?: string;
   status?: string;
   product_name?: string;
@@ -101,6 +107,7 @@ export default function StockTransferDetailPage() {
   const [data, setData] = useState<TransferData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<"process" | "complete" | "cancel" | null>(null);
 
   const fetchData = async () => {
     if (!id) return;
@@ -124,10 +131,55 @@ export default function StockTransferDetailPage() {
 
   const status = data?.status ?? "CREATED";
 
+  const handleProcess = async () => {
+    if (!data) return;
+    setActionLoading("process");
+    try {
+      await processTransfer(Number(id));
+      notify.success("Transfer berhasil diproses");
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      notify.error("Gagal memproses transfer");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!data) return;
+    setActionLoading("complete");
+    try {
+      await completeTransfer(Number(id));
+      notify.success("Transfer berhasil diselesaikan");
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      notify.error("Gagal menyelesaikan transfer");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!data) return;
+    setActionLoading("cancel");
+    try {
+      await cancelTransfer(Number(id));
+      notify.success("Transfer berhasil dibatalkan");
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      notify.error("Gagal membatalkan transfer");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <AppShell
       title="Detail Stock Transfer"
-      subtitle={data ? `#${data.reference_number || data.id}` : "Memuat..."}
+      subtitle={data ? `#${data.reference_number || id}` : "Memuat..."}
     >
       <div className="no-print flex items-center justify-between mb-5">
         <button
@@ -138,6 +190,39 @@ export default function StockTransferDetailPage() {
           <ArrowLeft size={15} />
           Kembali ke Daftar
         </button>
+
+        {data && status === "CREATED" && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={actionLoading !== null}
+              onClick={handleCancel}
+            >
+              {actionLoading === "cancel" ? "Membatalkan..." : "Batalkan"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={actionLoading !== null}
+              onClick={handleProcess}
+            >
+              {actionLoading === "process" ? "Memproses..." : "Proses Transfer"}
+            </Button>
+          </div>
+        )}
+
+        {data && status === "PROCESSED" && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={actionLoading !== null}
+            onClick={handleComplete}
+          >
+            {actionLoading === "complete" ? "Menyelesaikan..." : "Selesaikan Transfer"}
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -160,7 +245,7 @@ export default function StockTransferDetailPage() {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-xl font-bold text-navy-900 font-mono tracking-tight">
-                  {data.reference_number || `Transfer #${data.id}`}
+                  {data.reference_number || `Transfer #${id}`}
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Dibuat: {formatDateTime(data.created_at)}

@@ -1,4 +1,4 @@
-import { CreditCard, Receipt } from "lucide-react";
+import { Receipt } from "lucide-react";
 
   // ─── Types ────────────────────────────────────────────────────────────────────
   export interface SalesOrderItem {
@@ -105,22 +105,17 @@ import { CreditCard, Receipt } from "lucide-react";
 
   // ─── Proses Links Config ──────────────────────────────────────────────────────
   // Setelah SO disimpan, langkah lanjutan yang boleh diambil langsung dari SO
-  // HANYA Uang Muka & Faktur. "Pengiriman" sengaja tidak ada di sini -- DO
-  // baru boleh dibuat setelah seluruh faktur/proforma SO ini lunas 100%, dan
-  // jalur resminya adalah dari halaman Pengiriman sendiri ("+ Tambah" ->
-  // pilih SO yang sudah lunas), bukan dari modal SO. "Penerimaan" juga
-  // sengaja tidak ada -- pembayaran harus selalu tercatat terhadap Uang Muka
-  // atau Faktur spesifik (bukan langsung ke SO), supaya jelas dokumen mana
-  // yang dilunasi dan status yang di-update konsisten.
+  // HANYA Faktur -- flow-nya selalu SO -> Faktur, jadi Uang Muka tidak lagi
+  // ditawarkan di sini. Untuk SO indent, tombol "Uang Muka" sekarang muncul
+  // di dalam modal Faktur sendiri (setelah faktur disimpan dengan Jenis
+  // Invoice = Proforma DP 30%), bukan langsung dari SO. "Pengiriman" sengaja
+  // tidak ada di sini -- DO baru boleh dibuat setelah seluruh faktur/proforma
+  // SO ini lunas 100%, dan jalur resminya adalah dari halaman Pengiriman
+  // sendiri ("+ Tambah" -> pilih SO yang sudah lunas), bukan dari modal SO.
+  // "Penerimaan" juga sengaja tidak ada -- pembayaran harus selalu tercatat
+  // terhadap Uang Muka atau Faktur spesifik (bukan langsung ke SO), supaya
+  // jelas dokumen mana yang dilunasi dan status yang di-update konsisten.
   export const PROSES_LINKS = [
-    {
-      key: "uang-muka" as const,
-      label: "Uang Muka",
-      desc: "Buat tagihan uang muka dari SO ini",
-      icon: CreditCard,
-      color: "text-violet-600",
-      bg: "bg-violet-50 hover:bg-violet-100 border-violet-200",
-    },
     {
       key: "faktur" as const,
       label: "Faktur",

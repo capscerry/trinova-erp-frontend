@@ -144,6 +144,10 @@ function UangMukaInner() {
     const totalHargaPesanan = Number(searchParams.get("totalHargaPesanan") ?? 0);
     const alamat = searchParams.get("alamat") ?? "";
     const keterangan = searchParams.get("keterangan") ?? "";
+    // Kalau dioper dari Faktur Proforma DP 30% yang baru disimpan, nominalnya
+    // sudah pasti (total faktur DP itu sendiri) -- tidak perlu re-estimasi 30%.
+    const uangMukaParam = searchParams.get("uangMuka");
+    const uangMuka = uangMukaParam ? Number(uangMukaParam) : 0;
 
     setEditData({
       id: 0,
@@ -151,7 +155,7 @@ function UangMukaInner() {
       noFaktur: "",
       noFakturMode: "auto",
       tanggal: today,
-      uangMuka: 0,
+      uangMuka,
       noPO: "",
       noSo: "",
       isTaxable: false,

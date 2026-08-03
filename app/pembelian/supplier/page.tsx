@@ -5,6 +5,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { notify } from "@/lib/notify";
+import { Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
 
 import SupplierFormModal from "@/components/modules/pembelian/SupplierFormModal";
 
@@ -18,6 +19,9 @@ import {
   updateSupplier,
   deleteSupplier,
   importSupplierCatalog,
+  getSupplierProductsBySupplier,
+  updateSupplierProduct,
+  deleteSupplierProduct,
 
   getSupplierCategory,
 } from "@/lib/services";
@@ -40,6 +44,23 @@ interface SupplierCategory {
   nama_category: string;
   is_active?: boolean;
 }
+
+interface SupplierCatalogItem {
+  supplier_product_id: number;
+  product_id: number;
+  product_name: string;
+  supplier_price: number;
+  available_stock: number;
+  lead_time_days: number;
+  is_available: boolean;
+}
+
+const formatRupiah = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(n ?? 0);
 
 // --- Status badge --------------------------------------------------------------
 
@@ -109,6 +130,24 @@ export default function SupplierPage() {
 
   const [detailData, setDetailData] =
     useState<Supplier | null>(null);
+
+  // --- Supplier catalog (shown inside Detail Supplier) ---------------------
+  const [catalogItems, setCatalogItems] = useState<SupplierCatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [editingCatalogId, setEditingCatalogId] = useState<number | null>(null);
+  const [catalogEditForm, setCatalogEditForm] = useState({
+    supplier_price: "",
+    available_stock: "",
+    lead_time_days: "",
+    is_available: true,
+  });
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [catalogDeleteConfirm, setCatalogDeleteConfirm] = useState<{
+    open: boolean;
+    id: number;
+    name: string;
+  }>({ open: false, id: 0, name: "" });
+  const [catalogDeleteLoading, setCatalogDeleteLoading] = useState(false);
 
   const [catalogFile,
     setCatalogFile] =
@@ -281,6 +320,16 @@ export default function SupplierPage() {
               status: formData.status,
             }
           );
+
+          // Bug: sebelumnya file katalog yang dipilih saat Edit tidak pernah
+          // benar-benar di-upload -- input-nya juga sempat disembunyikan saat
+          // isEdit=true. Backend sudah mendukung re-upload sebagai upsert
+          // (MERGE per supplier_id+product_id, tidak dibatasi kategori), jadi
+          // di sisi sini tinggal benar-benar memanggilnya.
+          if (catalogFile) {
+            await importSupplierCatalog(Number(selectedId), catalogFile);
+          }
+
           notify.success("Supplier berhasil diupdate");
       }else{
         const response = await createSupplier({
@@ -500,10 +549,37 @@ export default function SupplierPage() {
           row.status || "Active",
       });
 
+      setCatalogFile(null);
+
       setOpenModal(true);
     };
 
   // --- Detail -----------------------------------------------------------------
+
+  const fetchCatalog = async (supplierId: string) => {
+    setCatalogLoading(true);
+    try {
+      const res = await getSupplierProductsBySupplier(Number(supplierId));
+      const list: any[] = Array.isArray(res) ? res : res?.data ?? [];
+      setCatalogItems(
+        list.map((item: any) => ({
+          supplier_product_id: Number(item.supplier_product_id),
+          product_id: Number(item.product_id),
+          product_name: item.product_name || `Produk #${item.product_id}`,
+          supplier_price: Number(item.supplier_price) || 0,
+          available_stock: Number(item.available_stock) || 0,
+          lead_time_days: Number(item.lead_time_days) || 0,
+          is_available: Boolean(item.is_available),
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+      notify.error("Gagal memuat katalog supplier");
+      setCatalogItems([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
 
   const handleDetail =
     (row: Supplier) => {
@@ -511,7 +587,69 @@ export default function SupplierPage() {
       setDetailData(row);
 
       setOpenDetail(true);
+
+      setEditingCatalogId(null);
+
+      fetchCatalog(row.id);
     };
+
+  const startEditCatalogRow = (item: SupplierCatalogItem) => {
+    setEditingCatalogId(item.supplier_product_id);
+    setCatalogEditForm({
+      supplier_price: String(item.supplier_price),
+      available_stock: String(item.available_stock),
+      lead_time_days: String(item.lead_time_days),
+      is_available: item.is_available,
+    });
+  };
+
+  const cancelEditCatalogRow = () => {
+    setEditingCatalogId(null);
+  };
+
+  const saveCatalogRow = async (item: SupplierCatalogItem) => {
+    if (catalogSaving) return;
+    setCatalogSaving(true);
+    try {
+      await updateSupplierProduct(item.supplier_product_id, {
+        supplier_price: Number(catalogEditForm.supplier_price) || 0,
+        available_stock: Number(catalogEditForm.available_stock) || 0,
+        lead_time_days: Number(catalogEditForm.lead_time_days) || 0,
+        is_available: catalogEditForm.is_available,
+      });
+      notify.success("Item katalog berhasil diperbarui");
+      setEditingCatalogId(null);
+      if (detailData) await fetchCatalog(detailData.id);
+    } catch (err: any) {
+      console.error(err);
+      notify.error("Gagal memperbarui item katalog", err.message);
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
+  const handleDeleteCatalogRow = (item: SupplierCatalogItem) => {
+    setCatalogDeleteConfirm({
+      open: true,
+      id: item.supplier_product_id,
+      name: item.product_name,
+    });
+  };
+
+  const executeCatalogDelete = async () => {
+    setCatalogDeleteLoading(true);
+    try {
+      await deleteSupplierProduct(catalogDeleteConfirm.id);
+      notify.success("Item katalog berhasil dihapus");
+      if (detailData) await fetchCatalog(detailData.id);
+    } catch (err) {
+      console.error(err);
+      notify.error("Gagal menghapus item katalog");
+    } finally {
+      setCatalogDeleteLoading(false);
+      setCatalogDeleteConfirm({ open: false, id: 0, name: "" });
+    }
+  };
 
   return (
 
@@ -603,6 +741,19 @@ export default function SupplierPage() {
         onCancel={() => setConfirmDelete({ open: false, id: "", name: "" })}
       />
 
+      {/* --- Confirm Delete Catalog Row ---------------------- */}
+
+      <ConfirmDialog
+        open={catalogDeleteConfirm.open}
+        title="Hapus Item Katalog"
+        message={`Yakin ingin menghapus "${catalogDeleteConfirm.name}" dari katalog supplier ini?`}
+        detail="Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        loading={catalogDeleteLoading}
+        onConfirm={executeCatalogDelete}
+        onCancel={() => setCatalogDeleteConfirm({ open: false, id: 0, name: "" })}
+      />
+
       {/* --- Modal Form ------------------------------------- */}
 
       <SupplierFormModal
@@ -650,11 +801,13 @@ export default function SupplierPage() {
               bg-white
               rounded-2xl
               w-full
-              max-w-lg
+              max-w-3xl
+              max-h-[85vh]
               shadow-2xl
               border
               border-slate-200
               overflow-hidden
+              flex flex-col
             "
           >
 
@@ -701,29 +854,194 @@ export default function SupplierPage() {
 
             {/* Body */}
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
 
-              {[
-                { label: "Kode Supplier", value: detailData.kode },
-                { label: "Nama Supplier", value: detailData.nama },
-                { label: "Telepon",       value: detailData.telepon },
-                { label: "Email",         value: detailData.email },
-                { label: "Alamat",        value: detailData.alamat },
-              ].map(({ label, value }) => (
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Kode Supplier", value: detailData.kode },
+                  { label: "Nama Supplier", value: detailData.nama },
+                  { label: "Telepon",       value: detailData.telepon },
+                  { label: "Email",         value: detailData.email },
+                  { label: "Alamat",        value: detailData.alamat },
+                ].map(({ label, value }) => (
 
-                <div key={label} className="border border-slate-200 rounded-xl p-4">
+                  <div key={label} className="border border-slate-200 rounded-xl p-4">
 
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    {label}
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                      {label}
+                    </p>
+
+                    <p className="text-sm font-semibold text-slate-700">
+                      {value || "-"}
+                    </p>
+
+                  </div>
+
+                ))}
+              </div>
+
+              {/* Katalog Produk ------------------------------------------- */}
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Katalog Produk
                   </p>
-
-                  <p className="text-sm font-semibold text-slate-700">
-                    {value || "-"}
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Perbaiki harga/stok yang salah atau hapus baris duplikat hasil upload.
                   </p>
-
                 </div>
 
-              ))}
+                {catalogLoading ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-slate-400 py-8">
+                    <Loader2 size={16} className="animate-spin" />
+                    Memuat katalog...
+                  </div>
+                ) : catalogItems.length === 0 ? (
+                  <div className="text-sm text-slate-400 text-center py-8">
+                    Belum ada produk di katalog supplier ini.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/60">
+                          <th className="px-4 py-2">Produk</th>
+                          <th className="px-4 py-2">Harga</th>
+                          <th className="px-4 py-2">Stok</th>
+                          <th className="px-4 py-2">Lead Time</th>
+                          <th className="px-4 py-2">Status</th>
+                          <th className="px-4 py-2 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {catalogItems.map((item) => {
+                          const isEditing = editingCatalogId === item.supplier_product_id;
+                          return (
+                            <tr key={item.supplier_product_id}>
+                              <td className="px-4 py-2 font-medium text-slate-700">
+                                {item.product_name}
+                              </td>
+
+                              <td className="px-4 py-2">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={catalogEditForm.supplier_price}
+                                    onChange={(e) =>
+                                      setCatalogEditForm((f) => ({ ...f, supplier_price: e.target.value }))
+                                    }
+                                    className="w-24 border border-slate-300 rounded-md px-2 py-1 text-sm"
+                                  />
+                                ) : (
+                                  formatRupiah(item.supplier_price)
+                                )}
+                              </td>
+
+                              <td className="px-4 py-2">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={catalogEditForm.available_stock}
+                                    onChange={(e) =>
+                                      setCatalogEditForm((f) => ({ ...f, available_stock: e.target.value }))
+                                    }
+                                    className="w-20 border border-slate-300 rounded-md px-2 py-1 text-sm"
+                                  />
+                                ) : (
+                                  item.available_stock
+                                )}
+                              </td>
+
+                              <td className="px-4 py-2">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={catalogEditForm.lead_time_days}
+                                    onChange={(e) =>
+                                      setCatalogEditForm((f) => ({ ...f, lead_time_days: e.target.value }))
+                                    }
+                                    className="w-20 border border-slate-300 rounded-md px-2 py-1 text-sm"
+                                  />
+                                ) : (
+                                  `${item.lead_time_days} hari`
+                                )}
+                              </td>
+
+                              <td className="px-4 py-2">
+                                {isEditing ? (
+                                  <select
+                                    value={catalogEditForm.is_available ? "1" : "0"}
+                                    onChange={(e) =>
+                                      setCatalogEditForm((f) => ({ ...f, is_available: e.target.value === "1" }))
+                                    }
+                                    className="border border-slate-300 rounded-md px-2 py-1 text-sm"
+                                  >
+                                    <option value="1">Available</option>
+                                    <option value="0">Unavailable</option>
+                                  </select>
+                                ) : (
+                                  <StatusBadge status={item.is_available ? "Active" : "Inactive"} />
+                                )}
+                              </td>
+
+                              <td className="px-4 py-2">
+                                <div className="flex items-center justify-center gap-1">
+                                  {isEditing ? (
+                                    <>
+                                      <button
+                                        onClick={() => saveCatalogRow(item)}
+                                        disabled={catalogSaving}
+                                        title="Simpan"
+                                        className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                      >
+                                        {catalogSaving ? (
+                                          <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                          <Check size={14} />
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={cancelEditCatalogRow}
+                                        disabled={catalogSaving}
+                                        title="Batal"
+                                        className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => startEditCatalogRow(item)}
+                                        title="Edit"
+                                        className="p-1.5 rounded-md text-slate-400 hover:text-navy-700 hover:bg-slate-100"
+                                      >
+                                        <Pencil size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteCatalogRow(item)}
+                                        title="Hapus"
+                                        className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
             </div>
 

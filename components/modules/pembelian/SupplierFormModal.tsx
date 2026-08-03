@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Upload } from "lucide-react";
 import { emailError, phoneError, sanitizePhoneInput } from "@/lib/validation";
 
@@ -87,6 +87,17 @@ export default function SupplierFormModal({
 }: SupplierFormModalProps) {
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [errors, setErrors] = useState<{ email?: string; no_telp_bisnis?: string }>({});
+
+  // Reset the file picker's display state every time the modal opens --
+  // otherwise re-opening it (e.g. Edit on a different supplier) shows the
+  // previous supplier's selected-file chip even though catalogFile itself
+  // was already cleared by the parent.
+  useEffect(() => {
+    if (open) {
+      setSelectedFileName("");
+      setErrors({});
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -257,55 +268,62 @@ export default function SupplierFormModal({
               />
             </FormField>
 
-            {/* UPLOAD CATALOG - only on create */}
-            {!isEdit && (
-              <div className="space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Upload Supplier Catalog
-                </p>
+            {/* UPLOAD CATALOG - available on both create and edit. On edit,
+                re-uploading updates existing supplier-product rows (matched
+                by product_id) instead of rejecting or duplicating them. */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                {isEdit ? "Update Supplier Catalog" : "Upload Supplier Catalog"}
+              </p>
 
-                <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <label
-                      htmlFor="catalog-upload"
-                      className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
-                    >
-                      <Upload size={14} />
-                      Upload Catalog
-                    </label>
+              <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label
+                    htmlFor="catalog-upload"
+                    className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
+                  >
+                    <Upload size={14} />
+                    {isEdit ? "Upload/Update Catalog" : "Upload Catalog"}
+                  </label>
 
-                    <input
-                      id="catalog-upload"
-                      type="file"
-                      accept=".xlsx,.xls"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setCatalogFile(file);
-                        setSelectedFileName(file.name);
-                      }}
-                    />
+                  <input
+                    id="catalog-upload"
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setCatalogFile(file);
+                      setSelectedFileName(file.name);
+                    }}
+                  />
 
-                    {selectedFileName && (
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
-                        - {selectedFileName}
-                      </span>
-                    )}
-                  </div>
+                  {selectedFileName && (
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
+                      - {selectedFileName}
+                    </span>
+                  )}
+                </div>
 
-                  <div className="space-y-0.5 text-sm">
-                    <p className="font-semibold text-slate-600 text-xs">Format Excel</p>
-                    <p className="text-slate-500 text-xs">
-                      product_id, supplier_price, available_, lead_time_days
-                    </p>
+                <div className="space-y-0.5 text-sm">
+                  <p className="font-semibold text-slate-600 text-xs">Format Excel</p>
+                  <p className="text-slate-500 text-xs">
+                    product_id, supplier_price, available_, lead_time_days
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Lead time days = estimasi hari pengiriman barang
+                  </p>
+                  {isEdit && (
                     <p className="text-[11px] text-slate-400">
-                      Lead time days = estimasi hari pengiriman barang
+                      Baris dengan product_id yang sudah ada di katalog supplier ini akan
+                      diperbarui (harga/stok/lead time), bukan dibuat duplikat. Produk lain
+                      yang sudah ada di katalog tidak akan terhapus.
                     </p>
-                  </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* FOOTER */}

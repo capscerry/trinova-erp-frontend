@@ -110,7 +110,10 @@ export default function RetourPenjualanPage() {
 
       <SalesReturnModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          fetchData();
+        }}
         onSubmit={handleSubmit}
       />
     </AppShell>

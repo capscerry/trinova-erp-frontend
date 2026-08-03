@@ -297,7 +297,7 @@ export function SalesOrderModal({
                   : "Simpan Sales Order terlebih dahulu untuk mengaktifkan proses lanjutan."}
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 {PROSES_LINKS.map(
                   ({ key, label, desc, icon: Icon, color, bg }) => {
                     const isActive = isSubmitted && !!savedSo;

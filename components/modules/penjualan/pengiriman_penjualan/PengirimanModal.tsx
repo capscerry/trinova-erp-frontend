@@ -683,26 +683,35 @@ export function PengirimanModal({
                         </PengirimanFieldLabel>
 
                         <PengirimanFieldLabel label="Gudang">
-                          <select
-                            value={item.warehouseId ?? ""}
-                            disabled={loadingWarehouses}
-                            onChange={(e) => {
-                              const found = warehouseOptions.find(
-                                (w) => String(w.warehouse_id) === e.target.value
-                              );
-                              if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
-                            }}
-                            className={cn(inputClass, "py-2")}
-                          >
-                            <option value="" disabled>
-                              {loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
-                            </option>
-                            {warehouseOptions.map((w) => (
-                              <option key={w.warehouse_id} value={w.warehouse_id}>
-                                {w.warehouse_name}
+                          {form.salesOrderId ? (
+                            // Gudang sudah ditentukan sejak SO dibuat -- dikunci di DO
+                            // supaya tidak dikirim dari gudang yang berbeda dari yang
+                            // sudah direncanakan/dicatat di Sales Order.
+                            <span className="block py-2 text-sm text-slate-500">
+                              {item.warehouseName || "-"}
+                            </span>
+                          ) : (
+                            <select
+                              value={item.warehouseId ?? ""}
+                              disabled={loadingWarehouses}
+                              onChange={(e) => {
+                                const found = warehouseOptions.find(
+                                  (w) => String(w.warehouse_id) === e.target.value
+                                );
+                                if (found) selectWarehouse(item.id, found.warehouse_id, found.warehouse_name);
+                              }}
+                              className={cn(inputClass, "py-2")}
+                            >
+                              <option value="" disabled>
+                                {loadingWarehouses ? "Memuat..." : "Pilih gudang..."}
                               </option>
-                            ))}
-                          </select>
+                              {warehouseOptions.map((w) => (
+                                <option key={w.warehouse_id} value={w.warehouse_id}>
+                                  {w.warehouse_name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </PengirimanFieldLabel>
                       </div>
 

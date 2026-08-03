@@ -543,7 +543,10 @@ export default function SalesQuotationPage() {
 
         <SalesQuotationModal
           open={modalOpen}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false);
+            loadData();
+          }}
           onSubmit={handleSubmitQuotation}
           submitting={submitting}
         />
