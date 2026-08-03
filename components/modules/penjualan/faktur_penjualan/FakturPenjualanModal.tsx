@@ -47,6 +47,11 @@ interface FakturPenjualanModalProps {
   onClose: () => void;
   onSubmit: (data: FakturPenjualanFormData) => void;
   onProses?: (data: FakturPenjualanFormData & { remainingAmount?: number }) => void;
+  /** Dipanggil sebagai pengganti onProses ketika faktur yang baru disimpan
+   * adalah Proforma DP 30% -- lanjut ke modal Uang Muka, bukan Sales Receipt.
+   * remainingAmount di sini dipakai untuk pre-fill nominal Uang Muka dengan
+   * total faktur DP yang sudah dihitung persis (bukan re-estimasi 30%). */
+  onProsesUangMuka?: (data: FakturPenjualanFormData & { remainingAmount?: number }) => void;
   initialData?: Partial<FakturPenjualanFormData>;
 }
 
@@ -62,6 +67,7 @@ export function FakturPenjualanModal({
   onClose,
   onSubmit,
   onProses,
+  onProsesUangMuka,
   initialData,
 }: FakturPenjualanModalProps) {
   const [form, setForm] = useState<FakturPenjualanFormData>(EMPTY_FORM);
@@ -390,6 +396,18 @@ export function FakturPenjualanModal({
     }
   };
 
+  // SO indent yang sudah punya invoice DP 30% -- langsung arahkan ke Pelunasan
+  // 70% begitu terdeteksi, bukan cuma mengunci opsi DP dan membiarkan user
+  // pilih manual. Guard di form.proformaStage mencegah loop (patchForm di
+  // handleProformaStageChange akan set proformaStage jadi "Final").
+  useEffect(() => {
+    if (!selectedSoIsIndent || !dpAlreadyBilled) return;
+    if (form.proformaStage === "Final") return;
+    if (soBaseItems.length === 0) return;
+    handleProformaStageChange("Final");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dpAlreadyBilled, selectedSoIsIndent, soBaseItems]);
+
   const addItem = () => patchForm({ items: [...form.items, newFakturItem()] });
   const updateItem = (id: string, patch: Partial<FakturPenjualanItem>) =>
     patchForm({ items: form.items.map((it) => (it.id === id ? { ...it, ...patch } : it)) });
@@ -703,13 +721,23 @@ export function FakturPenjualanModal({
 
           <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-6 py-4">
             <button onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100">Batal</button>
-            <button
-              onClick={() => onProses?.(form)}
-              disabled={!onProses || !form.id}
-              className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Process to Sales Receipt
-            </button>
+            {form.proformaStage === "DP" ? (
+              <button
+                onClick={() => onProsesUangMuka?.({ ...form, remainingAmount: totals.grandTotal })}
+                disabled={!onProsesUangMuka || !form.id}
+                className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Proses ke Uang Muka
+              </button>
+            ) : (
+              <button
+                onClick={() => onProses?.(form)}
+                disabled={!onProses || !form.id}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Process to Sales Receipt
+              </button>
+            )}
             <button onClick={handleSubmit} disabled={isSubmitting} className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-5 py-2 text-sm font-semibold text-gold-400 shadow-sm transition-colors hover:bg-navy-700 disabled:cursor-not-allowed disabled:opacity-50">
               {isSubmitting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
               {isSubmitting ? "Menyimpan..." : "Simpan Faktur"}

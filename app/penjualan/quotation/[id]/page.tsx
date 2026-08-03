@@ -149,6 +149,10 @@ export default function SalesQuotationDetailPage() {
 
       setEmailModalOpen(false);
       setBanner({ type: "success", msg });
+      // Backend sekarang menandai quotation Draft -> Sent begitu email
+      // terkirim -- refresh supaya badge status di halaman ini ikut update
+      // tanpa perlu reload manual.
+      fetchData();
     } catch (err) {
       // Dilempar ulang supaya modal (yang menampilkan error di dalam dirinya
       // sendiri) tetap terbuka dan menunjukkan pesan kegagalan ke user —

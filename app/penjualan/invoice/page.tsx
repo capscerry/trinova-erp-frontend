@@ -142,6 +142,23 @@ function SalesInvoicePageInner() {
     router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
   };
 
+  // Faktur Proforma DP 30% -- lanjut ke Uang Muka, bukan Sales Receipt. Pakai
+  // jalur query-param "fromSalesOrder" yang sudah ada di halaman Uang Muka,
+  // plus nominal DP yang persis (dari total faktur DP yang baru disimpan).
+  const handleProcessToUangMuka = (form: FakturPenjualanFormData & { remainingAmount?: number }) => {
+    const params = new URLSearchParams();
+    params.set("fromSalesOrder", "1");
+    if (form.customerId) params.set("customerId", String(form.customerId));
+    if (form.pelanggan) params.set("pelanggan", form.pelanggan);
+    if (form.noSo) params.set("noPesanan", form.noSo);
+    if (form.alamat) params.set("alamat", form.alamat);
+    params.set("keterangan", `Uang muka untuk faktur proforma ${form.noFaktur}`);
+    params.set("totalHargaPesanan", String(form.remainingAmount ?? 0));
+    params.set("uangMuka", String(form.remainingAmount ?? 0));
+
+    router.push(`/penjualan/uang-muka?${params.toString()}`);
+  };
+
   return (
     <AppShell title="Sales Invoice" subtitle="Manage customer billing documents">
       {message && (
@@ -192,9 +209,11 @@ function SalesInvoicePageInner() {
         onClose={() => {
           setModalOpen(false);
           setInitialFormData(undefined);
+          fetchData();
         }}
         onSubmit={handleSubmit}
         onProses={handleProcessToReceipt}
+        onProsesUangMuka={handleProcessToUangMuka}
         initialData={initialFormData}
       />
     </AppShell>

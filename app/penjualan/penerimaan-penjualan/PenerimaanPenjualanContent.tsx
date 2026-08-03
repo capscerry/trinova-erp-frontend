@@ -172,6 +172,7 @@ function PenerimaanPenjualanInner() {
     // Bersihkan prefill supaya kalau user buka modal lagi lewat "Tambah
     // Penerimaan" biasa, tidak ada sisa data dari redirect Uang Muka.
     setInitialFormData(undefined);
+    fetchData();
   };
 
   return (

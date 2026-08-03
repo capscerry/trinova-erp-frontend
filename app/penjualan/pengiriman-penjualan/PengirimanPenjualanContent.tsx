@@ -169,6 +169,7 @@ function PengirimanPenjualanInner() {
   const handleModalClose = () => {
     setModalOpen(false);
     setInitialFormData(undefined);
+    fetchData();
   };
 
   return (

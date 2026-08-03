@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout";
-import { useAuth } from "@/lib/AuthContext";
+import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
 import {
-  ArrowRight,
   ClipboardList,
   CreditCard,
   FileText,
@@ -46,13 +45,6 @@ interface MetricCard {
   tone: Tone;
 }
 
-interface ShortcutItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  desc: string;
-}
-
 const toneClass: Record<Tone, { icon: string; bg: string }> = {
   blue: { icon: "text-blue-600", bg: "bg-blue-50 border-blue-100" },
   emerald: { icon: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100" },
@@ -61,15 +53,6 @@ const toneClass: Record<Tone, { icon: string; bg: string }> = {
   violet: { icon: "text-violet-600", bg: "bg-violet-50 border-violet-100" },
   slate: { icon: "text-slate-600", bg: "bg-slate-50 border-slate-100" },
 };
-
-const shortcuts: ShortcutItem[] = [
-  { label: "Penawaran", href: "/penjualan/quotation", icon: FileText, desc: "Buat dan pantau quotation" },
-  { label: "Pesanan", href: "/penjualan/order", icon: ClipboardList, desc: "Kelola sales order" },
-  { label: "Pengiriman", href: "/penjualan/pengiriman-penjualan", icon: Truck, desc: "Surat jalan pelanggan" },
-  { label: "Faktur", href: "/penjualan/invoice", icon: Receipt, desc: "Tagihan penjualan" },
-  { label: "Uang Muka", href: "/penjualan/uang-muka", icon: CreditCard, desc: "Down payment customer" },
-  { label: "Penerimaan", href: "/penjualan/penerimaan-penjualan", icon: PackageCheck, desc: "Pembayaran pelanggan" },
-];
 
 const formatCompact = (value: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -129,15 +112,6 @@ const formatMonthName = (value?: string | null) => {
   return new Intl.DateTimeFormat("id-ID", { month: "short" }).format(date);
 };
 
-const formatTimeOnly = (value?: string | null) => {
-  const date = toValidDate(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-};
-
 const getActivityHref = (refTable?: string | null, refId?: number | null) => {
   if (!refTable || !refId) return null;
 
@@ -161,7 +135,6 @@ const priorityClass: Record<string, string> = {
 };
 
 export default function PenjualanDashboardPage() {
-  const { user } = useAuth();
   const [dashboard, setDashboard] = useState<SalesDashboard>(EMPTY_SALES_DASHBOARD);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -393,7 +366,7 @@ export default function PenjualanDashboardPage() {
               })}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_320px]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -445,114 +418,10 @@ export default function PenjualanDashboardPage() {
               ))}
             </div>
           </section>
-
-          <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-            <p className="text-sm font-bold text-slate-700">Akses Cepat</p>
-            <p className="mb-4 text-xs text-slate-400">Menu utama modul sales</p>
-            <div className="space-y-2">
-              {shortcuts.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link key={item.href} href={item.href} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2.5 transition-colors hover:border-slate-200 hover:bg-slate-50">
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                        <Icon size={14} />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-slate-700">{item.label}</span>
-                        <span className="block truncate text-[11px] text-slate-400">{item.desc}</span>
-                      </span>
-                    </span>
-                    <ArrowRight size={13} className="text-slate-300" />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-            <div className="flex h-10 items-center justify-between border-b border-slate-200 px-4">
-              <p className="truncate text-base font-semibold text-slate-900">
-                Aktivitas Terakhir Anda{user?.email ? ` (${user.email})` : ""}
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={fetchData}
-                  disabled={loading}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-900 transition-colors hover:bg-slate-100 disabled:opacity-50"
-                  aria-label="Refresh aktivitas terakhir"
-                >
-                  <RefreshCw size={19} className={loading ? "animate-spin" : ""} />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100"
-                  aria-label="Menu aktivitas terakhir"
-                >
-                  <MoreVertical size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="h-[245px] overflow-y-auto px-4 py-3">
-              {loading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />
-                  ))}
-                </div>
-              ) : dashboard.recentActivities.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <p className="text-lg italic text-slate-500">Tidak ada aktivitas</p>
-                </div>
-              ) : (
-                <div className="space-y-0">
-                  {dashboard.recentActivities.map((item, index) => {
-                    const href = getActivityHref(item.refTable, item.refId);
-                    const dateKey = getDateKey(item.createdAt);
-                    const previousDateKey = index > 0 ? getDateKey(dashboard.recentActivities[index - 1]?.createdAt) : "";
-                    const showDate = index === 0 || dateKey !== previousDateKey;
-                    const content = (
-                      <div className="group grid grid-cols-[72px_1fr] gap-3">
-                        <div className="pt-1 text-slate-600">
-                          {showDate && (
-                            <>
-                              <p className="text-sm">{formatDayName(item.createdAt)}</p>
-                              <p className="leading-none text-[44px] font-light">{formatDayNumber(item.createdAt)}</p>
-                              <p className="-mt-1 text-2xl">{formatMonthName(item.createdAt)}</p>
-                            </>
-                          )}
-                        </div>
-                        <div className="relative border-l border-slate-200 pb-7 pl-8">
-                          <span className="absolute -left-[7px] top-2 h-3.5 w-3.5 rounded-full border border-blue-500 bg-blue-100" />
-                          <div className="grid grid-cols-[56px_1fr] gap-2">
-                            <p className="text-sm font-bold text-slate-900">{formatTimeOnly(item.createdAt)}</p>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm text-slate-600 group-hover:text-slate-900">{item.title}</p>
-                              {(item.description || item.refNumber) && (
-                                <p className="mt-1 truncate text-xs text-slate-400">{item.description || item.refNumber}</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-
-                    return href ? (
-                      <Link key={item.id} href={href} className="block">
-                        {content}
-                      </Link>
-                    ) : (
-                      <div key={item.id}>{content}</div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
+          <ActivityTimeline maxHeight={330} />
 
           <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
             <div className="flex h-10 items-center justify-between border-b border-slate-200 px-4">
