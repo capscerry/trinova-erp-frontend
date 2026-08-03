@@ -76,11 +76,21 @@ export function PengirimanSOPickerModal({
 
         const readyMap: Record<number, boolean> = {};
         data.forEach((so) => {
-          const related = invoices.filter((inv) => inv.salesOrderId === so.id);
+          // Samakan dengan backend (IsSalesOrderFullyInvoicedAndPaidAsync):
+          // jumlahkan subtotal semua invoice non-Cancelled (termasuk 2 tahap
+          // proforma DP/Pelunasan untuk barang indent) dan bandingkan dengan
+          // subtotal SO, bukan sekadar "semua invoice yang ada sudah lunas" —
+          // supaya SO yang baru dapat invoice DP 30% tidak ikut tampil Lunas.
+          const related = invoices.filter(
+            (inv) => inv.salesOrderId === so.id && inv.status !== "Cancelled"
+          );
+          const invoicedSubtotal = related.reduce(
+            (sum, inv) => sum + (inv.subtotal - inv.discountTotal + inv.taxTotal),
+            0
+          );
+          const unpaidCount = related.filter((inv) => inv.remainingAmount > 0).length;
           readyMap[so.id] =
-            related.length > 0 &&
-            related.some((inv) => inv.status !== "Cancelled") &&
-            related.every((inv) => inv.status === "Cancelled" || inv.remainingAmount <= 0);
+            invoicedSubtotal > 0 && invoicedSubtotal >= so.total && unpaidCount === 0;
         });
         setInvoiceReadyMap(readyMap);
       } catch (err) {
@@ -441,7 +451,11 @@ export function PengirimanSOPickerModal({
               </button>
               <button
                 onClick={handleConfirm}
-                disabled={!selectedSo || checkedIds.size === 0}
+                disabled={
+                  !selectedSo ||
+                  checkedIds.size === 0 ||
+                  !(invoiceReadyMap[Number(selectedSo.id)] ?? false)
+                }
                 className="px-5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
               >
                 <Check size={12} /> Gunakan Pesanan Ini
