@@ -498,8 +498,8 @@ export const productDropdownService = {
 
 export type QuotationStatus =
   | "Draft"
-  | "Sent"
   | "Approved"
+  | "Processed"
   | "Rejected"
   | "Cancelled";
 

@@ -9,7 +9,7 @@ export type SalesStatusModule =
 export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
   // Bahasa Inggris konsisten lintas semua dokumen Sales (sebelumnya sempat
   // dicampur dengan istilah Indonesia "Belum Diproses"/"Diproses").
-  quotation: ["Draft", "Sent", "Approved", "Processed", "Rejected", "Cancelled"],
+  quotation: ["Draft", "Approved", "Processed", "Rejected", "Cancelled"],
   // Disederhanakan (flow baru, lihat plan "Redesain Flow & Status Sales
   // Module"): "Processing" mencakup seluruh tahap penagihan & pembayaran
   // (invoice reguler maupun proforma DP/pelunasan untuk barang indent) --
@@ -51,7 +51,12 @@ export function normalizeSalesStatus(
     "belum diproses": "Draft",
     "belum terproses": "Draft",
 
-    dikirim: module === "quotation" ? "Sent" : "In Delivery",
+    // Quotation tidak lagi punya status "Sent" tersendiri -- kirim email
+    // tidak mengubah status. Baris lama yang masih tersimpan "Sent" di DB
+    // dianggap setara Draft.
+    ...(module === "quotation" ? { sent: "Draft" } : {}),
+
+    dikirim: module === "quotation" ? "Draft" : "In Delivery",
     disetujui: "Approved",
     ditolak: "Rejected",
     dibatalkan: "Cancelled",
@@ -91,7 +96,7 @@ export function isApprovedForPicker(
   const normalized = normalizeSalesStatus(module, status);
 
   const selectableStatuses: Record<SalesStatusModule, string[]> = {
-    quotation: ["Draft", "Sent", "Approved"],
+    quotation: ["Draft", "Approved"],
     "sales-order": ["Draft", "Processing"],
     "down-payment": ["Received"],
     "delivery-order": ["In Delivery"],
@@ -114,7 +119,7 @@ export function getStatusTone(status?: string | null) {
     return "bg-emerald-100 text-emerald-700 border-emerald-200";
   }
 
-  if (["Sent", "Issued", "In Delivery", "Processed"].includes(normalized)) {
+  if (["Issued", "In Delivery", "Processed"].includes(normalized)) {
     return "bg-sky-100 text-sky-700 border-sky-200";
   }
 
