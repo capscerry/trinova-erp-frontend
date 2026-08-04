@@ -17,6 +17,23 @@ function formatForecastMonth(period: string) {
   });
 }
 
+function getCurrentTrainingPeriod() {
+  return new Date().toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getCurrentForecastMonth() {
+  const date = new Date();
+  date.setMonth(date.getMonth() + 1);
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export const columns: Column<Forecast>[] = [
   {
     key: "product_name",
@@ -40,8 +57,7 @@ export const columns: Column<Forecast>[] = [
     label: "Forecast Month",
     width: "160px",
 
-    render: (value) =>
-      formatForecastMonth(String(value)),
+    render: () => getCurrentForecastMonth(),
   },
 
   {
@@ -57,7 +73,6 @@ export const columns: Column<Forecast>[] = [
     label: "Training Period",
     width: "180px",
 
-    render: (value) =>
-      formatForecastMonth(String(value)),
+    render: () => getCurrentTrainingPeriod(),
   },
 ];

@@ -1,6 +1,8 @@
+"use client";
+
 import {
-  Package,
-  ChartColumn,
+  Boxes,
+  TrendingUp,
   BarChart3,
   CalendarDays,
 } from "lucide-react";
@@ -13,9 +15,12 @@ interface Props {
 }
 
 function formatForecastMonth(period: string) {
-  if (!period) return "-";
 
-  const [year, month] = period.split("-");
+  if (!period)
+    return "-";
+
+  const [year, month] =
+    period.split("-");
 
   return new Date(
     Number(year),
@@ -24,112 +29,130 @@ function formatForecastMonth(period: string) {
     month: "short",
     year: "numeric",
   });
+
 }
 
 export default function ForecastSummary({
+
   totalProducts,
   totalForecast,
   averageForecast,
   forecastMonth,
+
 }: Props) {
 
   const cards = [
+
     {
-      title: "Total Products",
-      value: totalProducts,
-      description: "Products Forecasted",
-      icon: Package,
+      title: "Forecasted Products",
+      value: totalProducts.toLocaleString(),
+      icon: Boxes,
       color: "text-blue-600",
-      bg: "bg-blue-100",
+      bg: "bg-blue-50",
+      description:
+        "Products analyzed",
     },
+
     {
-      title: "Forecast Qty",
-      value: totalForecast.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-      description: "Predicted Demand",
-      icon: ChartColumn,
-      color: "text-emerald-600",
-      bg: "bg-emerald-100",
+      title: "Total Forecast",
+      value: totalForecast.toFixed(2),
+      icon: TrendingUp,
+      color: "text-green-600",
+      bg: "bg-green-50",
+      description:
+        "Predicted demand",
     },
+
     {
       title: "Average Forecast",
       value: averageForecast.toFixed(2),
-      description: "Per Product",
       icon: BarChart3,
       color: "text-violet-600",
-      bg: "bg-violet-100",
+      bg: "bg-violet-50",
+      description:
+        "Average per product",
     },
+
     {
       title: "Forecast Month",
-      value: formatForecastMonth(forecastMonth),
-      description: "Prediction Period",
+      value: formatForecastMonth(
+        forecastMonth
+      ),
       icon: CalendarDays,
       color: "text-amber-600",
-      bg: "bg-amber-100",
+      bg: "bg-amber-50",
+      description:
+        "Prediction period",
     },
+
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => {
 
-        const Icon = card.icon;
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
 
-        return (
-          <div
-            key={card.title}
-            className="
-              rounded-2xl
-              border
-              border-slate-200
-              bg-white
-              p-6
-              shadow-sm
-              transition-all
-              duration-300
-              hover:-translate-y-1
-              hover:shadow-lg
-              hover:cursor-default
-            "
-          >
-            <div className="flex items-center justify-between">
+      {
 
-              <div>
+        cards.map((card) => {
 
-                <p className="text-sm text-slate-500">
-                  {card.title}
-                </p>
+          const Icon = card.icon;
 
-                <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-800">
-                  {card.value}
-                </h2>
+          return (
 
-                <p className="mt-2 text-xs text-slate-400">
-                  {card.description}
-                </p>
+            <div
+              key={card.title}
+              className="
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                p-6
+                shadow-sm
+              "
+            >
 
-              </div>
+              <div className="flex items-start justify-between">
 
-              <div
-                className={`
-                  ${card.bg}
-                  rounded-xl
-                  p-3
-                `}
-              >
-                <Icon
-                  className={`h-7 w-7 ${card.color}`}
-                />
+                <div>
+
+                  <p className="text-sm font-medium text-slate-500">
+                    {card.title}
+                  </p>
+
+                  <h2 className="mt-2 text-3xl font-bold text-slate-800">
+                    {card.value}
+                  </h2>
+
+                  <p className="mt-2 text-xs text-slate-400">
+                    {card.description}
+                  </p>
+
+                </div>
+
+                <div
+                  className={`
+                    ${card.bg}
+                    rounded-xl
+                    p-3
+                  `}
+                >
+                  <Icon
+                    className={`h-6 w-6 ${card.color}`}
+                  />
+                </div>
+
               </div>
 
             </div>
-          </div>
-        );
 
-      })}
+          );
+
+        })
+
+      }
+
     </div>
-  );
-}
 
+  );
+
+}

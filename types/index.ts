@@ -26,8 +26,6 @@ export type StatusVariant = "success" | "warning" | "danger" | "info" | "default
 export interface StatCardData {
   label: string;
   value: string;
-  change?: string;
-  trend: "up" | "down";
   sub: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon?: any;

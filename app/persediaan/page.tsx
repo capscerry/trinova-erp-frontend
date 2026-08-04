@@ -16,6 +16,8 @@ import {
   InventoryDashboard,
 } from "@/lib/services/inventory-dashboard.service";
 
+import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
+
 export default function PersediaanPage() {
   const module = NAV_CONFIG.find((n) => n.id === "persediaan")!;
 
@@ -39,29 +41,21 @@ export default function PersediaanPage() {
     {
       label: "Total Produk",
       value: dashboard?.totalProducts.toString() ?? "-",
-      change: "+4",
-      trend: "up" as const,
       sub: "Item Terdaftar",
     },
     {
       label: "Stok Aman",
       value: dashboard?.safeStock.toString() ?? "-",
-      change: "+2",
-      trend: "up" as const,
       sub: "AI Demand Forecast",
     },
     {
       label: "Stok Kritis",
       value: dashboard?.criticalStock.toString() ?? "-",
-      change: "-1",
-      trend: "down" as const,
       sub: "Perlu Reorder",
     },
     {
       label: "Total Stock",
       value: dashboard?.totalStock.toLocaleString() ?? "-",
-      change: "+10",
-      trend: "up" as const,
       sub: "Qty On Hand",
     },
   ];
@@ -87,6 +81,11 @@ export default function PersediaanPage() {
           <ForecastInsight aiSummary={dashboard.aiSummary} />
         </>
       )}
+
+      <ActivityTimeline
+          module="Inventory"
+      />
+      
     </AppShell>
   );
 }

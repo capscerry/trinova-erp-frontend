@@ -37,11 +37,12 @@ import {
   Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  getRecentActivities,
-  type ActivityLogEntry,
-  type ActivityStatus,
-} from "@/lib/services/activity-log.service";
+import { getRecentActivities } from "@/lib/services/activity-log/activity-log.service";
+
+import type {
+    ActivityEntry,
+    ActivityStatus,
+} from "@/lib/services/activity-log/types";
 
 // ─── Visual helpers ───────────────────────────────────────────────────────────
 
@@ -179,7 +180,7 @@ function TimelineEmpty({ error }: { error?: string }) {
 // ─── Single timeline entry ────────────────────────────────────────────────────
 
 interface EntryProps {
-  entry: ActivityLogEntry;
+  entry: ActivityEntry;
   isLast: boolean;
 }
 
@@ -251,7 +252,7 @@ function TimelineEntry({ entry, isLast }: EntryProps) {
               badgeCls
             )}
           >
-            {entry.module}
+            {entry.ownerModule}
           </span>
         </div>
 
@@ -269,10 +270,10 @@ function TimelineEntry({ entry, isLast }: EntryProps) {
               {entry.documentNumber}
             </span>
           )}
-          {entry.userName && (
+          {entry.createdBy && (
             <span className="text-[10px] text-slate-400 flex items-center gap-1">
               <User size={9} />
-              {entry.userName}
+              {entry.createdBy}
             </span>
           )}
         </div>
@@ -307,6 +308,8 @@ function DateSeparator({ iso }: { iso: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface ActivityTimelineProps {
+  // Filter Module: "purchasing" | "inventory" | "sales" | "masterdata" | "auth";
+  module?: string;
   /** Height of the scrollable container. Defaults to 400px */
   maxHeight?: number;
   /** Max number of entries to display. Defaults to 20 */
@@ -317,20 +320,22 @@ interface ActivityTimelineProps {
 }
 
 export function ActivityTimeline({
+  module,
   maxHeight = 400,
   limit = 20,
   showCard = true,
   className,
 }: ActivityTimelineProps) {
-  const [entries, setEntries]   = useState<ActivityLogEntry[]>([]);
+  const [entries, setEntries]   = useState<ActivityEntry[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const data = await getRecentActivities(limit);
+      const data = await getRecentActivities(limit, module);
       setEntries(data);
     } catch (err: any) {
       setError(err?.message ?? "Terjadi kesalahan");
@@ -338,7 +343,7 @@ export function ActivityTimeline({
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, module]);
 
   useEffect(() => {
     load();
