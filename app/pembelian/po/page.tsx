@@ -31,7 +31,6 @@ import {
   getUoms,
 } from "@/lib/services";
 
-import { buildReservationMap } from "@/lib/services/supplier-product.service";
 
 import { getNextPONumber } from "@/lib/services/po.service";
 import {
@@ -112,16 +111,18 @@ interface Product {
 
   supplier_price?: number;
 
-  /** Raw available_stock from the API (post-approval deductions already applied by backend = Available To Order). */
+  /** Available To Order = catalog_stock - reserved_quantity (computed server-side). */
   available_stock?: number;
 
-  /** Reconstructed original catalog stock = available_stock + reserved_quantity. */
+  /** Raw supplier catalog snapshot, untouched by PO/GR (computed server-side). */
   catalog_stock?: number;
 
-  /** Outstanding PO quantity for Approved/Partially-processed POs. */
+  /** Outstanding qty from Approved/Completed POs not yet fully received (computed server-side). */
   reserved_quantity?: number;
 
   lead_time_days?: number;
+
+  is_available?: boolean;
 }
 
 interface Uom {
@@ -442,37 +443,22 @@ export default function PurchaseOrderPage() {
     try {
       console.log("[PO Page] Loading Supplier Products...");
 
-      // Fetch products and PO data in parallel for efficiency
-      const [productRes, poRes, poDetailRes] = await Promise.all([
-        getSupplierProducts(),
-        getPurchaseOrders(),
-        getPurchaseOrderDetails(),
-      ]);
+      // Products already carry reserved_quantity/available_to_order computed
+      // server-side (from open PO qty minus GR received qty) -- no need to
+      // fetch PO/PO-detail lists or reconstruct anything client-side anymore.
+      const productRes = await getSupplierProducts();
 
       const productList: any[] = Array.isArray(productRes)
         ? productRes
         : (Array.isArray(productRes?.data) ? productRes.data : []);
 
-      const poList: any[] = Array.isArray(poRes)
-        ? poRes
-        : (Array.isArray(poRes?.data) ? poRes.data : []);
-
-      const poDetailList: any[] = Array.isArray(poDetailRes)
-        ? poDetailRes
-        : (Array.isArray(poDetailRes?.data) ? poDetailRes.data : []);
-
-      // Build reservation map: product_id → outstanding reserved quantity
-      const reservationMap = buildReservationMap(poList, poDetailList);
-
       const mappedData = productList
         .filter((item: any) => item?.product_id != null)
         .map((item: any) => {
           const availableStock = item.available_stock ?? undefined;
-          const reservedQty = reservationMap[String(item.product_id)] ?? 0;
-          const catalogStock =
-            availableStock !== undefined
-              ? availableStock + reservedQty
-              : undefined;
+          const reservedQty = Number(item.reserved_quantity ?? item.reservedQuantity ?? 0);
+          const availableToOrder =
+            item.available_to_order ?? item.availableToOrder ?? availableStock;
 
           return {
             id: String(item.product_id),
@@ -480,8 +466,11 @@ export default function PurchaseOrderPage() {
             uom_id: item.uom_id ?? 0,
             supplier_id: item.supplier_id ?? null,
             supplier_price: item.supplier_price ?? 0,
-            available_stock: availableStock,
-            catalog_stock: catalogStock,
+            is_available: item.is_available ?? item.isAvailable ?? true,
+            // available_stock is the raw supplier catalog snapshot; catalog_stock
+            // kept as an alias since PurchaseOrderItemTable reads either name.
+            available_stock: availableToOrder,
+            catalog_stock: availableStock,
             reserved_quantity: reservedQty,
             lead_time_days: item.lead_time_days ?? undefined,
           };

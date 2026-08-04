@@ -36,7 +36,9 @@ interface Supplier { id: string; nama: string; status?: string; }
 interface Product {
   id: string; nama: string;
   supplier_id?: number; supplier_price?: number;
-  available_stock?: number; lead_time_days?: number; uom_id?: number;
+  available_stock?: number; catalog_stock?: number; reserved_quantity?: number;
+  lead_time_days?: number; uom_id?: number;
+  is_available?: boolean;
 }
 interface Uom { id: string; nama: string; }
 
@@ -279,7 +281,7 @@ export default function PurchaseOrderFormModal({
           };
         });
         setForm({ ...initialData, items: normalizedItems });
-        setFilteredProducts(products.filter(p => p.supplier_id?.toString() === initialData.supplier_id));
+        setFilteredProducts(products.filter(p => p.supplier_id?.toString() === initialData.supplier_id && p.is_available !== false));
         seedFromExisting(initialData.purchase_order_id ?? 0);
       } else {
         setIsApproved(false);
@@ -887,7 +889,7 @@ export default function PurchaseOrderFormModal({
                           onClick={() => {
                             if (supplierId) {
                               setField("supplier_id", supplierId);
-                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === supplierId));
+                              setFilteredProducts(products.filter((prod: any) => prod.supplier_id?.toString() === supplierId && prod.is_available !== false));
                             }
                           }}
                           className={cn(
@@ -948,7 +950,7 @@ export default function PurchaseOrderFormModal({
                       const sel = suppliers.find(s => s.nama === value);
                       const sid = sel?.id ?? "";
                       setField("supplier_id", sid);
-                      setFilteredProducts(products.filter((p: any) => p.supplier_id?.toString() === sid));
+                      setFilteredProducts(products.filter((p: any) => p.supplier_id?.toString() === sid && p.is_available !== false));
                     }}
                   />
                 )}
