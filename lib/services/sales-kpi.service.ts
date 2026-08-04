@@ -1,19 +1,17 @@
 /**
  * lib/services/sales-kpi.service.ts
  *
- * Client-side KPI aggregation service for the executive Sales Dashboard.
- * Mirrors lib/services/purchasing-kpi.service.ts: fetches the raw ERP
- * collections and derives all KPI card values and chart series in a single
- * pass so the dashboard makes the minimum required API calls.
- *
- * NO business logic is modified — this is read-only analytics only.
+ * KPI data for the executive Sales Dashboard, computed server-side by
+ * GET /api/sales-kpi (SalesKpiController -> SalesKpiRepo). The frontend only
+ * decides WHICH date range to ask for (getDateBounds below); the backend
+ * aggregates directly from sales_order/sales_invoice/delivery_order/... via
+ * SQL, so what the dashboard shows always matches what's actually in the
+ * database -- no client-side date-filtering logic left to silently disagree
+ * with the real data (that's what caused the previous "0 everywhere despite
+ * real data existing" bug: the aggregation ran entirely in the browser).
  */
 
-import { salesOrderService, salesQuotationService, type SalesOrder } from "./penjualan.service";
-import { salesInvoiceService, type SalesInvoice } from "./sales-invoice.service";
-import { salesReturnService } from "./sales-return.service";
-import { pengirimanPenjualanService } from "./pengiriman-penjualan.service";
-import { customerService } from "./customer.service";
+import { api } from "@/lib/api";
 
 // ─── Date filter helpers ──────────────────────────────────────────────────────
 
@@ -81,14 +79,7 @@ export function getDateBounds(filter: DateFilter): { from: Date; to: Date } {
   }
 }
 
-function inRange(dateStr: string | null | undefined, from: Date, to: Date): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  return d >= from && d <= to;
-}
-
-// ─── KPI types ────────────────────────────────────────────────────────────────
+// ─── KPI types (unchanged — app/penjualan/page.tsx reads these directly) ─────
 
 export interface KpiCardData {
   totalSalesOrder: number;
@@ -96,7 +87,7 @@ export interface KpiCardData {
   totalRevenue: number;
   totalRevenuePrevMonth: number;
   outstandingReceivable: number;
-  fulfillmentRate: number;        // 0–100 %, SO yang sudah Completed
+  fulfillmentRate: number;        // 0–100 %, qty terkirim / qty dipesan
   salesReturnCount: number;
   salesReturnPrevMonth: number;
 }
@@ -155,19 +146,26 @@ export interface SalesKpiData {
   leaderboard: CustomerLeaderboardRow[];
 }
 
-// ─── Colour palette ───────────────────────────────────────────────────────────
+// ─── Colour palette (purely cosmetic — backend only returns labels/counts) ──
 
-// Selaras dengan 5 status Sales Order kanonis di lib/sales-status.ts
-// (SALES_STATUS_OPTIONS["sales-order"]) hasil redesain flow indent/non-indent.
 const STATUS_COLORS: Record<string, string> = {
   Draft: "#94a3b8",
   Processing: "#f59e0b",
   "In Delivery": "#0ea5e9",
+  "Partially Fulfilled": "#f59e0b",
   Completed: "#10b981",
   Cancelled: "#ef4444",
 };
 
-// ─── Main aggregation function ────────────────────────────────────────────────
+const FUNNEL_COLORS: Record<string, string> = {
+  Quotation: "#6366f1",
+  "Sales Order": "#3b82f6",
+  Delivered: "#0ea5e9",
+  Invoiced: "#10b981",
+  Paid: "#22c55e",
+};
+
+// ─── Main entry point ─────────────────────────────────────────────────────────
 
 export async function fetchSalesKpis(
   filter: DateFilter,
@@ -177,232 +175,82 @@ export async function fetchSalesKpis(
     status?: string;
   }
 ): Promise<SalesKpiData> {
-  // ── 1. Fetch raw data in parallel ────────────────────────────────────────
-  const [orders, invoices, returns, deliveries, deliveryItems, quotations, customers] = await Promise.all([
-    salesOrderService.getAll().catch(() => [] as SalesOrder[]),
-    salesInvoiceService.getAll().catch(() => [] as SalesInvoice[]),
-    salesReturnService.getAll().catch(() => []),
-    pengirimanPenjualanService.getAll().catch(() => []),
-    pengirimanPenjualanService.getAllDetailItems().catch(() => []),
-    salesQuotationService.getAll().catch(() => []),
-    customerService.getAll().catch(() => []),
-  ]);
-
-  // ── 2. Customer lookup maps ──────────────────────────────────────────────
-  const customerCategoryByName = new Map<string, string>();
-  const customerCategoryById = new Map<number, string>();
-  for (const c of customers) {
-    customerCategoryById.set(c.id, c.category || "Others");
-    customerCategoryByName.set(c.nama, c.category || "Others");
-  }
-
-  // ── 3. Date bounds ────────────────────────────────────────────────────────
   const { from, to } = getDateBounds(filter);
   const durationMs = to.getTime() - from.getTime();
   const prevTo = new Date(from.getTime() - 1);
   const prevFrom = new Date(prevTo.getTime() - durationMs);
 
-  // ── 4. Apply filters ─────────────────────────────────────────────────────
-  const filterSO = (o: SalesOrder) => {
-    if (activeFilters?.status && o.status !== activeFilters.status) return false;
-    if (activeFilters?.category && (customerCategoryByName.get(o.pelanggan) ?? "Others") !== activeFilters.category) return false;
-    return true;
-  };
-  const filterInvoice = (i: SalesInvoice) => {
-    if (activeFilters?.customerId && Number(i.customerId) !== activeFilters.customerId) return false;
-    if (activeFilters?.category && (customerCategoryById.get(Number(i.customerId)) ?? "Others") !== activeFilters.category) return false;
-    return true;
-  };
-
-  // ── 5. KPI — Sales Order count this period vs prev ──────────────────────
-  const soInRange = orders.filter((o) => inRange(o.tanggal, from, to) && filterSO(o));
-  const soInPrevRange = orders.filter((o) => inRange(o.tanggal, prevFrom, prevTo) && filterSO(o));
-
-  // ── 6. KPI — Total Revenue (from invoices) ───────────────────────────────
-  const invoicesInRange = invoices.filter((i) => inRange(i.invoiceDate, from, to) && filterInvoice(i));
-  const invoicesInPrevRange = invoices.filter((i) => inRange(i.invoiceDate, prevFrom, prevTo) && filterInvoice(i));
-
-  const totalRevenue = invoicesInRange.reduce((sum, i) => sum + Number(i.grandTotal ?? 0), 0);
-  const totalRevenuePrev = invoicesInPrevRange.reduce((sum, i) => sum + Number(i.grandTotal ?? 0), 0);
-
-  // ── 7. KPI — Outstanding Receivable (current, not date-filtered) ────────
-  const outstandingReceivable = invoices
-    .filter((i) => i.status !== "Paid" && i.status !== "Cancelled")
-    .reduce((sum, i) => sum + Number(i.remainingAmount ?? 0), 0);
-
-  // ── 8. KPI — Fulfillment Rate (qty shipped / qty ordered, in range) ──────
-  // Order-status-based ("is the SO marked Completed?") doesn't actually mean
-  // the ordered quantity was fully shipped -- a DO marked "received" while
-  // only partially shipped still flips its SO to Completed. So this is
-  // computed from real Delivery Order line-item quantities instead.
-  const doDateById = new Map<number, string>();
-  for (const d of deliveries) {
-    if (d.status === "Cancelled") continue;
-    doDateById.set(Number(d.id), d.tanggalKirim);
-  }
-  const deliveryItemsInRange = deliveryItems.filter((item) => {
-    const doDate = doDateById.get(Number(item.doId));
-    return doDate !== undefined && inRange(doDate, from, to);
+  const response = await api.get("/sales-kpi", {
+    params: {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      prevFrom: prevFrom.toISOString(),
+      prevTo: prevTo.toISOString(),
+      customerId: activeFilters?.customerId,
+      category: activeFilters?.category,
+      status: activeFilters?.status,
+    },
   });
-  const totalQtyOrdered = deliveryItemsInRange.reduce((sum, item) => sum + Number(item.qtyDipesan ?? 0), 0);
-  const totalQtyShipped = deliveryItemsInRange.reduce((sum, item) => sum + Number(item.qtyDikirim ?? 0), 0);
-  const fulfillmentRate = totalQtyOrdered > 0
-    ? Math.min((totalQtyShipped / totalQtyOrdered) * 100, 100)
-    : 0;
 
-  // ── 9. KPI — Sales Returns ───────────────────────────────────────────────
-  const returnsInRange = returns.filter((r) => inRange(r.tanggal, from, to));
-  const returnsInPrevRange = returns.filter((r) => inRange(r.tanggal, prevFrom, prevTo));
-
-  // ── 10. Chart — Revenue Trend (monthly, dalam rentang filter) ────────────
-  const revenueByMonth = new Map<string, number>();
-  for (const inv of invoicesInRange) {
-    const d = new Date(inv.invoiceDate);
-    if (isNaN(d.getTime())) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    revenueByMonth.set(key, (revenueByMonth.get(key) ?? 0) + Number(inv.grandTotal ?? 0));
-  }
-  const revenueTrend = buildMonthlyPoints(revenueByMonth, from, to);
-
-  // ── 11. Chart — Monthly Sales Order Volume (dalam rentang filter) ────────
-  const volumeByMonth = new Map<string, number>();
-  for (const o of soInRange) {
-    const d = new Date(o.tanggal);
-    if (isNaN(d.getTime())) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    volumeByMonth.set(key, (volumeByMonth.get(key) ?? 0) + 1);
-  }
-  const salesVolumeTrend = buildMonthlyPoints(volumeByMonth, from, to);
-
-  // ── 12. Chart — SO Status Distribution (dalam rentang filter) ────────────
-  const statusCount = new Map<string, number>();
-  for (const o of soInRange) {
-    statusCount.set(o.status, (statusCount.get(o.status) ?? 0) + 1);
-  }
-  const soStatusDistribution: SOStatusCount[] = Array.from(statusCount.entries()).map(([status, count]) => ({
-    status,
-    count,
-    color: STATUS_COLORS[status] ?? "#94a3b8",
-  }));
-
-  // ── 13. Chart — Top 10 Customers by Revenue ──────────────────────────────
-  const customerRevenueMap = new Map<number, number>();
-  const customerNameMap = new Map<number, string>();
-  for (const inv of invoicesInRange) {
-    const cid = Number(inv.customerId);
-    customerRevenueMap.set(cid, (customerRevenueMap.get(cid) ?? 0) + Number(inv.grandTotal ?? 0));
-    customerNameMap.set(cid, inv.customerName || `Customer ${cid}`);
-  }
-  const topCustomersByRevenue: CustomerRevenue[] = Array.from(customerRevenueMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([cid, total]) => ({
-      customer_id: cid,
-      customer_name: customerNameMap.get(cid) ?? `Customer ${cid}`,
-      total,
-    }));
-
-  // ── 14. Chart — Revenue by Customer Category ─────────────────────────────
-  const categoryRevenueMap = new Map<string, number>();
-  for (const inv of invoicesInRange) {
-    const cat = customerCategoryById.get(Number(inv.customerId)) ?? "Others";
-    categoryRevenueMap.set(cat, (categoryRevenueMap.get(cat) ?? 0) + Number(inv.grandTotal ?? 0));
-  }
-  const categoryDistribution: CategoryRevenue[] = Array.from(categoryRevenueMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([category, value]) => ({ category, value }));
-
-  // ── 15. Chart — Outstanding Receivable Trend (monthly, dalam rentang filter)
-  const outstandingByMonth = new Map<string, number>();
-  for (const inv of invoicesInRange) {
-    if (inv.status === "Paid" || inv.status === "Cancelled") continue;
-    const d = new Date(inv.invoiceDate);
-    if (isNaN(d.getTime())) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    outstandingByMonth.set(key, (outstandingByMonth.get(key) ?? 0) + Number(inv.remainingAmount ?? 0));
-  }
-  const outstandingTrend = buildMonthlyPoints(outstandingByMonth, from, to);
-
-  // ── 16. Chart — Monthly Return Trend (dalam rentang filter) ──────────────
-  const returnByMonth = new Map<string, number>();
-  for (const r of returnsInRange) {
-    const d = new Date(r.tanggal);
-    if (isNaN(d.getTime())) continue;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    returnByMonth.set(key, (returnByMonth.get(key) ?? 0) + 1);
-  }
-  const returnTrend = buildMonthlyPoints(returnByMonth, from, to);
-
-  // ── 17. Sales Funnel ──────────────────────────────────────────────────────
-  const deliveriesInRange = deliveries.filter((d) => inRange(d.tanggalKirim, from, to));
-  const funnel: SalesFunnelStep[] = [
-    { label: "Quotation", count: quotations.length, color: "#6366f1" },
-    { label: "Sales Order", count: orders.filter((o) => o.status !== "Cancelled").length, color: "#3b82f6" },
-    { label: "Delivered", count: deliveriesInRange.length, color: "#0ea5e9" },
-    { label: "Invoiced", count: invoices.filter((i) => i.status !== "Cancelled").length, color: "#10b981" },
-    { label: "Paid", count: invoices.filter((i) => i.status === "Paid").length, color: "#22c55e" },
-  ];
-
-  // ── 18. Customer Leaderboard (by revenue, all-time within range) ────────
-  const invoiceCountMap = new Map<number, number>();
-  for (const inv of invoicesInRange) {
-    const cid = Number(inv.customerId);
-    invoiceCountMap.set(cid, (invoiceCountMap.get(cid) ?? 0) + 1);
-  }
-  const leaderboard: CustomerLeaderboardRow[] = Array.from(customerRevenueMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([cid, revenue], i) => ({
-      rank: i + 1,
-      customer_id: cid,
-      customer_name: customerNameMap.get(cid) ?? `Customer ${cid}`,
-      revenue,
-      invoiceCount: invoiceCountMap.get(cid) ?? 0,
-      category: customerCategoryById.get(cid) ?? "Others",
-    }));
+  const raw = response.data?.data ?? {};
+  const kpis = raw.kpis ?? {};
+  const charts = raw.charts ?? {};
 
   return {
     kpis: {
-      totalSalesOrder: soInRange.length,
-      totalSalesOrderPrevMonth: soInPrevRange.length,
-      totalRevenue,
-      totalRevenuePrevMonth: totalRevenuePrev,
-      outstandingReceivable,
-      fulfillmentRate,
-      salesReturnCount: returnsInRange.length,
-      salesReturnPrevMonth: returnsInPrevRange.length,
+      totalSalesOrder: Number(kpis.totalSalesOrder ?? 0),
+      totalSalesOrderPrevMonth: Number(kpis.totalSalesOrderPrevMonth ?? 0),
+      totalRevenue: Number(kpis.totalRevenue ?? 0),
+      totalRevenuePrevMonth: Number(kpis.totalRevenuePrevMonth ?? 0),
+      outstandingReceivable: Number(kpis.outstandingReceivable ?? 0),
+      fulfillmentRate: Number(kpis.fulfillmentRate ?? 0),
+      salesReturnCount: Number(kpis.salesReturnCount ?? 0),
+      salesReturnPrevMonth: Number(kpis.salesReturnPrevMonth ?? 0),
     },
     charts: {
-      revenueTrend,
-      salesVolumeTrend,
-      soStatusDistribution,
-      topCustomersByRevenue,
-      categoryDistribution,
-      outstandingTrend,
-      returnTrend,
+      revenueTrend: (charts.revenueTrend ?? []).map((p: any) => ({
+        month: p.month,
+        value: Number(p.value ?? 0),
+      })),
+      salesVolumeTrend: (charts.salesVolumeTrend ?? []).map((p: any) => ({
+        month: p.month,
+        value: Number(p.value ?? 0),
+      })),
+      soStatusDistribution: (charts.soStatusDistribution ?? []).map((s: any) => ({
+        status: s.status,
+        count: Number(s.count ?? 0),
+        color: STATUS_COLORS[s.status] ?? "#94a3b8",
+      })),
+      topCustomersByRevenue: (charts.topCustomersByRevenue ?? []).map((c: any) => ({
+        customer_id: Number(c.customerId ?? 0),
+        customer_name: c.customerName ?? "",
+        total: Number(c.total ?? 0),
+      })),
+      categoryDistribution: (charts.categoryDistribution ?? []).map((c: any) => ({
+        category: c.category,
+        value: Number(c.value ?? 0),
+      })),
+      outstandingTrend: (charts.outstandingTrend ?? []).map((p: any) => ({
+        month: p.month,
+        value: Number(p.value ?? 0),
+      })),
+      returnTrend: (charts.returnTrend ?? []).map((p: any) => ({
+        month: p.month,
+        value: Number(p.value ?? 0),
+      })),
     },
-    funnel,
-    leaderboard,
+    funnel: (raw.funnel ?? []).map((f: any) => ({
+      label: f.label,
+      count: Number(f.count ?? 0),
+      color: FUNNEL_COLORS[f.label] ?? "#94a3b8",
+    })),
+    leaderboard: (raw.leaderboard ?? []).map((l: any) => ({
+      rank: Number(l.rank ?? 0),
+      customer_id: Number(l.customerId ?? 0),
+      customer_name: l.customerName ?? "",
+      revenue: Number(l.revenue ?? 0),
+      invoiceCount: Number(l.invoiceCount ?? 0),
+      category: l.category ?? "Others",
+    })),
   };
-}
-
-// ─── Helper — build time series mengikuti rentang filter yang dipilih ────────
-
-function buildMonthlyPoints(map: Map<string, number>, from: Date, to: Date): MonthPoint[] {
-  const result: MonthPoint[] = [];
-  const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
-  const end = new Date(to.getFullYear(), to.getMonth(), 1);
-
-  // Batas wajar 24 bucket — kalau rentang custom sangat panjang, jangan
-  // sampai render ratusan bar/point.
-  let guard = 0;
-  while (cursor <= end && guard < 24) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
-    const label = cursor.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
-    result.push({ month: label, value: map.get(key) ?? 0 });
-    cursor.setMonth(cursor.getMonth() + 1);
-    guard++;
-  }
-
-  return result;
 }
