@@ -10,7 +10,6 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
-  PackageCheck,
   Receipt,
   RefreshCw,
   ShoppingBag,
@@ -152,13 +151,6 @@ export default function PenjualanDashboardPage() {
   // Kartu di bawah ini cuma untuk angka yang belum ada representasinya di atas.
   const metrics: MetricCard[] = [
     {
-      label: "Penerimaan",
-      value: formatRupiah(dashboard.totalReceipt),
-      sub: `${dashboard.receiptCount} pembayaran masuk`,
-      icon: PackageCheck,
-      tone: "violet",
-    },
-    {
       label: "Pengiriman",
       value: String(dashboard.deliveryCount),
       sub: "Surat jalan tercatat",
@@ -248,6 +240,31 @@ export default function PenjualanDashboardPage() {
           />
         </div>
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {loading
+            ? Array.from({ length: 2 }).map((_, index) => (
+                <div key={index} className="h-28 animate-pulse rounded-xl border border-slate-100 bg-white" />
+              ))
+            : metrics.map((metric) => {
+                const Icon = metric.icon;
+                const tone = toneClass[metric.tone];
+                return (
+                  <div key={metric.label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{metric.label}</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-800">{metric.value}</p>
+                        <p className="mt-1 text-xs text-slate-400">{metric.sub}</p>
+                      </div>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${tone.bg}`}>
+                        <Icon size={17} className={tone.icon} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+        </div>
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="mb-3 text-sm font-bold text-slate-700">Tren Revenue Bulanan</p>
@@ -274,31 +291,6 @@ export default function PenjualanDashboardPage() {
           <p className="mb-3 text-sm font-bold text-slate-700">Tren Outstanding Piutang</p>
           <OutstandingTrendChart data={kpiData?.charts.outstandingTrend ?? []} loading={kpiLoading} />
         </section>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {loading
-            ? Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-28 animate-pulse rounded-xl border border-slate-100 bg-white" />
-              ))
-            : metrics.map((metric) => {
-                const Icon = metric.icon;
-                const tone = toneClass[metric.tone];
-                return (
-                  <div key={metric.label} className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{metric.label}</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-800">{metric.value}</p>
-                        <p className="mt-1 text-xs text-slate-400">{metric.sub}</p>
-                      </div>
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${tone.bg}`}>
-                        <Icon size={17} className={tone.icon} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-        </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">

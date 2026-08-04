@@ -722,21 +722,30 @@ export function FakturPenjualanModal({
           <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-6 py-4">
             <button onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100">Batal</button>
             {form.proformaStage === "DP" ? (
-              <button
-                onClick={() => onProsesUangMuka?.({ ...form, remainingAmount: totals.grandTotal })}
-                disabled={!onProsesUangMuka || !form.id}
-                className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Proses ke Uang Muka
-              </button>
+              onProsesUangMuka && (
+                <button
+                  onClick={() => onProsesUangMuka({ ...form, remainingAmount: totals.grandTotal })}
+                  disabled={!form.id}
+                  className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Proses ke Uang Muka
+                </button>
+              )
             ) : (
-              <button
-                onClick={() => onProses?.(form)}
-                disabled={!onProses || !form.id}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Process to Sales Receipt
-              </button>
+              // Tombol "Process to Sales Receipt" sengaja hanya muncul kalau
+              // pemanggil menyediakan onProses (mis. TransactionOrchestrator).
+              // Di halaman daftar Sales Invoice tombol ini dihilangkan karena
+              // pencatatan pembayaran sudah tersedia di halaman detail faktur
+              // ("Record Payment").
+              onProses && (
+                <button
+                  onClick={() => onProses(form)}
+                  disabled={!form.id}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Process to Sales Receipt
+                </button>
+              )
             )}
             <button onClick={handleSubmit} disabled={isSubmitting} className="inline-flex items-center gap-2 rounded-lg bg-navy-900 px-5 py-2 text-sm font-semibold text-gold-400 shadow-sm transition-colors hover:bg-navy-700 disabled:cursor-not-allowed disabled:opacity-50">
               {isSubmitting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}

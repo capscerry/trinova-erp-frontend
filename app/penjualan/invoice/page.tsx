@@ -130,18 +130,6 @@ function SalesInvoicePageInner() {
     fetchData();
   };
 
-  const handleProcessToReceipt = (form: FakturPenjualanFormData & { remainingAmount?: number }) => {
-    const params = new URLSearchParams();
-    if (form.customerId) params.set("customerId", String(form.customerId));
-    if (form.pelanggan) params.set("pelanggan", form.pelanggan);
-    if (form.id) params.set("salesInvoiceId", String(form.id));
-    if (form.salesOrderId) params.set("salesOrderId", String(form.salesOrderId));
-    params.set("nilaiPembayaran", String(form.remainingAmount ?? 0));
-    params.set("keterangan", `Pembayaran faktur ${form.noFaktur}`);
-
-    router.push(`/penjualan/penerimaan-penjualan?${params.toString()}`);
-  };
-
   // Faktur Proforma DP 30% -- lanjut ke Uang Muka, bukan Sales Receipt. Pakai
   // jalur query-param "fromSalesOrder" yang sudah ada di halaman Uang Muka,
   // plus nominal DP yang persis (dari total faktur DP yang baru disimpan).
@@ -212,7 +200,6 @@ function SalesInvoicePageInner() {
           fetchData();
         }}
         onSubmit={handleSubmit}
-        onProses={handleProcessToReceipt}
         onProsesUangMuka={handleProcessToUangMuka}
         initialData={initialFormData}
       />

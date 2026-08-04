@@ -109,6 +109,9 @@ export function DashboardFilters({
             disabled={loading}
             onClick={() => {
               if (preset.key === "custom") {
+                if (dateFilter.range !== "custom") {
+                  onDateFilterChange({ ...dateFilter, range: "custom" });
+                }
                 setShowCustom((v) => !v);
               } else {
                 setShowCustom(false);

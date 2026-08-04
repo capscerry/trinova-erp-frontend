@@ -62,7 +62,6 @@ import {
 
 import PurchaseOrderFormModal from "@/components/modules/pembelian/PurchaseOrderFormModal";
 
-import PurchaseOrderDetailModal from "@/components/modules/pembelian/PurchaseOrderDetailModal";
 
 // -------------------------------------------------------------
 // TYPES
@@ -294,12 +293,6 @@ export default function PurchaseOrderPage() {
 
   const [openModal, setOpenModal] =
     useState(false);
-
-  const [openDetail, setOpenDetail] =
-    useState(false);
-
-  const [selectedPO, setSelectedPO] =
-    useState<any>(null);
 
   const [editingPO, setEditingPO] =
     useState<any>(null);
@@ -1072,122 +1065,8 @@ export default function PurchaseOrderPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={async () => {
-                const poId = Number(row.id);
-
-                let detailItems: any[] = [];
-                try {
-                  detailItems = await getPurchaseOrderDetailsByPO(poId);
-                } catch (err) {
-                  console.error("Failed to fetch PO details for detail view:", err);
-                  detailItems = purchaseOrderDetails.filter(
-                    (item: any) => Number(item.purchase_order_id) === poId
-                  );
-                }
-
-                setSelectedPO({
-                  purchase_order_id:
-                    poId,
-
-                  po_number:
-                    row.nomor,
-
-                  supplier_name:
-                    row.supplier,
-
-                  order_date:
-                    row.tanggal?.split("T")[0],
-
-                  expected_date:
-                    row.expected_date
-                      ? String(row.expected_date).split("T")[0]
-                      : null,
-
-                  status:
-                    row.status,
-
-                  transaction_name:
-                    row.transaction_name ?? "",
-
-                  transaction_detail:
-                    row.transaction_detail ?? "",
-
-                  nomor_faktur_pajak:
-                    row.nomor_faktur_pajak ?? "",
-
-                  total_amount:
-                    row.total,
-
-                  items:
-                    detailItems.map(
-                      (item: any, idx: number) => {
-                        console.log("[PO Detail] raw item:", JSON.stringify(item));
-                        const product = products.find(
-                          (p) => p.id === item.product_id?.toString()
-                        );
-                        return {
-                          id:
-                            item.purchase_order_detail_id != null
-                              ? `${item.purchase_order_detail_id}-${idx}`
-                              : crypto.randomUUID(),
-
-                          product_id:
-                            item.product_id?.toString(),
-
-                          product_name:
-                            product?.nama ||
-                            `Product ${item.product_id}`,
-
-                          isExisting: true,
-
-                          quantity:
-                            Number(item.quantity),
-
-                          uom_id:
-                            item.uom_id?.toString(),
-
-                          uom_name:
-                            item.uom?.uom_name ||
-                            uoms.find(
-                              (u) => u.id === item.uom_id?.toString()
-                            )?.nama ||
-                            "-",
-
-                          price:
-                            Number(item.price),
-
-                          tax_percent:
-                            Number(item.tax_percentage ?? item.tax_percent ?? 0),
-
-                          tax_amount: (() => {
-                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                            const base = Number(item.quantity) * Number(item.price);
-                            return base * (taxPct / 100);
-                          })(),
-
-                          subtotal: (() => {
-                            const taxPct = Number(item.tax_percentage ?? item.tax_percent ?? 0);
-                            const base = Number(item.quantity) * Number(item.price);
-                            return base + base * (taxPct / 100);
-                          })(),
-
-                          available_stock:
-                            product?.available_stock,
-
-                          catalog_stock:
-                            product?.catalog_stock,
-
-                          reserved_quantity:
-                            product?.reserved_quantity,
-
-                          lead_time_days:
-                            product?.lead_time_days,
-                        };
-                      }
-                    ),
-                });
-
-                setOpenDetail(true);
+              onClick={() => {
+                router.push(`/pembelian/po/${row.id}`);
               }}
             >
               Detail
@@ -1359,16 +1238,6 @@ export default function PurchaseOrderPage() {
         existingGoodsReceipts={goodsReceipts}
         existingInvoices={purchaseInvoices}
         prList={prList}
-      />
-
-      {/* DETAIL MODAL */}
-
-      <PurchaseOrderDetailModal
-        open={openDetail}
-        onClose={() =>
-          setOpenDetail(false)
-        }
-        data={selectedPO}
       />
 
       {/* CONFIRM DELETE PO */}

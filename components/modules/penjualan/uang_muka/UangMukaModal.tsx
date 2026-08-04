@@ -87,8 +87,6 @@ interface UangMukaModalProps {
 
 const today = todayStr();
 
-type Tab = "uang-muka" | "info-lainnya";
-
 export function UangMukaModal({
   open,
   onClose,
@@ -100,7 +98,6 @@ export function UangMukaModal({
   const router = useRouter();
 
   const [form, setForm] = useState<UangMukaFormData>(EMPTY_FORM);
-  const [activeTab, setActiveTab] = useState<Tab>("uang-muka");
 
   // "saved" hanya di-set TRUE oleh modal sendiri setelah submit berhasil.
   // Tidak lagi disinkronkan ulang dari props isSaved tiap render — itu yang
@@ -291,7 +288,6 @@ export function UangMukaModal({
 
     setSaved(false);
     setSoIsIndent(false);
-    setActiveTab("uang-muka");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -645,29 +641,9 @@ export function UangMukaModal({
               </FormField>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-slate-200 px-6 bg-slate-50">
-              {[
-                { id: "uang-muka", label: "💳 Uang Muka" },
-                { id: "info-lainnya", label: "ℹ️ Info Lainnya" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as Tab)}
-                  className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors -mb-px ${
-                    activeTab === tab.id
-                      ? "border-navy-900 text-navy-900"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab Content */}
+            {/* Uang Muka */}
             <div className="px-6 py-5">
-              {activeTab === "uang-muka" && (
+              {(
                 <div className="space-y-4">
                   {/* Ambil dari Pesanan Penjualan */}
                   <div
@@ -883,51 +859,13 @@ export function UangMukaModal({
                 </div>
               )}
 
-              {activeTab === "info-lainnya" && (
-                <div className="space-y-4">
-                  {/* Syarat Pembayaran */}
-                  <FormField
-                    label="Syarat Pembayaran"
-                    icon={<FileText size={14} />}
-                  >
-                    <input
-                      type="text"
-                      value={form.syaratPembayaran ?? ""}
-                      onChange={(e) => set("syaratPembayaran", e.target.value)}
-                      placeholder="Cari/Pilih..."
-                      disabled={saved}
-                      className={inputClass}
-                    />
-                  </FormField>
-
-                  {/* Alamat */}
-                  <FormField label="Alamat" icon={<Info size={14} />}>
-                    <textarea
-                      value={form.alamat ?? ""}
-                      onChange={(e) => set("alamat", e.target.value)}
-                      rows={4}
-                      placeholder="Masukkan alamat pengiriman..."
-                      disabled={saved}
-                      className={inputClass + " resize-y"}
-                    />
-                  </FormField>
-
-                  {/* Keterangan */}
-                  <FormField label="Keterangan" icon={<FileText size={14} />}>
-                    <textarea
-                      value={form.keterangan ?? ""}
-                      onChange={(e) => set("keterangan", e.target.value)}
-                      rows={4}
-                      placeholder="Catatan tambahan..."
-                      disabled={saved}
-                      className={inputClass + " resize-y"}
-                    />
-                  </FormField>
-                </div>
-              )}
             </div>
 
-            {/* Proses ke */}
+            {/* Proses ke -- hanya muncul saat dipakai lewat TransactionOrchestrator
+                (onProses disediakan); di halaman Uang Muka standalone tombol ini
+                dihilangkan karena pencatatan penerimaan sudah tersedia sendiri di
+                halaman Penerimaan Penjualan. */}
+            {onProses && (
             <div className="px-6 pb-5">
               <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
                 Proses ke
@@ -974,6 +912,7 @@ export function UangMukaModal({
                 </p>
               )}
             </div>
+            )}
           </div>
 
           {/* Footer */}
