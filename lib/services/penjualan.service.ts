@@ -8,6 +8,7 @@ export type SalesOrderStatus =
   | "Draft"
   | "Processing"
   | "In Delivery"
+  | "Partially Fulfilled"
   | "Completed"
   | "Cancelled";
 

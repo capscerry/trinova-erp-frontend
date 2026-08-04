@@ -155,10 +155,6 @@ export interface SalesKpiData {
   leaderboard: CustomerLeaderboardRow[];
 }
 
-// ─── SO status classification ─────────────────────────────────────────────────
-
-const COMPLETED_STATUSES = new Set(["Completed"]);
-
 // ─── Colour palette ───────────────────────────────────────────────────────────
 
 // Selaras dengan 5 status Sales Order kanonis di lib/sales-status.ts
@@ -182,11 +178,12 @@ export async function fetchSalesKpis(
   }
 ): Promise<SalesKpiData> {
   // ── 1. Fetch raw data in parallel ────────────────────────────────────────
-  const [orders, invoices, returns, deliveries, quotations, customers] = await Promise.all([
+  const [orders, invoices, returns, deliveries, deliveryItems, quotations, customers] = await Promise.all([
     salesOrderService.getAll().catch(() => [] as SalesOrder[]),
     salesInvoiceService.getAll().catch(() => [] as SalesInvoice[]),
     salesReturnService.getAll().catch(() => []),
     pengirimanPenjualanService.getAll().catch(() => []),
+    pengirimanPenjualanService.getAllDetailItems().catch(() => []),
     salesQuotationService.getAll().catch(() => []),
     customerService.getAll().catch(() => []),
   ]);
@@ -233,9 +230,24 @@ export async function fetchSalesKpis(
     .filter((i) => i.status !== "Paid" && i.status !== "Cancelled")
     .reduce((sum, i) => sum + Number(i.remainingAmount ?? 0), 0);
 
-  // ── 8. KPI — Fulfillment Rate (SO Completed / SO total, in range) ───────
-  const fulfillmentRate = soInRange.length > 0
-    ? (soInRange.filter((o) => COMPLETED_STATUSES.has(o.status)).length / soInRange.length) * 100
+  // ── 8. KPI — Fulfillment Rate (qty shipped / qty ordered, in range) ──────
+  // Order-status-based ("is the SO marked Completed?") doesn't actually mean
+  // the ordered quantity was fully shipped -- a DO marked "received" while
+  // only partially shipped still flips its SO to Completed. So this is
+  // computed from real Delivery Order line-item quantities instead.
+  const doDateById = new Map<number, string>();
+  for (const d of deliveries) {
+    if (d.status === "Cancelled") continue;
+    doDateById.set(Number(d.id), d.tanggalKirim);
+  }
+  const deliveryItemsInRange = deliveryItems.filter((item) => {
+    const doDate = doDateById.get(Number(item.doId));
+    return doDate !== undefined && inRange(doDate, from, to);
+  });
+  const totalQtyOrdered = deliveryItemsInRange.reduce((sum, item) => sum + Number(item.qtyDipesan ?? 0), 0);
+  const totalQtyShipped = deliveryItemsInRange.reduce((sum, item) => sum + Number(item.qtyDikirim ?? 0), 0);
+  const fulfillmentRate = totalQtyOrdered > 0
+    ? Math.min((totalQtyShipped / totalQtyOrdered) * 100, 100)
     : 0;
 
   // ── 9. KPI — Sales Returns ───────────────────────────────────────────────

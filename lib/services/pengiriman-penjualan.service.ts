@@ -207,6 +207,21 @@ export const pengirimanPenjualanService = {
     return (response.data.data ?? []).map(mapPengirimanDetailItem);
   },
 
+  /**
+   * Semua baris detail dari semua Delivery Order sekaligus (1 request, bukan
+   * N+1) — dipakai untuk hitung Fulfillment Rate berbasis qty (qty dikirim /
+   * qty dipesan), bukan sekadar status header SO.
+   */
+  async getAllDetailItems(): Promise<(PengirimanDetailItem & { doId: number })[]> {
+    const response = await api.get<ApiResponse<DeliveryOrderDetailApi[]>>(
+      "/do-detail/all"
+    );
+    return (response.data.data ?? []).map((item) => ({
+      ...mapPengirimanDetailItem(item),
+      doId: item.doId ?? 0,
+    }));
+  },
+
   /** Create Delivery Order baru — backend murni INSERT, tidak ada mode update/upsert untuk saat ini */
   async create(payload: PengirimanPenjualanPayload): Promise<PengirimanPenjualan> {
     const response = await api.post<ApiResponse<DeliveryOrderHeaderApi>>(

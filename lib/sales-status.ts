@@ -17,7 +17,11 @@ export const SALES_STATUS_OPTIONS: Record<SalesStatusModule, string[]> = {
   // duplikasi. "In Delivery" & "Completed" sekarang murni dipicu oleh
   // Delivery Order (dibuat / ditandai diterima), bukan lagi oleh pelunasan
   // invoice semata.
-  "sales-order": ["Draft", "Processing", "In Delivery", "Completed", "Cancelled"],
+  // "Partially Fulfilled": DO terkait sudah ditandai diterima tapi qty yang
+  // benar-benar dikirim (dijumlahkan lintas semua DO milik SO ini) masih
+  // kurang dari qty yang dipesan. Cuma jadi "Completed" begitu total qty
+  // terkirim >= total qty dipesan.
+  "sales-order": ["Draft", "Processing", "In Delivery", "Partially Fulfilled", "Completed", "Cancelled"],
   "down-payment": ["Draft", "Unpaid", "Partially Paid", "Received", "Used", "Cancelled"],
   // Disederhanakan: DO sekarang selalu dibuat SETELAH invoice terkait lunas
   // 100%, jadi statusnya langsung "In Delivery" begitu dibuat (bukan lagi
@@ -123,7 +127,7 @@ export function getStatusTone(status?: string | null) {
     return "bg-sky-100 text-sky-700 border-sky-200";
   }
 
-  if (["Processing", "Partially Paid", "Overdue", "Unpaid"].includes(normalized)) {
+  if (["Processing", "Partially Paid", "Partially Fulfilled", "Overdue", "Unpaid"].includes(normalized)) {
     return "bg-amber-100 text-amber-700 border-amber-200";
   }
 
