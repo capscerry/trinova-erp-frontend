@@ -67,7 +67,7 @@ export const columns:
   },
 
   {
-    key: "warehouse_name",
+    key: "source_warehouse_name",
     label: "Warehouse",
   },
 
