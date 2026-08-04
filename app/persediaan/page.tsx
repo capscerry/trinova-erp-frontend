@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout";
 import { ModuleOverview } from "@/components/modules/ModuleOverview";
 import { NAV_CONFIG } from "@/lib/nav";
+import { DashboardModuleSwitcher } from "@/components/modules/dashboard/DashboardModuleSwitcher";
+import { useAuth } from "@/lib/AuthContext";
 
 import { InventoryAIHero } from "@/components/modules/persediaan/demand-forecast/InventoryAIHero";
 import { InventoryAISummary } from "@/components/modules/persediaan/demand-forecast/InventoryAISummary";
@@ -19,6 +21,7 @@ import {
 import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
 
 export default function PersediaanPage() {
+  const { user } = useAuth();
   const module = NAV_CONFIG.find((n) => n.id === "persediaan")!;
 
   const [dashboard, setDashboard] =
@@ -65,6 +68,7 @@ export default function PersediaanPage() {
       title="Persediaan"
       subtitle="Overview modul persediaan"
     >
+      {user?.role === "admin" && <DashboardModuleSwitcher active="inventory" />}
       <ModuleOverview
         module={module}
         stats={STATS}

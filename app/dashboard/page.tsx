@@ -50,6 +50,8 @@ import { SpendingByCategory } from "@/components/modules/pembelian/dashboard/Spe
 import { AIRecommendationSummary } from "@/components/modules/pembelian/dashboard/AIRecommendationSummary";
 import { DashboardFilters, type ActiveFilters } from "@/components/modules/pembelian/dashboard/DashboardFilters";
 import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
+import { DashboardModuleSwitcher } from "@/components/modules/dashboard/DashboardModuleSwitcher";
+import { SecurityAlertsPanel } from "@/components/modules/dashboard/SecurityAlertsPanel";
 
 // Helpers
 
@@ -726,47 +728,30 @@ function ActivityFeed() {
 // Role-based wrapper components
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Admin-only: this dashboard is the same Purchasing-flavoured view as
-// /pembelian for Purchasing/PM users, but Admin has no module of their own --
-// this strip is how Admin reaches the Sales/Inventory dashboards without
-// digging through the sidebar. Genuinely swapping the content in-place
-// (instead of navigating away) would mean lifting ~700 lines of this
-// Purchasing dashboard and ~500 lines of the Sales one into shared
-// components; that's a bigger follow-up, not something to rush here.
-function DashboardModuleSwitcher() {
-  return (
-    <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm w-fit">
-      <span className="px-3 py-1.5 rounded-lg text-xs font-bold text-navy-900 bg-gold-100">
-        Purchasing
-      </span>
-      <Link
-        href="/penjualan"
-        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-      >
-        Sales
-      </Link>
-      <Link
-        href="/persediaan"
-        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-      >
-        Inventory
-      </Link>
-    </div>
-  );
-}
-
 function PurchasingStaffDashboard() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   return (
     <AppShell
       title="Purchasing Dashboard"
       subtitle="Executive overview aktivitas pembelian dan supplier"
     >
-      {user?.role === "admin" && <DashboardModuleSwitcher />}
+      {isAdmin && <DashboardModuleSwitcher active="purchasing" />}
       <KpiDashboard isProcurementManager={false} />
-      <ActivityFeed />
-      {/* Full-width enterprise activity timeline — newest 20 transactions */}
-      <ActivityTimeline maxHeight={480} limit={20} module="purchasing" className="mt-4" />
+      {/* Legacy "Aktivitas Terakhir"/"Kegiatan Mendatang" panels -- superseded
+          for Admin by the ActivityTimeline + SecurityAlertsPanel below, so
+          only Purchasing staff (non-admin) still see them. */}
+      {!isAdmin && <ActivityFeed />}
+      {/* Full-width enterprise activity timeline — newest 20 transactions.
+          Admin sees the aggregated feed across every module (no module
+          filter); Purchasing staff only see their own module's activity. */}
+      <ActivityTimeline
+        maxHeight={480}
+        limit={20}
+        module={isAdmin ? undefined : "purchasing"}
+        className="mt-4"
+      />
+      {isAdmin && <SecurityAlertsPanel maxHeight={480} className="mt-4" />}
     </AppShell>
   );
 }

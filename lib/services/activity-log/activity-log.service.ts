@@ -298,8 +298,6 @@ export async function getRecentActivities(
     module?: string
 ): Promise<ActivityEntry[]> {
 
-  console.log("FILTER MODULE =", module);
-
   try {
     // Attempt 1: dedicated activity log endpoint
     const res = await api.get(`/activity-log?limit=${limit}`);
@@ -317,14 +315,10 @@ export async function getRecentActivities(
           );
 
       if (module) {
-          mapped = mapped.filter(
-              (x) =>
-                  x.visibleModules.some(
-                      m =>
-                          m.toLowerCase() ===
-                          module.toLowerCase()
-                  ),
-                  module.toLowerCase()
+          mapped = mapped.filter((x) =>
+              x.visibleModules.some(
+                  (m) => m.toLowerCase() === module.toLowerCase()
+              )
           );
       }
 

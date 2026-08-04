@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout";
 import { ActivityTimeline } from "@/components/modules/dashboard/ActivityTimeline";
+import { DashboardModuleSwitcher } from "@/components/modules/dashboard/DashboardModuleSwitcher";
+import { useAuth } from "@/lib/AuthContext";
 import {
   ClipboardList,
   CreditCard,
   FileText,
-  MoreVertical,
   PackageCheck,
   Receipt,
   RefreshCw,
@@ -82,59 +83,8 @@ const formatDate = (value?: string | null) => {
   }).format(date);
 };
 
-const toValidDate = (value?: string | null) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-const getDateKey = (value?: string | null) => {
-  const date = toValidDate(value);
-  if (!date) return "";
-  return date.toISOString().slice(0, 10);
-};
-
-const formatDayName = (value?: string | null) => {
-  const date = toValidDate(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", { weekday: "short" }).format(date);
-};
-
-const formatDayNumber = (value?: string | null) => {
-  const date = toValidDate(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", { day: "2-digit" }).format(date);
-};
-
-const formatMonthName = (value?: string | null) => {
-  const date = toValidDate(value);
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", { month: "short" }).format(date);
-};
-
-const getActivityHref = (refTable?: string | null, refId?: number | null) => {
-  if (!refTable || !refId) return null;
-
-  const routes: Record<string, string> = {
-    sales_quotation: "/penjualan/quotation",
-    sales_order: "/penjualan/order",
-    uang_muka: "/penjualan/uang-muka",
-    delivery_order_header: "/penjualan/pengiriman-penjualan",
-    sales_invoice: "/penjualan/invoice",
-    sales_receipt: "/penjualan/penerimaan-penjualan",
-  };
-
-  const basePath = routes[refTable];
-  return basePath ? `${basePath}/${refId}` : null;
-};
-
-const priorityClass: Record<string, string> = {
-  danger: "border-rose-200 bg-rose-50 text-rose-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
-  normal: "border-slate-200 bg-slate-50 text-slate-500",
-};
-
 export default function PenjualanDashboardPage() {
+  const { user } = useAuth();
   const [dashboard, setDashboard] = useState<SalesDashboard>(EMPTY_SALES_DASHBOARD);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -243,6 +193,7 @@ export default function PenjualanDashboardPage() {
 
   return (
     <AppShell title="Dashboard Penjualan" subtitle="Ringkasan aktivitas sales dan tagihan pelanggan">
+      {user?.role === "admin" && <DashboardModuleSwitcher active="sales" />}
       <div className="space-y-5">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -420,78 +371,7 @@ export default function PenjualanDashboardPage() {
           </section>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <ActivityTimeline maxHeight={330} />
-
-          <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-            <div className="flex h-10 items-center justify-between border-b border-slate-200 px-4">
-              <p className="truncate text-base font-semibold text-slate-900">Kegiatan Mendatang</p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={fetchData}
-                  disabled={loading}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-900 transition-colors hover:bg-slate-100 disabled:opacity-50"
-                  aria-label="Refresh kegiatan mendatang"
-                >
-                  <RefreshCw size={19} className={loading ? "animate-spin" : ""} />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100"
-                  aria-label="Menu kegiatan mendatang"
-                >
-                  <MoreVertical size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="h-[245px] overflow-y-auto px-4 py-4">
-              {loading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />
-                  ))}
-                </div>
-              ) : dashboard.upcomingActivities.length === 0 ? (
-                <div className="flex h-full items-start justify-center pt-4">
-                  <p className="text-xl italic text-slate-500">Tidak ada kegiatan</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {dashboard.upcomingActivities.map((item, index) => {
-                    const href = getActivityHref(item.refTable, item.refId);
-                    const badgeClass = priorityClass[item.priority] ?? priorityClass.normal;
-                    const content = (
-                      <div className="grid grid-cols-[86px_1fr_auto] items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-slate-50">
-                        <div className="text-slate-600">
-                          <p className="text-sm">{formatDayName(item.activityDate)}</p>
-                          <p className="leading-none text-3xl font-light">{formatDayNumber(item.activityDate)}</p>
-                          <p className="text-sm">{formatMonthName(item.activityDate)}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-700">{item.title}</p>
-                          <p className="mt-1 truncate text-xs text-slate-400">{item.description || item.refNumber || "-"}</p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${badgeClass}`}>
-                          {item.priority}
-                        </span>
-                      </div>
-                    );
-
-                    return href ? (
-                      <Link key={`${item.activityType}-${item.refId ?? index}`} href={href} className="block">
-                        {content}
-                      </Link>
-                    ) : (
-                      <div key={`${item.activityType}-${item.refId ?? index}`}>{content}</div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+        <ActivityTimeline maxHeight={330} module="sales" />
       </div>
     </AppShell>
   );
