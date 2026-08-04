@@ -84,6 +84,12 @@ export function DashboardFilters({
             disabled={loading}
             onClick={() => {
               if (preset.key === "custom") {
+                // Klik pertama harus benar-benar pindah ke range "custom"
+                // (bukan cuma buka dropdown) -- dropdown Dari/Sampai di bawah
+                // hanya render kalau dateFilter.range === "custom".
+                if (dateFilter.range !== "custom") {
+                  onDateFilterChange({ ...dateFilter, range: "custom" });
+                }
                 setShowCustom((v) => !v);
               } else {
                 setShowCustom(false);

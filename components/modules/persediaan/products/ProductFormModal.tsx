@@ -434,65 +434,72 @@ export default function ProductFormModal({
 
     </>
   );
+}
 
-  function FormField({
-        label,
-        icon,
-        required,
-        children,
-        }: {
-        label: string;
-        icon?: React.ReactNode;
-        required?: boolean;
-        children: React.ReactNode;
-        }) {
-        return (
-            <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                {icon && (
-                <span className="text-slate-400">
-                    {icon}
-                </span>
-                )}
+// Hoisted to module scope (not nested inside ProductFormModal) so React
+// keeps a stable component identity across re-renders -- when these were
+// declared inside the modal function, every keystroke's setFormData() call
+// created a brand-new FormField/Section function on each render, forcing
+// React to unmount+remount the whole subtree (including the <input>) and
+// drop keyboard focus after every single character.
+function FormField({
+      label,
+      icon,
+      required,
+      children,
+      }: {
+      label: string;
+      icon?: React.ReactNode;
+      required?: boolean;
+      children: React.ReactNode;
+      }) {
+      return (
+          <div className="space-y-1.5">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+              {icon && (
+              <span className="text-slate-400">
+                  {icon}
+              </span>
+              )}
 
-                {label}
+              {label}
 
-                {required && (
-                <span className="text-red-500 font-bold">
-                    *
-                </span>
-                )}
-            </label>
+              {required && (
+              <span className="text-red-500 font-bold">
+                  *
+              </span>
+              )}
+          </label>
 
-            {children}
-            </div>
-        );
-        }
+          {children}
+          </div>
+      );
+      }
 
-        function Section({
-        title,
-        action,
-        children,
-        }: {
-        title: string;
-        action?: React.ReactNode;
-        children: React.ReactNode;
-        }) {
-        return (
-            <div className="space-y-3">
+      function Section({
+      title,
+      action,
+      children,
+      }: {
+      title: string;
+      action?: React.ReactNode;
+      children: React.ReactNode;
+      }) {
+      return (
+          <div className="space-y-3">
 
-            <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                {title}
-                </h3>
+          <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              {title}
+              </h3>
 
-                {action}
-            </div>
+              {action}
+          </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-5 shadow-sm">
-                {children}
-            </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-5 shadow-sm">
+              {children}
+          </div>
 
-            </div>
-        );
-      }}
+          </div>
+      );
+    }

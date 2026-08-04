@@ -146,28 +146,11 @@ export default function PenjualanDashboardPage() {
       .catch(() => {});
   }, []);
 
+  // Sales Order / Faktur Penjualan / Outstanding sengaja TIDAK diulang di sini
+  // -- sudah ada di kartu KPI atas (Sales Order, Total Revenue, Outstanding
+  // Piutang), yang malah lebih lengkap karena bisa difilter per periode.
+  // Kartu di bawah ini cuma untuk angka yang belum ada representasinya di atas.
   const metrics: MetricCard[] = [
-    {
-      label: "Sales Order",
-      value: formatRupiah(dashboard.totalSalesOrder),
-      sub: `${dashboard.salesOrderCount} dokumen pesanan`,
-      icon: ShoppingBag,
-      tone: "blue",
-    },
-    {
-      label: "Faktur Penjualan",
-      value: formatRupiah(dashboard.totalInvoice),
-      sub: `${dashboard.invoiceCount} faktur dibuat`,
-      icon: Receipt,
-      tone: "emerald",
-    },
-    {
-      label: "Outstanding",
-      value: formatRupiah(dashboard.outstandingInvoice),
-      sub: "Sisa tagihan pelanggan",
-      icon: CreditCard,
-      tone: "rose",
-    },
     {
       label: "Penerimaan",
       value: formatRupiah(dashboard.totalReceipt),
@@ -294,7 +277,7 @@ export default function PenjualanDashboardPage() {
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading
-            ? Array.from({ length: 6 }).map((_, index) => (
+            ? Array.from({ length: 3 }).map((_, index) => (
                 <div key={index} className="h-28 animate-pulse rounded-xl border border-slate-100 bg-white" />
               ))
             : metrics.map((metric) => {

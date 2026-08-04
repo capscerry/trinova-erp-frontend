@@ -322,7 +322,13 @@ export async function getRecentActivities(
           );
       }
 
-      return mapped.slice(0, limit);
+      // Backend log currently only records sales/purchasing events -- if a
+      // module filter (e.g. "inventory") zeroes out every row, fall through
+      // to the transaction-polling fallback below instead of reporting an
+      // empty timeline.
+      if (mapped.length > 0) {
+          return mapped.slice(0, limit);
+      }
     }
   } catch (err: any) {
     // 404 = endpoint not implemented yet — use fallback silently
