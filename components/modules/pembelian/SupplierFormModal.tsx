@@ -34,7 +34,7 @@ interface SupplierFormModalProps {
   }[];
   onClose: () => void;
   onSave: () => void;
-  saving? :boolean;
+  saving?: boolean;
   setCatalogFile: React.Dispatch<React.SetStateAction<File | null>>;
 }
 
@@ -88,16 +88,20 @@ export default function SupplierFormModal({
   const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [errors, setErrors] = useState<{ email?: string; no_telp_bisnis?: string }>({});
 
-  // Reset the file picker's display state every time the modal opens --
-  // otherwise re-opening it (e.g. Edit on a different supplier) shows the
-  // previous supplier's selected-file chip even though catalogFile itself
-  // was already cleared by the parent.
+  // Reset file-picker display state every time the modal opens so a
+  // previously-selected file name doesn't bleed into a new open.
   useEffect(() => {
     if (open) {
       setSelectedFileName("");
       setErrors({});
     }
   }, [open]);
+
+  // Clear filename label on close.
+  const handleClose = () => {
+    setSelectedFileName("");
+    onClose();
+  };
 
   if (!open) return null;
 
@@ -107,7 +111,7 @@ export default function SupplierFormModal({
   );
 
   const handleSave = () => {
-    if(saving) return;
+    if (saving) return;
     const nextErrors = {
       email: emailError(formData.email),
       no_telp_bisnis: phoneError(formData.no_telp_bisnis),
@@ -120,7 +124,7 @@ export default function SupplierFormModal({
   return (
     <>
       <div
-        onClick={onClose}
+        onClick={handleClose}
         className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-40"
       />
 
@@ -140,7 +144,7 @@ export default function SupplierFormModal({
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
             >
               <X size={16} />
@@ -268,13 +272,21 @@ export default function SupplierFormModal({
               />
             </FormField>
 
-            {/* UPLOAD CATALOG - available on both create and edit. On edit,
-                re-uploading updates existing supplier-product rows (matched
-                by product_id) instead of rejecting or duplicating them. */}
+            {/* UPLOAD CATALOG — available on both create and edit.
+                On edit, re-uploading replaces (overwrites) existing catalog rows
+                for the same product_id. Stock is NOT added — it is replaced. */}
             <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                {isEdit ? "Update Supplier Catalog" : "Upload Supplier Catalog"}
+                Upload Supplier Catalog
               </p>
+
+              {isEdit && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <span className="text-amber-600 text-xs font-semibold">
+                    Upload catalog baru akan menggantikan (overwrite) harga, stok, dan lead time yang ada — bukan menambahkan stok.
+                  </span>
+                </div>
+              )}
 
               <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                 <div className="flex items-center gap-3 flex-wrap">
@@ -283,7 +295,7 @@ export default function SupplierFormModal({
                     className="inline-flex items-center gap-2 bg-navy-900 hover:bg-navy-700 text-gold-400 px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold transition"
                   >
                     <Upload size={14} />
-                    {isEdit ? "Upload/Update Catalog" : "Upload Catalog"}
+                    Upload Catalog
                   </label>
 
                   <input
@@ -301,7 +313,7 @@ export default function SupplierFormModal({
 
                   {selectedFileName && (
                     <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg text-sm font-medium">
-                      - {selectedFileName}
+                      ✓ {selectedFileName}
                     </span>
                   )}
                 </div>
@@ -309,37 +321,31 @@ export default function SupplierFormModal({
                 <div className="space-y-0.5 text-sm">
                   <p className="font-semibold text-slate-600 text-xs">Format Excel</p>
                   <p className="text-slate-500 text-xs">
-                    product_id, supplier_price, available_, lead_time_days
+                    product_id, supplier_price, available_stock, lead_time_days
                   </p>
                   <p className="text-[11px] text-slate-400">
                     Lead time days = estimasi hari pengiriman barang
                   </p>
-                  {isEdit && (
-                    <p className="text-[11px] text-slate-400">
-                      Baris dengan product_id yang sudah ada di katalog supplier ini akan
-                      diperbarui (harga/stok/lead time), bukan dibuat duplikat. Produk lain
-                      yang sudah ada di katalog tidak akan terhapus.
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
+
           </div>
 
           {/* FOOTER */}
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/60">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition"
             >
               Batal
             </button>
             <button
               onClick={handleSave}
-              disabled = {saving}
+              disabled={saving}
               className="px-5 py-2 text-sm font-semibold text-gold-400 bg-navy-900 hover:bg-navy-700 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-               {saving ? "Menyimpan..." : isEdit ? "Update Supplier" : "Simpan Supplier"}
+              {saving ? "Menyimpan..." : isEdit ? "Update Supplier" : "Simpan Supplier"}
             </button>
           </div>
 

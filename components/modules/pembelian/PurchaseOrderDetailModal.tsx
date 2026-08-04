@@ -47,7 +47,14 @@ interface PurchaseOrderItem {
 
   subtotal: number;
 
+  /** Raw available_stock from API (post-approval deductions = Available To Order). */
   available_stock?: number;
+
+  /** Reconstructed original catalog stock = available_stock + reserved_quantity. */
+  catalog_stock?: number;
+
+  /** Outstanding PO quantity for Approved/Partially-processed POs. */
+  reserved_quantity?: number;
 
   lead_time_days?: number;
 }
@@ -230,12 +237,6 @@ export default function PurchaseOrderDetailModal({
     );
 
   // Always use the sum of line items as the authoritative total.
-  // The stored DB total_amount can be stale (e.g. PO header saved before all
-  // items were added), so trusting it would produce a spurious "return
-  // deduction" banner. A real return deduction is only meaningful when a
-  // purchase-return settlement record explicitly references this PO - which
-  // the Detail modal does not have access to. Showing a deduction based purely
-  // on a header/items mismatch is misleading, so we drop that inference here.
   const storedTotal = itemsTotal;
   const returnDeduction = 0;
 
@@ -669,7 +670,9 @@ export default function PurchaseOrderDetailModal({
 
                         {[
                           "Product",
-                          "Stock",
+                          "Supplier Stock",
+                          "Reserved",
+                          "Available To Order",
                           "Lead Time",
                           "Qty",
                           "UOM",
@@ -713,8 +716,33 @@ export default function PurchaseOrderDetailModal({
                             {item.product_name}
                           </td>
 
-                          <td className="px-4 py-3 text-slate-600">
-                            {item.available_stock ?? "-"}
+                          {/* SUPPLIER STOCK (catalog) */}
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-700 font-medium">
+                            {item.catalog_stock != null
+                              ? item.catalog_stock
+                              : item.available_stock != null
+                                ? item.available_stock
+                                : "-"}
+                          </td>
+
+                          {/* RESERVED */}
+                          <td className="px-4 py-3 text-right tabular-nums font-medium">
+                            {item.reserved_quantity != null && item.reserved_quantity > 0 ? (
+                              <span className="text-amber-600">{item.reserved_quantity}</span>
+                            ) : (
+                              <span className="text-slate-400">0</span>
+                            )}
+                          </td>
+
+                          {/* AVAILABLE TO ORDER */}
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                            {item.available_stock != null ? (
+                              <span className={item.available_stock <= 0 ? "text-rose-600" : "text-emerald-600"}>
+                                {item.available_stock}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">

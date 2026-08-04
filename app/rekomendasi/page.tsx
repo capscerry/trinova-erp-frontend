@@ -23,7 +23,7 @@ export interface SupplierStats {
 }
 import type { RiskResult } from "@/lib/xgboost-risk";
 
-import { getPurchaseOrders } from "@/lib/services/po.service";
+import { getPurchaseOrders, getPurchaseOrderDetails } from "@/lib/services/po.service";
 import { getGoodsReceipts } from "@/lib/services/gr.service";
 import { getSupplierProducts } from "@/lib/services/supplier-product.service";
 import { getSuppliers } from "@/lib/services/supplier.service";
@@ -101,6 +101,7 @@ function buildAlternatives(
   grs: any[],
   returns: any[],
   supplierProducts: any[],
+  poDetails: any[],
 ): AltWithStats[] {
   // ── Normalise raw API shapes ──────────────────────────────────────────────
   const normPos = pos.map((p: any) => ({
@@ -116,11 +117,74 @@ function buildAlternatives(
     receipt_date:      g.receipt_date ?? null,
   }));
 
-  // Returns carry supplier_id directly from the backend
-  const normReturns = returns.map((r: any) => ({
-    supplier_id:      Number(r.supplier_id ?? 0),
-    goods_receipt_id: Number(r.goods_receipt_id ?? 0),
-  }));
+  // ── PO detail quantities: poId → total ordered quantity across all lines ──
+  // Used as the received-quantity denominator for the net return_rate.
+  // The GR flat-list endpoint does not include item-level quantities, so PO
+  // detail lines (which are fetched together with headers) are the most
+  // accurate per-PO quantity source available without extra API calls.
+  const poQtyMap = new Map<number, number>();
+  for (const d of poDetails) {
+    const poId = Number(d.purchase_order_id ?? 0);
+    const qty  = Number(d.quantity ?? 0);
+    if (poId === 0 || qty <= 0) continue;
+    poQtyMap.set(poId, (poQtyMap.get(poId) ?? 0) + qty);
+  }
+
+  // ── GR → PO lookup (for quantity and return deduction) ───────────────────
+  const grToPoId = new Map<number, number>(
+    normGrs.map((g) => [g.goods_receipt_id, g.purchase_order_id])
+  );
+
+  // ── Net returned quantity per GR ──────────────────────────────────────────
+  // Returns carry goods_receipt_id linking them to the exact GR.
+  // transaction_detail (JSON string) holds the per-product ReturnLineItem[]:
+  //   { product_id, qty_available (original GR qty), qty_return, ... }
+  // We parse qty_return per return and aggregate by goods_receipt_id.
+  // A Set of seen return IDs prevents double-counting if the list contains
+  // duplicate rows (e.g. from API pagination artefacts).
+  const returnedQtyByGrId = new Map<number, number>();
+  const seenReturnIds     = new Set<number>();
+
+  // Also keep a per-supplier transaction count for the display stat (unchanged).
+  const returnCountMap = new Map<number, number>();
+
+  for (const r of returns) {
+    const returnId   = Number(r.purchase_return_id ?? r.id ?? 0);
+    const grId       = Number(r.goods_receipt_id   ?? 0);
+    const supplierId = Number(r.supplier_id        ?? 0);
+
+    if (returnId !== 0) {
+      // Guard: skip duplicate rows from the same purchase return record
+      if (seenReturnIds.has(returnId)) continue;
+      seenReturnIds.add(returnId);
+    }
+
+    // Display stat — transaction count per supplier (unchanged)
+    if (supplierId !== 0) {
+      returnCountMap.set(supplierId, (returnCountMap.get(supplierId) ?? 0) + 1);
+    }
+
+    // Quantity extraction — parse transaction_detail JSON
+    if (grId === 0) continue;
+
+    let returnedQty = 0;
+    const raw = r.transaction_detail;
+    if (raw && typeof raw === "string") {
+      try {
+        const items = JSON.parse(raw);
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            const q = Number(item.qty_return ?? 0);
+            if (q > 0) returnedQty += q;
+          }
+        }
+      } catch {
+        // Malformed JSON — treat as 0 returned qty for this return record
+      }
+    }
+
+    returnedQtyByGrId.set(grId, (returnedQtyByGrId.get(grId) ?? 0) + returnedQty);
+  }
 
   const normSps = supplierProducts.map((sp: any) => ({
     supplier_id:    Number(sp.supplier_id),
@@ -229,14 +293,6 @@ function buildAlternatives(
     if (sp.supplier_price > 0)     a.prices.push(sp.supplier_price);
   }
 
-  // ── Return count per supplier ─────────────────────────────────────────────
-  // Returns are linked via supplier_id directly (most reliable join).
-  const returnCountMap = new Map<number, number>();
-  for (const ret of normReturns) {
-    if (ret.supplier_id === 0) continue;
-    returnCountMap.set(ret.supplier_id, (returnCountMap.get(ret.supplier_id) ?? 0) + 1);
-  }
-
   // ── Build Alternative[] ───────────────────────────────────────────────────
   const alternatives: AltWithStats[] = [];
 
@@ -257,10 +313,42 @@ function buildAlternatives(
           ? a.catalogDays.reduce((s, v) => s + v, 0) / a.catalogDays.length
           : 14;
 
-    // Return rate = total returns / total GR count for this supplier
-    const grCount    = a.grIds.size;
-    const retCount   = returnCountMap.get(sid) ?? 0;
-    const returnRate = grCount > 0 ? retCount / grCount : 0;
+    // ── Quantity-aware return_rate ───────────────────────────────────────────
+    // For each GR linked to this supplier (a.grIds):
+    //   totalReceivedQty = sum of PO detail quantities for those GRs' POs.
+    //   totalReturnedQty = sum of returned qty (from transaction_detail) for those GRs.
+    // return_rate = totalReturnedQty / totalReceivedQty, clamped to [0, 1].
+    //
+    // Linkage: Purchase Return → GR (goods_receipt_id) → PO (purchase_order_id)
+    //          → PO Detail (quantity) — the same chain the spec requires.
+    //
+    // Fallback: if no PO detail quantities are available (e.g. data not yet
+    // loaded), fall back to the transaction-count ratio retCount/grCount so
+    // the calculator never silently returns 0 for a supplier with real returns.
+    let totalReceivedQty = 0;
+    let totalReturnedQty = 0;
+    for (const grId of a.grIds) {
+      const poId     = grToPoId.get(grId);
+      const received = poId != null ? (poQtyMap.get(poId) ?? 0) : 0;
+      const returned = returnedQtyByGrId.get(grId) ?? 0;
+      totalReceivedQty += received;
+      // Each GR's returned qty is capped at its own received qty (Case 5).
+      totalReturnedQty += Math.min(returned, received > 0 ? received : returned);
+    }
+
+    const grCount  = a.grIds.size;
+    const retCount = returnCountMap.get(sid) ?? 0;
+
+    let returnRate: number;
+    if (totalReceivedQty > 0) {
+      // Quantity-based: net return rate — the primary, correct path
+      returnRate = Math.min(totalReturnedQty, totalReceivedQty) / totalReceivedQty;
+    } else if (grCount > 0) {
+      // Fallback: PO detail data unavailable — use transaction-count ratio
+      returnRate = retCount / grCount;
+    } else {
+      returnRate = 0;
+    }
 
     alternatives.push({
       id:   String(sid),
@@ -391,14 +479,15 @@ export default function RekomendasiPage() {
     async function load() {
       setIsFetching(true); setFetchError(null);
       try {
-        const [suppRes, poRes, grRes, retRes, spRes, metrics] = await Promise.all([
+        const [suppRes, poRes, grRes, retRes, spRes, poDetRes, metrics] = await Promise.all([
           getSuppliers(), getPurchaseOrders(), getGoodsReceipts(),
           getPurchaseReturns(), getSupplierProducts(),
+          getPurchaseOrderDetails(),
           getModelMetrics(),
         ]);
         const norm = (r: any) => Array.isArray(r) ? r : r?.data ?? [];
         const suppliers = norm(suppRes), pos = norm(poRes), grs = norm(grRes);
-        const returns   = norm(retRes),  sps = norm(spRes);
+        const returns   = norm(retRes),  sps = norm(spRes), poDets = norm(poDetRes);
 
         setDataInfo({ suppliers: suppliers.length, pos: pos.length, grs: grs.length });
         setSupplierIds(suppliers.map((s: any) => Number(s.supplier_id ?? s.id)));
@@ -410,7 +499,7 @@ export default function RekomendasiPage() {
         ));
         if (metrics) setBackendMetrics(metrics);
 
-        const alts = buildAlternatives(suppliers, pos, grs, returns, sps);
+        const alts = buildAlternatives(suppliers, pos, grs, returns, sps, poDets);
         setAlternatives(alts);
       } catch (e: any) {
         setFetchError(e?.message ?? "Gagal memuat data ERP.");
