@@ -53,6 +53,8 @@ interface SupplierCatalogItem {
   available_stock: number;
   lead_time_days: number;
   is_available: boolean;
+  reserved_quantity: number;
+  available_to_order: number;
 }
 
 const formatRupiah = (n: number) =>
@@ -568,15 +570,28 @@ export default function SupplierPage() {
       const res = await getSupplierProductsBySupplier(Number(supplierId));
       const list: any[] = Array.isArray(res) ? res : res?.data ?? [];
       setCatalogItems(
-        list.map((item: any) => ({
-          supplier_product_id: Number(item.supplier_product_id),
-          product_id: Number(item.product_id),
-          product_name: item.product_name || `Produk #${item.product_id}`,
-          supplier_price: Number(item.supplier_price) || 0,
-          available_stock: Number(item.available_stock) || 0,
-          lead_time_days: Number(item.lead_time_days) || 0,
-          is_available: Boolean(item.is_available),
-        }))
+        list.map((item: any) => {
+          const availableStock = Number(item.available_stock ?? item.availableStock) || 0;
+          const reservedQuantity =
+            Number(item.reserved_quantity ?? item.reservedQuantity) || 0;
+          const availableToOrder =
+            item.available_to_order ?? item.availableToOrder;
+
+          return {
+            supplier_product_id: Number(item.supplier_product_id),
+            product_id: Number(item.product_id),
+            product_name: item.product_name || `Produk #${item.product_id}`,
+            supplier_price: Number(item.supplier_price) || 0,
+            available_stock: availableStock,
+            lead_time_days: Number(item.lead_time_days) || 0,
+            is_available: Boolean(item.is_available),
+            reserved_quantity: reservedQuantity,
+            available_to_order:
+              availableToOrder != null
+                ? Number(availableToOrder)
+                : Math.max(availableStock - reservedQuantity, 0),
+          };
+        })
       );
     } catch (err) {
       console.error(err);
@@ -915,7 +930,9 @@ export default function SupplierPage() {
                         <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-50/60">
                           <th className="px-4 py-2">Produk</th>
                           <th className="px-4 py-2">Harga</th>
-                          <th className="px-4 py-2">Stok</th>
+                          <th className="px-4 py-2">Stok Supplier</th>
+                          <th className="px-4 py-2">Reserved</th>
+                          <th className="px-4 py-2">Tersedia Dipesan</th>
                           <th className="px-4 py-2">Lead Time</th>
                           <th className="px-4 py-2">Status</th>
                           <th className="px-4 py-2 text-center">Aksi</th>
@@ -960,6 +977,14 @@ export default function SupplierPage() {
                                 ) : (
                                   item.available_stock
                                 )}
+                              </td>
+
+                              <td className="px-4 py-2 text-amber-600">
+                                {item.reserved_quantity > 0 ? item.reserved_quantity : "-"}
+                              </td>
+
+                              <td className="px-4 py-2 font-semibold text-emerald-700">
+                                {item.available_to_order}
                               </td>
 
                               <td className="px-4 py-2">
