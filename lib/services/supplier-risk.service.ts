@@ -119,18 +119,22 @@ export interface TrainCVResults {
 }
 
 export interface TrainResponse {
-  message:         string;
-  split_method?:   string;
-  samples_trained?: number;
-  samples_tested?:  number;
-  best_round?:      number;
-  model_path?:      string;
-  data_source?:     string;
-  train_metrics?:   TrainSplitMetrics;
-  test_metrics?:    TrainSplitMetrics;
+  message:             string;
+  split_method?:       string;
+  samples_trained?:    number;
+  samples_tested?:     number;
+  total_samples?:      number;
+  dataset_fingerprint?: string;
+  feature_columns?:    string[];
+  label_column?:       string;
+  best_round?:         number;
+  model_path?:         string;
+  data_source?:        string;
+  train_metrics?:      TrainSplitMetrics;
+  test_metrics?:       TrainSplitMetrics;
   /** TimeSeriesSplit CV run on the training set — per-fold + averaged metrics */
-  cv_results?:      TrainCVResults;
-  model_type?:      ProductionModelType;
+  cv_results?:         TrainCVResults;
+  model_type?:         ProductionModelType;
 }
 
 // ─── Training row — must match FastAPI REQUIRED_COLUMNS exactly ───────────────
@@ -190,6 +194,10 @@ export interface BackendModelMetrics {
   roc_auc?:      number;
   samples_trained?: number;
   samples_tested?:  number;
+  total_samples?:   number;
+  dataset_fingerprint?: string;
+  feature_columns?: string[];
+  label_column?:    string;
   data_source?:  string;
   /** Which model produced these metrics — used to prevent cross-model result contamination. */
   model_type?:   ProductionModelType;
@@ -536,6 +544,10 @@ function toSplitMetrics(
     roc_auc:       auc,
     samples_trained: n,
     samples_tested:  nt,
+    total_samples:   res.total_samples,
+    dataset_fingerprint: res.dataset_fingerprint,
+    feature_columns: res.feature_columns,
+    label_column:    res.label_column,
     data_source:   res.data_source,
     model_type:    modelType ?? res.model_type ?? "xgboost",
   };

@@ -676,6 +676,14 @@ function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
               {m.samples_trained} sampel latih · {m.samples_tested ?? 0} sampel uji
             </span>
           )}
+          {m.dataset_fingerprint && (
+            <span
+              title={`Deterministic Dataset SHA-256 Fingerprint: ${m.dataset_fingerprint}`}
+              className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-mono font-semibold border border-emerald-200"
+            >
+              SHA:{m.dataset_fingerprint}
+            </span>
+          )}
           {m.data_source && (
             <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[9px] border border-slate-200">
               {m.data_source}
