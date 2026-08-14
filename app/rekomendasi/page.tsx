@@ -382,7 +382,6 @@ function buildAlternatives(
 
 type PipelineStep = "idle" | "training" | "predicting" | "ranking" | "done";
 
-// PIPELINE_STEPS sub-text for step 1 is set dynamically by StepIndicator
 // to reflect the currently active model (XGBoost / Linear Regression).
 const PIPELINE_STEPS: { key: PipelineStep; label: string; sub: string }[] = [
   { key: "training",   label: "1. Latih Model",      sub: "ML model · data ERP historis"  },
