@@ -64,6 +64,7 @@ export interface RawPredictData {
   risk_level:         string;        // "LOW" | "MEDIUM" | "HIGH"
   delay_probability:  number;        // 0.0 – 1.0  → used as risk_score
   late_probability:   number;        // 0 – 100
+  model_type?:        ProductionModelType;
 }
 
 // Normalized shape used by the frontend components
@@ -74,6 +75,7 @@ export interface SupplierRiskPredictResponse {
   risk_level:    "Low" | "Medium" | "High" | "Critical";
   features:      Record<string, number>;
   contributions: Record<string, number>;
+  model_type?:   ProductionModelType;
 }
 
 // ─── Train response (SupplierRiskTrainResponse from backend) ──────────────────
@@ -128,6 +130,7 @@ export interface TrainResponse {
   test_metrics?:    TrainSplitMetrics;
   /** TimeSeriesSplit CV run on the training set — per-fold + averaged metrics */
   cv_results?:      TrainCVResults;
+  model_type?:      ProductionModelType;
 }
 
 // ─── Training row — must match FastAPI REQUIRED_COLUMNS exactly ───────────────
@@ -219,7 +222,11 @@ export const predictSupplierRiskRaw = async (
   const res = await api.get(`/supplier-risk/predict/${supplierId}`, {
     params: { model_type: activeModel },
   });
-  return unwrap<RawPredictData>(res);
+  const data = unwrap<RawPredictData>(res);
+  return {
+    ...data,
+    model_type: data?.model_type ?? activeModel,
+  };
 };
 
 // ─── Train — server-side bundled CSV ──────────────────────────────────────────
@@ -229,7 +236,11 @@ export const trainFromServerCsv = async (
 ): Promise<TrainResponse> => {
   const activeModel = getActiveModel(modelType);
   const res = await api.post("/supplier-risk/train", { model_type: activeModel });
-  return unwrap<TrainResponse>(res);
+  const data = unwrap<TrainResponse>(res);
+  return {
+    ...data,
+    model_type: data?.model_type ?? activeModel,
+  };
 };
 
 // ─── Train — live ERP data ────────────────────────────────────────────────────
@@ -243,7 +254,11 @@ export const trainFromErp = async (
     append_to_existing: appendToExisting,
     model_type: activeModel,
   });
-  return unwrap<TrainResponse>(res);
+  const data = unwrap<TrainResponse>(res);
+  return {
+    ...data,
+    model_type: data?.model_type ?? activeModel,
+  };
 };
 
 // ─── Train — pre-labeled JSON rows ───────────────────────────────────────────
@@ -272,7 +287,11 @@ export const trainFromCsvUpload = async (
   const res = await api.post("/supplier-risk/train/from-csv-upload", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  return unwrap<TrainResponse>(res);
+  const data = unwrap<TrainResponse>(res);
+  return {
+    ...data,
+    model_type: data?.model_type ?? activeModel,
+  };
 };
 
 // ─── AHP-TOPSIS ranking via backend Python service ───────────────────────────
@@ -307,11 +326,13 @@ export interface BatchPredictItem {
   risk_level:        string;        // "LOW" | "MEDIUM" | "HIGH"
   delay_probability: number;        // 0–1
   late_probability:  number;        // 0–100 (backend field)
+  model_type?:       ProductionModelType;
 }
 
 export interface BatchPredictResponse {
-  results: BatchPredictItem[];
-  total:   number;
+  results:     BatchPredictItem[];
+  total:       number;
+  model_type?: ProductionModelType;
 }
 
 export const predictAllSuppliers = async (
@@ -322,9 +343,20 @@ export const predictAllSuppliers = async (
     params: { model_type: activeModel },
   });
   const data = unwrap<any>(res);
-  // Backend may return { results: [...], total: N } or just an array
-  if (Array.isArray(data)) return { results: data, total: data.length };
-  return { results: data?.results ?? [], total: data?.total ?? 0 };
+  // Backend may return { results: [...], total: N, model_type?: "..." } or just an array
+  if (Array.isArray(data)) {
+    return {
+      results: data.map((item) => ({ ...item, model_type: item.model_type ?? activeModel })),
+      total: data.length,
+      model_type: activeModel,
+    };
+  }
+  const rawResults: any[] = data?.results ?? [];
+  return {
+    results: rawResults.map((item) => ({ ...item, model_type: item.model_type ?? data?.model_type ?? activeModel })),
+    total: data?.total ?? rawResults.length,
+    model_type: (data?.model_type as ProductionModelType) ?? activeModel,
+  };
 };
 
 // ─── Full pipeline: train-from-ERP → predict-all → AHP-TOPSIS rank ───────────
@@ -480,6 +512,6 @@ function toSplitMetrics(
     samples_trained: n,
     samples_tested:  nt,
     data_source:   res.data_source,
-    model_type:    modelType,
+    model_type:    modelType ?? res.model_type ?? "xgboost",
   };
 }

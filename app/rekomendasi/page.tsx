@@ -754,8 +754,10 @@ export default function RekomendasiPage() {
     setActiveModel(nextModel);
 
     const cached = modelResults[nextModel];
-    if (cached.length > 0) {
-      // Already computed — just display the cached results, no re-run needed.
+    if (cached && cached.length > 0) {
+      // Invalidate any in-flight request from previous model and restore idle state
+      currentRequestId.current++;
+      setIsRunning(false);
       return;
     }
 
@@ -1273,7 +1275,7 @@ export default function RekomendasiPage() {
                           <p className="text-[11px] text-rose-600 mt-0.5">
                             <strong>{activeRiskResults[0].supplier_name}</strong> memiliki skor risiko{" "}
                             <strong>{Number(activeRiskResults[0].risk_score).toFixed(3)}</strong> ({activeRiskResults[0].risk_level}).
-                            Lihat tab <em>Prediksi Risiko ML</em> untuk detail SHAP.
+                            Lihat tab <em>Prediksi Risiko ML</em> untuk detail{activeModel === "xgboost" ? " SHAP." : " fitur."}
                           </p>
                         </div>
                       </div>

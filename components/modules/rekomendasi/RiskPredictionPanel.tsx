@@ -45,8 +45,9 @@ interface RiskPredictionPanelProps {
 
 const GLOSSARY: Record<string, string> = {
   "XGBoost":          "eXtreme Gradient Boosting — algoritma ensemble yang melatih banyak decision tree secara berurutan, tiap tree memperbaiki kesalahan tree sebelumnya.",
+  "Linear Regression": "Model regresi linear baseline akademik — memprediksi probabilitas keterlambatan (kontinu 0–1) dengan ambang batas klasifikasi 0.50.",
   "SHAP":             "SHapley Additive exPlanations — metode matematis untuk menghitung kontribusi tiap fitur terhadap prediksi model. Nilai positif = menambah risiko.",
-  "Risk Score":       "Skor risiko supplier ∈ [0, 1]. Dihitung dari sigmoid output XGBoost. Semakin mendekati 1 = semakin berisiko.",
+  "Risk Score":       "Skor risiko supplier ∈ [0, 1]. Dihitung dari output model machine learning terpilih (XGBoost / Linear Regression). Semakin mendekati 1 = semakin berisiko.",
   "Log-Loss":         "Binary cross-entropy loss — mengukur seberapa 'yakin' model terhadap prediksinya. Nilai lebih kecil = model lebih akurat.",
   "Precision": "Precision = TP / (TP + FP). Mengukur seberapa banyak prediksi positif yang benar.",
   "Recall": "Recall = TP / (TP + FN). Mengukur seberapa banyak kasus positif berhasil dideteksi.",
@@ -1055,7 +1056,7 @@ export function RiskPredictionPanel({
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
               Probabilitas keterlambatan pengiriman per supplier —{" "}
-              <TermTip term="XGBoost">{MODEL_DISPLAY[activeModel]}</TermTip>
+              <TermTip term={activeModel === "xgboost" ? "XGBoost" : "Linear Regression"}>{MODEL_DISPLAY[activeModel]}</TermTip>
               {" · "}
               <TermTip term="SHAP">SHAP</TermTip>
               {" Attribution"}
