@@ -38,6 +38,7 @@ import {
   resolveAcceptLoss,
   resolveNextPODeduction,
   confirmCashRefund,
+  getReturnDetails,
 } from "@/lib/services/purchase-return.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -567,40 +568,29 @@ function PurchaseReturnInner() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => {
+                  onClick={async () => {
                     setSettlementTarget(row);
                     loadUnpaidInvoicesForReturn(row.purchase_return_id);
 
-                    // Parse the return line items that were serialized into
-                    // transaction_detail when the return was created.
+                    // Load the exact return line items from the backend.
+                    // The /details endpoint prioritises the purchase_return_item
+                    // child table, then transaction_detail JSON, then GR lines —
+                    // so qty_return is always the value the user originally set.
                     try {
-                      const parsed: ReturnLineItem[] = JSON.parse(row.transaction_detail ?? "[]");
-                      if (Array.isArray(parsed) && parsed.length > 0) {
-                        setSettlementReturnItems(enrichReturnItemNames(parsed));
-                      } else {
-                        // Fallback: transaction_detail is not JSON (old record) —
-                        // reconstruct from PO details using the full GR quantity.
-                        const gr = goodsReceipts.find(
-                          (g) => g.goods_receipt_id === row.goods_receipt_id
-                        );
-                        if (gr) {
-                          setSettlementReturnItems(
-                            poDetails
-                              .filter((d) => Number(d.purchase_order_id) === Number(gr.purchase_order_id))
-                              .map((d) => ({
-                                product_id:    d.product_id,
-                                product_name:  d.product_name ?? `Produk #${d.product_id}`,
-                                qty_available: d.quantity,
-                                remaining_qty: d.quantity, // fallback: assume all qty still returnable
-                                qty_return:    d.quantity,
-                                unit_price:    d.price,
-                                subtotal:      d.quantity * d.price,
-                              }))
-                          );
-                        } else {
-                          setSettlementReturnItems([]);
-                        }
-                      }
+                      const res = await getReturnDetails(row.purchase_return_id);
+                      const lines: any[] = res?.data ?? [];
+                      const items: ReturnLineItem[] = lines
+                        .filter((l: any) => (l.quantity ?? l.qty_return ?? 0) > 0)
+                        .map((l: any) => ({
+                          product_id:    Number(l.product_id),
+                          product_name:  l.product_name ?? `Produk #${l.product_id}`,
+                          qty_available: Number(l.quantity ?? l.qty_return ?? 0),
+                          remaining_qty: Number(l.remaining_qty ?? l.quantity ?? l.qty_return ?? 0),
+                          qty_return:    Number(l.quantity ?? l.qty_return ?? 0),
+                          unit_price:    Number(l.unit_price ?? 0),
+                          subtotal:      Number(l.subtotal ?? 0),
+                        }));
+                      setSettlementReturnItems(enrichReturnItemNames(items));
                     } catch {
                       setSettlementReturnItems([]);
                     }

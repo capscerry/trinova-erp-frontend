@@ -5,7 +5,7 @@ import { Brain, RefreshCw, Download, Info, AlertTriangle, ShieldAlert, Zap, Chec
 import { AppShell } from "@/components/layout";
 import { Button, Card, Tooltip } from "@/components/ui";
 import { AhpCriteriaPanel } from "@/components/modules/rekomendasi/AhpCriteriaPanel";
-import { TopsisResultsPanel } from "@/components/modules/rekomendasi/TopsisResultsPanel";
+import { TopsisResultsPanel, type SupplierDisplayStats } from "@/components/modules/rekomendasi/TopsisResultsPanel";
 import { RiskPredictionPanel } from "@/components/modules/rekomendasi/RiskPredictionPanel";
 import { topsis, calcOnTimeRates, calcDeliveryPunctuality } from "@/lib/ahp-topsis";
 import { cn } from "@/lib/utils";
@@ -1061,6 +1061,14 @@ export default function RekomendasiPage() {
               results={results}
               criteria={criteria}
               riskResults={riskResults}
+              statsMap={new Map(alternatives.map((a) => [
+                a.id,
+                {
+                  totalGRs:        a.stats.totalGRs,
+                  onTimeGRs:       a.stats.onTimeGRs,
+                  grsWithExpected: a.stats.grsWithExpected,
+                } satisfies SupplierDisplayStats,
+              ]))}
               isLoading={isRunning && pipelineStep === "ranking"}
             />
 

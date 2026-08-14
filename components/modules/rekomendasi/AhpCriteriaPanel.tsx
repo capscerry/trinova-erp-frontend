@@ -277,8 +277,8 @@ export function AhpCriteriaPanel({
               <tr>
                 <th className="w-32 pb-2" />
                 {criteria.map((c) => (
-                  <th key={c.id} className="pb-2 px-1 text-center font-bold text-slate-500 min-w-[80px]">
-                    <span className="block truncate max-w-[76px]">{c.label}</span>
+                  <th key={c.id} className="pb-2 px-1 text-center font-bold text-slate-500 min-w-[96px]">
+                    <span className="block leading-snug">{c.label}</span>
                     <span className={cn("text-[9px] font-bold", c.benefit ? "text-green-500" : "text-rose-400")}>
                       {c.benefit ? "↑ Benefit" : "↓ Cost"}
                     </span>
