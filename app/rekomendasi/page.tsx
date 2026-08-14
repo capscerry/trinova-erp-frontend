@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Brain, RefreshCw, Download, Info, AlertTriangle, ShieldAlert, Zap, CheckCircle2 } from "lucide-react";
 import { AppShell } from "@/components/layout";
 import { Button, Card, Tooltip } from "@/components/ui";
@@ -382,19 +382,29 @@ function buildAlternatives(
 
 type PipelineStep = "idle" | "training" | "predicting" | "ranking" | "done";
 
+// PIPELINE_STEPS sub-text for step 1 is set dynamically by StepIndicator
+// to reflect the currently active model (XGBoost / Linear Regression).
 const PIPELINE_STEPS: { key: PipelineStep; label: string; sub: string }[] = [
-  { key: "training",   label: "1. Latih Model",      sub: "XGBoost · data ERP historis"  },
+  { key: "training",   label: "1. Latih Model",      sub: "ML model · data ERP historis"  },
   { key: "predicting", label: "2. Prediksi Risiko",  sub: "ML inference · semua supplier" },
   { key: "ranking",    label: "3. Ranking TOPSIS",   sub: "AHP weight · multi-kriteria"   },
 ];
 
-function StepIndicator({ current }: { current: PipelineStep }) {
+function StepIndicator({ current, activeModel }: { current: PipelineStep; activeModel: ProductionModelType }) {
   const order: PipelineStep[] = ["training", "predicting", "ranking"];
   const currentIdx = order.indexOf(current);
+  const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
+
+  // Build display steps with dynamic sub-text for step 1
+  const displaySteps = PIPELINE_STEPS.map((step) =>
+    step.key === "training"
+      ? { ...step, sub: `${modelLabel} · data ERP historis` }
+      : step,
+  );
 
   return (
     <div className="flex items-center gap-0 rounded-xl overflow-hidden border border-slate-200 mb-5">
-      {PIPELINE_STEPS.map((step, i) => {
+      {displaySteps.map((step, i) => {
         const stepIdx = i;
         const isActive    = current === step.key;
         const isCompleted = currentIdx > stepIdx && current !== "idle";
@@ -451,8 +461,6 @@ export default function RekomendasiPage() {
   const [criteria, setCriteria]         = useState<Criterion[]>(CRITERIA);
   const [alternatives, setAlternatives] = useState<AltWithStats[]>([]);
   const [results, setResults]           = useState<TopsisResult[]>([]);
-  const [riskResults, setRiskResults]   = useState<RiskResult[]>([]);
-  const [backendMetrics, setBackendMetrics] = useState<BackendModelMetrics | null>(null);
   const [isRunning, setIsRunning]       = useState(false);
   const [isFetching, setIsFetching]     = useState(true);
   const [fetchError, setFetchError]     = useState<string | null>(null);
@@ -475,6 +483,25 @@ export default function RekomendasiPage() {
   // Initialised from env var (NEXT_PUBLIC_PURCHASING_AI_MODEL); user can
   // override via the in-panel toggle without a page reload.
   const [activeModel, setActiveModel] = useState<ProductionModelType>(() => getActiveModel());
+
+  // ── Per-model result & metrics caches ────────────────────────────────
+  // Each model stores its own results and metrics independently so switching
+  // models can display cached data without re-running the full pipeline.
+  const [modelResults, setModelResults] = useState<Record<ProductionModelType, RiskResult[]>>({
+    xgboost:            [],
+    linear_regression:  [],
+  });
+  const [modelMetrics, setModelMetrics] = useState<Record<ProductionModelType, BackendModelMetrics | null>>({
+    xgboost:            null,
+    linear_regression:  null,
+  });
+
+  // ── Stale-request guard ───────────────────────────────────────────────
+  // Each new pipeline invocation gets a unique ID. When results arrive, we
+  // check the ID is still the current one before writing state, so a
+  // slow in-flight request from a previous model can never overwrite the
+  // results for the model the user has since switched to.
+  const currentRequestId = useRef<number>(0);
 
   // Raw ERP supplier IDs kept for predict-all call
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
@@ -504,7 +531,8 @@ export default function RekomendasiPage() {
             String(s.supplier_name ?? s.nama ?? `Supplier ${s.supplier_id ?? s.id}`),
           ])
         ));
-        if (metrics) setBackendMetrics(metrics);
+        // getModelMetrics() always returns null — no persistent metrics endpoint.
+        void metrics;
 
         const alts = buildAlternatives(suppliers, pos, grs, returns, sps, poDets);
         setAlternatives(alts);
@@ -517,123 +545,155 @@ export default function RekomendasiPage() {
     load();
   }, []);
 
+  // ── Helper — build RiskResult[] from a batch predict response ────────
+  const buildRiskResults = useCallback((
+    batchResults: Array<{ supplier_id: number; supplier_name?: string; risk_level: string; delay_probability: number }>,
+    altMap: Map<number, Record<string, number>>,
+  ): RiskResult[] => {
+    return batchResults
+      .filter(v => v.supplier_id != null && v.supplier_id !== 0 && supplierNameMap.has(Number(v.supplier_id)))
+      .map((v) => {
+        const sid       = Number(v.supplier_id);
+        const altValues = altMap.get(sid) ?? {};
+        return {
+          supplier_id:   sid,
+          supplier_name: supplierNameMap.get(sid) ?? v.supplier_name ?? `Supplier ${sid}`,
+          risk_score:    Number(v.delay_probability ?? 0),
+          risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
+          contributions: {},
+          features: {
+            supplier_id:        sid,
+            supplier_name:      v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
+            on_time_rate:       Number(altValues.on_time_rate         ?? 0),
+            avg_lead_time:      Number(altValues.lead_time            ?? 0),
+            delivery_margin:    Number(altValues.delivery_punctuality ?? 0),
+            order_count:        0,
+            lead_time_cv:       0,
+            low_stock_ratio:    0,
+            avg_stock_level:    0,
+            days_since_last_gr: 0,
+            catalog_sku_count:  0,
+            avg_price:          Number(altValues.avg_price            ?? 0),
+          },
+        };
+      });
+  }, [supplierNameMap]);
+
+  // ── Core train+predict for a single model ─────────────────────────────
+  // Returns [results, metrics] for the given model. Does NOT touch React state
+  // directly — the caller is responsible for checking the request ID before
+  // writing state, so stale responses from cancelled runs are discarded.
+  const runModelPipeline = useCallback(async (
+    model: ProductionModelType,
+    altMap: Map<number, Record<string, number>>,
+    requestId: number,
+    onStep: (step: PipelineStep) => void,
+  ): Promise<{ results: RiskResult[]; metrics: BackendModelMetrics | null; valid: boolean }> => {
+    // Step 1 — Train
+    onStep("training");
+    await new Promise(r => setTimeout(r, 100));
+
+    let metrics: BackendModelMetrics | null = null;
+    try {
+      const trainRes = await trainFromErp(true, model);
+      // Stale-request check after each async boundary
+      if (currentRequestId.current !== requestId) return { results: [], metrics: null, valid: false };
+      metrics = buildMetricsFromTrainResponse(trainRes, model);
+    } catch {
+      // Non-fatal — continue with existing backend model
+    }
+    if (currentRequestId.current !== requestId) return { results: [], metrics: null, valid: false };
+
+    // Step 2 — Predict
+    onStep("predicting");
+    await new Promise(r => setTimeout(r, 80));
+
+    let riskResults: RiskResult[] = [];
+    try {
+      const batchRes = await predictAllSuppliers(model);
+      if (currentRequestId.current !== requestId) return { results: [], metrics: null, valid: false };
+
+      // Defensive: verify the response carries the right model identity when the
+      // backend exposes it, so we never silently store the wrong model's data.
+      const responseModel = (batchRes as any).model_type as string | undefined;
+      if (responseModel && responseModel !== model) {
+        console.warn(
+          `[AI] Stale model response discarded: expected "${model}", got "${responseModel}".`,
+        );
+        return { results: [], metrics: null, valid: false };
+      }
+
+      const built = buildRiskResults(batchRes.results, altMap);
+      built.sort((a, b) => a.risk_score - b.risk_score);
+      riskResults = built;
+    } catch {
+      // Batch-predict failed — fall back to per-supplier calls
+      try {
+        const settled = await Promise.allSettled(
+          supplierIds.map((id) => predictSupplierRiskRaw(id, model))
+        );
+        if (currentRequestId.current !== requestId) return { results: [], metrics: null, valid: false };
+        const raw = settled
+          .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+          .map(r => r.value);
+        const built = buildRiskResults(raw, altMap);
+        built.sort((a, b) => a.risk_score - b.risk_score);
+        riskResults = built;
+      } catch {
+        // both approaches failed — return empty
+      }
+    }
+    if (currentRequestId.current !== requestId) return { results: [], metrics: null, valid: false };
+
+    return { results: riskResults, metrics, valid: true };
+  }, [buildRiskResults, supplierIds]);
+
   // ── 3-step pipeline: Train → Predict (ML first) → TOPSIS rank ───────
   const handleRun = useCallback(async () => {
     if (alternatives.length === 0) return;
 
+    // Issue a new request ID to invalidate any in-flight requests from previous runs
+    const requestId = ++currentRequestId.current;
+
     setIsRunning(true);
     setResults([]);
-    setRiskResults([]);
     setTrainDone(false);
     setMlDone(false);
     setTrainMessage(null);
     setTrainError(null);
 
-    // ── Step 1: Train XGBoost on historical ERP data ─────────────────────
-    setPipelineStep("training");
-    await new Promise(r => setTimeout(r, 100)); // yield for paint
-    try {
-      const trainRes = await trainFromErp(true, activeModel);
-      setBackendMetrics(buildMetricsFromTrainResponse(trainRes));
-      setTrainMessage(trainRes.message ?? "Model berhasil dilatih dari data ERP historis.");
+    const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values as Record<string, number>]));
+
+    // Steps 1 + 2: train and predict for the currently active model
+    const { results: riskRes, metrics, valid } = await runModelPipeline(
+      activeModel,
+      altMap,
+      requestId,
+      setPipelineStep,
+    );
+
+    if (currentRequestId.current !== requestId) {
+      // This run was superseded — abort silently
+      return;
+    }
+
+    if (valid) {
+      setModelResults(prev => ({ ...prev, [activeModel]: riskRes }));
+      if (metrics) setModelMetrics(prev => ({ ...prev, [activeModel]: metrics }));
+      setTrainMessage(`Model berhasil dilatih dari data ERP historis.`);
       setTrainDone(true);
-    } catch (e: any) {
-      // Training failure is non-fatal — warn but continue with existing model
-      setTrainError(e?.message ?? "Pelatihan gagal, menggunakan model sebelumnya.");
-    }
-
-    // ── Step 2: Batch predict all suppliers → show ML results first ───────
-    setPipelineStep("predicting");
-    setActiveTab("risk"); // switch to risk tab so ML results are visible immediately
-    await new Promise(r => setTimeout(r, 80));
-
-    const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values]));
-
-    try {
-      const batchRes = await predictAllSuppliers(activeModel);
-
-      const backendResults: RiskResult[] = batchRes.results
-        .filter(v => v.supplier_id != null && v.supplier_id !== 0 && supplierNameMap.has(Number(v.supplier_id)))
-        .map((v) => {
-          const sid       = Number(v.supplier_id);
-          const altValues = altMap.get(sid) ?? {};
-          return {
-            supplier_id:   sid,
-            supplier_name: supplierNameMap.get(sid) ?? v.supplier_name ?? `Supplier ${sid}`,
-            risk_score:    Number(v.delay_probability ?? 0),
-            risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
-            contributions: {},
-            features: {
-              supplier_id:        sid,
-              supplier_name:      v.supplier_name ?? supplierNameMap.get(sid) ?? `Supplier ${sid}`,
-              on_time_rate:       Number(altValues.on_time_rate         ?? 0),
-              avg_lead_time:      Number(altValues.lead_time            ?? 0),
-              delivery_margin:    Number(altValues.delivery_punctuality ?? 0),
-              order_count:        0,
-              lead_time_cv:       0,
-              low_stock_ratio:    0,
-              avg_stock_level:    0,
-              days_since_last_gr: 0,
-              catalog_sku_count:  0,
-              avg_price:          Number(altValues.avg_price            ?? 0),
-            },
-          };
-        });
-
-      backendResults.sort((a, b) => a.risk_score - b.risk_score);
-      setRiskResults(backendResults);
-      setRiskSource("backend");
       setMlDone(true);
-    } catch {
-      // Batch-predict failed — fall back to individual per-supplier calls
-      try {
-        const settled = await Promise.allSettled(
-          supplierIds.map((id) => predictSupplierRiskRaw(id, activeModel))
-        );
-        const fallback: RiskResult[] = settled
-          .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-          .filter((r) => {
-            const sid = Number(r.value?.supplier_id ?? 0);
-            return sid !== 0 && supplierNameMap.has(sid);
-          })
-          .map((r) => {
-            const v   = r.value;
-            const sid = Number(v.supplier_id ?? 0);
-            const altValues = altMap.get(sid) ?? {};
-            return {
-              supplier_id:   sid,
-              supplier_name: supplierNameMap.get(sid) ?? `Supplier ${sid}`,
-              risk_score:    Number(v.delay_probability ?? 0),
-              risk_level:    normalizeRiskLevel(String(v.risk_level ?? "low")),
-              contributions: {},
-              features: {
-                supplier_id:        sid,
-                supplier_name:      supplierNameMap.get(sid) ?? `Supplier ${sid}`,
-                on_time_rate:       Number(altValues.on_time_rate         ?? 0),
-                avg_lead_time:      Number(altValues.lead_time            ?? 0),
-                delivery_margin:    Number(altValues.delivery_punctuality ?? 0),
-                order_count:        0,
-                lead_time_cv:       0,
-                low_stock_ratio:    0,
-                avg_stock_level:    0,
-                days_since_last_gr: 0,
-                catalog_sku_count:  0,
-                avg_price:          Number(altValues.avg_price            ?? 0),
-              },
-            };
-          });
-        fallback.sort((a, b) => a.risk_score - b.risk_score);
-        setRiskResults(fallback);
-        setMlDone(true);
-      } catch {
-        // both approaches failed — proceed to ranking with empty risk results
-      }
-      setRiskSource("backend");
+    } else {
+      setTrainError("Pelatihan atau prediksi gagal — gunakan model sebelumnya.");
     }
+
+    setRiskSource("backend");
+    setActiveTab("risk");
 
     // ── Step 3: AHP-TOPSIS ranking ────────────────────────────────────────
     setPipelineStep("ranking");
-    await new Promise(r => setTimeout(r, 80)); // yield for paint
+    await new Promise(r => setTimeout(r, 80));
+    if (currentRequestId.current !== requestId) return;
 
     const ranked = topsis(alternatives, criteria);
     ranked.sort((a, b) => a.rank - b.rank);
@@ -644,16 +704,16 @@ export default function RekomendasiPage() {
     setPipelineStep("done");
     setHasRun(true);
     setIsRunning(false);
-  }, [alternatives, criteria, supplierIds, supplierNameMap, activeModel]);
+  }, [alternatives, criteria, activeModel, runModelPipeline]);
 
-  // ── Train handlers ────────────────────────────────────────────────────
+  // ── Standalone train handlers (called from TrainControls buttons) ────
 
   const handleTrainFromErp = useCallback(async () => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
       const res = await trainFromErp(true, activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari data ERP.");
-      setBackendMetrics(buildMetricsFromTrainResponse(res));
+      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari ERP.");
     } finally {
@@ -666,7 +726,7 @@ export default function RekomendasiPage() {
     try {
       const res = await trainFromServerCsv(activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari CSV server.");
-      setBackendMetrics(buildMetricsFromTrainResponse(res));
+      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari CSV server.");
     } finally {
@@ -679,18 +739,73 @@ export default function RekomendasiPage() {
     try {
       const res = await trainFromCsvUpload(file, activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari file CSV.");
-      setBackendMetrics(buildMetricsFromTrainResponse(res));
+      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari file CSV.");
     } finally {
       setIsTraining(false);
     }
   }, [activeModel]);
+  // ── Model change handler — task 3 ────────────────────────────────────
+  // Called by the toggle inside RiskPredictionPanel instead of setActiveModel
+  // directly. Caches existing results and only triggers a new pipeline run
+  // if the target model has no cached results yet.
+  const handleModelChange = useCallback(async (nextModel: ProductionModelType) => {
+    if (nextModel === activeModel) return;
+    setActiveModel(nextModel);
+
+    const cached = modelResults[nextModel];
+    if (cached.length > 0) {
+      // Already computed — just display the cached results, no re-run needed.
+      return;
+    }
+
+    // No cached results for this model yet — run the pipeline for it.
+    if (alternatives.length === 0) return;
+
+    const requestId = ++currentRequestId.current;
+
+    setIsRunning(true);
+    setTrainMessage(null);
+    setTrainError(null);
+    setTrainDone(false);
+    setMlDone(false);
+    setActiveTab("risk");
+
+    const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values as Record<string, number>]));
+
+    const { results: riskRes, metrics, valid } = await runModelPipeline(
+      nextModel,
+      altMap,
+      requestId,
+      setPipelineStep,
+    );
+
+    if (currentRequestId.current !== requestId) return;
+
+    if (valid) {
+      setModelResults(prev => ({ ...prev, [nextModel]: riskRes }));
+      if (metrics) setModelMetrics(prev => ({ ...prev, [nextModel]: metrics }));
+      setTrainMessage(`Model berhasil dilatih dari data ERP historis.`);
+      setTrainDone(true);
+      setMlDone(true);
+    } else {
+      setTrainError("Prediksi gagal untuk model yang dipilih.");
+    }
+
+    setRiskSource("backend");
+    setPipelineStep("done");
+    setIsRunning(false);
+  }, [activeModel, alternatives, modelResults, runModelPipeline]);
+
+  // ── CSV export — task 7: uses modelResults[activeModel], adds Model col ──
   function exportCsv() {
     if (results.length === 0) return;
-    const riskMap = new Map(riskResults.map(r => [r.supplier_id, r]));
+    const activeRiskResults = modelResults[activeModel];
+    const riskMap = new Map(activeRiskResults.map(r => [r.supplier_id, r]));
+    const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
     const critHeaders = criteria.map(c => c.label);
-    const header = ["Rank","Kode","Nama","Skor TOPSIS",...critHeaders,"Probabilitas Risiko","Level Risiko","Alasan"].join(",");
+    const header = ["Rank","Kode","Nama","Skor TOPSIS",...critHeaders,"Probabilitas Risiko","Level Risiko","Model","Alasan"].join(",");
     const rows = results.map(r => {
       const risk = riskMap.get(Number(r.alternativeId));
       const critVals = criteria.map(c => (r.weightedValues?.[c.id] ?? 0).toFixed(6));
@@ -700,6 +815,7 @@ export default function RekomendasiPage() {
         ...critVals,
         risk?.risk_score.toFixed(3) ?? "—",
         risk?.risk_level ?? "—",
+        modelLabel,
         `"${r.reasons.join("; ")}"`,
       ].join(",");
     });
@@ -734,7 +850,7 @@ export default function RekomendasiPage() {
           <div className="flex flex-wrap gap-x-4 gap-y-0.5">
             <span>
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-800 text-[9px] font-extrabold mr-1">1</span>
-              <strong>Latih XGBoost</strong> — model dilatih ulang dari data ERP historis (PO, GR, Retur) yang digabung dengan CSV historis bawaan.
+              <strong>Latih Model</strong> — model dilatih ulang dari data ERP historis (PO, GR, Retur) yang digabung dengan CSV historis bawaan.
             </span>
             <span>
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-200 text-blue-800 text-[9px] font-extrabold mr-1">2</span>
@@ -791,7 +907,7 @@ export default function RekomendasiPage() {
 
       {/* ── Pipeline step indicator (shown while running or after first run) */}
       {(isRunning || hasRun) && pipelineStep !== "idle" && (
-        <StepIndicator current={pipelineStep === "done" ? "ranking" : pipelineStep} />
+        <StepIndicator current={pipelineStep === "done" ? "ranking" : pipelineStep} activeModel={activeModel} />
       )}
 
       {/* ── Train/step status messages ───────────────────────────────────── */}
@@ -985,7 +1101,7 @@ export default function RekomendasiPage() {
                         MENGHITUNG…
                       </span>
                     )}
-                    {!isRunning && riskResults.some(r => r.risk_level === "Critical") && (
+                    {!isRunning && modelResults[activeModel].some(r => r.risk_level === "Critical") && (
                       <span className={cn(
                         "inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold",
                         activeTab === "risk" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-600 border border-rose-200",
@@ -998,10 +1114,10 @@ export default function RekomendasiPage() {
                       : "Delay Probability · Risk Level per supplier"}
                   </p>
                 </div>
-                {activeTab !== "risk" && riskResults.length > 0 && !isRunning && (
+                {activeTab !== "risk" && modelResults[activeModel].length > 0 && !isRunning && (
                   <div className="shrink-0 flex flex-col items-center">
                     <span className="text-[16px] font-extrabold text-rose-500 leading-none">
-                      {riskResults.filter(r => r.risk_level === "High" || r.risk_level === "Critical").length}
+                      {modelResults[activeModel].filter(r => r.risk_level === "High" || r.risk_level === "Critical").length}
                     </span>
                     <span className="text-[9px] text-rose-400 font-semibold">risiko</span>
                   </div>
@@ -1046,11 +1162,11 @@ export default function RekomendasiPage() {
             </div>
           )}
 
-          {/* XGBoost Risk panel — shown first (step 2 result) */}
+          {/* Risk Prediction panel — shown first (step 2 result) */}
           <div className={activeTab === "risk" ? "flex flex-col gap-6" : "hidden"}>
             <RiskPredictionPanel
-              results={riskResults}
-              backendMetrics={backendMetrics}
+              results={modelResults[activeModel]}
+              backendMetrics={modelMetrics[activeModel]}
               isLoading={isRunning && (pipelineStep === "training" || pipelineStep === "predicting")}
               riskSource={riskSource}
               isTraining={isTraining}
@@ -1060,7 +1176,7 @@ export default function RekomendasiPage() {
               onTrainFromServerCsv={handleTrainFromServerCsv}
               onTrainFromCsvUpload={handleTrainFromCsvUpload}
               activeModel={activeModel}
-              onModelChange={setActiveModel}
+              onModelChange={handleModelChange}
             />
           </div>
 
@@ -1069,7 +1185,7 @@ export default function RekomendasiPage() {
             <TopsisResultsPanel
               results={results}
               criteria={criteria}
-              riskResults={riskResults}
+              riskResults={modelResults[activeModel]}
               statsMap={new Map(alternatives.map((a) => [
                 a.id,
                 {
@@ -1084,7 +1200,9 @@ export default function RekomendasiPage() {
             {/* Summary card */}
             {hasRun && results.length > 0 && !isRunning && (() => {
               const top = results[0];
-              const topRisk = riskResults.find(r => r.supplier_id === Number(top.alternativeId));
+              const activeRiskResults = modelResults[activeModel];
+              const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
+              const topRisk = activeRiskResults.find(r => r.supplier_id === Number(top.alternativeId));
               return (
                 <Card title="Ringkasan Analisis">
                   <div className="flex flex-col gap-3">
@@ -1137,7 +1255,7 @@ export default function RekomendasiPage() {
                         { label: "Supplier",    value: String(results.length),          sub: "dievaluasi"     },
                         { label: "Kriteria",    value: String(criteria.length),         sub: "terbobot AHP"   },
                         { label: "Ci Terbaik",  value: results[0].score.toFixed(3),     sub: "TOPSIS score"   },
-                        { label: "Kritis",      value: String(riskResults.filter(r => r.risk_level === "Critical").length), sub: "supplier risiko" },
+                        { label: "Kritis",      value: String(activeRiskResults.filter(r => r.risk_level === "Critical").length), sub: "supplier risiko" },
                       ].map(s => (
                         <div key={s.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
                           <p className="text-[10px] uppercase tracking-widest text-slate-400 font-serif mb-1">{s.label}</p>
@@ -1147,15 +1265,15 @@ export default function RekomendasiPage() {
                       ))}
                     </div>
 
-                    {/* XGBoost highest-risk warning */}
-                    {riskResults.length > 0 && riskResults[0].risk_level !== "Low" && riskResults[0].risk_score != null && (
+                    {/* Highest-risk warning — model-aware label (task 17) */}
+                    {activeRiskResults.length > 0 && activeRiskResults[0].risk_level !== "Low" && activeRiskResults[0].risk_score != null && (
                       <div className="flex items-start gap-2.5 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
                         <ShieldAlert size={14} className="text-rose-500 mt-0.5 shrink-0" />
                         <div>
-                          <p className="text-[12px] font-bold text-rose-700">Perhatian Risiko Tertinggi</p>
+                          <p className="text-[12px] font-bold text-rose-700">Risiko Tertinggi — {modelLabel}</p>
                           <p className="text-[11px] text-rose-600 mt-0.5">
-                            <strong>{riskResults[0].supplier_name}</strong> memiliki skor risiko{" "}
-                            <strong>{Number(riskResults[0].risk_score).toFixed(3)}</strong> ({riskResults[0].risk_level}).
+                            <strong>{activeRiskResults[0].supplier_name}</strong> memiliki skor risiko{" "}
+                            <strong>{Number(activeRiskResults[0].risk_score).toFixed(3)}</strong> ({activeRiskResults[0].risk_level}).
                             Lihat tab <em>Prediksi Risiko ML</em> untuk detail SHAP.
                           </p>
                         </div>

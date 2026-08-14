@@ -782,7 +782,8 @@ function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
   );
 }
 
-function NoMetricsPrompt() {
+function NoMetricsPrompt({ activeModel }: { activeModel: ProductionModelType }) {
+  const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
   return (
     <div className="border-t border-slate-100 px-5 py-8 flex flex-col items-center gap-3 text-center bg-slate-50/40">
       <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
@@ -790,7 +791,7 @@ function NoMetricsPrompt() {
       </div>
       <p className="text-[13px] font-semibold text-slate-500 font-serif">Metrik model belum tersedia</p>
       <p className="text-[11px] text-slate-400 max-w-xs leading-relaxed">
-        Model belum pernah dilatih. Gunakan tombol di bawah untuk melatih model XGBoost —
+        Model belum pernah dilatih. Gunakan tombol di bawah untuk melatih model {modelLabel} —
         metrik Train / Val / Test, Learning Curve, dan CV Folds akan tampil di sini setelah selesai.
       </p>
     </div>
@@ -1087,21 +1088,32 @@ export function RiskPredictionPanel({
             setiap supplier mengalami keterlambatan pengiriman, berdasarkan data historis ERP.
             Skor mendekati 1 = risiko tinggi.
           </p>
-          <p>
-            <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih pohon{" "}
-            <TermTip term="Gradient Boosting">CART secara berurutan</TermTip>.
-            Split <TermTip term="Stratified Split"><strong>60/20/20</strong></TermTip> (train/val/test) —
-            scaler difit hanya pada train set untuk menghindari{" "}
-            <TermTip term="Data Leakage">data leakage</TermTip>.
-          </p>
-          <p>
-            <TermTip term="Early Stopping"><strong>Early stopping</strong></TermTip> memantau val loss setiap round (patience 8).
-            Model terbaik disimpan saat val loss minimum.
-          </p>
-          <p>
-            <TermTip term="5-Fold CV"><strong>5-Fold CV</strong></TermTip> mengevaluasi generalisasi model secara robust.
-            Setiap fold melatih model independen dengan scaler-nya sendiri.
-          </p>
+          {activeModel === "xgboost" ? (
+            <>
+              <p>
+                <TermTip term="XGBoost"><strong>XGBoost</strong></TermTip> melatih pohon{" "}
+                <TermTip term="Gradient Boosting">CART secara berurutan</TermTip>.
+                Split <TermTip term="Stratified Split"><strong>60/20/20</strong></TermTip> (train/val/test) —
+                scaler difit hanya pada train set untuk menghindari{" "}
+                <TermTip term="Data Leakage">data leakage</TermTip>.
+              </p>
+              <p>
+                <TermTip term="Early Stopping"><strong>Early stopping</strong></TermTip> memantau val loss setiap round (patience 8).
+                Model terbaik disimpan saat val loss minimum.
+              </p>
+              <p>
+                <TermTip term="5-Fold CV"><strong>5-Fold CV</strong></TermTip> mengevaluasi generalisasi model secara robust.
+                Setiap fold melatih model independen dengan scaler-nya sendiri.
+              </p>
+            </>
+          ) : (
+            <p>
+              <strong>Linear Regression</strong> digunakan sebagai baseline akademik perbandingan.
+              Output kontinu diperlakukan sebagai skor keterlambatan — nilai ≥ 0.50 diklasifikasikan
+              sebagai delay = 1 (threshold baku 0.50). Skor risiko yang ditampilkan adalah nilai
+              prediksi kontinu dari model.
+            </p>
+          )}
           <p>
             <TermTip term="SHAP"><strong>SHAP</strong></TermTip> menghitung kontribusi tiap fitur.
             Merah = menambah risiko keterlambatan, Hijau = mengurangi.
@@ -1139,7 +1151,7 @@ export function RiskPredictionPanel({
           </div>
           <p className="text-sm font-semibold text-slate-500 font-serif">Belum ada prediksi risiko</p>
           <p className="text-[12px] text-slate-400 max-w-xs">
-            Jalankan analisis terlebih dahulu. Model XGBoost akan melatih dan memprediksi risiko
+            Jalankan analisis terlebih dahulu. Model {MODEL_DISPLAY[activeModel]} akan melatih dan memprediksi risiko
             secara otomatis setelah data ERP dimuat.
           </p>
         </div>
@@ -1155,7 +1167,7 @@ export function RiskPredictionPanel({
       {!isLoading && (
         backendMetrics
           ? <BackendMetricsCard m={backendMetrics} />
-          : <NoMetricsPrompt />
+          : <NoMetricsPrompt activeModel={activeModel} />
       )}
 
       {/* Train controls */}

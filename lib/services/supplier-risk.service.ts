@@ -188,6 +188,8 @@ export interface BackendModelMetrics {
   samples_trained?: number;
   samples_tested?:  number;
   data_source?:  string;
+  /** Which model produced these metrics — used to prevent cross-model result contamination. */
+  model_type?:   ProductionModelType;
 }
 
 // ─── Helper — unwrap controller envelope ─────────────────────────────────────
@@ -380,6 +382,7 @@ export function normalizeRiskLevel(
 
 export function buildMetricsFromTrainResponse(
   res: TrainResponse,
+  modelType?: ProductionModelType,
 ): BackendModelMetrics {
   // FastAPI now returns train_metrics and test_metrics as separate objects,
   // each containing: accuracy, precision, recall, f1_score, auc_roc, log_loss
@@ -477,5 +480,6 @@ function toSplitMetrics(
     samples_trained: n,
     samples_tested:  nt,
     data_source:   res.data_source,
+    model_type:    modelType,
   };
 }
