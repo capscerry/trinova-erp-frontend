@@ -16,7 +16,9 @@ import type {
   BackendSplitMetrics,
   BackendRoundMetrics,
   BackendFoldResult,
+  ProductionModelType,
 } from "@/lib/services/supplier-risk.service";
+import { getActiveModel } from "@/lib/services/supplier-risk.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,10 @@ interface RiskPredictionPanelProps {
   onTrainFromErp?:       () => void;
   onTrainFromServerCsv?: () => void;
   onTrainFromCsvUpload?: (file: File) => void;
+  /** Currently active production model. Defaults to env-var / "xgboost". */
+  activeModel?:    ProductionModelType;
+  /** Called when the user toggles the model. */
+  onModelChange?:  (model: ProductionModelType) => void;
 }
 
 // ─── Inline term tooltip ──────────────────────────────────────────────────────
@@ -800,6 +806,8 @@ function TrainControls({
   onTrainFromErp,
   onTrainFromServerCsv,
   onTrainFromCsvUpload,
+  activeModel,
+  onModelChange,
 }: {
   isTraining: boolean;
   trainMessage: string | null;
@@ -807,6 +815,8 @@ function TrainControls({
   onTrainFromErp?: () => void;
   onTrainFromServerCsv?: () => void;
   onTrainFromCsvUpload?: (file: File) => void;
+  activeModel: ProductionModelType;
+  onModelChange?: (model: ProductionModelType) => void;
 }) {
   const fileInputId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -823,10 +833,53 @@ function TrainControls({
   const btnBase =
     "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all border disabled:opacity-50 disabled:cursor-not-allowed";
 
+  // ── Model toggle labels ──────────────────────────────────────────────
+  const MODEL_LABELS: Record<ProductionModelType, string> = {
+    xgboost:           "XGBoost",
+    linear_regression: "Linear Regression",
+  };
+
   return (
     <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/40 space-y-3">
+
+      {/* ── Production Model selector ──────────────────────────────── */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          Model Produksi
+        </p>
+        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden bg-white shadow-xs">
+          {(["xgboost", "linear_regression"] as ProductionModelType[]).map((m) => {
+            const isActive = activeModel === m;
+            return (
+              <button
+                key={m}
+                disabled={isTraining}
+                onClick={() => onModelChange?.(m)}
+                title={
+                  m === "xgboost"
+                    ? "XGBoost Classifier — model produksi default"
+                    : "Linear Regression — baseline akademik"
+                }
+                className={cn(
+                  "px-4 py-2 text-[11px] font-semibold transition-all border-r last:border-r-0 border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed",
+                  isActive
+                    ? "bg-navy-900 text-white"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                )}
+              >
+                {MODEL_LABELS[m]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          Model yang dipilih digunakan untuk semua pelatihan dan prediksi risiko.
+          Untuk memuatnya, klik <em>Latih</em> lalu <em>Jalankan Analisis</em>.
+        </p>
+      </div>
+
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-        Latih Ulang Model — Backend XGBoost
+        Latih Ulang Model — Backend {MODEL_LABELS[activeModel]}
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -972,8 +1025,19 @@ export function RiskPredictionPanel({
   onTrainFromErp,
   onTrainFromServerCsv,
   onTrainFromCsvUpload,
+  activeModel: activeModelProp,
+  onModelChange,
 }: RiskPredictionPanelProps) {
   const [showInfo, setShowInfo] = useState(false);
+
+  // Resolve the active model: prop → env var → default "xgboost"
+  const activeModel: ProductionModelType =
+    activeModelProp ?? getActiveModel();
+
+  const MODEL_DISPLAY: Record<ProductionModelType, string> = {
+    xgboost:           "XGBoost",
+    linear_regression: "Linear Regression",
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -990,7 +1054,7 @@ export function RiskPredictionPanel({
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
               Probabilitas keterlambatan pengiriman per supplier —{" "}
-              <TermTip term="XGBoost">XGBoost</TermTip>
+              <TermTip term="XGBoost">{MODEL_DISPLAY[activeModel]}</TermTip>
               {" · "}
               <TermTip term="SHAP">SHAP</TermTip>
               {" Attribution"}
@@ -1102,6 +1166,8 @@ export function RiskPredictionPanel({
         onTrainFromErp={onTrainFromErp}
         onTrainFromServerCsv={onTrainFromServerCsv}
         onTrainFromCsvUpload={onTrainFromCsvUpload}
+        activeModel={activeModel}
+        onModelChange={onModelChange}
       />
     </div>
   );

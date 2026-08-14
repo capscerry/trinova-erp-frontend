@@ -37,8 +37,10 @@ import {
   getModelMetrics,
   normalizeRiskLevel,
   buildMetricsFromTrainResponse,
+  getActiveModel,
   type SupplierRiskPredictResponse,
   type BackendModelMetrics,
+  type ProductionModelType,
 } from "@/lib/services/supplier-risk.service";
 
 // ─── AHP-TOPSIS criteria ──────────────────────────────────────────────────────
@@ -469,6 +471,11 @@ export default function RekomendasiPage() {
   const [trainError, setTrainError]     = useState<string | null>(null);
   const [riskSource, setRiskSource]     = useState<"backend" | "client">("backend");
 
+  // ── Production model selection ────────────────────────────────────────
+  // Initialised from env var (NEXT_PUBLIC_PURCHASING_AI_MODEL); user can
+  // override via the in-panel toggle without a page reload.
+  const [activeModel, setActiveModel] = useState<ProductionModelType>(() => getActiveModel());
+
   // Raw ERP supplier IDs kept for predict-all call
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
   // Map from supplier_id → supplier_name for enriching predict responses
@@ -526,7 +533,7 @@ export default function RekomendasiPage() {
     setPipelineStep("training");
     await new Promise(r => setTimeout(r, 100)); // yield for paint
     try {
-      const trainRes = await trainFromErp(true);
+      const trainRes = await trainFromErp(true, activeModel);
       setBackendMetrics(buildMetricsFromTrainResponse(trainRes));
       setTrainMessage(trainRes.message ?? "Model berhasil dilatih dari data ERP historis.");
       setTrainDone(true);
@@ -543,7 +550,7 @@ export default function RekomendasiPage() {
     const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values]));
 
     try {
-      const batchRes = await predictAllSuppliers();
+      const batchRes = await predictAllSuppliers(activeModel);
 
       const backendResults: RiskResult[] = batchRes.results
         .filter(v => v.supplier_id != null && v.supplier_id !== 0 && supplierNameMap.has(Number(v.supplier_id)))
@@ -581,7 +588,7 @@ export default function RekomendasiPage() {
       // Batch-predict failed — fall back to individual per-supplier calls
       try {
         const settled = await Promise.allSettled(
-          supplierIds.map((id) => predictSupplierRiskRaw(id))
+          supplierIds.map((id) => predictSupplierRiskRaw(id, activeModel))
         );
         const fallback: RiskResult[] = settled
           .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
@@ -637,14 +644,14 @@ export default function RekomendasiPage() {
     setPipelineStep("done");
     setHasRun(true);
     setIsRunning(false);
-  }, [alternatives, criteria, supplierIds, supplierNameMap]);
+  }, [alternatives, criteria, supplierIds, supplierNameMap, activeModel]);
 
   // ── Train handlers ────────────────────────────────────────────────────
 
   const handleTrainFromErp = useCallback(async () => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
-      const res = await trainFromErp();
+      const res = await trainFromErp(true, activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari data ERP.");
       setBackendMetrics(buildMetricsFromTrainResponse(res));
     } catch (e: any) {
@@ -652,12 +659,12 @@ export default function RekomendasiPage() {
     } finally {
       setIsTraining(false);
     }
-  }, []);
+  }, [activeModel]);
 
   const handleTrainFromServerCsv = useCallback(async () => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
-      const res = await trainFromServerCsv();
+      const res = await trainFromServerCsv(activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari CSV server.");
       setBackendMetrics(buildMetricsFromTrainResponse(res));
     } catch (e: any) {
@@ -665,12 +672,12 @@ export default function RekomendasiPage() {
     } finally {
       setIsTraining(false);
     }
-  }, []);
+  }, [activeModel]);
 
   const handleTrainFromCsvUpload = useCallback(async (file: File) => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
-      const res = await trainFromCsvUpload(file);
+      const res = await trainFromCsvUpload(file, activeModel);
       setTrainMessage(res.message ?? "Model berhasil dilatih dari file CSV.");
       setBackendMetrics(buildMetricsFromTrainResponse(res));
     } catch (e: any) {
@@ -678,7 +685,7 @@ export default function RekomendasiPage() {
     } finally {
       setIsTraining(false);
     }
-  }, []);
+  }, [activeModel]);
   function exportCsv() {
     if (results.length === 0) return;
     const riskMap = new Map(riskResults.map(r => [r.supplier_id, r]));
@@ -1052,6 +1059,8 @@ export default function RekomendasiPage() {
               onTrainFromErp={handleTrainFromErp}
               onTrainFromServerCsv={handleTrainFromServerCsv}
               onTrainFromCsvUpload={handleTrainFromCsvUpload}
+              activeModel={activeModel}
+              onModelChange={setActiveModel}
             />
           </div>
 

@@ -1,5 +1,59 @@
 import { api } from "../api";
 
+// ─── Production model selection ───────────────────────────────────────────────
+// Single authoritative source: NEXT_PUBLIC_PURCHASING_AI_MODEL env var.
+// Allowed values: "xgboost" | "linear_regression"
+// Default (unset): "xgboost" — preserves existing behaviour.
+
+export type ProductionModelType = "xgboost" | "linear_regression";
+
+const VALID_MODEL_TYPES: ProductionModelType[] = ["xgboost", "linear_regression"];
+
+/**
+ * Returns the configured production model type.
+ *
+ * Priority:
+ *   1. Caller-supplied override (from UI toggle state)
+ *   2. NEXT_PUBLIC_PURCHASING_AI_MODEL environment variable
+ *   3. "xgboost" hard default  ← preserves existing production behaviour
+ *
+ * Throws a descriptive error if an invalid value is supplied as override.
+ * Invalid env var values fall back to "xgboost" with a console warning so
+ * a misconfigured deployment does not silently break; the error IS visible in
+ * browser console / server logs.
+ */
+export function getActiveModel(
+  override?: ProductionModelType | string | null,
+): ProductionModelType {
+  // 1. Caller-supplied override (UI toggle)
+  if (override != null && override !== "") {
+    const normalized = override.toLowerCase().trim() as ProductionModelType;
+    if (!VALID_MODEL_TYPES.includes(normalized)) {
+      throw new Error(
+        `[AI] Invalid model override: "${override}". ` +
+        `Allowed values: ${VALID_MODEL_TYPES.join(" | ")}`,
+      );
+    }
+    return normalized;
+  }
+
+  // 2. Environment variable
+  const envVal = (process.env.NEXT_PUBLIC_PURCHASING_AI_MODEL ?? "").toLowerCase().trim();
+  if (envVal !== "") {
+    if (!VALID_MODEL_TYPES.includes(envVal as ProductionModelType)) {
+      console.warn(
+        `[AI] NEXT_PUBLIC_PURCHASING_AI_MODEL="${envVal}" is not a valid value. ` +
+        `Allowed: ${VALID_MODEL_TYPES.join(" | ")}. Falling back to "xgboost".`,
+      );
+      return "xgboost";
+    }
+    return envVal as ProductionModelType;
+  }
+
+  // 3. Hard default — preserves existing production behaviour
+  return "xgboost";
+}
+
 // ─── Actual FastAPI predict response (via C# controller envelope) ─────────────
 // Controller wraps: { status: bool, message: string, data: SupplierRiskPredictResponse }
 // FastAPI SupplierRiskPredictResponse fields:
@@ -149,21 +203,30 @@ function unwrap<T>(res: any): T {
 // ─── Predict ──────────────────────────────────────────────────────────────────
 
 /**
- * GET /api/supplier-risk/predict/{supplierId}
+ * GET /api/supplier-risk/predict/{supplierId}[?model_type=xgboost|linear_regression]
  * Returns raw FastAPI predict data. Caller is responsible for enriching
  * with supplier_name from the ERP suppliers list.
+ *
+ * @param modelType - optional override; when omitted the active model is used.
  */
 export const predictSupplierRiskRaw = async (
   supplierId: number,
+  modelType?: ProductionModelType | null,
 ): Promise<RawPredictData> => {
-  const res = await api.get(`/supplier-risk/predict/${supplierId}`);
+  const activeModel = getActiveModel(modelType);
+  const res = await api.get(`/supplier-risk/predict/${supplierId}`, {
+    params: { model_type: activeModel },
+  });
   return unwrap<RawPredictData>(res);
 };
 
 // ─── Train — server-side bundled CSV ──────────────────────────────────────────
 
-export const trainFromServerCsv = async (): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train");
+export const trainFromServerCsv = async (
+  modelType?: ProductionModelType | null,
+): Promise<TrainResponse> => {
+  const activeModel = getActiveModel(modelType);
+  const res = await api.post("/supplier-risk/train", { model_type: activeModel });
   return unwrap<TrainResponse>(res);
 };
 
@@ -171,9 +234,12 @@ export const trainFromServerCsv = async (): Promise<TrainResponse> => {
 
 export const trainFromErp = async (
   appendToExisting = true,
+  modelType?: ProductionModelType | null,
 ): Promise<TrainResponse> => {
+  const activeModel = getActiveModel(modelType);
   const res = await api.post("/supplier-risk/train/from-erp", {
     append_to_existing: appendToExisting,
+    model_type: activeModel,
   });
   return unwrap<TrainResponse>(res);
 };
@@ -193,9 +259,14 @@ export const trainFromRows = async (
 
 // ─── Train — CSV file upload ──────────────────────────────────────────────────
 
-export const trainFromCsvUpload = async (file: File): Promise<TrainResponse> => {
+export const trainFromCsvUpload = async (
+  file: File,
+  modelType?: ProductionModelType | null,
+): Promise<TrainResponse> => {
+  const activeModel = getActiveModel(modelType);
   const form = new FormData();
   form.append("file", file);
+  form.append("model_type", activeModel);
   const res = await api.post("/supplier-risk/train/from-csv-upload", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
@@ -241,8 +312,13 @@ export interface BatchPredictResponse {
   total:   number;
 }
 
-export const predictAllSuppliers = async (): Promise<BatchPredictResponse> => {
-  const res = await api.get("/supplier-risk/predict/all");
+export const predictAllSuppliers = async (
+  modelType?: ProductionModelType | null,
+): Promise<BatchPredictResponse> => {
+  const activeModel = getActiveModel(modelType);
+  const res = await api.get("/supplier-risk/predict/all", {
+    params: { model_type: activeModel },
+  });
   const data = unwrap<any>(res);
   // Backend may return { results: [...], total: N } or just an array
   if (Array.isArray(data)) return { results: data, total: data.length };
