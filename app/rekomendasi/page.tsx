@@ -711,40 +711,82 @@ export default function RekomendasiPage() {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
       const res = await trainFromErp(true, activeModel);
-      setTrainMessage(res.message ?? "Model berhasil dilatih dari data ERP.");
-      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
+      const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
+      setTrainMessage(res.message ?? `Model ${modelLabel} berhasil dilatih dari data ERP.`);
+      const metrics = buildMetricsFromTrainResponse(res, activeModel);
+      setModelMetrics(prev => ({ ...prev, [activeModel]: metrics }));
+
+      if (modelResults[activeModel].length > 0 && alternatives.length > 0) {
+        try {
+          const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values as Record<string, number>]));
+          const batchRes = await predictAllSuppliers(activeModel);
+          const built = buildRiskResults(batchRes.results, altMap);
+          built.sort((a, b) => a.risk_score - b.risk_score);
+          setModelResults(prev => ({ ...prev, [activeModel]: built }));
+        } catch {
+          // ignore prediction refresh failure
+        }
+      }
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari ERP.");
     } finally {
       setIsTraining(false);
     }
-  }, [activeModel]);
+  }, [activeModel, alternatives, buildRiskResults, modelResults]);
 
   const handleTrainFromServerCsv = useCallback(async () => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
       const res = await trainFromServerCsv(activeModel);
-      setTrainMessage(res.message ?? "Model berhasil dilatih dari CSV server.");
-      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
+      const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
+      setTrainMessage(res.message ?? `Model ${modelLabel} berhasil dilatih dari CSV server.`);
+      const metrics = buildMetricsFromTrainResponse(res, activeModel);
+      setModelMetrics(prev => ({ ...prev, [activeModel]: metrics }));
+
+      if (modelResults[activeModel].length > 0 && alternatives.length > 0) {
+        try {
+          const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values as Record<string, number>]));
+          const batchRes = await predictAllSuppliers(activeModel);
+          const built = buildRiskResults(batchRes.results, altMap);
+          built.sort((a, b) => a.risk_score - b.risk_score);
+          setModelResults(prev => ({ ...prev, [activeModel]: built }));
+        } catch {
+          // ignore prediction refresh failure
+        }
+      }
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari CSV server.");
     } finally {
       setIsTraining(false);
     }
-  }, [activeModel]);
+  }, [activeModel, alternatives, buildRiskResults, modelResults]);
 
   const handleTrainFromCsvUpload = useCallback(async (file: File) => {
     setIsTraining(true); setTrainMessage(null); setTrainError(null);
     try {
       const res = await trainFromCsvUpload(file, activeModel);
-      setTrainMessage(res.message ?? "Model berhasil dilatih dari file CSV.");
-      setModelMetrics(prev => ({ ...prev, [activeModel]: buildMetricsFromTrainResponse(res, activeModel) }));
+      const modelLabel = activeModel === "xgboost" ? "XGBoost" : "Linear Regression";
+      setTrainMessage(res.message ?? `Model ${modelLabel} berhasil dilatih dari file CSV.`);
+      const metrics = buildMetricsFromTrainResponse(res, activeModel);
+      setModelMetrics(prev => ({ ...prev, [activeModel]: metrics }));
+
+      if (modelResults[activeModel].length > 0 && alternatives.length > 0) {
+        try {
+          const altMap = new Map(alternatives.map((a) => [Number(a.id), a.values as Record<string, number>]));
+          const batchRes = await predictAllSuppliers(activeModel);
+          const built = buildRiskResults(batchRes.results, altMap);
+          built.sort((a, b) => a.risk_score - b.risk_score);
+          setModelResults(prev => ({ ...prev, [activeModel]: built }));
+        } catch {
+          // ignore prediction refresh failure
+        }
+      }
     } catch (e: any) {
       setTrainError(e?.message ?? "Gagal melatih model dari file CSV.");
     } finally {
       setIsTraining(false);
     }
-  }, [activeModel]);
+  }, [activeModel, alternatives, buildRiskResults, modelResults]);
   // ── Model change handler — task 3 ────────────────────────────────────
   // Called by the toggle inside RiskPredictionPanel instead of setActiveModel
   // directly. Caches existing results and only triggers a new pipeline run

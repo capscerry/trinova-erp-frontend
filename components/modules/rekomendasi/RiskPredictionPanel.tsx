@@ -466,7 +466,11 @@ function MetricCell({
         "text-[14px] font-bold tabular-nums font-mono",
         good ? "text-emerald-600" : bad ? "text-rose-500" : "text-navy-900",
       )}>
-        {typeof value === "number" ? value.toFixed(4) : value}
+        {typeof value === "number"
+          ? Number.isInteger(value)
+            ? value.toLocaleString("id-ID")
+            : value.toFixed(4)
+          : value}
       </span>
     </div>
   );
@@ -639,6 +643,7 @@ function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
   const hasCurve = m.learningCurve.length >= 2;
   const hasCv    = m.cvFolds.length > 0;
   const hasSplit = m.testMetrics.n > 0 || m.trainMetrics.n > 0;
+  const modelLabel = m.model_type === "linear_regression" ? "Linear Regression" : "XGBoost";
 
   // Decide which tabs to show based on available data
   const tabs = [
@@ -663,7 +668,9 @@ function BackendMetricsCard({ m }: { m: BackendModelMetrics }) {
       >
         <div className="flex items-center gap-2 flex-wrap">
           <FlaskConical size={13} className="text-blue-500" />
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Metrik Model ML</span>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+            Metrik Model ML ({modelLabel})
+          </span>
           {m.samples_trained != null && m.samples_trained > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold border border-blue-200">
               {m.samples_trained} sampel latih · {m.samples_tested ?? 0} sampel uji

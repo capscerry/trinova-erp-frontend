@@ -220,7 +220,7 @@ export const predictSupplierRiskRaw = async (
 ): Promise<RawPredictData> => {
   const activeModel = getActiveModel(modelType);
   const res = await api.get(`/supplier-risk/predict/${supplierId}`, {
-    params: { model_type: activeModel },
+    params: { model_type: activeModel, modelType: activeModel },
   });
   const data = unwrap<RawPredictData>(res);
   return {
@@ -235,7 +235,11 @@ export const trainFromServerCsv = async (
   modelType?: ProductionModelType | null,
 ): Promise<TrainResponse> => {
   const activeModel = getActiveModel(modelType);
-  const res = await api.post("/supplier-risk/train", { model_type: activeModel });
+  const res = await api.post(
+    "/supplier-risk/train",
+    { model_type: activeModel, modelType: activeModel },
+    { params: { model_type: activeModel, modelType: activeModel } },
+  );
   const data = unwrap<TrainResponse>(res);
   return {
     ...data,
@@ -250,10 +254,16 @@ export const trainFromErp = async (
   modelType?: ProductionModelType | null,
 ): Promise<TrainResponse> => {
   const activeModel = getActiveModel(modelType);
-  const res = await api.post("/supplier-risk/train/from-erp", {
-    append_to_existing: appendToExisting,
-    model_type: activeModel,
-  });
+  const res = await api.post(
+    "/supplier-risk/train/from-erp",
+    {
+      append_to_existing: appendToExisting,
+      appendToExisting,
+      model_type: activeModel,
+      modelType: activeModel,
+    },
+    { params: { model_type: activeModel, modelType: activeModel } },
+  );
   const data = unwrap<TrainResponse>(res);
   return {
     ...data,
@@ -266,12 +276,25 @@ export const trainFromErp = async (
 export const trainFromRows = async (
   rows: TrainRow[],
   appendToExisting = true,
+  modelType?: ProductionModelType | null,
 ): Promise<TrainResponse> => {
-  const res = await api.post("/supplier-risk/train/from-rows", {
-    rows,
-    append_to_existing: appendToExisting,
-  });
-  return unwrap<TrainResponse>(res);
+  const activeModel = getActiveModel(modelType);
+  const res = await api.post(
+    "/supplier-risk/train/from-rows",
+    {
+      rows,
+      append_to_existing: appendToExisting,
+      appendToExisting,
+      model_type: activeModel,
+      modelType: activeModel,
+    },
+    { params: { model_type: activeModel, modelType: activeModel } },
+  );
+  const data = unwrap<TrainResponse>(res);
+  return {
+    ...data,
+    model_type: data?.model_type ?? activeModel,
+  };
 };
 
 // ─── Train — CSV file upload ──────────────────────────────────────────────────
@@ -284,7 +307,9 @@ export const trainFromCsvUpload = async (
   const form = new FormData();
   form.append("file", file);
   form.append("model_type", activeModel);
+  form.append("modelType", activeModel);
   const res = await api.post("/supplier-risk/train/from-csv-upload", form, {
+    params: { model_type: activeModel, modelType: activeModel },
     headers: { "Content-Type": "multipart/form-data" },
   });
   const data = unwrap<TrainResponse>(res);
@@ -340,7 +365,7 @@ export const predictAllSuppliers = async (
 ): Promise<BatchPredictResponse> => {
   const activeModel = getActiveModel(modelType);
   const res = await api.get("/supplier-risk/predict/all", {
-    params: { model_type: activeModel },
+    params: { model_type: activeModel, modelType: activeModel },
   });
   const data = unwrap<any>(res);
   // Backend may return { results: [...], total: N, model_type?: "..." } or just an array
