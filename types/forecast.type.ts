@@ -7,3 +7,25 @@ export interface Forecast {
   forecast_next_month: number;
   generated_at: string;
 }
+
+// ============================================================
+// AI MODEL COMPARISON
+// ============================================================
+
+export interface ModelComparisonResult {
+  model: string;
+  mae: number;
+  rmse: number;
+  r2: number;
+  productsEvaluated?: number;
+}
+
+export interface ModelComparisonResponse {
+  evaluationMethod: string;
+  trainingPeriod: string;
+  testingPeriod: string;
+  totalProducts: number;
+  productsEvaluated: number;
+  bestModel: string;
+  models: ModelComparisonResult[];
+}
